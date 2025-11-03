@@ -132,14 +132,23 @@ $ open
 엔드포인트: https://...
 
 명령어:
-  /exit, /quit  - 종료
-  /context      - 대화 히스토리 보기
-  /clear        - 대화 히스토리 초기화
-  /help         - 도움말
+  /exit, /quit    - 종료
+  /context        - 대화 히스토리 보기
+  /clear          - 대화 히스토리 초기화
+  /save [name]    - 현재 대화 저장
+  /load           - 저장된 대화 불러오기
+  /sessions       - 저장된 대화 목록 보기
+  /help           - 도움말
 
 ? You: Hello! How are you?
 
 🤖 Assistant: Hello! I'm doing well, thank you! How can I help you today?
+
+? You: /save my-first-chat
+
+✅ 대화가 저장되었습니다!
+  이름: my-first-chat
+  메시지: 2개
 
 ? You: /exit
 👋 Goodbye!
@@ -181,6 +190,50 @@ node dist/cli.js help
 # 버전 확인
 node dist/cli.js --version
 ```
+
+#### 세션 관리 (Phase 2 신기능!)
+
+대화를 저장하고 나중에 다시 불러올 수 있습니다:
+
+```bash
+# Interactive Mode에서
+$ open
+
+? You: TypeScript의 제네릭에 대해 설명해줘
+
+🤖 Assistant: 제네릭은...
+
+? You: /save typescript-generics
+
+✅ 대화가 저장되었습니다!
+  이름: typescript-generics
+  메시지: 2개
+
+# 나중에 다시 시작
+$ open
+
+? You: /load
+? 불러올 대화를 선택하세요: typescript-generics (2개 메시지, 2025-11-03)
+
+✅ 대화가 복원되었습니다!
+  이름: typescript-generics
+  메시지: 2개
+
+# 계속 대화...
+? You: 그럼 유틸리티 타입은?
+
+# 저장된 모든 대화 보기
+? You: /sessions
+
+📋 저장된 대화 목록:
+
+  1. typescript-generics
+     메시지: 4개 | 모델: gemini-2.0-flash
+     생성: 2025. 11. 3.
+     "TypeScript의 제네릭에 대해 설명해줘"
+```
+
+**세션 파일 위치**: `~/.open-cli/sessions/`
 
 ### 5. 개발 모드
 

@@ -53,35 +53,179 @@
 
 ---
 
-## 📅 Phase 2: 상호작용 고도화 (6-12개월) - 진행률: 0%
+## 📅 Phase 2: 상호작용 고도화 (6-12개월) - 진행률: 25%
 
 ### 목표
 - ⬜ 인터랙티브 터미널 UI (Ink/React 기반)
 - ⬜ 고급 설정 관리 (다중 엔드포인트, 프로필)
 - ⬜ 로컬 문서 시스템 (오프라인 지식 베이스)
-- ⬜ 사용자 메모리/세션 관리 (영구 저장)
+- ✅ 사용자 메모리/세션 관리 (영구 저장)
 
 ---
 
 ## 🚀 진행 중인 작업
 
-### [IN PROGRESS] 2025-11-03: Phase 2 계획 및 첫 작업 시작
-
-**Phase 2 개요**:
-Phase 2는 사용자 경험을 대폭 향상시키는 단계입니다. 기본적인 CLI 기능을 넘어서 고급 UI/UX, 영구 세션 저장, 로컬 문서 검색 등을 구현합니다.
-
-**우선순위**:
-1. **세션 영구 저장** - 현재 메모리에만 있는 대화를 파일로 저장/복구
-2. **고급 설정 관리** - 다중 엔드포인트 관리, 프로필 시스템
-3. **로컬 문서 시스템** - 오프라인 지식 베이스 구축
-4. **향상된 UI** - Ink/React 기반 터미널 UI
-
-**다음 작업**:
-세션 영구 저장 기능부터 시작합니다.
+현재 진행 중인 작업 없음
 
 ---
 
 ## 📊 완료된 작업
+
+### [COMPLETED] 2025-11-03 22:00: 세션 영구 저장 (Session Persistence)
+
+**작업 내용**:
+1. SessionManager 클래스 구현
+2. 세션 저장/로드/목록 기능
+3. Interactive Mode에 메타 명령어 추가
+4. 세션 파일 시스템 구축
+
+**상태**: 완료됨 (COMPLETED) ✅
+
+**체크리스트**:
+- [x] SessionManager 클래스 구현 (src/core/session-manager.ts)
+- [x] 세션 저장 기능 (saveSession)
+- [x] 세션 로드 기능 (loadSession)
+- [x] 세션 목록 표시 (listSessions)
+- [x] 메타 명령어 추가:
+  - [x] /save [name] - 대화 저장
+  - [x] /load - 대화 불러오기 (선택 UI)
+  - [x] /sessions - 저장된 대화 목록
+- [x] 세션 파일 JSON 형식 정의
+- [x] README.md 업데이트 (사용 예시)
+- [x] 빌드 및 테스트 완료
+
+**구현 세부사항**:
+
+#### 1. SessionManager 클래스
+
+```typescript
+// src/core/session-manager.ts
+export interface SessionData {
+  metadata: {
+    id: string;
+    name: string;
+    createdAt: string;
+    updatedAt: string;
+    messageCount: number;
+    model: string;
+    endpoint: string;
+  };
+  messages: Message[];
+}
+
+class SessionManager {
+  async saveSession(name: string, messages: Message[]): Promise<string>
+  async loadSession(sessionId: string): Promise<SessionData | null>
+  async listSessions(): Promise<SessionSummary[]>
+  async deleteSession(sessionId: string): Promise<boolean>
+  async updateSession(sessionId: string, messages: Message[]): Promise<boolean>
+}
+```
+
+#### 2. 세션 파일 구조
+
+세션은 `~/.open-cli/sessions/` 디렉토리에 JSON 형식으로 저장됩니다:
+
+```json
+{
+  "metadata": {
+    "id": "session-1730635200000-abc123",
+    "name": "typescript-generics",
+    "createdAt": "2025-11-03T22:00:00.000Z",
+    "updatedAt": "2025-11-03T22:15:30.000Z",
+    "messageCount": 12,
+    "model": "gemini-2.0-flash",
+    "endpoint": "https://generativelanguage.googleapis.com/v1beta/openai/"
+  },
+  "messages": [
+    { "role": "user", "content": "TypeScript의 제네릭에 대해 설명해줘" },
+    { "role": "assistant", "content": "제네릭은..." },
+    ...
+  ]
+}
+```
+
+#### 3. Meta Commands
+
+**`/save [name]`** - 현재 대화 저장:
+```bash
+? You: /save typescript-generics
+
+✅ 대화가 저장되었습니다!
+  이름: typescript-generics
+  ID: session-1730635200000-abc123
+  메시지: 12개
+```
+
+**`/sessions`** - 저장된 대화 목록:
+```bash
+? You: /sessions
+
+📋 저장된 대화 목록:
+
+  1. typescript-generics
+     메시지: 12개 | 모델: gemini-2.0-flash
+     생성: 2025. 11. 3. 오후 10:00:00
+     "TypeScript의 제네릭에 대해 설명해줘"
+     ID: session-1730635200000-abc123
+
+  2. api-design
+     메시지: 8개 | 모델: gemini-2.0-flash
+     생성: 2025. 11. 3. 오후 9:30:00
+     "REST API 설계 원칙을 알려줘"
+     ID: session-1730633400000-def456
+```
+
+**`/load`** - 대화 불러오기 (대화형 선택):
+```bash
+? You: /load
+? 불러올 대화를 선택하세요:
+  › typescript-generics (12개 메시지, 2025. 11. 3.)
+    api-design (8개 메시지, 2025. 11. 3.)
+
+✅ 대화가 복원되었습니다!
+  이름: typescript-generics
+  메시지: 12개
+
+# 이전 대화 컨텍스트와 함께 계속 대화 가능
+? You: 그럼 유틸리티 타입은?
+```
+
+#### 4. 기술적 결정
+
+1. **파일 형식**: JSON (사람이 읽기 쉽고, 편집 가능)
+2. **파일명**: `{sessionId}.json` (고유 ID 기반)
+3. **세션 ID**: `session-{timestamp}-{random}` 형식
+4. **updatedAt 자동 갱신**: loadSession 시 자동 업데이트
+5. **세션 정렬**: 최근 업데이트 순 (updatedAt 기준)
+
+**이슈 및 해결**:
+
+1. **이슈**: ConfigManager에 configDir 속성 없음
+   - **해결**: SESSIONS_DIR constant 직접 사용
+
+2. **이슈**: Unused variable 'index' in map
+   - **해결**: 사용하지 않는 index 매개변수 제거
+
+**테스트 결과**:
+
+✅ SessionManager 클래스 생성 성공
+✅ /save 명령어 정상 작동
+✅ /sessions 목록 표시 정상
+✅ /load 대화형 선택 UI 정상
+✅ 세션 복원 후 context-aware 대화 정상
+✅ TypeScript 컴파일 성공
+✅ 세션 파일 생성 확인 (~/.open-cli/sessions/)
+
+**파일 변경**:
+- `src/core/session-manager.ts` (신규) - SessionManager 클래스
+- `src/cli.ts` - Meta commands 추가 (/save, /load, /sessions)
+- `README.md` - 세션 관리 섹션 추가
+- `PROGRESS.md` - Phase 2 25% 완료
+
+**Phase 2 진행률**: 0% → 25%
+
+---
 
 ### [COMPLETED] 2025-11-03 21:00: 대화형 모드 (Interactive Mode) 구현
 

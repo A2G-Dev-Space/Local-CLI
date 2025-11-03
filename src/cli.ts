@@ -13,6 +13,7 @@ import ora from 'ora';
 import inquirer from 'inquirer';
 import { configManager } from './core/config-manager';
 import { createLLMClient, LLMClient } from './core/llm-client';
+import { sessionManager } from './core/session-manager';
 import { EndpointConfig } from './types';
 
 const program = new Command();
@@ -54,10 +55,13 @@ program.action(async () => {
     console.log(chalk.dim(`모델: ${modelInfo.model}`));
     console.log(chalk.dim(`엔드포인트: ${modelInfo.endpoint}\n`));
     console.log(chalk.yellow('명령어:'));
-    console.log(chalk.white('  /exit, /quit  - 종료'));
-    console.log(chalk.white('  /context      - 대화 히스토리 보기'));
-    console.log(chalk.white('  /clear        - 대화 히스토리 초기화'));
-    console.log(chalk.white('  /help         - 도움말\n'));
+    console.log(chalk.white('  /exit, /quit    - 종료'));
+    console.log(chalk.white('  /context        - 대화 히스토리 보기'));
+    console.log(chalk.white('  /clear          - 대화 히스토리 초기화'));
+    console.log(chalk.white('  /save [name]    - 현재 대화 저장'));
+    console.log(chalk.white('  /load           - 저장된 대화 불러오기'));
+    console.log(chalk.white('  /sessions       - 저장된 대화 목록 보기'));
+    console.log(chalk.white('  /help           - 도움말\n'));
 
     // 메시지 히스토리
     const messages: import('./types').Message[] = [];
@@ -104,10 +108,121 @@ program.action(async () => {
 
       if (userMessage === '/help') {
         console.log(chalk.yellow('\n📚 Interactive Mode 도움말:\n'));
-        console.log(chalk.white('  /exit, /quit  - 종료'));
-        console.log(chalk.white('  /context      - 대화 히스토리 보기'));
-        console.log(chalk.white('  /clear        - 대화 히스토리 초기화'));
-        console.log(chalk.white('  /help         - 이 도움말\n'));
+        console.log(chalk.white('  /exit, /quit    - 종료'));
+        console.log(chalk.white('  /context        - 대화 히스토리 보기'));
+        console.log(chalk.white('  /clear          - 대화 히스토리 초기화'));
+        console.log(chalk.white('  /save [name]    - 현재 대화 저장'));
+        console.log(chalk.white('  /load           - 저장된 대화 불러오기'));
+        console.log(chalk.white('  /sessions       - 저장된 대화 목록 보기'));
+        console.log(chalk.white('  /help           - 이 도움말\n'));
+        continue;
+      }
+
+      // /save [name] - 세션 저장
+      if (userMessage.startsWith('/save')) {
+        const parts = userMessage.split(' ');
+        const sessionName = parts.slice(1).join(' ').trim() || `session-${new Date().toISOString().split('T')[0]}`;
+
+        if (messages.length === 0) {
+          console.log(chalk.yellow('\n⚠️  저장할 대화 내용이 없습니다.\n'));
+          continue;
+        }
+
+        try {
+          const sessionId = await sessionManager.saveSession(sessionName, messages);
+          console.log(chalk.green(`\n✅ 대화가 저장되었습니다!`));
+          console.log(chalk.dim(`  이름: ${sessionName}`));
+          console.log(chalk.dim(`  ID: ${sessionId}`));
+          console.log(chalk.dim(`  메시지: ${messages.length}개\n`));
+        } catch (error) {
+          console.error(chalk.red('\n❌ 세션 저장 실패:'));
+          if (error instanceof Error) {
+            console.error(chalk.red(error.message));
+          }
+          console.log();
+        }
+        continue;
+      }
+
+      // /sessions - 세션 목록
+      if (userMessage === '/sessions') {
+        try {
+          const sessions = await sessionManager.listSessions();
+
+          if (sessions.length === 0) {
+            console.log(chalk.yellow('\n저장된 대화가 없습니다.\n'));
+            continue;
+          }
+
+          console.log(chalk.yellow('\n📋 저장된 대화 목록:\n'));
+          sessions.forEach((session, index) => {
+            const createdDate = new Date(session.createdAt).toLocaleString('ko-KR');
+            console.log(chalk.white(`  ${index + 1}. ${chalk.bold(session.name)}`));
+            console.log(chalk.dim(`     메시지: ${session.messageCount}개 | 모델: ${session.model}`));
+            console.log(chalk.dim(`     생성: ${createdDate}`));
+            if (session.firstMessage) {
+              console.log(chalk.dim(`     "${session.firstMessage}${session.firstMessage.length >= 50 ? '...' : ''}"`));
+            }
+            console.log(chalk.dim(`     ID: ${session.id}`));
+            console.log();
+          });
+        } catch (error) {
+          console.error(chalk.red('\n❌ 세션 목록 조회 실패:'));
+          if (error instanceof Error) {
+            console.error(chalk.red(error.message));
+          }
+          console.log();
+        }
+        continue;
+      }
+
+      // /load - 세션 로드
+      if (userMessage === '/load') {
+        try {
+          const sessions = await sessionManager.listSessions();
+
+          if (sessions.length === 0) {
+            console.log(chalk.yellow('\n저장된 대화가 없습니다.\n'));
+            continue;
+          }
+
+          // 세션 선택
+          const choices = sessions.map((session) => ({
+            name: `${session.name} (${session.messageCount}개 메시지, ${new Date(session.createdAt).toLocaleDateString('ko-KR')})`,
+            value: session.id,
+          }));
+
+          const loadAnswer = await inquirer.prompt([
+            {
+              type: 'list',
+              name: 'sessionId',
+              message: '불러올 대화를 선택하세요:',
+              choices: choices,
+            },
+          ]);
+
+          // 세션 로드
+          const sessionData = await sessionManager.loadSession(loadAnswer.sessionId);
+
+          if (!sessionData) {
+            console.log(chalk.red('\n❌ 세션을 불러올 수 없습니다.\n'));
+            continue;
+          }
+
+          // 메시지 복원
+          messages.length = 0;
+          messages.push(...sessionData.messages);
+
+          console.log(chalk.green(`\n✅ 대화가 복원되었습니다!`));
+          console.log(chalk.dim(`  이름: ${sessionData.metadata.name}`));
+          console.log(chalk.dim(`  메시지: ${sessionData.messages.length}개\n`));
+        } catch (error) {
+          console.error(chalk.red('\n❌ 세션 로드 실패:'));
+          if (error instanceof Error) {
+            console.error(chalk.red(error.message));
+          }
+          console.log();
+        }
         continue;
       }
 
