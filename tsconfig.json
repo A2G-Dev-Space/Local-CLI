@@ -3,14 +3,14 @@
     /* Language and Environment */
     "target": "ES2022",
     "lib": ["ES2022"],
-    "module": "CommonJS",
+    "module": "NodeNext",
     "jsx": "react",
     "jsxFactory": "React.createElement",
     "jsxFragmentFactory": "React.Fragment",
 
     /* Modules */
     "rootDir": "./src",
-    "moduleResolution": "node",
+    "moduleResolution": "NodeNext",
     "baseUrl": "./",
     "paths": {
       "@/*": ["src/*"]
@@ -58,7 +58,6 @@
     "node_modules",
     "dist",
     "**/*.spec.ts",
-    "**/*.test.ts",
-    "src/ui/**/*"
+    "**/*.test.ts"
   ]
 }

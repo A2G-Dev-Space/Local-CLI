@@ -4,7 +4,7 @@
  * LLM 관련 에러들
  */
 
-import { BaseError, ErrorOptions } from './base';
+import { BaseError, ErrorOptions } from './base.js';
 
 /**
  * LLMError - 일반 LLM 에러

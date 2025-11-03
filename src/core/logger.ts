@@ -7,8 +7,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as chalk from 'chalk';
-import { LOGS_DIR } from '../constants';
-import { ensureDirectory } from '../utils/file-system';
+import { LOGS_DIR } from '../constants.js';
+import { ensureDirectory } from '../utils/file-system.js';
 
 /**
  * 로그 레벨

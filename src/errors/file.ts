@@ -4,7 +4,7 @@
  * 파일 시스템 관련 에러들
  */
 
-import { BaseError, ErrorOptions } from './base';
+import { BaseError, ErrorOptions } from './base.js';
 
 /**
  * FileSystemError - 일반 파일 시스템 에러

@@ -7,7 +7,7 @@
 
 import fs from 'fs/promises';
 import path from 'path';
-import { DOCS_DIR } from '../constants';
+import { DOCS_DIR } from '../constants.js';
 
 /**
  * 문서 메타데이터 인터페이스

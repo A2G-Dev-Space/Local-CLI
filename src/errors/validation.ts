@@ -4,7 +4,7 @@
  * 유효성 검증 관련 에러들
  */
 
-import { BaseError, ErrorOptions } from './base';
+import { BaseError, ErrorOptions } from './base.js';
 
 /**
  * ValidationError - 일반 유효성 검증 에러

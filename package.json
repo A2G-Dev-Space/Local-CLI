@@ -2,6 +2,7 @@
   "name": "open-cli",
   "version": "0.1.0",
   "description": "OPEN-CLI - 오프라인 기업 환경을 위한 완전한 로컬 LLM CLI 플랫폼",
+  "type": "module",
   "main": "dist/index.js",
   "bin": {
     "open": "dist/cli.js"
@@ -52,11 +53,13 @@
     "@types/react": "^19.2.2",
     "@typescript-eslint/eslint-plugin": "^6.15.0",
     "@typescript-eslint/parser": "^6.15.0",
+    "esbuild": "^0.25.12",
     "eslint": "^8.56.0",
     "jest": "^30.2.0",
     "prettier": "^3.1.1",
     "ts-jest": "^29.4.5",
     "ts-node": "^10.9.2",
+    "tsx": "^4.20.6",
     "typescript": "^5.3.3"
   }
 }

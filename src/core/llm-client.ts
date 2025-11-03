@@ -6,8 +6,8 @@
  */
 
 import axios, { AxiosInstance, AxiosError } from 'axios';
-import { Message, LLMRequestOptions } from '../types';
-import { configManager } from './config-manager';
+import { Message, LLMRequestOptions } from '../types/index.js';
+import { configManager } from './config-manager.js';
 
 /**
  * LLM 응답 인터페이스 (OpenAI Compatible)
@@ -213,7 +213,7 @@ export class LLMClient {
    */
   async sendMessageWithTools(
     userMessage: string,
-    tools: import('../types').ToolDefinition[],
+    tools: import('../types/index.js').ToolDefinition[],
     systemPrompt?: string,
     maxIterations: number = 5
   ): Promise<{ response: string; toolCalls: Array<{ tool: string; args: unknown; result: string }> }> {
@@ -259,7 +259,7 @@ export class LLMClient {
           const toolArgs = JSON.parse(toolCall.function.arguments) as Record<string, unknown>;
 
           // Tool 실행 (외부에서 주입받아야 함 - 여기서는 import)
-          const { executeFileTool } = await import('../tools/file-tools');
+          const { executeFileTool } = await import('../tools/file-tools.js');
           const result = await executeFileTool(toolName, toolArgs);
 
           // 결과를 메시지에 추가

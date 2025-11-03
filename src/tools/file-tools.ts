@@ -6,7 +6,7 @@
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { ToolDefinition } from '../types';
+import { ToolDefinition } from '../types/index.js';
 
 /**
  * read_file Tool 정의

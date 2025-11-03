@@ -4,7 +4,7 @@
  * 재시도 로직 및 지수 백오프 구현
  */
 
-import { BaseError, isRecoverableError } from '../errors';
+import { BaseError, isRecoverableError } from '../errors/index.js';
 
 export interface RetryOptions {
   /**

@@ -5,7 +5,7 @@
  * ~/.open-cli/ 디렉토리 및 설정 파일 관리
  */
 
-import { OpenConfig, EndpointConfig, ModelInfo } from '../types';
+import { OpenConfig, EndpointConfig, ModelInfo } from '../types/index.js';
 import {
   OPEN_HOME_DIR,
   CONFIG_FILE_PATH,
@@ -13,13 +13,13 @@ import {
   DOCS_DIR,
   BACKUPS_DIR,
   LOGS_DIR,
-} from '../constants';
+} from '../constants.js';
 import {
   ensureDirectory,
   readJsonFile,
   writeJsonFile,
   directoryExists,
-} from '../utils/file-system';
+} from '../utils/file-system.js';
 
 /**
  * 기본 설정 (빈 엔드포인트)

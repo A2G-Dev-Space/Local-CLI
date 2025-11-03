@@ -4,14 +4,14 @@
  * 모든 커스텀 에러 클래스를 export
  */
 
-import { BaseError as BaseErrorClass } from './base';
+import { BaseError as BaseErrorClass } from './base.js';
 
 // Base
 export {
   BaseError,
   ErrorDetails,
   ErrorOptions,
-} from './base';
+} from './base.js';
 
 // Network
 export {
@@ -19,7 +19,7 @@ export {
   APIError,
   TimeoutError,
   ConnectionError,
-} from './network';
+} from './network.js';
 
 // Config
 export {
@@ -28,7 +28,7 @@ export {
   ConfigNotFoundError,
   InvalidConfigError,
   EndpointNotFoundError,
-} from './config';
+} from './config.js';
 
 // Validation
 export {
@@ -36,7 +36,7 @@ export {
   InputError,
   RequiredFieldError,
   InvalidFormatError,
-} from './validation';
+} from './validation.js';
 
 // LLM
 export {
@@ -46,7 +46,7 @@ export {
   TokenLimitError,
   RateLimitError,
   ContextLengthError,
-} from './llm';
+} from './llm.js';
 
 // File System
 export {
@@ -57,7 +57,7 @@ export {
   FileReadError,
   FileWriteError,
   InvalidPathError,
-} from './file';
+} from './file.js';
 
 /**
  * 에러 타입 체크 유틸리티

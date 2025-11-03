@@ -4,7 +4,7 @@
  * 네트워크 관련 에러들
  */
 
-import { BaseError, ErrorOptions } from './base';
+import { BaseError, ErrorOptions } from './base.js';
 
 /**
  * NetworkError - 일반 네트워크 에러

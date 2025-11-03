@@ -4,7 +4,7 @@
  * 설정 관련 에러들
  */
 
-import { BaseError, ErrorOptions } from './base';
+import { BaseError, ErrorOptions } from './base.js';
 
 /**
  * ConfigError - 일반 설정 에러

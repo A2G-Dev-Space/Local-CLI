@@ -6,9 +6,9 @@
 
 import fs from 'fs/promises';
 import path from 'path';
-import { Message } from '../types';
-import { configManager } from './config-manager';
-import { SESSIONS_DIR } from '../constants';
+import { Message } from '../types/index.js';
+import { configManager } from './config-manager.js';
+import { SESSIONS_DIR } from '../constants.js';
 
 /**
  * 세션 메타데이터 인터페이스

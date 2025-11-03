@@ -11,11 +11,14 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
 import inquirer from 'inquirer';
-import { configManager } from './core/config-manager';
-import { createLLMClient, LLMClient } from './core/llm-client';
-import { sessionManager } from './core/session-manager';
-import { documentManager } from './core/document-manager';
-import { EndpointConfig } from './types';
+import React from 'react';
+import { render } from 'ink';
+import { configManager } from './core/config-manager.js';
+import { createLLMClient, LLMClient } from './core/llm-client.js';
+import { sessionManager } from './core/session-manager.js';
+import { documentManager } from './core/document-manager.js';
+import { EndpointConfig, Message } from './types/index.js';
+import { InteractiveApp } from './ui/components/InteractiveApp.js';
 
 const program = new Command();
 
@@ -29,7 +32,7 @@ program.name('open').description('OPEN-CLI - 오프라인 기업용 AI 코딩 �
  */
 program
   .option('--classic', 'Use classic inquirer-based UI instead of Ink UI')
-  .action(async () => {
+  .action(async (options: { classic?: boolean }) => {
   try {
     // ConfigManager 초기화 확인
     const isInitialized = await configManager.isInitialized();
@@ -51,8 +54,21 @@ program
     const llmClient = createLLMClient();
     const modelInfo = llmClient.getModelInfo();
 
-    // Ink UI는 현재 비활성화됨 (빌드 이슈로 인해)
-    // --classic 플래그와 관계없이 Classic UI 사용
+    // Ink UI 사용 (--classic 플래그가 없으면 기본값)
+    if (!options.classic) {
+      console.log(chalk.cyan('🚀 Starting Ink UI...\n'));
+
+      // Ink UI를 같은 프로세스에서 직접 렌더링 (stdin raw mode 유지)
+      try {
+        render(React.createElement(InteractiveApp, { llmClient, modelInfo }));
+      } catch (error) {
+        console.log(chalk.yellow('\n⚠️  Ink UI를 시작할 수 없습니다.\n'));
+        console.log(chalk.dim(`Error: ${error instanceof Error ? error.message : String(error)}\n`));
+        process.exit(1);
+      }
+
+      return;
+    }
 
     // Classic UI (inquirer 기반)
     // 환영 메시지
@@ -74,7 +90,7 @@ program
     console.log(chalk.dim('Tip: Use "open" without --classic for modern Ink UI\n'));
 
     // 메시지 히스토리
-    const messages: import('./types').Message[] = [];
+    const messages: Message[] = [];
 
     // Interactive loop
     let running = true;
@@ -1431,7 +1447,7 @@ program
       const modelInfo = llmClient.getModelInfo();
 
       // File Tools import
-      const { FILE_TOOLS } = await import('./tools/file-tools');
+      const { FILE_TOOLS } = await import('./tools/file-tools.js');
 
       console.log(chalk.cyan('\n🛠️  OPEN-CLI Tools Mode\n'));
       console.log(chalk.dim('모델: ' + modelInfo.model));
