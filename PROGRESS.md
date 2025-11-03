@@ -46,7 +46,8 @@
 
 ### 목표
 - ✅ 기본 CLI 프레임워크 구축
-- ⬜ 로컬 모델 엔드포인트 연결
+- ✅ 설정 파일 시스템 구축
+- ⬜ 로컬 모델 엔드포인트 연결 (OpenAI Compatible API 클라이언트)
 - ⬜ 파일 시스템 도구
 - ⬜ 기본 명령어 시스템
 
@@ -59,6 +60,202 @@
 ---
 
 ## 📊 완료된 작업
+
+### [COMPLETED] 2025-11-03 14:15: 설정 파일 시스템 구축
+
+**작업 내용**:
+1. ConfigManager 클래스 구현
+2. 파일 시스템 유틸리티 구현
+3. 프로젝트 상수 정의
+4. CLI config 명령어 추가 (init, show, reset)
+5. Gemini 2.0 Flash 기본 엔드포인트 설정
+
+**상태**: 완료됨 (COMPLETED) ✅
+
+**체크리스트**:
+- [x] ConfigManager 클래스 구현
+- [x] ~/.a2g-cli/ 디렉토리 자동 생성
+- [x] config.json 파일 읽기/쓰기
+- [x] 파일 시스템 유틸리티
+- [x] config CLI 명령어
+- [x] Gemini 엔드포인트 설정
+
+**구현 세부사항**:
+
+#### 1. ConfigManager (src/core/config-manager.ts)
+```typescript
+export class ConfigManager {
+  // 주요 메서드:
+  - initialize(): 디렉토리 및 설정 파일 생성
+  - getConfig(): 현재 설정 가져오기
+  - getCurrentEndpoint(): 현재 엔드포인트 정보
+  - getCurrentModel(): 현재 모델 정보
+  - addEndpoint(): 엔드포인트 추가
+  - removeEndpoint(): 엔드포인트 삭제
+  - setCurrentEndpoint(): 엔드포인트 변경
+  - setCurrentModel(): 모델 변경
+  - updateSettings(): 설정 업데이트
+  - reset(): 설정 초기화
+}
+```
+
+**특징**:
+- 싱글톤 패턴으로 전역 인스턴스 제공
+- 자동 초기화 (디렉토리 및 파일 생성)
+- JSON 기반 설정 저장
+- 엔드포인트 및 모델 관리
+- 타입 안정성 (TypeScript strict mode)
+
+#### 2. 파일 시스템 유틸리티 (src/utils/file-system.ts)
+```typescript
+// 주요 함수:
+- directoryExists(): 디렉토리 존재 확인
+- fileExists(): 파일 존재 확인
+- ensureDirectory(): 디렉토리 생성 (재귀적)
+- readJsonFile<T>(): JSON 파일 읽기 (타입 안전)
+- writeJsonFile<T>(): JSON 파일 쓰기
+- readTextFile(): 텍스트 파일 읽기
+- writeTextFile(): 텍스트 파일 쓰기
+- getFileSize(): 파일 크기 조회
+```
+
+**특징**:
+- Promise 기반 비동기 API
+- 타입 제네릭 지원 (readJsonFile<T>, writeJsonFile<T>)
+- 에러 처리 및 명확한 에러 메시지
+- 자동 디렉토리 생성
+
+#### 3. 프로젝트 상수 (src/constants.ts)
+```typescript
+// 디렉토리 경로
+export const A2G_HOME_DIR = '~/.a2g-cli/'
+export const CONFIG_FILE_PATH = '~/.a2g-cli/config.json'
+export const SESSIONS_DIR = '~/.a2g-cli/sessions/'
+export const DOCS_DIR = '~/.a2g-cli/docs/'
+export const BACKUPS_DIR = '~/.a2g-cli/backups/'
+export const LOGS_DIR = '~/.a2g-cli/logs/'
+
+// 기본 설정
+export const DEFAULT_ENDPOINT_ID = 'ep-gemini-default'
+export const DEFAULT_MODEL_ID = 'gemini-2.0-flash'
+```
+
+#### 4. 기본 Gemini 엔드포인트 설정
+```json
+{
+  "id": "ep-gemini-default",
+  "name": "Gemini 2.0 Flash (Default)",
+  "baseUrl": "https://generativelanguage.googleapis.com/v1beta/openai/",
+  "apiKey": "AIzaSyAZWTQSWpv7SwK2WeIE28Oy3tjHDE4b5GI",
+  "models": [{
+    "id": "gemini-2.0-flash",
+    "name": "Gemini 2.0 Flash",
+    "maxTokens": 1048576,  // 1M tokens
+    "enabled": true,
+    "healthStatus": "healthy"
+  }],
+  "priority": 1,
+  "description": "Google Gemini 2.0 Flash model via OpenAI-compatible API"
+}
+```
+
+**특징**:
+- OpenAI 호환 API 엔드포인트
+- 1M 토큰 컨텍스트 윈도우
+- 기본 활성화 및 정상 상태
+
+#### 5. CLI config 명령어
+**a2g config init**:
+```bash
+$ a2g config init
+🚀 A2G-CLI 초기화 중...
+
+✅ 초기화 완료!
+
+생성된 디렉토리 및 파일:
+  ~/.a2g-cli/
+  ~/.a2g-cli/config.json
+  ~/.a2g-cli/sessions/
+  ~/.a2g-cli/docs/
+  ~/.a2g-cli/backups/
+  ~/.a2g-cli/logs/
+
+📡 기본 엔드포인트 설정:
+  이름: Gemini 2.0 Flash (Default)
+  URL: https://generativelanguage.googleapis.com/v1beta/openai/
+  모델: Gemini 2.0 Flash (gemini-2.0-flash)
+```
+
+**a2g config show**:
+```bash
+$ a2g config show
+📋 A2G-CLI 설정
+
+현재 엔드포인트:
+  ID: ep-gemini-default
+  이름: Gemini 2.0 Flash (Default)
+  URL: https://generativelanguage.googleapis.com/v1beta/openai/
+  API Key: ******** (마스킹됨)
+  우선순위: 1
+
+현재 모델:
+  ID: gemini-2.0-flash
+  이름: Gemini 2.0 Flash
+  최대 토큰: 1,048,576
+  상태: ✅ 활성
+  헬스: 🟢 정상
+
+전체 설정:
+  버전: 0.1.0
+  등록된 엔드포인트: 1개
+  자동 승인: ❌ OFF
+  디버그 모드: ❌ OFF
+  스트리밍 응답: ✅ ON
+  자동 저장: ✅ ON
+```
+
+**a2g config reset**:
+```bash
+$ a2g config reset
+⚠️  경고: 모든 설정이 초기화됩니다.
+세션 및 백업은 유지됩니다.
+
+✅ 설정이 초기화되었습니다.
+```
+
+**테스트 결과**:
+- ✅ config init: 디렉토리 및 파일 생성 확인
+- ✅ config show: 설정 표시 및 API 키 마스킹 확인
+- ✅ config reset: 설정 초기화 확인
+- ✅ 이미 초기화된 경우 경고 메시지 확인
+- ✅ TypeScript 빌드 성공 (tsc 에러 없음)
+- ✅ ESLint 검사 통과
+- ✅ Prettier 포맷팅 적용
+
+**생성된 파일 구조**:
+```
+~/.a2g-cli/
+├── config.json           # 설정 파일 (881 bytes)
+├── sessions/             # 세션 저장 디렉토리
+├── docs/                 # 로컬 문서 디렉토리
+├── backups/              # 백업 디렉토리
+└── logs/                 # 로그 디렉토리
+```
+
+**이슈 및 해결**:
+- ⚠️ ENDPOINTS_FILE_PATH 미사용 경고
+  - **해결**: import에서 제거 (추후 멀티 엔드포인트 관리 시 사용 예정)
+- ✅ API 키 노출 방지 (config show에서 마스킹 처리)
+
+**Git Commit**:
+- Commit Hash: `a1df98e`
+- Commit Message: "feat: 설정 파일 시스템 구축 및 config 명령어 구현"
+
+**완료 시간**: 2025-11-03 14:15
+
+**소요 시간**: 약 1.5시간
+
+---
 
 ### [COMPLETED] 2025-11-03: 프로젝트 초기 설정 및 기본 CLI 프레임워크
 
@@ -256,18 +453,19 @@ Phase 1 기능이 현재 개발 중입니다.
 
 ## 📈 진행률
 
-### Phase 1 진행률: 15%
+### Phase 1 진행률: 25%
 ```
-[███░░░░░░░░░░░░░░░░░] 15%
+[█████░░░░░░░░░░░░░░░] 25%
 ```
 
-**완료**: 2 / 15 작업
+**완료**: 3 / 12 작업
 **진행 중**: 0
-**계획됨**: 4
+**계획됨**: 3
 
 ### 작업 완료 이력
 - ✅ PROGRESS.md 생성 (5%)
 - ✅ 프로젝트 초기 설정 및 기본 CLI 프레임워크 (15%)
+- ✅ 설정 파일 시스템 구축 (25%)
 
 ---
 
@@ -278,6 +476,40 @@ Phase 1 기능이 현재 개발 중입니다.
 ---
 
 ## 💡 기술적 결정 로그
+
+### 2025-11-03: 싱글톤 패턴으로 ConfigManager 구현
+**결정**: ConfigManager를 싱글톤 패턴으로 구현
+**이유**:
+- 전역적으로 하나의 설정 인스턴스만 유지
+- 메모리 효율성
+- 일관된 설정 상태 보장
+**영향**:
+- `export const configManager = new ConfigManager()` 형태로 export
+- 모든 모듈에서 동일한 인스턴스 공유
+
+### 2025-11-03: Promise 기반 비동기 파일 시스템 API
+**결정**: fs.promises 대신 promisify 사용
+**이유**:
+- Node.js 10+ 호환성
+- 명시적인 에러 처리
+- 커스텀 에러 메시지 추가 가능
+**영향**:
+- 모든 파일 시스템 작업이 async/await 패턴
+- try-catch로 명확한 에러 처리
+
+### 2025-11-03: JSON 기반 설정 저장
+**결정**: SQLite 대신 JSON 파일로 설정 저장
+**이유**:
+- 간단한 설정 구조
+- 사람이 읽고 수정 가능
+- 의존성 최소화 (SQLite 패키지 불필요)
+- 백업 및 공유 용이
+**대안 검토**:
+- SQLite: 복잡한 쿼리 불필요, 오버스펙
+- YAML: JSON이 JavaScript 네이티브, 파싱 빠름
+**영향**:
+- config.json 파일 하나로 모든 설정 관리
+- 향후 세션/히스토리는 SQLite 사용 검토
 
 ### 2025-11-03: TypeScript Strict Mode 사용
 **결정**: TypeScript Strict Mode 전체 활성화
@@ -325,5 +557,5 @@ Phase 1 기능이 현재 개발 중입니다.
 
 ---
 
-**마지막 업데이트**: 2025-11-03 13:46
-**다음 업데이트 예정**: 설정 파일 시스템 구축 완료 후
+**마지막 업데이트**: 2025-11-03 14:15
+**다음 업데이트 예정**: OpenAI Compatible API 클라이언트 구현 완료 후
