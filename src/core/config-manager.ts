@@ -13,8 +13,6 @@ import {
   DOCS_DIR,
   BACKUPS_DIR,
   LOGS_DIR,
-  DEFAULT_ENDPOINT_ID,
-  DEFAULT_MODEL_ID,
 } from '../constants';
 import {
   ensureDirectory,
@@ -24,36 +22,13 @@ import {
 } from '../utils/file-system';
 
 /**
- * 기본 Gemini 엔드포인트 설정
- */
-const DEFAULT_GEMINI_ENDPOINT: EndpointConfig = {
-  id: DEFAULT_ENDPOINT_ID,
-  name: 'Gemini 2.0 Flash (Default)',
-  baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai/',
-  apiKey: 'AIzaSyAZWTQSWpv7SwK2WeIE28Oy3tjHDE4b5GI',
-  models: [
-    {
-      id: 'gemini-2.0-flash',
-      name: 'Gemini 2.0 Flash',
-      maxTokens: 1048576, // 1M tokens
-      enabled: true,
-      healthStatus: 'healthy',
-    },
-  ],
-  priority: 1,
-  description: 'Google Gemini 2.0 Flash model via OpenAI-compatible API',
-  createdAt: new Date(),
-  updatedAt: new Date(),
-};
-
-/**
- * 기본 설정
+ * 기본 설정 (빈 엔드포인트)
  */
 const DEFAULT_CONFIG: OpenConfig = {
   version: '0.1.0',
-  currentEndpoint: DEFAULT_ENDPOINT_ID,
-  currentModel: DEFAULT_MODEL_ID,
-  endpoints: [DEFAULT_GEMINI_ENDPOINT],
+  currentEndpoint: undefined,
+  currentModel: undefined,
+  endpoints: [],
   settings: {
     autoApprove: false,
     debugMode: false,
@@ -187,16 +162,20 @@ export class ConfigManager {
   async removeEndpoint(endpointId: string): Promise<void> {
     const config = this.getConfig();
 
-    // 기본 엔드포인트는 삭제 불가
-    if (endpointId === DEFAULT_ENDPOINT_ID) {
-      throw new Error('Cannot remove default endpoint');
-    }
-
     config.endpoints = config.endpoints.filter((ep) => ep.id !== endpointId);
 
-    // 현재 엔드포인트가 삭제된 경우 기본값으로 변경
+    // 현재 엔드포인트가 삭제된 경우 첫 번째 엔드포인트로 변경 (또는 undefined)
     if (config.currentEndpoint === endpointId) {
-      config.currentEndpoint = DEFAULT_ENDPOINT_ID;
+      const firstEndpoint = config.endpoints[0];
+      config.currentEndpoint = firstEndpoint?.id;
+
+      // 첫 번째 엔드포인트의 첫 번째 모델로 변경
+      if (firstEndpoint) {
+        const firstModel = firstEndpoint.models.find((m) => m.enabled);
+        config.currentModel = firstModel?.id;
+      } else {
+        config.currentModel = undefined;
+      }
     }
 
     await this.saveConfig();
@@ -262,6 +241,38 @@ export class ConfigManager {
    */
   async isInitialized(): Promise<boolean> {
     return await directoryExists(OPEN_HOME_DIR);
+  }
+
+  /**
+   * 엔드포인트 존재 여부 확인
+   */
+  hasEndpoints(): boolean {
+    if (!this.config) {
+      return false;
+    }
+    return this.config.endpoints.length > 0;
+  }
+
+  /**
+   * 초기 엔드포인트 생성
+   * 첫 번째 엔드포인트를 추가하고 자동으로 현재 엔드포인트/모델로 설정
+   */
+  async createInitialEndpoint(endpoint: EndpointConfig): Promise<void> {
+    const config = this.getConfig();
+
+    // 첫 엔드포인트 추가
+    config.endpoints.push(endpoint);
+
+    // 자동으로 현재 엔드포인트/모델로 설정
+    config.currentEndpoint = endpoint.id;
+
+    // 첫 번째 활성 모델을 현재 모델로 설정
+    const activeModel = endpoint.models.find((m) => m.enabled);
+    if (activeModel) {
+      config.currentModel = activeModel.id;
+    }
+
+    await this.saveConfig();
   }
 
   /**

@@ -61,6 +61,211 @@
 
 ## 📊 완료된 작업
 
+### [COMPLETED] 2025-11-03 18:00: 보안 개선 - Interactive Init & Health Check
+
+**작업 내용**:
+1. 하드코딩된 API 키 제거 (보안 개선)
+2. config init을 대화형으로 변경 (inquirer 사용)
+3. 엔드포인트 연결 테스트 (Health Check) 추가
+4. HTTP/HTTPS 엔드포인트 모두 지원
+5. 사용자가 직접 API 키 입력하도록 변경
+6. 모든 문서에서 노출된 API 키 제거
+
+**상태**: 완료됨 (COMPLETED) ✅
+
+**체크리스트**:
+- [x] config-manager.ts에서 하드코딩된 API 키 제거
+- [x] LLMClient에 정적 testConnection 메서드 추가
+- [x] cli.ts config init을 inquirer 기반 대화형으로 변경
+- [x] HTTP/HTTPS URL 검증 추가
+- [x] API 키 입력 (password 모드)
+- [x] 연결 테스트 후 저장
+- [x] PROGRESS.md에서 API 키 제거
+- [x] 빌드 테스트 (tsc 컴파일 성공)
+- [x] 기본 동작 테스트 (초기화 전 상태)
+
+**구현 세부사항**:
+
+#### 1. 변경된 파일 목록
+- **src/core/config-manager.ts**: DEFAULT_GEMINI_ENDPOINT 제거, 빈 설정으로 시작, createInitialEndpoint() 추가
+- **src/core/llm-client.ts**: static testConnection() 추가 (health check)
+- **src/cli.ts**: config init을 inquirer 기반 대화형으로 완전히 재작성
+- **PROGRESS.md**: API 키 참조 제거
+
+#### 2. Interactive Init 프로세스
+
+사용자가 `open config init` 실행 시:
+1. 엔드포인트 이름 입력
+2. Base URL 입력 (HTTP/HTTPS 검증)
+3. API Key 입력 (password 모드, 선택사항)
+4. Model ID 입력
+5. Model 이름 입력 (표시용)
+6. Max Tokens 입력
+7. **연결 테스트** (실제 API 호출로 확인)
+8. 성공 시 설정 저장
+
+**입력 예시**:
+```bash
+$ node dist/cli.js config init
+
+🚀 OPEN-CLI 초기화
+
+엔드포인트 정보를 입력해주세요:
+
+? 엔드포인트 이름: My LLM Endpoint
+? Base URL (HTTP/HTTPS): https://generativelanguage.googleapis.com/v1beta/openai/
+? API Key (선택사항, Enter 키 입력 시 스킵): ********
+? Model ID: gemini-2.0-flash
+? Model 이름 (표시용): Gemini 2.0 Flash
+? Max Tokens: 1048576
+
+🔍 엔드포인트 연결 테스트 중...
+
+✔ 연결 성공!
+
+✅ 초기화 완료!
+```
+
+#### 3. Health Check 메서드
+
+**LLMClient.testConnection()**:
+```typescript
+static async testConnection(
+  baseUrl: string,
+  apiKey: string,
+  model: string
+): Promise<{ success: boolean; error?: string }>
+```
+
+**동작**:
+- 실제 `/chat/completions` API 호출 (test 메시지)
+- 30초 타임아웃
+- 상세한 에러 메시지:
+  - 401: API 키가 유효하지 않습니다
+  - 404: 엔드포인트 또는 모델을 찾을 수 없습니다
+  - 네트워크 에러: 엔드포인트에 연결할 수 없습니다
+
+#### 4. HTTP/HTTPS 지원
+
+**URL 검증**:
+```typescript
+validate: (input: string) => {
+  const trimmed = input.trim();
+  if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+    return 'URL은 http:// 또는 https://로 시작해야 합니다.';
+  }
+  return true;
+}
+```
+
+**지원 환경**:
+- ✅ HTTPS: Gemini, OpenAI 등 클라우드 API
+- ✅ HTTP: LiteLLM, Ollama 등 로컬 서버
+
+#### 5. 보안 개선
+
+**변경 전**:
+```typescript
+const DEFAULT_GEMINI_ENDPOINT: EndpointConfig = {
+  apiKey: 'AIzaSyAZWTQSWpv7SwK2WeIE28Oy3tjHDE4b5GI', // ❌ 하드코딩
+  // ...
+};
+```
+
+**변경 후**:
+```typescript
+const DEFAULT_CONFIG: OpenConfig = {
+  endpoints: [], // ✅ 빈 배열로 시작
+  // ...
+};
+```
+
+**API 키 입력**:
+```typescript
+{
+  type: 'password',
+  name: 'apiKey',
+  message: 'API Key (선택사항, Enter 키 입력 시 스킵):',
+  mask: '*', // ✅ 입력 시 마스킹
+}
+```
+
+#### 6. ConfigManager 개선
+
+**새 메서드**:
+```typescript
+hasEndpoints(): boolean
+createInitialEndpoint(endpoint: EndpointConfig): Promise<void>
+```
+
+**removeEndpoint 로직 개선**:
+- 기본 엔드포인트 개념 제거
+- 삭제 시 자동으로 첫 번째 엔드포인트로 전환
+- 모든 엔드포인트 삭제 가능
+
+#### 7. 테스트 결과
+
+**빌드 테스트**:
+```bash
+$ npm run build
+✅ 성공 (에러 없음)
+```
+
+**초기화 전 상태**:
+```bash
+$ node dist/cli.js config show
+⚠️  OPEN-CLI가 초기화되지 않았습니다.
+초기화: open config init
+✅ 정상 동작
+```
+
+**Help 출력**:
+```bash
+$ node dist/cli.js help
+...
+설정 명령어:
+  open config init  OPEN-CLI 초기화 (엔드포인트 설정 및 연결 확인)
+✅ 설명 업데이트됨
+```
+
+#### 8. 기술적 결정 사항
+
+1. **inquirer 사용**:
+   - 이미 package.json에 포함됨
+   - 검증 기능 (validate) 내장
+   - password 타입 지원
+
+2. **정적 testConnection 메서드**:
+   - ConfigManager 초기화 전에도 사용 가능
+   - 독립적인 연결 테스트 가능
+
+3. **선택적 API Key**:
+   - 일부 로컬 LLM (Ollama 등)은 API 키 불필요
+   - 빈 문자열 허용
+
+4. **연결 테스트 시점**:
+   - 설정 저장 **전**에 테스트
+   - 실패 시 저장하지 않음 (원자성)
+
+**이슈 및 해결 방법**:
+
+1. **DEFAULT_ENDPOINT_ID 사용**:
+   - 문제: 기본 엔드포인트 제거 후에도 사용됨
+   - 해결: removeEndpoint 로직 수정, 첫 번째 엔드포인트로 자동 전환
+
+2. **TypeScript 컴파일 에러**:
+   - 문제: DEFAULT_MODEL_ID 미사용 경고
+   - 해결: import에서 제거
+
+**학습 내용**:
+- 보안: 하드코딩된 credentials는 절대 금지
+- UX: 대화형 CLI는 사용자 친화적
+- Validation: 입력 검증은 초기에 수행 (fail-fast)
+- Health Check: 설정 저장 전 연결 테스트로 신뢰성 향상
+- Static Methods: ConfigManager 초기화 전에도 사용 가능한 유틸리티
+
+---
+
 ### [COMPLETED] 2025-11-03 17:00: 프로젝트 리브랜딩 (A2G-CLI → OPEN-CLI)
 
 **작업 내용**:
@@ -441,7 +646,7 @@ export const DEFAULT_MODEL_ID = 'gemini-2.0-flash'
   "id": "ep-gemini-default",
   "name": "Gemini 2.0 Flash (Default)",
   "baseUrl": "https://generativelanguage.googleapis.com/v1beta/openai/",
-  "apiKey": "AIzaSyAZWTQSWpv7SwK2WeIE28Oy3tjHDE4b5GI",
+  "apiKey": "[USER_PROVIDED_API_KEY]",
   "models": [{
     "id": "gemini-2.0-flash",
     "name": "Gemini 2.0 Flash",

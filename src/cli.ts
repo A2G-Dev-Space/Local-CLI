@@ -10,8 +10,10 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
+import inquirer from 'inquirer';
 import { configManager } from './core/config-manager';
-import { createLLMClient } from './core/llm-client';
+import { createLLMClient, LLMClient } from './core/llm-client';
+import { EndpointConfig } from './types';
 
 const program = new Command();
 
@@ -85,24 +87,135 @@ const configCommand = program.command('config').description('설정 관리');
  */
 configCommand
   .command('init')
-  .description('OPEN-CLI 초기화 (디렉토리 및 설정 파일 생성)')
+  .description('OPEN-CLI 초기화 (엔드포인트 설정 및 연결 확인)')
   .action(async () => {
     try {
-      console.log(chalk.cyan('\n🚀 OPEN-CLI 초기화 중...\n'));
+      console.log(chalk.cyan.bold('\n🚀 OPEN-CLI 초기화\n'));
 
+      // 1. 디렉토리 초기화
       const isInitialized = await configManager.isInitialized();
 
       if (isInitialized) {
-        console.log(chalk.yellow('⚠️  이미 초기화되어 있습니다.'));
-        console.log(chalk.white('설정을 초기화하려면: open config reset\n'));
-        return;
+        // 이미 초기화되어 있으면 엔드포인트 추가 여부 확인
+        await configManager.initialize();
+
+        if (configManager.hasEndpoints()) {
+          console.log(chalk.yellow('⚠️  이미 초기화되어 있습니다.'));
+          console.log(chalk.white('설정 확인: open config show'));
+          console.log(chalk.white('설정 초기화: open config reset\n'));
+          return;
+        }
+      } else {
+        // 디렉토리 생성
+        await configManager.initialize();
+        console.log(chalk.green('✅ 디렉토리 생성 완료\n'));
       }
 
-      await configManager.initialize();
+      // 2. 사용자 입력 받기
+      console.log(chalk.white('엔드포인트 정보를 입력해주세요:\n'));
 
-      console.log(chalk.green('✅ 초기화 완료!\n'));
+      const answers = await inquirer.prompt([
+        {
+          type: 'input',
+          name: 'name',
+          message: '엔드포인트 이름:',
+          default: 'My LLM Endpoint',
+          validate: (input: string) =>
+            input.trim().length > 0 || '이름을 입력해주세요.',
+        },
+        {
+          type: 'input',
+          name: 'baseUrl',
+          message: 'Base URL (HTTP/HTTPS):',
+          default: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+          validate: (input: string) => {
+            const trimmed = input.trim();
+            if (!trimmed) return 'URL을 입력해주세요.';
+            if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+              return 'URL은 http:// 또는 https://로 시작해야 합니다.';
+            }
+            return true;
+          },
+        },
+        {
+          type: 'password',
+          name: 'apiKey',
+          message: 'API Key (선택사항, Enter 키 입력 시 스킵):',
+          mask: '*',
+        },
+        {
+          type: 'input',
+          name: 'modelId',
+          message: 'Model ID:',
+          default: 'gemini-2.0-flash',
+          validate: (input: string) =>
+            input.trim().length > 0 || 'Model ID를 입력해주세요.',
+        },
+        {
+          type: 'input',
+          name: 'modelName',
+          message: 'Model 이름 (표시용):',
+          default: 'Gemini 2.0 Flash',
+        },
+        {
+          type: 'input',
+          name: 'maxTokens',
+          message: 'Max Tokens:',
+          default: '1048576',
+          validate: (input: string) => {
+            const num = parseInt(input);
+            return !isNaN(num) && num > 0 || 'Max Tokens는 양수여야 합니다.';
+          },
+        },
+      ]);
 
-      console.log(chalk.white('생성된 디렉토리 및 파일:'));
+      // 3. 연결 테스트
+      console.log(chalk.cyan('\n🔍 엔드포인트 연결 테스트 중...\n'));
+
+      const spinner = ora('연결 확인 중...').start();
+
+      const testResult = await LLMClient.testConnection(
+        answers.baseUrl.trim(),
+        answers.apiKey?.trim() || '',
+        answers.modelId.trim()
+      );
+
+      if (!testResult.success) {
+        spinner.fail('연결 실패');
+        console.log(chalk.red(`\n❌ ${testResult.error}\n`));
+        console.log(chalk.yellow('설정을 확인하고 다시 시도해주세요.\n'));
+        process.exit(1);
+      }
+
+      spinner.succeed('연결 성공!');
+
+      // 4. 설정 저장
+      const endpointId = `ep-${Date.now()}`;
+      const endpoint: EndpointConfig = {
+        id: endpointId,
+        name: answers.name.trim(),
+        baseUrl: answers.baseUrl.trim(),
+        apiKey: answers.apiKey?.trim() || undefined,
+        models: [
+          {
+            id: answers.modelId.trim(),
+            name: answers.modelName.trim(),
+            maxTokens: parseInt(answers.maxTokens),
+            enabled: true,
+            healthStatus: 'healthy',
+            lastHealthCheck: new Date(),
+          },
+        ],
+        priority: 1,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      await configManager.createInitialEndpoint(endpoint);
+
+      console.log(chalk.green('\n✅ 초기화 완료!\n'));
+
+      console.log(chalk.white('생성된 디렉토리:'));
       console.log(chalk.dim('  ~/.open-cli/'));
       console.log(chalk.dim('  ~/.open-cli/config.json'));
       console.log(chalk.dim('  ~/.open-cli/sessions/'));
@@ -110,22 +223,21 @@ configCommand
       console.log(chalk.dim('  ~/.open-cli/backups/'));
       console.log(chalk.dim('  ~/.open-cli/logs/\n'));
 
-      const endpoint = configManager.getCurrentEndpoint();
-      const model = configManager.getCurrentModel();
-
-      console.log(chalk.green('📡 기본 엔드포인트 설정:'));
-      console.log(chalk.white(`  이름: ${endpoint?.name}`));
-      console.log(chalk.white(`  URL: ${endpoint?.baseUrl}`));
-      console.log(chalk.white(`  모델: ${model?.name} (${model?.id})\n`));
+      console.log(chalk.green('📡 등록된 엔드포인트:'));
+      console.log(chalk.white(`  이름: ${endpoint.name}`));
+      console.log(chalk.white(`  URL: ${endpoint.baseUrl}`));
+      console.log(chalk.white(`  모델: ${endpoint.models[0]?.name} (${endpoint.models[0]?.id})`));
+      console.log(chalk.white(`  상태: 🟢 연결 확인됨\n`));
 
       console.log(chalk.cyan('다음 단계:'));
       console.log(chalk.white('  open config show  - 현재 설정 확인'));
-      console.log(chalk.white('  open              - 대화형 모드 시작\n'));
+      console.log(chalk.white('  open chat "메시지" - LLM과 대화 시작\n'));
     } catch (error) {
-      console.error(chalk.red('❌ 초기화 실패:'));
+      console.error(chalk.red('\n❌ 초기화 실패:'));
       if (error instanceof Error) {
         console.error(chalk.red(error.message));
       }
+      console.log();
       process.exit(1);
     }
   });

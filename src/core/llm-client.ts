@@ -62,7 +62,7 @@ export class LLMClient {
     const currentModel = configManager.getCurrentModel();
 
     if (!endpoint || !currentModel) {
-      throw new Error('No endpoint or model configured. Run: a2g config init');
+      throw new Error('No endpoint or model configured. Run: open config init');
     }
 
     this.baseUrl = endpoint.baseUrl;
@@ -278,6 +278,65 @@ export class LLMClient {
     }
 
     throw new Error(`${maxRetries}번 재시도 후 실패: ${lastError?.message || '알 수 없는 에러'}`);
+  }
+
+  /**
+   * 엔드포인트 연결 테스트 (Static)
+   * config init 시 사용하기 위한 정적 메서드
+   */
+  static async testConnection(
+    baseUrl: string,
+    apiKey: string,
+    model: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const axiosInstance = axios.create({
+        baseURL: baseUrl,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(apiKey && { Authorization: `Bearer ${apiKey}` }),
+        },
+        timeout: 30000, // 30초
+      });
+
+      // 간단한 테스트 메시지로 연결 확인
+      const response = await axiosInstance.post<LLMResponse>('/chat/completions', {
+        model: model,
+        messages: [
+          {
+            role: 'user',
+            content: 'test',
+          },
+        ],
+        max_tokens: 10,
+      });
+
+      if (response.status === 200 && response.data.choices?.[0]?.message) {
+        return { success: true };
+      } else {
+        return { success: false, error: '유효하지 않은 응답 형식' };
+      }
+    } catch (error) {
+      const axiosError = error as AxiosError;
+
+      if (axiosError.response) {
+        const status = axiosError.response.status;
+        const data = axiosError.response.data as { error?: { message?: string } };
+        const message = data?.error?.message || axiosError.message;
+
+        if (status === 401) {
+          return { success: false, error: 'API 키가 유효하지 않습니다.' };
+        } else if (status === 404) {
+          return { success: false, error: '엔드포인트 또는 모델을 찾을 수 없습니다.' };
+        } else {
+          return { success: false, error: `API 에러 (${status}): ${message}` };
+        }
+      } else if (axiosError.request) {
+        return { success: false, error: `네트워크 에러: 엔드포인트에 연결할 수 없습니다.` };
+      } else {
+        return { success: false, error: axiosError.message || '알 수 없는 에러' };
+      }
+    }
   }
 }
 
