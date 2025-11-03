@@ -52,8 +52,8 @@ program.action(async () => {
     console.log(chalk.cyan.bold('\n╔════════════════════════════════════════════════════════════╗'));
     console.log(chalk.cyan.bold('║                 OPEN-CLI Interactive Mode                  ║'));
     console.log(chalk.cyan.bold('╚════════════════════════════════════════════════════════════╝\n'));
-    console.log(chalk.dim(`모델: ${modelInfo.model}`));
-    console.log(chalk.dim(`엔드포인트: ${modelInfo.endpoint}\n`));
+    console.log(chalk.dim('모델: ' + modelInfo.model));
+    console.log(chalk.dim('엔드포인트: ' + modelInfo.endpoint + '\n'));
     console.log(chalk.yellow('명령어:'));
     console.log(chalk.white('  /exit, /quit    - 종료'));
     console.log(chalk.white('  /context        - 대화 히스토리 보기'));
@@ -61,6 +61,7 @@ program.action(async () => {
     console.log(chalk.white('  /save [name]    - 현재 대화 저장'));
     console.log(chalk.white('  /load           - 저장된 대화 불러오기'));
     console.log(chalk.white('  /sessions       - 저장된 대화 목록 보기'));
+    console.log(chalk.white('  /endpoint       - 엔드포인트 보기/전환'));
     console.log(chalk.white('  /help           - 도움말\n'));
 
     // 메시지 히스토리
@@ -93,7 +94,7 @@ program.action(async () => {
           console.log(chalk.dim('  (비어있음)\n'));
         } else {
           messages.forEach((msg, index) => {
-            console.log(chalk.white(`  ${index + 1}. [${msg.role}]: ${msg.content?.substring(0, 100)}${msg.content && msg.content.length > 100 ? '...' : ''}`));
+            console.log(chalk.white('  ' + (index + 1) + '. [' + msg.role + ']: ' + (msg.content?.substring(0, 100) || '') + (msg.content && msg.content.length > 100 ? '...' : '')));
           });
           console.log();
         }
@@ -114,14 +115,88 @@ program.action(async () => {
         console.log(chalk.white('  /save [name]    - 현재 대화 저장'));
         console.log(chalk.white('  /load           - 저장된 대화 불러오기'));
         console.log(chalk.white('  /sessions       - 저장된 대화 목록 보기'));
+        console.log(chalk.white('  /endpoint       - 엔드포인트 보기/전환'));
         console.log(chalk.white('  /help           - 이 도움말\n'));
+        continue;
+      }
+
+      // /endpoint - 엔드포인트 보기/전환
+      if (userMessage === '/endpoint') {
+        try {
+          const endpoints = configManager.getAllEndpoints();
+          const currentEndpoint = configManager.getCurrentEndpoint();
+
+          if (endpoints.length === 0) {
+            console.log(chalk.yellow('\n등록된 엔드포인트가 없습니다.\n'));
+            continue;
+          }
+
+          console.log(chalk.yellow('\n📡 등록된 엔드포인트:\n'));
+
+          endpoints.forEach((endpoint, index) => {
+            const isCurrent = endpoint.id === currentEndpoint?.id;
+            const marker = isCurrent ? chalk.green('●') : chalk.dim('○');
+            console.log(marker + ' ' + chalk.bold(endpoint.name) + ' ' + (isCurrent ? chalk.green('(현재)') : ''));
+            console.log(chalk.dim('   ID: ' + endpoint.id));
+            console.log(chalk.dim('   URL: ' + endpoint.baseUrl));
+            if (index < endpoints.length - 1) {
+              console.log();
+            }
+          });
+
+          // 엔드포인트 전환 물어보기
+          if (endpoints.length > 1) {
+            console.log();
+
+            const choices = endpoints.map((ep) => ({
+              name: ep.name + ' (' + ep.baseUrl + ')',
+              value: ep.id,
+            }));
+
+            choices.push({
+              name: chalk.dim('(취소)'),
+              value: 'cancel',
+            });
+
+            const switchAnswer = await inquirer.prompt([
+              {
+                type: 'list',
+                name: 'endpointId',
+                message: '전환할 엔드포인트를 선택하세요:',
+                choices: choices,
+              },
+            ]);
+
+            if (switchAnswer.endpointId !== 'cancel') {
+              await configManager.setCurrentEndpoint(switchAnswer.endpointId);
+              const newEndpoint = endpoints.find((ep) => ep.id === switchAnswer.endpointId);
+
+              console.log(chalk.green('\n✅ 엔드포인트가 변경되었습니다!'));
+              console.log(chalk.dim('  이름: ' + (newEndpoint?.name || '')));
+              console.log(chalk.dim('  URL: ' + (newEndpoint?.baseUrl || '') + '\n'));
+
+              // LLMClient 재생성 필요 (현재 세션에서는 즉시 적용 안됨)
+              console.log(chalk.yellow('⚠️  Interactive Mode를 재시작하면 새 엔드포인트가 적용됩니다.\n'));
+            } else {
+              console.log(chalk.yellow('취소되었습니다.\n'));
+            }
+          } else {
+            console.log();
+          }
+        } catch (error) {
+          console.error(chalk.red('\n❌ 엔드포인트 조회 실패:'));
+          if (error instanceof Error) {
+            console.error(chalk.red(error.message));
+          }
+          console.log();
+        }
         continue;
       }
 
       // /save [name] - 세션 저장
       if (userMessage.startsWith('/save')) {
         const parts = userMessage.split(' ');
-        const sessionName = parts.slice(1).join(' ').trim() || `session-${new Date().toISOString().split('T')[0]}`;
+        const sessionName = parts.slice(1).join(' ').trim() || 'session-' + new Date().toISOString().split('T')[0];
 
         if (messages.length === 0) {
           console.log(chalk.yellow('\n⚠️  저장할 대화 내용이 없습니다.\n'));
@@ -130,10 +205,10 @@ program.action(async () => {
 
         try {
           const sessionId = await sessionManager.saveSession(sessionName, messages);
-          console.log(chalk.green(`\n✅ 대화가 저장되었습니다!`));
-          console.log(chalk.dim(`  이름: ${sessionName}`));
-          console.log(chalk.dim(`  ID: ${sessionId}`));
-          console.log(chalk.dim(`  메시지: ${messages.length}개\n`));
+          console.log(chalk.green('\n✅ 대화가 저장되었습니다!'));
+          console.log(chalk.dim('  이름: ' + sessionName));
+          console.log(chalk.dim('  ID: ' + sessionId));
+          console.log(chalk.dim('  메시지: ' + messages.length + '개\n'));
         } catch (error) {
           console.error(chalk.red('\n❌ 세션 저장 실패:'));
           if (error instanceof Error) {
@@ -157,13 +232,13 @@ program.action(async () => {
           console.log(chalk.yellow('\n📋 저장된 대화 목록:\n'));
           sessions.forEach((session, index) => {
             const createdDate = new Date(session.createdAt).toLocaleString('ko-KR');
-            console.log(chalk.white(`  ${index + 1}. ${chalk.bold(session.name)}`));
-            console.log(chalk.dim(`     메시지: ${session.messageCount}개 | 모델: ${session.model}`));
-            console.log(chalk.dim(`     생성: ${createdDate}`));
+            console.log(chalk.white('  ' + (index + 1) + '. ' + chalk.bold(session.name)));
+            console.log(chalk.dim('     메시지: ' + session.messageCount + '개 | 모델: ' + session.model));
+            console.log(chalk.dim('     생성: ' + createdDate));
             if (session.firstMessage) {
-              console.log(chalk.dim(`     "${session.firstMessage}${session.firstMessage.length >= 50 ? '...' : ''}"`));
+              console.log(chalk.dim('     "' + session.firstMessage + (session.firstMessage.length >= 50 ? '...' : '') + '"'));
             }
-            console.log(chalk.dim(`     ID: ${session.id}`));
+            console.log(chalk.dim('     ID: ' + session.id));
             console.log();
           });
         } catch (error) {
@@ -188,7 +263,7 @@ program.action(async () => {
 
           // 세션 선택
           const choices = sessions.map((session) => ({
-            name: `${session.name} (${session.messageCount}개 메시지, ${new Date(session.createdAt).toLocaleDateString('ko-KR')})`,
+            name: session.name + ' (' + session.messageCount + '개 메시지, ' + new Date(session.createdAt).toLocaleDateString('ko-KR') + ')',
             value: session.id,
           }));
 
@@ -213,9 +288,9 @@ program.action(async () => {
           messages.length = 0;
           messages.push(...sessionData.messages);
 
-          console.log(chalk.green(`\n✅ 대화가 복원되었습니다!`));
-          console.log(chalk.dim(`  이름: ${sessionData.metadata.name}`));
-          console.log(chalk.dim(`  메시지: ${sessionData.messages.length}개\n`));
+          console.log(chalk.green('\n✅ 대화가 복원되었습니다!'));
+          console.log(chalk.dim('  이름: ' + sessionData.metadata.name));
+          console.log(chalk.dim('  메시지: ' + sessionData.messages.length + '개\n'));
         } catch (error) {
           console.error(chalk.red('\n❌ 세션 로드 실패:'));
           if (error instanceof Error) {
@@ -408,7 +483,7 @@ configCommand
 
       if (!testResult.success) {
         spinner.fail('연결 실패');
-        console.log(chalk.red(`\n❌ ${testResult.error}\n`));
+        console.log(chalk.red('\n❌ ' + testResult.error + '\n'));
         console.log(chalk.yellow('설정을 확인하고 다시 시도해주세요.\n'));
         process.exit(1);
       }
@@ -416,7 +491,7 @@ configCommand
       spinner.succeed('연결 성공!');
 
       // 4. 설정 저장
-      const endpointId = `ep-${Date.now()}`;
+      const endpointId = 'ep-' + Date.now();
       const endpoint: EndpointConfig = {
         id: endpointId,
         name: answers.name.trim(),
@@ -450,10 +525,10 @@ configCommand
       console.log(chalk.dim('  ~/.open-cli/logs/\n'));
 
       console.log(chalk.green('📡 등록된 엔드포인트:'));
-      console.log(chalk.white(`  이름: ${endpoint.name}`));
-      console.log(chalk.white(`  URL: ${endpoint.baseUrl}`));
-      console.log(chalk.white(`  모델: ${endpoint.models[0]?.name} (${endpoint.models[0]?.id})`));
-      console.log(chalk.white(`  상태: 🟢 연결 확인됨\n`));
+      console.log(chalk.white('  이름: ' + endpoint.name));
+      console.log(chalk.white('  URL: ' + endpoint.baseUrl));
+      console.log(chalk.white('  모델: ' + (endpoint.models[0]?.name || '') + ' (' + (endpoint.models[0]?.id || '') + ')'));
+      console.log(chalk.white('  상태: 🟢 연결 확인됨\n'));
 
       console.log(chalk.cyan('다음 단계:'));
       console.log(chalk.white('  open config show  - 현재 설정 확인'));
@@ -494,24 +569,24 @@ configCommand
 
       console.log(chalk.yellow('현재 엔드포인트:'));
       if (endpoint) {
-        console.log(chalk.white(`  ID: ${endpoint.id}`));
-        console.log(chalk.white(`  이름: ${endpoint.name}`));
-        console.log(chalk.white(`  URL: ${endpoint.baseUrl}`));
-        console.log(chalk.white(`  API Key: ${endpoint.apiKey ? '********' : '(없음)'}`));
-        console.log(chalk.white(`  우선순위: ${endpoint.priority || 'N/A'}\n`));
+        console.log(chalk.white('  ID: ' + endpoint.id));
+        console.log(chalk.white('  이름: ' + endpoint.name));
+        console.log(chalk.white('  URL: ' + endpoint.baseUrl));
+        console.log(chalk.white('  API Key: ' + (endpoint.apiKey ? '********' : '(없음)')));
+        console.log(chalk.white('  우선순위: ' + (endpoint.priority || 'N/A') + '\n'));
       } else {
         console.log(chalk.red('  (설정되지 않음)\n'));
       }
 
       console.log(chalk.yellow('현재 모델:'));
       if (model) {
-        console.log(chalk.white(`  ID: ${model.id}`));
-        console.log(chalk.white(`  이름: ${model.name}`));
-        console.log(chalk.white(`  최대 토큰: ${model.maxTokens.toLocaleString()}`));
-        console.log(chalk.white(`  상태: ${model.enabled ? '✅ 활성' : '❌ 비활성'}`));
+        console.log(chalk.white('  ID: ' + model.id));
+        console.log(chalk.white('  이름: ' + model.name));
+        console.log(chalk.white('  최대 토큰: ' + model.maxTokens.toLocaleString()));
+        console.log(chalk.white('  상태: ' + (model.enabled ? '✅ 활성' : '❌ 비활성')));
         console.log(
           chalk.white(
-            `  헬스: ${model.healthStatus === 'healthy' ? '🟢 정상' : model.healthStatus === 'degraded' ? '🟡 저하됨' : '🔴 비정상'}\n`
+            '  헬스: ' + (model.healthStatus === 'healthy' ? '🟢 정상' : model.healthStatus === 'degraded' ? '🟡 저하됨' : '🔴 비정상') + '\n'
           )
         );
       } else {
@@ -519,14 +594,14 @@ configCommand
       }
 
       console.log(chalk.yellow('전체 설정:'));
-      console.log(chalk.white(`  버전: ${config.version}`));
-      console.log(chalk.white(`  등록된 엔드포인트: ${config.endpoints.length}개`));
-      console.log(chalk.white(`  자동 승인: ${config.settings.autoApprove ? '✅ ON' : '❌ OFF'}`));
-      console.log(chalk.white(`  디버그 모드: ${config.settings.debugMode ? '✅ ON' : '❌ OFF'}`));
+      console.log(chalk.white('  버전: ' + config.version));
+      console.log(chalk.white('  등록된 엔드포인트: ' + config.endpoints.length + '개'));
+      console.log(chalk.white('  자동 승인: ' + (config.settings.autoApprove ? '✅ ON' : '❌ OFF')));
+      console.log(chalk.white('  디버그 모드: ' + (config.settings.debugMode ? '✅ ON' : '❌ OFF')));
       console.log(
-        chalk.white(`  스트리밍 응답: ${config.settings.streamResponse ? '✅ ON' : '❌ OFF'}`)
+        chalk.white('  스트리밍 응답: ' + (config.settings.streamResponse ? '✅ ON' : '❌ OFF'))
       );
-      console.log(chalk.white(`  자동 저장: ${config.settings.autoSave ? '✅ ON' : '❌ OFF'}\n`));
+      console.log(chalk.white('  자동 저장: ' + (config.settings.autoSave ? '✅ ON' : '❌ OFF') + '\n'));
     } catch (error) {
       console.error(chalk.red('❌ 설정 조회 실패:'));
       if (error instanceof Error) {
@@ -570,6 +645,307 @@ configCommand
   });
 
 /**
+ * config endpoints - 엔드포인트 목록 보기
+ */
+configCommand
+  .command('endpoints')
+  .description('모든 엔드포인트 목록 보기')
+  .action(async () => {
+    try {
+      const isInitialized = await configManager.isInitialized();
+      if (!isInitialized) {
+        console.log(chalk.yellow('\n⚠️  OPEN-CLI가 초기화되지 않았습니다.'));
+        console.log(chalk.white('초기화: open config init\n'));
+        return;
+      }
+
+      await configManager.initialize();
+
+      const endpoints = configManager.getAllEndpoints();
+      const currentEndpoint = configManager.getCurrentEndpoint();
+
+      if (endpoints.length === 0) {
+        console.log(chalk.yellow('\n등록된 엔드포인트가 없습니다.'));
+        console.log(chalk.white('엔드포인트 추가: open config endpoint add\n'));
+        return;
+      }
+
+      console.log(chalk.cyan.bold('\n📡 등록된 엔드포인트 목록\n'));
+
+      endpoints.forEach((endpoint, index) => {
+        const isCurrent = endpoint.id === currentEndpoint?.id;
+        const marker = isCurrent ? chalk.green('●') : chalk.dim('○');
+
+        console.log(marker + ' ' + chalk.bold(endpoint.name) + ' ' + (isCurrent ? chalk.green('(현재)') : ''));
+        console.log(chalk.dim('   ID: ' + endpoint.id));
+        console.log(chalk.dim('   URL: ' + endpoint.baseUrl));
+        console.log(chalk.dim('   모델: ' + endpoint.models.length + '개'));
+
+        endpoint.models.forEach((model) => {
+          const modelMarker = model.enabled ? '✓' : '✗';
+          console.log(chalk.dim('     ' + modelMarker + ' ' + model.name + ' (' + model.id + ')'));
+        });
+
+        if (index < endpoints.length - 1) {
+          console.log();
+        }
+      });
+
+      console.log();
+    } catch (error) {
+      console.error(chalk.red('\n❌ 엔드포인트 목록 조회 실패:'));
+      if (error instanceof Error) {
+        console.error(chalk.red(error.message));
+      }
+      console.log();
+      process.exit(1);
+    }
+  });
+
+/**
+ * config endpoint add - 새 엔드포인트 추가
+ */
+configCommand
+  .command('endpoint add')
+  .alias('endpoint-add')
+  .description('새 엔드포인트 추가')
+  .action(async () => {
+    try {
+      const isInitialized = await configManager.isInitialized();
+      if (!isInitialized) {
+        console.log(chalk.yellow('\n⚠️  OPEN-CLI가 초기화되지 않았습니다.'));
+        console.log(chalk.white('초기화: open config init\n'));
+        return;
+      }
+
+      await configManager.initialize();
+
+      console.log(chalk.cyan.bold('\n➕ 새 엔드포인트 추가\n'));
+      console.log(chalk.white('엔드포인트 정보를 입력해주세요:\n'));
+
+      const answers = await inquirer.prompt([
+        {
+          type: 'input',
+          name: 'name',
+          message: '엔드포인트 이름:',
+          validate: (input: string) => input.trim().length > 0 || '이름을 입력해주세요.',
+        },
+        {
+          type: 'input',
+          name: 'baseUrl',
+          message: 'Base URL (HTTP/HTTPS):',
+          validate: (input: string) => {
+            const trimmed = input.trim();
+            if (!trimmed) return 'URL을 입력해주세요.';
+            if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+              return 'URL은 http:// 또는 https://로 시작해야 합니다.';
+            }
+            return true;
+          },
+        },
+        {
+          type: 'password',
+          name: 'apiKey',
+          message: 'API Key (선택사항, Enter로 스킵):',
+          mask: '*',
+        },
+        {
+          type: 'input',
+          name: 'modelId',
+          message: 'Model ID:',
+          validate: (input: string) => input.trim().length > 0 || 'Model ID를 입력해주세요.',
+        },
+        {
+          type: 'input',
+          name: 'modelName',
+          message: 'Model 이름 (표시용):',
+        },
+        {
+          type: 'input',
+          name: 'maxTokens',
+          message: 'Max Tokens:',
+          default: '100000',
+          validate: (input: string) => {
+            const num = parseInt(input);
+            return (!isNaN(num) && num > 0) || 'Max Tokens는 양수여야 합니다.';
+          },
+        },
+      ]);
+
+      // 연결 테스트
+      console.log(chalk.cyan('\n🔍 엔드포인트 연결 테스트 중...\n'));
+
+      const spinner = ora('연결 확인 중...').start();
+
+      const testResult = await LLMClient.testConnection(
+        answers.baseUrl.trim(),
+        answers.apiKey?.trim() || '',
+        answers.modelId.trim()
+      );
+
+      if (!testResult.success) {
+        spinner.fail('연결 실패');
+        console.log(chalk.red('\n❌ ' + testResult.error + '\n'));
+        console.log(chalk.yellow('설정을 확인하고 다시 시도해주세요.\n'));
+        return;
+      }
+
+      spinner.succeed('연결 성공!');
+
+      // 엔드포인트 추가
+      const endpointId = 'ep-' + Date.now();
+      const endpoint: EndpointConfig = {
+        id: endpointId,
+        name: answers.name.trim(),
+        baseUrl: answers.baseUrl.trim(),
+        apiKey: answers.apiKey?.trim() || undefined,
+        models: [
+          {
+            id: answers.modelId.trim(),
+            name: answers.modelName.trim() || answers.modelId.trim(),
+            maxTokens: parseInt(answers.maxTokens),
+            enabled: true,
+            healthStatus: 'healthy',
+            lastHealthCheck: new Date(),
+          },
+        ],
+        priority: configManager.getAllEndpoints().length + 1,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      await configManager.addEndpoint(endpoint);
+
+      console.log(chalk.green('\n엔드포인트가 추가되었습니다!\n'));
+      console.log(chalk.white('  이름: ' + endpoint.name));
+      console.log(chalk.white('  ID: ' + endpoint.id));
+      console.log(chalk.white('  URL: ' + endpoint.baseUrl));
+      console.log(chalk.white('  모델: ' + (endpoint.models[0]?.name || '') + '\n'));
+
+      // 현재 엔드포인트로 전환할지 물어보기
+      const switchAnswer = await inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'switch',
+          message: '이 엔드포인트를 현재 엔드포인트로 설정하시겠습니까?',
+          default: false,
+        },
+      ]);
+
+      if (switchAnswer.switch) {
+        await configManager.setCurrentEndpoint(endpointId);
+        console.log(chalk.green('✅ 현재 엔드포인트가 변경되었습니다.\n'));
+      }
+    } catch (error) {
+      console.error(chalk.red('\n❌ 엔드포인트 추가 실패:'));
+      if (error instanceof Error) {
+        console.error(chalk.red(error.message));
+      }
+      console.log();
+      process.exit(1);
+    }
+  });
+
+/**
+ * config endpoint remove - 엔드포인트 삭제
+ */
+configCommand
+  .command('endpoint remove <id>')
+  .alias('endpoint-remove')
+  .description('엔드포인트 삭제')
+  .action(async (id: string) => {
+    try {
+      const isInitialized = await configManager.isInitialized();
+      if (!isInitialized) {
+        console.log(chalk.yellow('\n⚠️  OPEN-CLI가 초기화되지 않았습니다.'));
+        return;
+      }
+
+      await configManager.initialize();
+
+      const endpoints = configManager.getAllEndpoints();
+      const endpoint = endpoints.find((ep) => ep.id === id);
+
+      if (!endpoint) {
+        console.log(chalk.red('\n엔드포인트를 찾을 수 없습니다: ' + id + '\n'));
+        console.log(chalk.white('엔드포인트 목록: open config endpoints\n'));
+        return;
+      }
+
+      console.log(chalk.yellow('\n다음 엔드포인트를 삭제하시겠습니까?\n'));
+      console.log(chalk.white('  이름: ' + endpoint.name));
+      console.log(chalk.white('  ID: ' + endpoint.id));
+      console.log(chalk.white('  URL: ' + endpoint.baseUrl + '\n'));
+
+      const answer = await inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'confirm',
+          message: '정말 삭제하시겠습니까?',
+          default: false,
+        },
+      ]);
+
+      if (!answer.confirm) {
+        console.log(chalk.yellow('취소되었습니다.\n'));
+        return;
+      }
+
+      await configManager.removeEndpoint(id);
+      console.log(chalk.green('✅ 엔드포인트가 삭제되었습니다.\n'));
+    } catch (error) {
+      console.error(chalk.red('\n❌ 엔드포인트 삭제 실패:'));
+      if (error instanceof Error) {
+        console.error(chalk.red(error.message));
+      }
+      console.log();
+      process.exit(1);
+    }
+  });
+
+/**
+ * config endpoint switch - 엔드포인트 전환
+ */
+configCommand
+  .command('endpoint switch <id>')
+  .alias('endpoint-switch')
+  .description('현재 엔드포인트 전환')
+  .action(async (id: string) => {
+    try {
+      const isInitialized = await configManager.isInitialized();
+      if (!isInitialized) {
+        console.log(chalk.yellow('\n⚠️  OPEN-CLI가 초기화되지 않았습니다.'));
+        return;
+      }
+
+      await configManager.initialize();
+
+      const endpoints = configManager.getAllEndpoints();
+      const endpoint = endpoints.find((ep) => ep.id === id);
+
+      if (!endpoint) {
+        console.log(chalk.red('\n엔드포인트를 찾을 수 없습니다: ' + id + '\n'));
+        console.log(chalk.white('엔드포인트 목록: open config endpoints\n'));
+        return;
+      }
+
+      await configManager.setCurrentEndpoint(id);
+
+      console.log(chalk.green('\n엔드포인트가 변경되었습니다!\n'));
+      console.log(chalk.white('  이름: ' + endpoint.name));
+      console.log(chalk.white('  URL: ' + endpoint.baseUrl));
+      console.log(chalk.white('  모델: ' + (endpoint.models.find((m) => m.enabled)?.name || '') + '\n'));
+    } catch (error) {
+      console.error(chalk.red('\n❌ 엔드포인트 전환 실패:'));
+      if (error instanceof Error) {
+        console.error(chalk.red(error.message));
+      }
+      console.log();
+      process.exit(1);
+    }
+  });
+
+/**
  * chat 명령어 - 간단한 대화 테스트
  */
 program
@@ -594,8 +970,8 @@ program
       const modelInfo = llmClient.getModelInfo();
 
       console.log(chalk.cyan('\n💬 OPEN-CLI Chat\n'));
-      console.log(chalk.dim(`모델: ${modelInfo.model}`));
-      console.log(chalk.dim(`엔드포인트: ${modelInfo.endpoint}\n`));
+      console.log(chalk.dim('모델: ' + modelInfo.model));
+      console.log(chalk.dim('엔드포인트: ' + modelInfo.endpoint + '\n'));
 
       if (options.stream) {
         // 스트리밍 응답
@@ -665,9 +1041,9 @@ program
       const { FILE_TOOLS } = await import('./tools/file-tools');
 
       console.log(chalk.cyan('\n🛠️  OPEN-CLI Tools Mode\n'));
-      console.log(chalk.dim(`모델: ${modelInfo.model}`));
-      console.log(chalk.dim(`엔드포인트: ${modelInfo.endpoint}`));
-      console.log(chalk.dim(`사용 가능한 도구: read_file, write_file, list_files, find_files\n`));
+      console.log(chalk.dim('모델: ' + modelInfo.model));
+      console.log(chalk.dim('엔드포인트: ' + modelInfo.endpoint));
+      console.log(chalk.dim('사용 가능한 도구: read_file, write_file, list_files, find_files\n'));
 
       const spinner = ora('LLM 작업 중...').start();
 
@@ -683,9 +1059,10 @@ program
       if (result.toolCalls.length > 0) {
         console.log(chalk.yellow('\n🔧 사용된 도구:\n'));
         result.toolCalls.forEach((call, index) => {
-          console.log(chalk.white(`  ${index + 1}. ${call.tool}`));
-          console.log(chalk.dim(`     Args: ${JSON.stringify(call.args)}`));
-          console.log(chalk.dim(`     Result: ${call.result.substring(0, 100)}${call.result.length > 100 ? '...' : ''}\n`));
+          console.log(chalk.white('  ' + (index + 1) + '. ' + call.tool));
+          console.log(chalk.dim('     Args: ' + JSON.stringify(call.args)));
+          const resultPreview = call.result.substring(0, 100) + (call.result.length > 100 ? '...' : '');
+          console.log(chalk.dim('     Result: ' + resultPreview + '\n'));
         });
       }
 

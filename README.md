@@ -138,6 +138,7 @@ $ open
   /save [name]    - 현재 대화 저장
   /load           - 저장된 대화 불러오기
   /sessions       - 저장된 대화 목록 보기
+  /endpoint       - 엔드포인트 보기/전환
   /help           - 도움말
 
 ? You: Hello! How are you?
@@ -168,6 +169,49 @@ node dist/cli.js config show
 
 # 설정 초기화 (공장 초기화)
 node dist/cli.js config reset
+```
+
+#### 엔드포인트 관리 (Phase 2 신기능!)
+
+여러 LLM 엔드포인트를 등록하고 전환할 수 있습니다:
+
+```bash
+# 모든 엔드포인트 목록 보기
+node dist/cli.js config endpoints
+
+# 새 엔드포인트 추가 (대화형)
+node dist/cli.js config endpoint add
+
+# 엔드포인트 삭제
+node dist/cli.js config endpoint remove <endpoint-id>
+
+# 엔드포인트 전환
+node dist/cli.js config endpoint switch <endpoint-id>
+```
+
+**Interactive Mode에서 엔드포인트 전환**:
+```bash
+$ open
+
+? You: /endpoint
+
+📡 등록된 엔드포인트:
+
+● Gemini 2.0 Flash (현재)
+   ID: ep-1234567890
+   URL: https://generativelanguage.googleapis.com/v1beta/openai/
+
+○ Local Ollama
+   ID: ep-0987654321
+   URL: http://localhost:11434/v1/
+
+? 전환할 엔드포인트를 선택하세요: Local Ollama
+
+✅ 엔드포인트가 변경되었습니다!
+  이름: Local Ollama
+  URL: http://localhost:11434/v1/
+
+⚠️  Interactive Mode를 재시작하면 새 엔드포인트가 적용됩니다.
 ```
 
 #### LLM 대화
@@ -351,11 +395,11 @@ open-cli/
 - [x] 파일 시스템 도구 (LLM Tools)
 - [x] 대화형 모드 (Interactive Mode)
 
-### Phase 2: 상호작용 고도화 (6-12개월)
+### Phase 2: 상호작용 고도화 (진행률: 50% 🚧)
+- [x] 세션 저장/로드 기능 (대화 저장 및 복원)
+- [x] 멀티 엔드포인트 관리 (추가, 삭제, 전환)
 - [ ] 인터랙티브 터미널 UI (Ink/React 기반)
-- [ ] 고급 설정 관리
 - [ ] 로컬 문서 시스템
-- [ ] 사용자 메모리/세션 관리
 
 ### Phase 3: 엔터프라이즈 기능 (12-18개월)
 - [ ] 팀 협업 기능
