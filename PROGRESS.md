@@ -47,9 +47,9 @@
 ### 목표
 - ✅ 기본 CLI 프레임워크 구축
 - ✅ 설정 파일 시스템 구축
-- ⬜ 로컬 모델 엔드포인트 연결 (OpenAI Compatible API 클라이언트)
-- ⬜ 파일 시스템 도구
-- ⬜ 기본 명령어 시스템
+- ✅ 로컬 모델 엔드포인트 연결 (OpenAI Compatible API 클라이언트)
+- ⬜ 파일 시스템 도구 (LLM Tools)
+- ⬜ 기본 명령어 시스템 (대화형 모드)
 
 ---
 
@@ -60,6 +60,164 @@
 ---
 
 ## 📊 완료된 작업
+
+### [COMPLETED] 2025-11-03 15:30: OpenAI Compatible API 클라이언트 구현
+
+**작업 내용**:
+1. LLMClient 클래스 구현
+2. OpenAI Compatible API 지원 (chat.completions)
+3. 스트리밍 응답 지원 (SSE 파싱)
+4. 에러 처리 및 재시도 로직
+5. chat CLI 명령어 추가
+6. Gemini API 연결 테스트 완료
+
+**상태**: 완료됨 (COMPLETED) ✅
+
+**체크리스트**:
+- [x] LLMClient 클래스 구현
+- [x] chat.completions API 호출 (일반)
+- [x] 스트리밍 응답 지원
+- [x] 에러 처리 및 재시도 로직
+- [x] Gemini HTTPS 엔드포인트 테스트
+- [x] HTTP 엔드포인트 준비 (LiteLLM용)
+- [x] chat CLI 명령어 구현
+
+**구현 세부사항**:
+
+#### 1. LLMClient 클래스 (src/core/llm-client.ts)
+```typescript
+export class LLMClient {
+  // 주요 메서드:
+  - chatCompletion(): chat API 호출 (일반)
+  - chatCompletionStream(): 스트리밍 응답 (AsyncGenerator)
+  - sendMessage(): 간단한 채팅 (헬퍼)
+  - sendMessageStream(): 스트리밍 채팅 (헬퍼)
+  - chatCompletionWithRetry(): 재시도 로직 포함
+  - handleError(): 에러 처리 (상세 메시지)
+}
+```
+
+**특징**:
+- OpenAI Compatible API 완전 지원
+- HTTP/HTTPS 모두 지원 (Gemini, LiteLLM 호환)
+- Axios 기반 HTTP 클라이언트
+- SSE (Server-Sent Events) 파싱
+- AsyncGenerator를 통한 스트리밍
+- 지수 백오프 재시도 (1s, 2s, 4s)
+- 상세한 에러 메시지 (401, 429, 500 등)
+
+#### 2. chat CLI 명령어
+```bash
+# 일반 응답
+$ a2g chat "Hello!"
+💬 A2G-CLI Chat
+모델: gemini-2.0-flash
+엔드포인트: https://generativelanguage.googleapis.com/v1beta/openai/
+
+🤖 Assistant:
+Hello! How can I help you today?
+
+# 스트리밍 응답
+$ a2g chat "Tell me a joke" -s
+🤖 Assistant:
+Why don't scientists trust atoms?
+Because they make up everything!
+
+# 시스템 프롬프트
+$ a2g chat "파이썬 설명해줘" --system "You are a helpful tutor"
+```
+
+**옵션**:
+- `-s, --stream`: 스트리밍 응답
+- `--system <prompt>`: 시스템 프롬프트
+
+#### 3. 스트리밍 응답 구현
+```typescript
+async *chatCompletionStream(options) {
+  // SSE (Server-Sent Events) 파싱
+  const stream = response.data as AsyncIterable<Buffer>;
+
+  for await (const chunk of stream) {
+    // data: {...} 형식 파싱
+    // AsyncGenerator로 yield
+  }
+}
+```
+
+**특징**:
+- SSE 형식 실시간 파싱
+- AsyncGenerator 패턴
+- 불완전한 청크 처리
+- `data: [DONE]` 종료 감지
+
+#### 4. 에러 처리
+```typescript
+handleError(error) {
+  // 401: 인증 실패 (API 키 문제)
+  // 429: Rate limit 초과
+  // 500+: 서버 에러
+  // Network: 연결 실패
+}
+```
+
+**재시도 로직**:
+```typescript
+chatCompletionWithRetry(options, maxRetries = 3) {
+  // 1차 시도 실패 → 1초 대기
+  // 2차 시도 실패 → 2초 대기
+  // 3차 시도 실패 → 4초 대기 → 최종 에러
+}
+```
+
+#### 5. 지원 모델
+**현재 테스트 완료**:
+- ✅ Gemini 2.0 Flash (HTTPS)
+  - Endpoint: https://generativelanguage.googleapis.com/v1beta/openai/
+  - 1M tokens context
+  - 스트리밍 지원
+
+**향후 지원 예정** (LiteLLM, HTTP):
+- ⬜ GLM4.5
+- ⬜ deepseek-v3-0324
+- ⬜ gpt-oss-120b
+
+**테스트 결과**:
+- ✅ Gemini API 일반 응답 성공
+- ✅ Gemini API 스트리밍 응답 성공
+- ✅ 한글 메시지 처리 확인
+- ✅ 시스템 프롬프트 동작 확인
+- ✅ TypeScript strict mode 통과
+- ✅ ESLint 검사 통과 (타입 단언 수정)
+- ✅ Prettier 포맷팅 적용
+
+**실행 예시**:
+```bash
+$ node dist/cli.js chat "What is 2+2?" -s
+💬 A2G-CLI Chat
+
+모델: gemini-2.0-flash
+엔드포인트: https://generativelanguage.googleapis.com/v1beta/openai/
+
+🤖 Assistant:
+2 + 2 = 4
+```
+
+**이슈 및 해결**:
+- ⚠️ ESLint 에러: Unsafe any type in stream
+  - **해결**: `response.data as AsyncIterable<Buffer>` 타입 단언 추가
+- ⚠️ 불필요한 타입 단언 경고
+  - **해결**: chunk 타입 자동 추론으로 변경
+- ✅ SSE 파싱 안정성 확인
+
+**Git Commit**:
+- Commit Hash: `c6b5cc8`
+- Commit Message: "feat: OpenAI Compatible API 클라이언트 및 chat 명령어 구현"
+
+**완료 시간**: 2025-11-03 15:30
+
+**소요 시간**: 약 2.5시간
+
+---
 
 ### [COMPLETED] 2025-11-03 14:15: 설정 파일 시스템 구축
 
@@ -419,25 +577,7 @@ Phase 1 기능이 현재 개발 중입니다.
 
 ---
 
-### 4. [PLANNED] OpenAI Compatible API 클라이언트 구현
-**우선순위**: 🔴 높음
-**예상 시간**: 2시간
-**의존성**: 설정 파일 시스템 완료
-
-**작업 내용**:
-- Axios 기반 HTTP 클라이언트 구현
-- OpenAI API 호환 요청/응답 처리
-- 스트리밍 응답 지원
-- 에러 처리 및 재시도 로직
-
-- 사용가능한 model과 key, endpoint
-- model: gemini-2.0-flash
-- key: AIzaSyAZWTQSWpv7SwK2WeIE28Oy3tjHDE4b5GI
-- endpoint: https://generativelanguage.googleapis.com/v1beta/openai/
-- 차후엔 http 기반 endpoint로도 동작해야됨
----
-
-### 5. [PLANNED] 기본 파일 시스템 도구 구현
+### 2. [NEXT] LLM Tools - 파일 시스템 도구 구현
 **우선순위**: 🟡 중간
 **예상 시간**: 3시간
 **의존성**: CLI 기본 프레임워크 완료
@@ -453,19 +593,20 @@ Phase 1 기능이 현재 개발 중입니다.
 
 ## 📈 진행률
 
-### Phase 1 진행률: 25%
+### Phase 1 진행률: 40%
 ```
-[█████░░░░░░░░░░░░░░░] 25%
+[████████░░░░░░░░░░░░] 40%
 ```
 
-**완료**: 3 / 12 작업
+**완료**: 4 / 10 작업
 **진행 중**: 0
-**계획됨**: 3
+**계획됨**: 2
 
 ### 작업 완료 이력
 - ✅ PROGRESS.md 생성 (5%)
 - ✅ 프로젝트 초기 설정 및 기본 CLI 프레임워크 (15%)
 - ✅ 설정 파일 시스템 구축 (25%)
+- ✅ OpenAI Compatible API 클라이언트 구현 (40%)
 
 ---
 
@@ -476,6 +617,61 @@ Phase 1 기능이 현재 개발 중입니다.
 ---
 
 ## 💡 기술적 결정 로그
+
+### 2025-11-03: AsyncGenerator를 사용한 스트리밍 구현
+**결정**: AsyncGenerator 패턴으로 스트리밍 응답 구현
+**이유**:
+- 자연스러운 비동기 반복 (for await...of)
+- 메모리 효율적 (chunk 단위 처리)
+- TypeScript 타입 안전성
+- 콜백이나 이벤트보다 직관적
+**대안 검토**:
+- EventEmitter: 복잡한 이벤트 관리
+- Callback: 콜백 지옥 가능성
+**영향**:
+```typescript
+async *chatCompletionStream() {
+  for await (const chunk of stream) {
+    yield content;
+  }
+}
+```
+
+### 2025-11-03: SSE (Server-Sent Events) 파싱 구현
+**결정**: 직접 SSE 파싱 (라이브러리 없이)
+**이유**:
+- 간단한 형식 (data: {json}\n\n)
+- 의존성 최소화
+- 불완전한 청크 처리 가능
+**영향**:
+- Buffer를 문자열로 변환 후 줄 단위 파싱
+- `data: [DONE]` 종료 신호 감지
+- JSON 파싱 실패 시 무시 (불완전한 청크)
+
+### 2025-11-03: 지수 백오프 재시도 로직
+**결정**: 3회 재시도 + 지수 백오프 (1s, 2s, 4s)
+**이유**:
+- 일시적 네트워크 에러 대응
+- Rate limit 회복 시간 제공
+- 과도한 재시도 방지
+**영향**:
+```typescript
+// 1차: 0s → 1차 실패 → 1s 대기
+// 2차: 1s → 2차 실패 → 2s 대기
+// 3차: 3s → 3차 실패 → throw
+```
+
+### 2025-11-03: Axios 기반 HTTP 클라이언트
+**결정**: Axios 사용 (node-fetch 대신)
+**이유**:
+- 타임아웃 기본 지원
+- 인터셉터 지원
+- TypeScript 타입 정의 우수
+- 에러 처리 간편
+**영향**:
+- 모든 HTTP 요청은 Axios 인스턴스 사용
+- 60초 타임아웃 설정
+- Authorization 헤더 자동 설정
 
 ### 2025-11-03: 싱글톤 패턴으로 ConfigManager 구현
 **결정**: ConfigManager를 싱글톤 패턴으로 구현
@@ -557,5 +753,5 @@ Phase 1 기능이 현재 개발 중입니다.
 
 ---
 
-**마지막 업데이트**: 2025-11-03 14:15
-**다음 업데이트 예정**: OpenAI Compatible API 클라이언트 구현 완료 후
+**마지막 업데이트**: 2025-11-03 15:30
+**다음 업데이트 예정**: LLM Tools (파일 시스템 도구) 구현 완료 후
