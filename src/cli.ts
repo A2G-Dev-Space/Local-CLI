@@ -25,26 +25,132 @@ program.name('open').description('OPEN-CLI - 오프라인 기업용 AI 코딩 �
 /**
  * 기본 명령어: 대화형 모드 시작
  */
-program.action(() => {
-  console.log(chalk.cyan.bold('\n╔════════════════════════════════════════════════════════════╗'));
-  console.log(chalk.cyan.bold('║                     OPEN-CLI v0.1.0                        ║'));
-  console.log(chalk.cyan.bold('║              오프라인 기업용 AI 코딩 어시스턴트              ║'));
-  console.log(chalk.cyan.bold('╚════════════════════════════════════════════════════════════╝\n'));
+program.action(async () => {
+  try {
+    // ConfigManager 초기화 확인
+    const isInitialized = await configManager.isInitialized();
+    if (!isInitialized) {
+      console.log(chalk.cyan.bold('\n╔════════════════════════════════════════════════════════════╗'));
+      console.log(chalk.cyan.bold('║                     OPEN-CLI v0.1.0                        ║'));
+      console.log(chalk.cyan.bold('║              오프라인 기업용 AI 코딩 어시스턴트              ║'));
+      console.log(chalk.cyan.bold('╚════════════════════════════════════════════════════════════╝\n'));
 
-  console.log(chalk.yellow('⚠️  OPEN-CLI가 아직 초기 설정 단계입니다.'));
-  console.log(chalk.white('Phase 1 기능이 현재 개발 중입니다.\n'));
+      console.log(chalk.yellow('⚠️  OPEN-CLI가 초기화되지 않았습니다.'));
+      console.log(chalk.white('먼저 초기화를 진행해주세요:\n'));
+      console.log(chalk.green('  $ open config init\n'));
+      return;
+    }
 
-  console.log(chalk.green('✅ 완료된 작업:'));
-  console.log(chalk.white('  • 프로젝트 초기 설정'));
-  console.log(chalk.white('  • TypeScript 및 빌드 환경 구성'));
-  console.log(chalk.white('  • 기본 CLI 프레임워크 구축\n'));
+    await configManager.initialize();
 
-  console.log(chalk.blue('📋 다음 작업:'));
-  console.log(chalk.white('  • OpenAI Compatible API 클라이언트 구현'));
-  console.log(chalk.white('  • 설정 파일 시스템 구축'));
-  console.log(chalk.white('  • 파일 시스템 도구 구현\n'));
+    // LLMClient 생성
+    const llmClient = createLLMClient();
+    const modelInfo = llmClient.getModelInfo();
 
-  console.log(chalk.dim('개발 진행 상황은 PROGRESS.md를 참조하세요.'));
+    // 환영 메시지
+    console.log(chalk.cyan.bold('\n╔════════════════════════════════════════════════════════════╗'));
+    console.log(chalk.cyan.bold('║                 OPEN-CLI Interactive Mode                  ║'));
+    console.log(chalk.cyan.bold('╚════════════════════════════════════════════════════════════╝\n'));
+    console.log(chalk.dim(`모델: ${modelInfo.model}`));
+    console.log(chalk.dim(`엔드포인트: ${modelInfo.endpoint}\n`));
+    console.log(chalk.yellow('명령어:'));
+    console.log(chalk.white('  /exit, /quit  - 종료'));
+    console.log(chalk.white('  /context      - 대화 히스토리 보기'));
+    console.log(chalk.white('  /clear        - 대화 히스토리 초기화'));
+    console.log(chalk.white('  /help         - 도움말\n'));
+
+    // 메시지 히스토리
+    const messages: import('./types').Message[] = [];
+
+    // Interactive loop
+    let running = true;
+    while (running) {
+      const answer = await inquirer.prompt([
+        {
+          type: 'input',
+          name: 'message',
+          message: chalk.green('You:'),
+          validate: (input: string) => input.trim().length > 0 || '메시지를 입력해주세요.',
+        },
+      ]);
+
+      const userMessage = answer.message.trim();
+
+      // 메타 명령어 처리
+      if (userMessage === '/exit' || userMessage === '/quit') {
+        console.log(chalk.cyan('\n👋 OPEN-CLI를 종료합니다.\n'));
+        running = false;
+        break;
+      }
+
+      if (userMessage === '/context') {
+        console.log(chalk.yellow('\n📝 대화 히스토리:\n'));
+        if (messages.length === 0) {
+          console.log(chalk.dim('  (비어있음)\n'));
+        } else {
+          messages.forEach((msg, index) => {
+            console.log(chalk.white(`  ${index + 1}. [${msg.role}]: ${msg.content?.substring(0, 100)}${msg.content && msg.content.length > 100 ? '...' : ''}`));
+          });
+          console.log();
+        }
+        continue;
+      }
+
+      if (userMessage === '/clear') {
+        messages.length = 0;
+        console.log(chalk.green('\n✅ 대화 히스토리가 초기화되었습니다.\n'));
+        continue;
+      }
+
+      if (userMessage === '/help') {
+        console.log(chalk.yellow('\n📚 Interactive Mode 도움말:\n'));
+        console.log(chalk.white('  /exit, /quit  - 종료'));
+        console.log(chalk.white('  /context      - 대화 히스토리 보기'));
+        console.log(chalk.white('  /clear        - 대화 히스토리 초기화'));
+        console.log(chalk.white('  /help         - 이 도움말\n'));
+        continue;
+      }
+
+      // 사용자 메시지 추가
+      messages.push({
+        role: 'user',
+        content: userMessage,
+      });
+
+      // LLM 호출
+      try {
+        const spinner = ora('생각 중...').start();
+
+        const response = await llmClient.chatCompletion({
+          messages: [...messages],
+        });
+
+        spinner.stop();
+
+        const assistantMessage = response.choices[0]?.message;
+        if (assistantMessage) {
+          messages.push(assistantMessage);
+
+          console.log(chalk.cyan('\nAssistant:'));
+          console.log(chalk.white(assistantMessage.content));
+          console.log();
+        }
+      } catch (error) {
+        console.error(chalk.red('\n❌ 에러 발생:'));
+        if (error instanceof Error) {
+          console.error(chalk.red(error.message));
+        }
+        console.log();
+      }
+    }
+  } catch (error) {
+    console.error(chalk.red('\n❌ 에러 발생:'));
+    if (error instanceof Error) {
+      console.error(chalk.red(error.message));
+    }
+    console.log();
+    process.exit(1);
+  }
 });
 
 /**

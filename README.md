@@ -97,27 +97,59 @@ node dist/cli.js config init
 
 ### 3. 기본 사용법
 
-#### 설정 확인
+**Global 명령어 사용** (권장):
 ```bash
-# 현재 설정 보기
-node dist/cli.js config show
+# npm link 설정 (한 번만)
+npm link
+
+# 이제 'open' 명령어 사용 가능
+open              # Interactive mode 시작
+open help         # 도움말
+open config show  # 설정 확인
 ```
 
-#### LLM과 대화하기
+**또는 직접 실행**:
 ```bash
-# 일반 응답
-node dist/cli.js chat "Hello! Who are you?"
-
-# 스트리밍 응답 (실시간 출력)
-node dist/cli.js chat "Tell me a joke" -s
-
-# 시스템 프롬프트 사용
-node dist/cli.js chat "파이썬 설명해줘" --system "You are a helpful programming tutor"
+node dist/cli.js              # Interactive mode 시작
+node dist/cli.js help         # 도움말
+node dist/cli.js config show  # 설정 확인
 ```
 
-### 4. 사용 가능한 명령어
+---
 
-#### 설정 관리
+#### Interactive Mode (대화형 모드) - 추천!
+
+`open` 명령어만 입력하면 대화형 모드가 시작됩니다:
+
+```bash
+$ open
+
+╔════════════════════════════════════════════════════════════╗
+║                 OPEN-CLI Interactive Mode                  ║
+╚════════════════════════════════════════════════════════════╝
+
+모델: gemini-2.0-flash
+엔드포인트: https://...
+
+명령어:
+  /exit, /quit  - 종료
+  /context      - 대화 히스토리 보기
+  /clear        - 대화 히스토리 초기화
+  /help         - 도움말
+
+? You: Hello! How are you?
+
+🤖 Assistant: Hello! I'm doing well, thank you! How can I help you today?
+
+? You: /exit
+👋 Goodbye!
+```
+
+---
+
+### 4. 설정 명령어
+
+#### 초기화 및 설정 관리
 ```bash
 # 초기화
 node dist/cli.js config init

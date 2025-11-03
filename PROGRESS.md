@@ -42,14 +42,14 @@
 
 ---
 
-## 📅 Phase 1: 기초 구축 (3-6개월) - 진행률: 80%
+## 📅 Phase 1: 기초 구축 (3-6개월) - 진행률: 100% ✅
 
 ### 목표
 - ✅ 기본 CLI 프레임워크 구축
 - ✅ 설정 파일 시스템 구축
 - ✅ 로컬 모델 엔드포인트 연결 (OpenAI Compatible API 클라이언트)
 - ✅ 파일 시스템 도구 (LLM Tools)
-- ⬜ 기본 명령어 시스템 (대화형 모드)
+- ✅ 기본 명령어 시스템 (대화형 모드)
 
 ---
 
@@ -60,6 +60,164 @@
 ---
 
 ## 📊 완료된 작업
+
+### [COMPLETED] 2025-11-03 21:00: 대화형 모드 (Interactive Mode) 구현
+
+**작업 내용**:
+1. npm link로 글로벌 `open` 명령어 활성화
+2. Interactive chat mode 구현
+3. 세션 관리 (메시지 히스토리)
+4. 메타 명령어 추가 (/exit, /quit, /context, /clear, /help)
+5. Context-aware 대화 (이전 대화 기억)
+6. README.md 업데이트 (사용 가이드)
+
+**상태**: 완료됨 (COMPLETED) ✅
+
+**체크리스트**:
+- [x] npm link 설정으로 `open` 명령어 글로벌 사용
+- [x] src/cli.ts program.action() 완전 재작성
+- [x] Message history 관리 (messages 배열)
+- [x] Interactive loop 구현 (while + inquirer)
+- [x] 메타 명령어 구현:
+  - [x] /exit, /quit - 종료
+  - [x] /context - 대화 히스토리 보기
+  - [x] /clear - 히스토리 초기화
+  - [x] /help - 도움말
+- [x] Context-aware 응답 (LLM이 이전 대화 기억)
+- [x] Welcome banner 및 안내 메시지
+- [x] README.md 업데이트 (Interactive Mode 섹션)
+- [x] 빌드 및 테스트 완료
+
+**구현 세부사항**:
+
+#### 1. 글로벌 명령어 활성화
+
+package.json의 bin 설정을 활용하여 npm link 실행:
+```bash
+npm link
+# 이제 'open' 명령어로 CLI 시작 가능
+```
+
+#### 2. Interactive Loop 구현
+
+```typescript
+// src/cli.ts
+program.action(async () => {
+  // 초기화 확인
+  const isInitialized = await configManager.isInitialized();
+  if (!isInitialized) {
+    console.log('⚠️  OPEN-CLI가 초기화되지 않았습니다.');
+    console.log('  $ open config init\n');
+    return;
+  }
+
+  // Welcome banner
+  console.log('╔════════════════════════════════════════════════════════════╗');
+  console.log('║                 OPEN-CLI Interactive Mode                  ║');
+  console.log('╚════════════════════════════════════════════════════════════╝\n');
+
+  // Message history
+  const messages: Message[] = [];
+
+  // Interactive loop
+  let running = true;
+  while (running) {
+    // inquirer로 사용자 입력 받기
+    const answer = await inquirer.prompt([...]);
+
+    // 메타 명령어 처리
+    if (userMessage === '/exit' || userMessage === '/quit') {
+      running = false;
+      break;
+    }
+
+    // LLM 호출 및 응답
+    messages.push({ role: 'user', content: userMessage });
+    const response = await llmClient.chatCompletion({ messages });
+    messages.push(response.choices[0].message);
+  }
+});
+```
+
+#### 3. 메타 명령어 구현
+
+| 명령어 | 기능 | 설명 |
+|--------|------|------|
+| `/exit`, `/quit` | 종료 | Interactive mode 종료 |
+| `/context` | 히스토리 보기 | 현재까지의 대화 내용 출력 (JSON) |
+| `/clear` | 히스토리 초기화 | 메시지 배열 초기화 (새로운 대화 시작) |
+| `/help` | 도움말 | 메타 명령어 목록 표시 |
+
+#### 4. Context-aware 대화
+
+LLM에게 전체 messages 배열을 전달하여 이전 대화를 기억:
+```typescript
+// 각 요청마다 전체 히스토리 전송
+const response = await llmClient.chatCompletion({ messages });
+```
+
+**사용 예시**:
+```bash
+$ open
+
+╔════════════════════════════════════════════════════════════╗
+║                 OPEN-CLI Interactive Mode                  ║
+╚════════════════════════════════════════════════════════════╝
+
+모델: gemini-2.0-flash
+엔드포인트: https://generativelanguage.googleapis.com/v1beta/openai/
+
+명령어:
+  /exit, /quit  - 종료
+  /context      - 대화 히스토리 보기
+  /clear        - 대화 히스토리 초기화
+  /help         - 도움말
+
+? You: What is TypeScript?
+
+🤖 Assistant: TypeScript is a strongly typed programming language...
+
+? You: Can you give me an example?
+
+🤖 Assistant: Sure! Here's an example... (이전 질문 기억)
+
+? You: /exit
+👋 Goodbye!
+```
+
+**기술적 결정**:
+
+1. **inquirer 사용**: 이미 dependencies에 있어 추가 설치 불필요
+2. **In-memory history**: 현재는 메모리에만 저장 (Phase 2에서 세션 파일 저장 예정)
+3. **Meta command prefix**: `/` 사용하여 일반 메시지와 명확히 구분
+4. **Global command**: npm link로 개발자 친화적인 UX 제공
+
+**이슈 및 해결**:
+
+1. **이슈**: npm link 없이는 `node dist/cli.js`로 실행해야 함
+   - **해결**: npm link 실행 및 README에 안내 추가
+
+2. **이슈**: Context 너무 길어지면 token limit 초과 가능
+   - **현재 상태**: `/clear` 명령어로 수동 초기화
+   - **향후 개선**: 자동 context window 관리 (Phase 2)
+
+**테스트 결과**:
+
+✅ `open` 명령어로 실행
+✅ Interactive loop 정상 작동
+✅ 메시지 히스토리 정상 저장
+✅ LLM이 이전 대화 기억
+✅ 모든 메타 명령어 정상 작동
+✅ /context로 히스토리 확인 가능
+✅ /clear로 초기화 가능
+✅ /exit로 정상 종료
+
+**파일 변경**:
+- `src/cli.ts`: program.action() 완전 재작성
+- `README.md`: Interactive Mode 섹션 추가
+- `PROGRESS.md`: Phase 1 완료 (80% → 100%)
+
+---
 
 ### [COMPLETED] 2025-11-03 19:00: 파일 시스템 도구 (LLM Tools) 구현
 
