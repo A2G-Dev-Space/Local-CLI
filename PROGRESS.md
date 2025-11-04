@@ -65,7 +65,1489 @@
 
 ## 🚀 진행 중인 작업
 
-현재 진행 중인 작업 없음
+### [IN PROGRESS] 2025-11-04: Gemini CLI 스타일 UI 고도화 (Enhanced Gemini-Style UI)
+
+**작업 목표**: Gemini CLI와 유사한 세련된 터미널 UI를 OPEN-CLI에 구현
+
+**배경**:
+- 현재 Ink UI는 기본적인 기능만 제공 (헤더, 메시지, 입력)
+- Tool 사용 내역이 console.log로만 표시됨
+- Gemini CLI의 UX를 참고하여 더 직관적이고 정보가 풍부한 UI 필요
+
+---
+
+### 📋 1단계: 계획 확인 (PLAN CHECK)
+
+**현재 상태 파악**:
+- ✅ Ink UI 기본 구조 완성 (InteractiveApp.tsx)
+- ✅ FILE_TOOLS 자동 바인딩 완료
+- ⚠️ Tool 사용 내역 UI 표시 미구현 (console.log만 사용)
+- ⚠️ 상태바/컨텍스트 정보 표시 없음
+- ⚠️ Welcome 화면/Tips 없음
+
+**Gemini CLI UI 주요 특징 분석**:
+1. ASCII 아트 로고와 브랜딩
+2. Tips for getting started 섹션
+3. Tool 사용 표시 박스 (✓ ReadFile package.json)
+4. 하단 상태바 (경로, 모드, 모델, 컨텍스트)
+5. 입력 힌트 ("Type your message or @path/to/file")
+6. 메시지와 Tool 호출 시각적 구분
+
+**구현 우선순위**: ⚠️ **아키텍처 대폭 변경 필요**
+1. [P0] **Plan-and-Execute 아키텍처 구현** 🚨 **최우선 과제** (새로운 요구사항)
+   - Planning LLM (TODO List 자동 생성)
+   - Docs Search Agent Tool (각 TODO 실행 전 선행)
+   - TODO List 고정 UI (하단 패널)
+   - Session에 TODO 상태 저장
+2. [P0] Tool 사용 내역 UI 표시 (현재 가장 시급)
+3. [P1] 하단 상태바 구현
+4. [P1] ASCII 로고 및 Welcome 화면
+5. [P2] Tips/Help 섹션
+6. [P2] 입력 힌트 및 자동완성 제안
+7. [P3] 메시지 타입별 스타일링 강화
+
+---
+
+### 🔧 2단계: 구현 (IMPLEMENTATION)
+
+---
+
+## 🚨 중요: Plan-and-Execute 아키텍처로 전환 (2025-11-04)
+
+### 새로운 요구사항 분석
+
+**현재 방식 (Direct Response)**:
+```
+User Request → LLM → Tools (optional) → Response
+```
+
+**새로운 방식 (Plan-and-Execute)**:
+```
+User Request
+    ↓
+Planning LLM → TODO List 생성 (UI에 표시)
+    ↓
+For each TODO item:
+    ├─ Docs Search Agent (선행 실행)
+    ├─ Main LLM ReAct (iteration)
+    ├─ ✓ 완료 체크
+    └─ 다음 TODO로
+    ↓
+All TODOs 완료
+    ↓
+Session에 저장 (복구 가능)
+```
+
+**핵심 변경사항**:
+1. ✅ **Planning Phase**: User request를 분석하여 TODO list 자동 생성
+2. ✅ **Docs Search 선행**: 각 TODO 실행 전 반드시 docs search agent tool 실행
+3. ✅ **TODO UI 고정**: 메시지는 스크롤, TODO list는 하단 고정
+4. ✅ **ReAct 조각**: 각 TODO가 하나의 ReAct 단위
+5. ✅ **Session 저장**: TODO 상태 및 진행상황 저장
+
+---
+
+#### 1.9 Plan-and-Execute 아키텍처 구현 [P0] 🚨
+
+**목표**: User request를 TODO list로 분해하고, 각 TODO를 순차적으로 실행하는 시스템 구축
+
+##### 1.9.1 Planning LLM 구현
+
+**목표**: User request를 분석하여 실행 가능한 TODO list 생성
+
+**작업 내용**:
+- [ ] `src/core/planning-llm.ts` 파일 생성
+- [ ] `PlanningLLM` 클래스 구현
+- [ ] `generateTODOList()` 메서드
+- [ ] Planning System Prompt 정의
+- [ ] TODO item 타입 정의
+
+**구현 예시**:
+```typescript
+// src/core/planning-llm.ts
+import { LLMClient } from './llm-client.js';
+import { Message } from '../types/index.js';
+
+/**
+ * TODO Item 타입
+ */
+export interface TodoItem {
+  id: string;
+  title: string;
+  description: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  requiresDocsSearch: boolean;
+  dependencies: string[]; // 다른 TODO의 id
+  result?: string;
+  error?: string;
+  startedAt?: Date;
+  completedAt?: Date;
+}
+
+/**
+ * Planning 결과
+ */
+export interface PlanningResult {
+  todos: TodoItem[];
+  estimatedTime?: string;
+  complexity: 'simple' | 'moderate' | 'complex';
+}
+
+/**
+ * Planning LLM
+ */
+export class PlanningLLM {
+  private llmClient: LLMClient;
+
+  constructor(llmClient: LLMClient) {
+    this.llmClient = llmClient;
+  }
+
+  /**
+   * User request를 TODO list로 변환
+   */
+  async generateTODOList(userRequest: string): Promise<PlanningResult> {
+    const systemPrompt = `
+당신은 작업 계획 전문가입니다. 사용자의 요청을 분석하여 실행 가능한 TODO list를 생성합니다.
+
+**당신의 임무**:
+사용자 요청을 세부 작업(TODO items)으로 분해하는 것입니다.
+
+**TODO Item 생성 규칙**:
+1. **구체적**: 각 TODO는 명확하고 실행 가능해야 합니다
+2. **순차적**: TODO는 실행 순서대로 나열합니다
+3. **독립적**: 각 TODO는 가능한 한 독립적이어야 합니다
+4. **Docs Search**: 정보가 필요한 TODO는 requiresDocsSearch: true
+5. **의존성**: 다른 TODO의 결과가 필요하면 dependencies 명시
+
+**TODO 예시**:
+사용자: "TypeScript로 REST API를 만들어줘"
+→ TODO:
+  1. TypeScript 프로젝트 설정 방법 조사 (requiresDocsSearch: true)
+  2. Express.js 설치 및 초기 설정
+  3. 기본 라우트 구조 생성
+  4. API 엔드포인트 구현
+  5. 테스트 코드 작성
+
+**중요**:
+- 너무 세분화하지 마세요 (최대 5-7개 TODO)
+- 각 TODO는 10-30분 내 완료 가능해야 합니다
+- 복잡한 작업은 여러 TODO로 분해하세요
+
+**응답 형식** (JSON):
+{
+  "todos": [
+    {
+      "id": "todo-1",
+      "title": "TODO 제목",
+      "description": "상세 설명",
+      "requiresDocsSearch": true/false,
+      "dependencies": []
+    }
+  ],
+  "estimatedTime": "30-60분",
+  "complexity": "moderate"
+}
+`;
+
+    const messages: Message[] = [
+      {
+        role: 'user',
+        content: `다음 요청을 TODO list로 분해해주세요:\n\n${userRequest}`,
+      },
+    ];
+
+    try {
+      const response = await this.llmClient.chatCompletion({
+        messages,
+        // stream: false,
+      });
+
+      const content = response.choices[0].message.content || '';
+
+      // JSON 파싱
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('Planning LLM이 JSON을 반환하지 않았습니다');
+      }
+
+      const planningData = JSON.parse(jsonMatch[0]);
+
+      // TodoItem 생성 (status 추가)
+      const todos: TodoItem[] = planningData.todos.map((todo: any, index: number) => ({
+        id: todo.id || `todo-${Date.now()}-${index}`,
+        title: todo.title,
+        description: todo.description,
+        status: 'pending',
+        requiresDocsSearch: todo.requiresDocsSearch || false,
+        dependencies: todo.dependencies || [],
+      }));
+
+      return {
+        todos,
+        estimatedTime: planningData.estimatedTime,
+        complexity: planningData.complexity || 'moderate',
+      };
+    } catch (error) {
+      console.error('Planning LLM 에러:', error);
+
+      // Fallback: 단일 TODO 생성
+      return {
+        todos: [
+          {
+            id: `todo-${Date.now()}`,
+            title: '작업 수행',
+            description: userRequest,
+            status: 'pending',
+            requiresDocsSearch: true,
+            dependencies: [],
+          },
+        ],
+        complexity: 'simple',
+      };
+    }
+  }
+}
+```
+
+##### 1.9.2 TODO Executor 구현
+
+**목표**: TODO list를 순차적으로 실행하는 엔진
+
+**작업 내용**:
+- [ ] `src/core/todo-executor.ts` 파일 생성
+- [ ] `TodoExecutor` 클래스 구현
+- [ ] `executeTodo()` 메서드 (단일 TODO 실행)
+- [ ] `executeAll()` 메서드 (전체 TODO 순차 실행)
+- [ ] Docs Search 선행 로직
+- [ ] 의존성 검증
+
+**구현 예시**:
+```typescript
+// src/core/todo-executor.ts
+import { LLMClient } from './llm-client.js';
+import { TodoItem } from './planning-llm.js';
+import { executeDocsSearchAgent } from '../tools/docs-search-agent.js';
+import { FILE_TOOLS } from '../tools/file-tools.js';
+import { Message } from '../types/index.js';
+
+/**
+ * TODO Executor
+ */
+export class TodoExecutor {
+  private llmClient: LLMClient;
+  private onTodoUpdate?: (todo: TodoItem) => void;
+
+  constructor(
+    llmClient: LLMClient,
+    onTodoUpdate?: (todo: TodoItem) => void
+  ) {
+    this.llmClient = llmClient;
+    this.onTodoUpdate = onTodoUpdate;
+  }
+
+  /**
+   * 단일 TODO 실행
+   */
+  async executeTodo(
+    todo: TodoItem,
+    messages: Message[],
+    completedTodos: TodoItem[]
+  ): Promise<{ messages: Message[]; todo: TodoItem }> {
+    try {
+      // 상태 업데이트: in_progress
+      todo.status = 'in_progress';
+      todo.startedAt = new Date();
+      this.onTodoUpdate?.(todo);
+
+      // 1. Docs Search 선행 (requiresDocsSearch가 true이면)
+      let docsContext = '';
+      if (todo.requiresDocsSearch) {
+        const searchResult = await executeDocsSearchAgent(
+          this.llmClient,
+          todo.description
+        );
+
+        if (searchResult.success && searchResult.result) {
+          docsContext = searchResult.result;
+          messages.push({
+            role: 'assistant',
+            content: `[Docs Search 완료]\n${docsContext}`,
+          });
+        }
+      }
+
+      // 2. Context 생성 (이전 TODO 결과 포함)
+      let contextPrompt = `현재 작업: ${todo.title}\n${todo.description}\n\n`;
+
+      if (docsContext) {
+        contextPrompt += `관련 문서:\n${docsContext}\n\n`;
+      }
+
+      if (completedTodos.length > 0) {
+        contextPrompt += `이전 작업 결과:\n`;
+        completedTodos.forEach((completed) => {
+          contextPrompt += `- ${completed.title}: ${completed.result}\n`;
+        });
+        contextPrompt += '\n';
+      }
+
+      contextPrompt += '이제 이 작업을 수행하세요.';
+
+      messages.push({
+        role: 'user',
+        content: contextPrompt,
+      });
+
+      // 3. Main LLM 실행 (Tools 포함)
+      const result = await this.llmClient.chatCompletionWithTools(
+        messages,
+        FILE_TOOLS,
+        5 // maxIterations
+      );
+
+      // 4. 결과 저장
+      const finalMessage = result.allMessages[result.allMessages.length - 1];
+      const todoResult = finalMessage.content || '작업 완료';
+
+      todo.status = 'completed';
+      todo.result = todoResult;
+      todo.completedAt = new Date();
+      this.onTodoUpdate?.(todo);
+
+      return {
+        messages: result.allMessages,
+        todo,
+      };
+    } catch (error) {
+      // 에러 처리
+      todo.status = 'failed';
+      todo.error = error instanceof Error ? error.message : 'Unknown error';
+      todo.completedAt = new Date();
+      this.onTodoUpdate?.(todo);
+
+      throw error;
+    }
+  }
+
+  /**
+   * 전체 TODO 순차 실행
+   */
+  async executeAll(
+    todos: TodoItem[],
+    initialMessages: Message[]
+  ): Promise<{ messages: Message[]; todos: TodoItem[] }> {
+    let messages = [...initialMessages];
+    const completedTodos: TodoItem[] = [];
+
+    for (const todo of todos) {
+      // 의존성 확인
+      if (todo.dependencies.length > 0) {
+        const allDepsCompleted = todo.dependencies.every((depId) =>
+          completedTodos.some((t) => t.id === depId && t.status === 'completed')
+        );
+
+        if (!allDepsCompleted) {
+          todo.status = 'failed';
+          todo.error = '의존성 TODO가 완료되지 않았습니다';
+          continue;
+        }
+      }
+
+      // TODO 실행
+      const result = await this.executeTodo(todo, messages, completedTodos);
+      messages = result.messages;
+      completedTodos.push(result.todo);
+
+      // 실패 시 중단할지 결정 (현재는 계속 진행)
+      if (todo.status === 'failed') {
+        console.warn(`TODO "${todo.title}" 실패:`, todo.error);
+      }
+    }
+
+    return {
+      messages,
+      todos,
+    };
+  }
+}
+```
+
+##### 1.9.3 TODO List UI 컴포넌트 (Ink)
+
+**목표**: 하단에 고정된 TODO list 패널 구현
+
+**작업 내용**:
+- [ ] `src/ui/components/TodoListPanel.tsx` 생성
+- [ ] 고정 레이아웃 (메시지와 분리)
+- [ ] TODO 상태별 아이콘 표시
+- [ ] 진행 중인 TODO 강조
+
+**UI 구조**:
+```
+┌───────────────────────────────────────────────────┐
+│ Messages (scrollable)                             │
+│                                                   │
+│ > User: TypeScript로 REST API 만들어줘           │
+│                                                   │
+│ 🤖 Assistant:                                     │
+│ 알겠습니다. 작업을 계획하겠습니다.                │
+│                                                   │
+│ [Planning 완료]                                   │
+│                                                   │
+│ 🤖 Assistant: 첫 번째 작업을 시작합니다...        │
+│ ...                                               │
+│                                                   │
+├───────────────────────────────────────────────────┤
+│ 📋 TODO List (3/5 completed)            [12:34]  │ ← 고정 패널
+├───────────────────────────────────────────────────┤
+│ ✓ 1. TypeScript 프로젝트 설정 조사                │
+│ ✓ 2. Express.js 설치                              │
+│ → 3. 기본 라우트 구조 생성 (진행 중)              │ ← 현재
+│ ☐ 4. API 엔드포인트 구현                          │
+│ ☐ 5. 테스트 코드 작성                             │
+└───────────────────────────────────────────────────┘
+```
+
+**구현 예시**:
+```typescript
+// src/ui/components/TodoListPanel.tsx
+import React from 'react';
+import { Box, Text } from 'ink';
+import { TodoItem } from '../../core/planning-llm.js';
+
+interface TodoListPanelProps {
+  todos: TodoItem[];
+  currentTime?: string;
+}
+
+export const TodoListPanel: React.FC<TodoListPanelProps> = ({ todos, currentTime }) => {
+  const completedCount = todos.filter((t) => t.status === 'completed').length;
+  const totalCount = todos.length;
+
+  const getStatusIcon = (status: TodoItem['status']): string => {
+    switch (status) {
+      case 'completed':
+        return '✓';
+      case 'in_progress':
+        return '→';
+      case 'failed':
+        return '✗';
+      default:
+        return '☐';
+    }
+  };
+
+  const getStatusColor = (status: TodoItem['status']): string => {
+    switch (status) {
+      case 'completed':
+        return 'green';
+      case 'in_progress':
+        return 'yellow';
+      case 'failed':
+        return 'red';
+      default:
+        return 'gray';
+    }
+  };
+
+  return (
+    <Box flexDirection="column">
+      {/* Header */}
+      <Box borderStyle="single" borderColor="cyan" paddingX={1}>
+        <Box justifyContent="space-between" width="100%">
+          <Text bold color="cyan">
+            📋 TODO List ({completedCount}/{totalCount} completed)
+          </Text>
+          {currentTime && (
+            <Text dimColor>[{currentTime}]</Text>
+          )}
+        </Box>
+      </Box>
+
+      {/* TODO Items */}
+      <Box flexDirection="column" paddingX={1}>
+        {todos.map((todo, index) => (
+          <Box key={todo.id} marginY={0}>
+            <Text color={getStatusColor(todo.status)}>
+              {getStatusIcon(todo.status)} {index + 1}. {todo.title}
+              {todo.status === 'in_progress' && ' (진행 중)'}
+            </Text>
+          </Box>
+        ))}
+      </Box>
+    </Box>
+  );
+};
+```
+
+##### 1.9.4 InteractiveApp 리팩토링
+
+**목표**: Plan-and-Execute 플로우를 InteractiveApp에 통합
+
+**작업 내용**:
+- [ ] `InteractiveApp.tsx` 대폭 수정
+- [ ] PlanningLLM 통합
+- [ ] TodoExecutor 통합
+- [ ] TodoListPanel 통합
+- [ ] 레이아웃 분리 (Messages + TodoPanel)
+
+**핵심 변경사항**:
+```typescript
+// src/ui/components/InteractiveApp.tsx (수정)
+import React, { useState } from 'react';
+import { Box } from 'ink';
+import { LLMClient } from '../../core/llm-client.js';
+import { PlanningLLM, TodoItem } from '../../core/planning-llm.js';
+import { TodoExecutor } from '../../core/todo-executor.js';
+import { Message } from '../../types/index.js';
+import { TodoListPanel } from './TodoListPanel.js';
+// ... 기타 imports
+
+export const InteractiveApp: React.FC<InteractiveAppProps> = ({ llmClient, modelInfo }) => {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [todos, setTodos] = useState<TodoItem[]>([]);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  // Planning LLM & Executor 초기화
+  const planningLLM = new PlanningLLM(llmClient);
+  const todoExecutor = new TodoExecutor(llmClient, (updatedTodo) => {
+    // TODO 상태 업데이트 시 UI 갱신
+    setTodos((prev) =>
+      prev.map((t) => (t.id === updatedTodo.id ? updatedTodo : t))
+    );
+  });
+
+  const handleSubmit = async (value: string) => {
+    if (!value.trim() || isProcessing) return;
+
+    const userMessage = value.trim();
+    setInput('');
+    setIsProcessing(true);
+
+    // User 메시지 추가
+    const newMessages: Message[] = [
+      ...messages,
+      { role: 'user', content: userMessage },
+    ];
+    setMessages(newMessages);
+
+    try {
+      // 1. Planning Phase: TODO List 생성
+      const planningResult = await planningLLM.generateTODOList(userMessage);
+      setTodos(planningResult.todos);
+
+      // Planning 결과 메시지 추가
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: `작업을 계획했습니다. 총 ${planningResult.todos.length}개의 작업이 있습니다.`,
+        },
+      ]);
+
+      // 2. Execution Phase: TODO 순차 실행
+      const result = await todoExecutor.executeAll(planningResult.todos, newMessages);
+
+      // 최종 메시지 업데이트
+      setMessages(result.messages);
+      setTodos(result.todos);
+    } catch (error) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: 'Error: ' + (error instanceof Error ? error.message : 'Unknown error'),
+        },
+      ]);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  return (
+    <Box flexDirection="column" height="100%">
+      {/* Header */}
+      <Header modelInfo={modelInfo} />
+
+      {/* Messages (scrollable) */}
+      <Box flexDirection="column" flexGrow={1}>
+        <MessageList messages={messages} />
+      </Box>
+
+      {/* TODO List Panel (fixed at bottom) */}
+      {todos.length > 0 && (
+        <TodoListPanel todos={todos} currentTime={new Date().toLocaleTimeString()} />
+      )}
+
+      {/* Input Box */}
+      <InputBox
+        input={input}
+        isProcessing={isProcessing}
+        onInputChange={setInput}
+        onSubmit={handleSubmit}
+      />
+    </Box>
+  );
+};
+```
+
+##### 1.9.5 Session 저장/복구 개선
+
+**목표**: TODO 상태를 Session에 포함하여 저장
+
+**작업 내용**:
+- [ ] `SessionData` 타입 확장 (todos 필드 추가)
+- [ ] SessionManager.saveSession() 수정
+- [ ] SessionManager.loadSession() 수정
+- [ ] TODO 진행 상황 복구
+
+**SessionData 타입 확장**:
+```typescript
+// src/core/session-manager.ts
+import { TodoItem } from './planning-llm.js';
+
+export interface SessionData {
+  metadata: {
+    id: string;
+    name: string;
+    createdAt: string;
+    updatedAt: string;
+    messageCount: number;
+    todoCount?: number; // 🆕
+    completedTodoCount?: number; // 🆕
+    model: string;
+    endpoint: string;
+  };
+  messages: Message[];
+  todos?: TodoItem[]; // 🆕
+}
+```
+
+##### 1.9.6 테스트 시나리오
+
+**테스트 1: 단순 요청**
+```bash
+> TypeScript로 hello world 출력하는 코드 작성해줘
+
+# 예상 TODO:
+# ☐ 1. TypeScript 코드 작성
+# ☐ 2. 파일 저장
+
+# 예상 동작:
+# - TODO 1: docs search (선행) → LLM이 코드 생성
+# - TODO 2: write_file tool 사용
+```
+
+**테스트 2: 복잡한 요청**
+```bash
+> Express.js로 REST API 만들어줘. 데이터베이스는 PostgreSQL 사용
+
+# 예상 TODO:
+# ☐ 1. Express.js 및 PostgreSQL 설정 방법 조사
+# ☐ 2. package.json 및 tsconfig.json 생성
+# ☐ 3. 데이터베이스 연결 코드 작성
+# ☐ 4. 기본 라우트 구조 생성
+# ☐ 5. CRUD API 엔드포인트 구현
+
+# 예상 동작:
+# - 각 TODO마다 docs search 선행
+# - 순차적 실행 및 체크 표시
+```
+
+**테스트 3: 세션 복구**
+```bash
+# 1. 세션 저장
+> /save rest-api-project
+
+# 2. 종료 후 재실행
+> /load rest-api-project
+
+# 예상 동작:
+# - 이전 TODO list 복구
+# - 완료된 TODO는 ✓ 표시
+# - 미완료 TODO는 ☐ 표시
+# - 마지막 진행 상태부터 계속 가능
+```
+
+---
+
+#### 2.0 Docs Search Agent Tool 구현 [P0] 🆕
+
+**목표**: LLM이 ~/.open-cli/docs를 지능적으로 검색할 수 있는 Agent Tool 구현
+
+**배경 및 필요성**:
+- 현재: 사용자가 수동으로 `/docs search` 명령어 실행 필요
+- 문제점: LLM이 필요할 때 자동으로 문서를 검색하지 못함
+- 해결: LLM이 호출할 수 있는 "Agent Tool" 구현
+  - 내부에서 또 다른 LLM이 bash 명령어를 사용하여 문서 검색
+  - Multi-iteration으로 복잡한 검색 수행
+
+**아키텍처 설계**:
+```
+Main LLM (사용자와 대화)
+    │
+    ├─ Tool: read_file
+    ├─ Tool: write_file
+    └─ Tool: search_docs_agent ← 🆕 Agent Tool
+            │
+            └─ Sub LLM (문서 검색 전문가)
+                    │
+                    ├─ Tool: run_bash (find 명령)
+                    ├─ Tool: run_bash (grep 명령)
+                    ├─ Tool: run_bash (cat 명령)
+                    ├─ Tool: run_bash (ls 명령)
+                    └─ Tool: run_bash (기타 bash 명령)
+
+                    Multi-iteration (최대 10회)
+                    → 최종 결과 요약 및 return
+```
+
+**작업 내용**:
+
+##### 2.0.1 Bash Command Tool 생성
+- [ ] `src/tools/bash-command-tool.ts` 파일 생성
+- [ ] `RUN_BASH_TOOL` 정의 (ToolDefinition)
+- [ ] `executeBashCommand()` 함수 구현
+  - child_process.exec 사용
+  - stdout/stderr 캡처
+  - 안전성 검증 (위험한 명령 차단)
+  - 타임아웃 설정 (5초)
+
+**구현 예시**:
+```typescript
+// src/tools/bash-command-tool.ts
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import { ToolDefinition } from '../types/index.js';
+
+const execAsync = promisify(exec);
+
+export const RUN_BASH_TOOL: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'run_bash',
+    description: 'bash 명령어를 실행합니다. ~/.open-cli/docs 디렉토리 내에서만 안전하게 실행됩니다.',
+    parameters: {
+      type: 'object',
+      properties: {
+        command: {
+          type: 'string',
+          description: '실행할 bash 명령어 (예: find, grep, cat, ls)',
+        },
+        cwd: {
+          type: 'string',
+          description: '작업 디렉토리 (기본값: ~/.open-cli/docs)',
+        },
+      },
+      required: ['command'],
+    },
+  },
+};
+
+/**
+ * Bash 명령어 실행
+ */
+export async function executeBashCommand(
+  command: string,
+  cwd?: string
+): Promise<{ success: boolean; result?: string; error?: string }> {
+  try {
+    // 안전성 검증: 위험한 명령어 차단
+    const dangerousCommands = ['rm -rf', 'dd', 'mkfs', '>', '>>', 'sudo'];
+    if (dangerousCommands.some(cmd => command.includes(cmd))) {
+      return {
+        success: false,
+        error: '보안상의 이유로 해당 명령어는 실행할 수 없습니다.',
+      };
+    }
+
+    // ~/.open-cli/docs를 기본 작업 디렉토리로 설정
+    const docsPath = cwd || path.join(os.homedir(), '.open-cli', 'docs');
+
+    // 명령어 실행 (타임아웃 5초)
+    const { stdout, stderr } = await execAsync(command, {
+      cwd: docsPath,
+      timeout: 5000,
+      maxBuffer: 1024 * 1024, // 1MB
+    });
+
+    return {
+      success: true,
+      result: stdout || stderr,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+```
+
+##### 2.0.2 Docs Search Agent Tool 생성
+- [ ] `src/tools/docs-search-agent.ts` 파일 생성
+- [ ] `SEARCH_DOCS_AGENT_TOOL` 정의 (ToolDefinition)
+- [ ] `executeDocsSearchAgent()` 함수 구현
+  - LLMClient 인스턴스 재사용
+  - System prompt 정의 (문서 검색 전문가 역할)
+  - Sub-tools 정의 (RUN_BASH_TOOL만 제공)
+  - Multi-iteration 루프 (최대 10회)
+  - 최종 결과 요약 및 return
+
+**구현 예시**:
+```typescript
+// src/tools/docs-search-agent.ts
+import { LLMClient } from '../core/llm-client.js';
+import { ToolDefinition, Message } from '../types/index.js';
+import { RUN_BASH_TOOL, executeBashCommand } from './bash-command-tool.js';
+
+export const SEARCH_DOCS_AGENT_TOOL: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'search_docs_agent',
+    description: `
+      ~/.open-cli/docs 폴더에서 지능적으로 문서를 검색합니다.
+      이 도구는 내부적으로 AI Agent를 사용하여 복잡한 검색을 수행합니다.
+      폴더 구조, 파일 이름, 파일 내용을 기반으로 원하는 정보를 찾습니다.
+    `,
+    parameters: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: '검색하려는 정보에 대한 설명 (예: "TypeScript 코딩 표준", "API 인증 방법")',
+        },
+      },
+      required: ['query'],
+    },
+  },
+};
+
+/**
+ * Docs Search Agent 실행
+ */
+export async function executeDocsSearchAgent(
+  llmClient: LLMClient,
+  query: string
+): Promise<{ success: boolean; result?: string; error?: string }> {
+  try {
+    // System prompt: 문서 검색 전문가 역할
+    const systemPrompt = `
+당신은 ~/.open-cli/docs 폴더에서 문서를 검색하는 전문가입니다.
+
+**당신의 임무**:
+사용자가 요청한 정보를 ~/.open-cli/docs 폴더에서 찾아서 제공하는 것입니다.
+
+**사용 가능한 도구**:
+- run_bash: bash 명령어를 실행할 수 있습니다.
+  - find: 파일/폴더 검색 (예: find . -name "*.md")
+  - grep: 파일 내용 검색 (예: grep -r "typescript" .)
+  - cat: 파일 읽기 (예: cat README.md)
+  - ls: 디렉토리 목록 (예: ls -la)
+  - tree: 디렉토리 구조 (예: tree -L 2)
+
+**검색 전략**:
+1. 먼저 폴더 구조를 파악하세요 (ls, tree)
+2. 파일명으로 관련 파일을 찾으세요 (find)
+3. 파일 내용에서 키워드를 검색하세요 (grep)
+4. 관련 파일을 읽어서 정보를 추출하세요 (cat)
+5. 여러 파일에서 정보를 수집하여 종합하세요
+
+**중요**:
+- 최대 10번의 도구 호출로 정보를 찾아야 합니다
+- 찾은 정보는 명확하고 간결하게 요약하세요
+- 파일 경로와 함께 정보를 제공하세요
+- 정보를 찾지 못하면 "해당 정보를 찾을 수 없습니다"라고 답하세요
+
+**현재 작업 디렉토리**: ~/.open-cli/docs
+`;
+
+    // 초기 메시지
+    const messages: Message[] = [
+      {
+        role: 'user',
+        content: `다음 정보를 ~/.open-cli/docs 폴더에서 찾아주세요:\n\n${query}`,
+      },
+    ];
+
+    // Multi-iteration 루프 (최대 10회)
+    const maxIterations = 10;
+    let iteration = 0;
+    let finalResult = '';
+
+    while (iteration < maxIterations) {
+      iteration++;
+
+      // LLM 호출 (RUN_BASH_TOOL 제공)
+      const response = await llmClient.chatCompletion({
+        messages,
+        tools: [RUN_BASH_TOOL],
+        tool_choice: 'auto',
+        // stream: false, // Tool calling은 non-streaming
+      });
+
+      const assistantMessage = response.choices[0].message;
+      messages.push(assistantMessage);
+
+      // Tool calls가 있으면 실행
+      if (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
+        for (const toolCall of assistantMessage.tool_calls) {
+          if (toolCall.function.name === 'run_bash') {
+            const args = JSON.parse(toolCall.function.arguments);
+            const result = await executeBashCommand(args.command, args.cwd);
+
+            // Tool 결과를 메시지에 추가
+            messages.push({
+              role: 'tool',
+              content: result.success
+                ? result.result || '명령어 실행 성공 (출력 없음)'
+                : `Error: ${result.error}`,
+              tool_call_id: toolCall.id,
+            });
+          }
+        }
+      } else {
+        // Tool call이 없으면 최종 응답
+        finalResult = assistantMessage.content || '';
+        break;
+      }
+    }
+
+    // 결과가 없으면 에러
+    if (!finalResult) {
+      return {
+        success: false,
+        error: `최대 반복 횟수(${maxIterations})를 초과했습니다.`,
+      };
+    }
+
+    return {
+      success: true,
+      result: finalResult,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+```
+
+##### 2.0.3 FILE_TOOLS에 Agent Tool 통합
+- [ ] `src/tools/file-tools.ts` 수정
+- [ ] `FILE_TOOLS` 배열에 `SEARCH_DOCS_AGENT_TOOL` 추가
+- [ ] `executeFileTool()` 함수에 케이스 추가
+
+**수정 예시**:
+```typescript
+// src/tools/file-tools.ts
+import { SEARCH_DOCS_AGENT_TOOL, executeDocsSearchAgent } from './docs-search-agent.js';
+
+export const FILE_TOOLS: ToolDefinition[] = [
+  READ_FILE_TOOL,
+  WRITE_FILE_TOOL,
+  LIST_FILES_TOOL,
+  FIND_FILES_TOOL,
+  SEARCH_DOCS_AGENT_TOOL, // 🆕 추가
+];
+
+/**
+ * File Tool 실행
+ */
+export async function executeFileTool(
+  toolName: string,
+  args: any,
+  llmClient?: LLMClient // 🆕 Agent Tool용 LLMClient 전달
+): Promise<ToolExecutionResult> {
+  switch (toolName) {
+    case 'read_file':
+      return executeReadFile(args.file_path);
+    case 'write_file':
+      return executeWriteFile(args.file_path, args.content);
+    case 'list_files':
+      return executeListFiles(args.directory_path, args.recursive);
+    case 'find_files':
+      return executeFindFiles(args.pattern, args.directory_path);
+    case 'search_docs_agent': // 🆕 추가
+      if (!llmClient) {
+        return { success: false, error: 'LLMClient가 필요합니다' };
+      }
+      return executeDocsSearchAgent(llmClient, args.query);
+    default:
+      return { success: false, error: `Unknown tool: ${toolName}` };
+  }
+}
+```
+
+##### 2.0.4 LLMClient 전달 구조 개선
+- [ ] `src/core/llm-client.ts` 수정
+- [ ] `chatCompletionWithTools()` 메서드에서 executeFileTool 호출 시 `this` 전달
+
+**수정 예시**:
+```typescript
+// src/core/llm-client.ts
+async chatCompletionWithTools(
+  messages: Message[],
+  tools: ToolDefinition[],
+  maxIterations: number = 5
+): Promise<{
+  allMessages: Message[];
+  toolCalls: Array<{
+    tool: string;
+    args: any;
+    result: string;
+  }>;
+}> {
+  // ...
+
+  // Tool 실행 시 LLMClient 전달
+  const result = await executeFileTool(
+    toolCall.function.name,
+    args,
+    this // 🆕 LLMClient 인스턴스 전달
+  );
+
+  // ...
+}
+```
+
+##### 2.0.5 보안 및 제한사항 구현
+- [ ] Bash 명령어 화이트리스트/블랙리스트
+- [ ] 작업 디렉토리 제한 (~/.open-cli/docs만 허용)
+- [ ] 명령어 타임아웃 (5초)
+- [ ] 출력 크기 제한 (1MB)
+- [ ] 동시 실행 방지 (한 번에 하나의 Agent만)
+
+**보안 검증 코드**:
+```typescript
+// 화이트리스트 (허용된 명령어)
+const ALLOWED_COMMANDS = ['find', 'grep', 'cat', 'ls', 'tree', 'head', 'tail', 'wc'];
+
+// 블랙리스트 (금지된 명령어)
+const BLOCKED_COMMANDS = ['rm', 'dd', 'mkfs', 'sudo', '>', '>>', '|', '&', ';'];
+
+function validateCommand(command: string): { valid: boolean; error?: string } {
+  const firstWord = command.trim().split(' ')[0];
+
+  // 블랙리스트 확인
+  if (BLOCKED_COMMANDS.some(cmd => command.includes(cmd))) {
+    return { valid: false, error: '금지된 명령어가 포함되어 있습니다' };
+  }
+
+  // 화이트리스트 확인
+  if (!ALLOWED_COMMANDS.includes(firstWord)) {
+    return { valid: false, error: '허용되지 않은 명령어입니다' };
+  }
+
+  return { valid: true };
+}
+```
+
+##### 2.0.6 테스트 시나리오
+- [ ] 단순 검색 테스트
+  - "TypeScript 코딩 표준을 찾아줘"
+  - Agent가 find → grep → cat 순서로 검색
+- [ ] 복잡한 검색 테스트
+  - "API 인증 방법 중 JWT 관련 정보를 찾아줘"
+  - Agent가 여러 파일을 검색하고 종합
+- [ ] 에러 케이스 테스트
+  - 존재하지 않는 정보 검색
+  - 타임아웃 발생
+- [ ] 보안 테스트
+  - 위험한 명령어 차단 확인
+
+**테스트 명령어**:
+```bash
+# 1. 빌드
+npm run build
+
+# 2. Interactive mode 실행
+node dist/cli.js
+
+# 3. 테스트 대화
+> TypeScript 코딩 표준에 대한 문서를 찾아줘
+
+# 예상 동작:
+# - LLM이 자동으로 search_docs_agent tool 호출
+# - Agent가 bash 명령어로 문서 검색
+# - 결과를 사용자에게 자연어로 설명
+```
+
+**예상 출력**:
+```
+🤖 Assistant:
+알겠습니다. 문서를 검색해보겠습니다.
+
+🔧 Tool: search_docs_agent(query="TypeScript 코딩 표준")
+
+[Agent 내부 동작]
+1. run_bash("ls -la")
+2. run_bash("find . -name '*typescript*' -o -name '*coding*'")
+3. run_bash("cat coding-standards/typescript.md")
+
+✓ 검색 완료
+
+TypeScript 코딩 표준 문서를 찾았습니다 (coding-standards/typescript.md):
+
+1. 타입 선언
+   - 모든 변수와 함수에 명시적 타입 선언
+   - any 타입 사용 금지
+
+2. 네이밍 규칙
+   - camelCase: 변수, 함수
+   - PascalCase: 클래스, 인터페이스
+
+3. 코드 포맷팅
+   - Prettier 사용
+   - 2 spaces 들여쓰기
+
+자세한 내용은 ~/.open-cli/docs/coding-standards/typescript.md를 참고하세요.
+```
+
+---
+
+#### 2.1 Tool 사용 내역 UI 표시 [P0]
+
+**목표**: Tool call을 메시지 사이에 박스로 표시
+
+**작업 내용**:
+- [ ] `ToolCallBox` 컴포넌트 생성 (src/ui/components/ToolCallBox.tsx)
+  - Tool 이름, 매개변수, 결과 표시
+  - 성공/실패 상태 표시 (✓/✗)
+  - 실행 시간 표시
+- [ ] `InteractiveApp.tsx`에서 `result.toolCalls` 렌더링
+  - 메시지 히스토리에 Tool call 정보 포함
+  - Tool call과 assistant 응답 시각적 구분
+- [ ] Tool call 타입에 따른 색상/아이콘 차별화
+  - read_file: 📄 파란색
+  - write_file: ✏️ 초록색
+  - list_files: 📁 노란색
+  - find_files: 🔍 자홍색
+
+**구현 예시**:
+```tsx
+// src/ui/components/ToolCallBox.tsx
+import React from 'react';
+import { Box, Text } from 'ink';
+
+interface ToolCallBoxProps {
+  tool: string;
+  args: Record<string, any>;
+  result?: string;
+  success: boolean;
+  duration?: number;
+}
+
+export const ToolCallBox: React.FC<ToolCallBoxProps> = ({
+  tool,
+  args,
+  result,
+  success,
+  duration
+}) => {
+  const icon = success ? '✓' : '✗';
+  const color = success ? 'green' : 'red';
+
+  return (
+    <Box borderStyle="round" borderColor={color} paddingX={1} marginY={1}>
+      <Box flexDirection="column">
+        <Text color={color} bold>
+          {icon}  {tool}
+        </Text>
+        {args && (
+          <Text dimColor>
+            Args: {JSON.stringify(args, null, 2)}
+          </Text>
+        )}
+        {duration && (
+          <Text dimColor>
+            Duration: {duration}ms
+          </Text>
+        )}
+      </Box>
+    </Box>
+  );
+};
+```
+
+#### 2.2 하단 상태바 구현 [P1]
+
+**목표**: Gemini CLI처럼 하단에 프로젝트 상태 정보 표시
+
+**작업 내용**:
+- [ ] `StatusBar` 컴포넌트 생성 (src/ui/components/StatusBar.tsx)
+- [ ] 표시 정보:
+  - 현재 작업 디렉토리 (process.cwd())
+  - 샌드박스 모드 상태 (활성/비활성)
+  - 현재 모델 이름
+  - 컨텍스트 사용률 (현재 토큰 / 최대 토큰)
+- [ ] 터미널 너비에 따른 반응형 레이아웃
+- [ ] 상태 변경 시 실시간 업데이트
+
+**구현 예시**:
+```tsx
+// src/ui/components/StatusBar.tsx
+import React from 'react';
+import { Box, Text } from 'ink';
+
+interface StatusBarProps {
+  cwd: string;
+  sandboxMode: boolean;
+  model: string;
+  tokensUsed: number;
+  maxTokens: number;
+}
+
+export const StatusBar: React.FC<StatusBarProps> = ({
+  cwd,
+  sandboxMode,
+  model,
+  tokensUsed,
+  maxTokens
+}) => {
+  const contextPercent = Math.round((1 - tokensUsed / maxTokens) * 100);
+
+  return (
+    <Box borderStyle="single" borderColor="gray" paddingX={1}>
+      <Box justifyContent="space-between" width="100%">
+        <Text dimColor>
+          {cwd}
+        </Text>
+        <Text dimColor>
+          {sandboxMode ? 'sandbox' : 'no sandbox'}
+        </Text>
+        <Text dimColor>
+          {model} ({contextPercent}% context left)
+        </Text>
+      </Box>
+    </Box>
+  );
+};
+```
+
+#### 2.3 ASCII 로고 및 Welcome 화면 [P1]
+
+**목표**: 첫 실행 시 브랜딩과 안내 표시
+
+**작업 내용**:
+- [ ] ASCII 아트 로고 생성 (OPEN-CLI 브랜딩)
+- [ ] `WelcomeScreen` 컴포넌트 생성
+- [ ] Tips for getting started 섹션
+- [ ] 첫 실행 감지 로직 (~/.open-cli/first-run 파일)
+- [ ] 환영 화면 표시 후 자동으로 대화 모드 전환
+
+**ASCII 로고 예시**:
+```
+ ██████╗ ██████╗ ███████╗███╗   ██╗      ██████╗██╗     ██╗
+██╔═══██╗██╔══██╗██╔════╝████╗  ██║     ██╔════╝██║     ██║
+██║   ██║██████╔╝█████╗  ██╔██╗ ██║     ██║     ██║     ██║
+██║   ██║██╔═══╝ ██╔══╝  ██║╚██╗██║     ██║     ██║     ██║
+╚██████╔╝██║     ███████╗██║ ╚████║     ╚██████╗███████╗██║
+ ╚═════╝ ╚═╝     ╚══════╝╚═╝  ╚═══╝      ╚═════╝╚══════╝╚═╝
+```
+
+#### 2.4 입력 힌트 및 자동완성 [P2]
+
+**목표**: 사용자에게 입력 가능한 형식 안내
+
+**작업 내용**:
+- [ ] 입력 플레이스홀더 개선
+  - "Type your message or @path/to/file"
+  - "/help for commands"
+- [ ] @ 입력 시 파일 경로 제안 (선택사항)
+- [ ] / 입력 시 명령어 제안
+
+#### 2.5 메시지 타입별 스타일링 강화 [P2]
+
+**목표**: 메시지 타입에 따른 시각적 구분
+
+**작업 내용**:
+- [ ] 사용자 메시지: 초록색 "> "
+- [ ] Assistant 메시지: 파란색, 마크다운 렌더링
+- [ ] Tool call: 박스로 감싸기
+- [ ] Error 메시지: 빨간색, 경고 아이콘
+- [ ] Thinking 메시지: 자홍색, 💭 아이콘
+
+#### 2.6 코드 구조 개선
+
+**작업 내용**:
+- [ ] 컴포넌트 분리:
+  - `src/ui/components/Header.tsx`
+  - `src/ui/components/MessageList.tsx`
+  - `src/ui/components/InputBox.tsx`
+  - `src/ui/components/StatusBar.tsx`
+  - `src/ui/components/ToolCallBox.tsx`
+  - `src/ui/components/WelcomeScreen.tsx`
+- [ ] 타입 정의 분리 (src/ui/types.ts)
+- [ ] 유틸리티 함수 분리 (src/ui/utils.ts)
+
+---
+
+### 🧪 3단계: 테스트 (TESTING)
+
+**테스트 시나리오**:
+- [ ] Tool 사용 내역 표시 테스트
+  - read_file 호출 시 박스 표시 확인
+  - 여러 Tool 순차 호출 시 각각 표시 확인
+  - Tool 실패 시 에러 표시 확인
+- [ ] 상태바 업데이트 테스트
+  - 메시지 전송 시 토큰 사용량 업데이트
+  - 디렉토리 변경 시 경로 업데이트
+- [ ] Welcome 화면 테스트
+  - 첫 실행 시 표시 확인
+  - 이후 실행 시 표시 안 됨 확인
+- [ ] 반응형 레이아웃 테스트
+  - 좁은 터미널 (80 cols) 테스트
+  - 넓은 터미널 (120+ cols) 테스트
+- [ ] 메시지 스크롤 테스트
+  - 긴 대화 시 스크롤 동작 확인
+
+**수동 테스트 항목**:
+```bash
+# 1. Welcome 화면 테스트
+rm -f ~/.open-cli/first-run
+npm run build
+node dist/cli.js
+
+# 2. Tool 사용 테스트
+> package.json 파일을 읽어줘
+> src 폴더에 있는 모든 TypeScript 파일을 찾아줘
+
+# 3. 에러 처리 테스트
+> 존재하지않는파일.txt를 읽어줘
+
+# 4. 긴 대화 테스트
+> [여러 메시지 반복 전송]
+```
+
+**통합 테스트**:
+- [ ] Classic UI와 Ink UI 모두 정상 작동 확인
+- [ ] ESM 호환성 확인 (dynamic import)
+- [ ] 타입 체크 통과 (`npm run build`)
+
+---
+
+### 📚 4단계: 문서화 (DOCUMENTATION)
+
+**문서 업데이트**:
+- [ ] README.md
+  - Ink UI 스크린샷 추가
+  - 새로운 UI 기능 설명
+  - 상태바 정보 설명
+- [ ] PROGRESS.md
+  - 이 작업 항목 완료 기록
+  - 구현 세부사항 작성
+  - 스크린샷/예시 추가
+- [ ] INTEGRATED_PROJECT_DOCUMENT.md
+  - UI/UX 섹션 업데이트
+  - 컴포넌트 구조도 추가
+- [ ] 코드 주석
+  - 각 컴포넌트에 JSDoc 주석
+  - Props 인터페이스 설명
+
+**새로운 문서 작성**:
+- [ ] docs/UI_COMPONENTS.md
+  - 각 UI 컴포넌트 사용법
+  - Props 설명
+  - 예시 코드
+- [ ] docs/STYLING_GUIDE.md
+  - 색상 팔레트
+  - 아이콘 규칙
+  - 레이아웃 가이드라인
+
+---
+
+### ⏭️ 5단계: 다음 작업 계획 (NEXT STEPS)
+
+**우선순위 1 (단기)** - 반드시 먼저 완료:
+- [ ] **Plan-and-Execute 아키텍처 구현 (5-7일)** 🚨 **최우선**
+  - Planning LLM 구현 (1일)
+  - TODO Executor 구현 (1.5일)
+  - TODO List UI 컴포넌트 (1일)
+  - InteractiveApp 리팩토링 (1.5일)
+  - Session 저장/복구 개선 (0.5일)
+  - 테스트 및 디버깅 (1.5일)
+- [ ] **Docs Search Agent Tool 구현 (2-3일)** 🆕
+  - Bash Command Tool 생성 (0.5일)
+  - Docs Search Agent 구현 (1일)
+  - FILE_TOOLS 통합 (0.5일)
+  - 보안 검증 및 테스트 (1일)
+- [ ] Tool 사용 내역 UI 표시 구현 (1-2일)
+- [ ] 하단 상태바 구현 (1일)
+- [ ] ASCII 로고 및 Welcome 화면 (1일)
+
+**우선순위 2 (중기)**:
+- [ ] 입력 힌트 및 자동완성 (2-3일)
+- [ ] 메시지 스타일링 강화 (1-2일)
+- [ ] 반응형 레이아웃 최적화 (1-2일)
+
+**우선순위 3 (장기)**:
+- [ ] 테마 시스템 구축 (다크/라이트 모드)
+- [ ] 애니메이션 효과 추가
+- [ ] 키보드 단축키 확장
+- [ ] 설정 화면 UI 구현
+
+**의존성**:
+- 없음 (현재 Ink UI 기반으로 독립적 구현 가능)
+
+**예상 개발 기간**: 총 3-4주 ⚠️ **대폭 증가**
+- **Plan-and-Execute 아키텍처**: 5-7일 (최우선)
+- Docs Search Agent: 2-3일
+- P0 작업 (Tool UI 표시): 3-4일
+- P1 작업 (상태바, Welcome 화면): 3-4일
+- P2 작업 (입력 힌트, 스타일링): 4-5일
+- 통합 테스트 및 문서화: 3-5일
+
+**기술 부채 관리**:
+- [ ] Ink UI 성능 프로파일링 (메시지 많을 때)
+- [ ] 메모리 사용량 최적화
+- [ ] 긴 응답 처리 개선 (페이지네이션)
+
+---
+
+### 📊 진행 상황 추적
+
+**전체 진행률**: 0% (계획 단계)
+
+**체크리스트 요약**:
+- [ ] **1.9 Plan-and-Execute 아키텍처 구현 (0/6 완료)** 🚨 **최최우선**
+  - [ ] 1.9.1 Planning LLM 구현
+  - [ ] 1.9.2 TODO Executor 구현
+  - [ ] 1.9.3 TODO List UI 컴포넌트
+  - [ ] 1.9.4 InteractiveApp 리팩토링
+  - [ ] 1.9.5 Session 저장/복구 개선
+  - [ ] 1.9.6 테스트 시나리오
+- [ ] 2.0 Docs Search Agent Tool 구현 (0/6 완료) 🆕 **최우선**
+  - [ ] 2.0.1 Bash Command Tool 생성
+  - [ ] 2.0.2 Docs Search Agent Tool 생성
+  - [ ] 2.0.3 FILE_TOOLS 통합
+  - [ ] 2.0.4 LLMClient 전달 구조 개선
+  - [ ] 2.0.5 보안 및 제한사항 구현
+  - [ ] 2.0.6 테스트 시나리오
+- [ ] 2.1 Tool 사용 내역 UI 표시 (0/4 완료)
+- [ ] 2.2 하단 상태바 구현 (0/4 완료)
+- [ ] 2.3 ASCII 로고 및 Welcome 화면 (0/5 완료)
+- [ ] 2.4 입력 힌트 및 자동완성 (0/3 완료)
+- [ ] 2.5 메시지 타입별 스타일링 강화 (0/5 완료)
+- [ ] 2.6 코드 구조 개선 (0/9 완료)
+- [ ] 3. 테스트 (0/8 완료)
+- [ ] 4. 문서화 (0/6 완료)
+
+**다음 액션**: 1.9 Plan-and-Execute 아키텍처 구현부터 시작 (최최우선 과제)
+
+**개발 순서**:
+1. Planning LLM (TODO 생성)
+2. Bash Command Tool (Docs Search용)
+3. Docs Search Agent Tool
+4. TODO Executor (실행 엔진)
+5. TODO List UI (고정 패널)
+6. InteractiveApp 통합
+7. Session 개선
+8. 통합 테스트
+
+---
 
 ---
 
