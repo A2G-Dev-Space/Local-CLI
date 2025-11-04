@@ -94,17 +94,25 @@
 6. 메시지와 Tool 호출 시각적 구분
 
 **구현 우선순위**: ⚠️ **아키텍처 대폭 변경 필요**
-1. [P0] **Plan-and-Execute 아키텍처 구현** 🚨 **최우선 과제** (새로운 요구사항)
+1. [P0] **GitHub Release Auto-Update System** 🚨 **최우선 과제** (Section 1.8)
+   - GitHub API 버전 체크
+   - 자동 다운로드 및 설치
+   - 롤백 메커니즘
+2. [P0] **Plan-and-Execute 아키텍처 구현** 🚨 (Section 1.9)
    - Planning LLM (TODO List 자동 생성)
    - Docs Search Agent Tool (각 TODO 실행 전 선행)
    - TODO List 고정 UI (하단 패널)
    - Session에 TODO 상태 저장
-2. [P0] Tool 사용 내역 UI 표시 (현재 가장 시급)
-3. [P1] 하단 상태바 구현
-4. [P1] ASCII 로고 및 Welcome 화면
-5. [P2] Tips/Help 섹션
-6. [P2] 입력 힌트 및 자동완성 제안
-7. [P3] 메시지 타입별 스타일링 강화
+3. [P1] **Model Compatibility Layer** (Section 1.7)
+   - gpt-oss-120b/20b 422 에러 해결
+   - Adapter Pattern 구현 (또는 Simple If-Branch)
+   - 향후 모델 quirks 확장 가능
+4. [P1] Tool 사용 내역 UI 표시
+5. [P1] 하단 상태바 구현
+6. [P1] ASCII 로고 및 Welcome 화면
+7. [P2] Tips/Help 섹션
+8. [P2] 입력 힌트 및 자동완성 제안
+9. [P3] 메시지 타입별 스타일링 강화
 
 ---
 
@@ -144,6 +152,658 @@ Session에 저장 (복구 가능)
 3. ✅ **TODO UI 고정**: 메시지는 스크롤, TODO list는 하단 고정
 4. ✅ **ReAct 조각**: 각 TODO가 하나의 ReAct 단위
 5. ✅ **Session 저장**: TODO 상태 및 진행상황 저장
+
+---
+
+#### 1.7 Model Compatibility Layer (gpt-oss-120b/20b 422 에러 해결) [P1]
+
+**목표**: 모델별 특수 요구사항을 처리하는 호환성 레이어 구축
+
+**배경**:
+- gpt-oss-120b와 gpt-oss-20b는 Harmony 포맷 사용
+- Assistant 메시지에 `content` 필드 필수 (없으면 422 에러)
+- 일반 OpenAI 호환 모델들은 `tool_calls`만 있어도 작동
+- 향후 다른 모델들의 quirks도 쉽게 추가 가능한 확장 가능한 구조 필요
+
+**에러 상황**:
+```
+Error: API 에러 (400): litellm.BadRequestError: OpenAIException - Error code: 422
+{'detail': [{'type': 'missing', 'loc': ['body', 'messages', 1, 'content'],
+'msg': 'Field required', 'input': {'role': 'assistant', 'tool_calls': [...],
+'reasoning_content': "..."}}]}
+```
+
+---
+
+##### 1.7.1 Architecture: Model Adapter Pattern
+
+**설계 철학**: 각 모델(또는 모델 패밀리)의 특수 요구사항을 캡슐화하는 Adapter 클래스 구현
+
+**전체 구조**:
+```
+LLMClient (메인 클라이언트)
+    ↓
+ModelAdapterFactory (팩토리)
+    ↓
+    ├─ OpenAIAdapter (기본)
+    ├─ HarmonyAdapter (gpt-oss-120b/20b)
+    ├─ GeminiAdapter (필요 시)
+    └─ CustomAdapter (확장 가능)
+```
+
+**장점**:
+- ✅ 단일 책임 원칙: 각 Adapter가 한 모델 패밀리만 담당
+- ✅ 개방-폐쇄 원칙: 새 모델 추가 시 기존 코드 수정 불필요
+- ✅ 테스트 용이: Adapter별로 독립적 테스트 가능
+- ✅ Config 기반: 사용자가 모델별 옵션 설정 가능
+
+---
+
+##### 1.7.2 Implementation: Model Adapter Interface
+
+**파일 구조**:
+```
+src/core/
+├─ llm-client.ts (메인 클라이언트)
+├─ adapters/
+│   ├─ base-adapter.ts (Base 인터페이스)
+│   ├─ openai-adapter.ts (기본 OpenAI 호환)
+│   ├─ harmony-adapter.ts (gpt-oss-120b/20b)
+│   └─ adapter-factory.ts (팩토리)
+└─ model-quirks.json (모델별 설정)
+```
+
+**Base Adapter 인터페이스**:
+```typescript
+// src/core/adapters/base-adapter.ts
+
+import { Message, LLMRequestOptions } from '../../types/index.js';
+
+/**
+ * 모델 Adapter 기본 인터페이스
+ */
+export interface IModelAdapter {
+  /**
+   * Adapter 이름
+   */
+  name: string;
+
+  /**
+   * 이 Adapter가 처리할 모델 패턴
+   */
+  modelPattern: RegExp | string[];
+
+  /**
+   * Request 전처리: 메시지를 모델이 요구하는 형식으로 변환
+   */
+  preprocessRequest(options: Partial<LLMRequestOptions>): Partial<LLMRequestOptions>;
+
+  /**
+   * Response 후처리: 모델 응답을 표준 형식으로 변환
+   */
+  postprocessResponse(response: any): any;
+
+  /**
+   * 메시지 검증: 모델 요구사항 충족 여부 체크
+   */
+  validateMessages(messages: Message[]): { valid: boolean; errors?: string[] };
+}
+
+/**
+ * Base Adapter 추상 클래스
+ */
+export abstract class BaseModelAdapter implements IModelAdapter {
+  abstract name: string;
+  abstract modelPattern: RegExp | string[];
+
+  /**
+   * 기본 구현: 그대로 통과
+   */
+  preprocessRequest(options: Partial<LLMRequestOptions>): Partial<LLMRequestOptions> {
+    return options;
+  }
+
+  postprocessResponse(response: any): any {
+    return response;
+  }
+
+  validateMessages(messages: Message[]): { valid: boolean; errors?: string[] } {
+    return { valid: true };
+  }
+
+  /**
+   * 이 Adapter가 주어진 모델을 지원하는지 확인
+   */
+  supportsModel(modelId: string): boolean {
+    if (this.modelPattern instanceof RegExp) {
+      return this.modelPattern.test(modelId);
+    } else {
+      return this.modelPattern.includes(modelId);
+    }
+  }
+}
+```
+
+---
+
+##### 1.7.3 Harmony Adapter Implementation
+
+**Harmony Adapter** (gpt-oss-120b/20b 전용):
+
+```typescript
+// src/core/adapters/harmony-adapter.ts
+
+import { BaseModelAdapter } from './base-adapter.js';
+import { Message, LLMRequestOptions } from '../../types/index.js';
+
+/**
+ * Harmony 포맷 Adapter (gpt-oss-120b, gpt-oss-20b)
+ *
+ * Harmony 포맷 요구사항:
+ * 1. Assistant 메시지에 content 필드 필수
+ * 2. tool_calls가 있어도 content는 비울 수 없음
+ * 3. reasoning_content는 선택사항이지만 권장
+ */
+export class HarmonyAdapter extends BaseModelAdapter {
+  name = 'HarmonyAdapter';
+  modelPattern = /^gpt-oss-(120b|20b)$/i;
+
+  /**
+   * Request 전처리: Assistant 메시지에 content 추가
+   */
+  preprocessRequest(options: Partial<LLMRequestOptions>): Partial<LLMRequestOptions> {
+    if (!options.messages) {
+      return options;
+    }
+
+    // 메시지 복사 (원본 변경 방지)
+    const processedMessages = options.messages.map((msg) => {
+      // Assistant 메시지이고 tool_calls가 있는 경우
+      if (msg.role === 'assistant' && msg.tool_calls && msg.tool_calls.length > 0) {
+        // content가 없거나 빈 문자열이면 기본 메시지 추가
+        if (!msg.content || msg.content.trim() === '') {
+          return {
+            ...msg,
+            content: this.generateDefaultContent(msg),
+          };
+        }
+      }
+
+      return msg;
+    });
+
+    return {
+      ...options,
+      messages: processedMessages,
+    };
+  }
+
+  /**
+   * 기본 content 생성 (tool_calls가 있을 때)
+   */
+  private generateDefaultContent(message: Message): string {
+    if (!message.tool_calls || message.tool_calls.length === 0) {
+      return '';
+    }
+
+    // reasoning_content가 있으면 사용
+    if (message.reasoning_content) {
+      return message.reasoning_content;
+    }
+
+    // 없으면 tool 호출 의도를 설명하는 간단한 텍스트 생성
+    const toolNames = message.tool_calls.map((tc) => tc.function.name).join(', ');
+    return `Calling tools: ${toolNames}`;
+  }
+
+  /**
+   * 메시지 검증: Assistant 메시지의 content 필수 여부 체크
+   */
+  validateMessages(messages: Message[]): { valid: boolean; errors?: string[] } {
+    const errors: string[] = [];
+
+    messages.forEach((msg, index) => {
+      if (msg.role === 'assistant' && msg.tool_calls && msg.tool_calls.length > 0) {
+        if (!msg.content || msg.content.trim() === '') {
+          errors.push(
+            `Message ${index}: Harmony models require 'content' field in assistant messages with tool_calls`
+          );
+        }
+      }
+    });
+
+    return {
+      valid: errors.length === 0,
+      errors: errors.length > 0 ? errors : undefined,
+    };
+  }
+}
+```
+
+---
+
+##### 1.7.4 OpenAI Adapter (Default)
+
+**기본 OpenAI 호환 Adapter**:
+
+```typescript
+// src/core/adapters/openai-adapter.ts
+
+import { BaseModelAdapter } from './base-adapter.js';
+
+/**
+ * OpenAI Compatible Adapter (기본)
+ *
+ * 대부분의 모델이 이 형식을 따름:
+ * - GPT-4, GPT-3.5
+ * - Anthropic Claude (OpenAI Compatible API)
+ * - Mistral, Mixtral
+ * - Llama 등
+ */
+export class OpenAIAdapter extends BaseModelAdapter {
+  name = 'OpenAIAdapter';
+  modelPattern = /.*/; // 모든 모델 (기본값)
+
+  // 기본 구현 사용 (전처리/후처리 없음)
+}
+```
+
+---
+
+##### 1.7.5 Adapter Factory
+
+**Adapter 선택 및 생성**:
+
+```typescript
+// src/core/adapters/adapter-factory.ts
+
+import { IModelAdapter, BaseModelAdapter } from './base-adapter.js';
+import { OpenAIAdapter } from './openai-adapter.js';
+import { HarmonyAdapter } from './harmony-adapter.js';
+
+/**
+ * Model Adapter Factory
+ *
+ * 주어진 모델 ID에 맞는 Adapter를 반환
+ */
+export class ModelAdapterFactory {
+  private static adapters: BaseModelAdapter[] = [
+    new HarmonyAdapter(), // 특수 모델 먼저 체크
+    new OpenAIAdapter(),  // 기본 (마지막)
+  ];
+
+  /**
+   * 모델 ID에 맞는 Adapter 반환
+   */
+  static getAdapter(modelId: string): IModelAdapter {
+    for (const adapter of this.adapters) {
+      if (adapter.supportsModel(modelId)) {
+        console.log(`[ModelAdapterFactory] Using ${adapter.name} for model: ${modelId}`);
+        return adapter;
+      }
+    }
+
+    // 기본값: OpenAIAdapter
+    return this.adapters[this.adapters.length - 1];
+  }
+
+  /**
+   * 새 Adapter 등록 (확장 가능)
+   */
+  static registerAdapter(adapter: BaseModelAdapter): void {
+    // 기본 OpenAIAdapter 앞에 삽입 (우선순위)
+    this.adapters.splice(this.adapters.length - 1, 0, adapter);
+  }
+}
+```
+
+---
+
+##### 1.7.6 LLMClient 통합
+
+**LLMClient에 Adapter 적용**:
+
+```typescript
+// src/core/llm-client.ts
+
+import { ModelAdapterFactory } from './adapters/adapter-factory.js';
+import { IModelAdapter } from './adapters/base-adapter.js';
+
+export class LLMClient {
+  private axiosInstance: AxiosInstance;
+  private baseUrl: string;
+  private apiKey: string;
+  private model: string;
+  private adapter: IModelAdapter; // ← 추가
+
+  constructor() {
+    const endpoint = configManager.getCurrentEndpoint();
+    const currentModel = configManager.getCurrentModel();
+
+    if (!endpoint || !currentModel) {
+      throw new Error('No endpoint or model configured. Run: open config init');
+    }
+
+    this.baseUrl = endpoint.baseUrl;
+    this.apiKey = endpoint.apiKey || '';
+    this.model = currentModel.id;
+
+    // Adapter 선택
+    this.adapter = ModelAdapterFactory.getAdapter(this.model);
+
+    // Axios 인스턴스 생성
+    this.axiosInstance = axios.create({
+      baseURL: this.baseUrl,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(this.apiKey && { Authorization: `Bearer ${this.apiKey}` }),
+      },
+      timeout: 60000,
+    });
+  }
+
+  /**
+   * Chat Completion API 호출 (Adapter 적용)
+   */
+  async chatCompletion(options: Partial<LLMRequestOptions>): Promise<LLMResponse> {
+    try {
+      // 1. 메시지 검증
+      if (options.messages) {
+        const validation = this.adapter.validateMessages(options.messages);
+        if (!validation.valid) {
+          console.warn('[LLMClient] Message validation warnings:', validation.errors);
+        }
+      }
+
+      // 2. Request 전처리 (Adapter)
+      const preprocessedOptions = this.adapter.preprocessRequest(options);
+
+      const requestBody = {
+        model: preprocessedOptions.model || this.model,
+        messages: preprocessedOptions.messages || [],
+        temperature: preprocessedOptions.temperature ?? 0.7,
+        max_tokens: preprocessedOptions.max_tokens,
+        stream: false,
+        ...(preprocessedOptions.tools && { tools: preprocessedOptions.tools }),
+      };
+
+      const response = await this.axiosInstance.post<LLMResponse>('/chat/completions', requestBody);
+
+      // 3. Response 후처리 (Adapter)
+      const processedResponse = this.adapter.postprocessResponse(response.data);
+
+      return processedResponse;
+    } catch (error) {
+      // 에러 처리...
+    }
+  }
+
+  // chatCompletionStream, chatCompletionWithTools 등도 동일하게 적용
+}
+```
+
+---
+
+##### 1.7.7 Alternative: Simple If-Branch Approach (빠른 구현)
+
+**Adapter Pattern이 과하다면 간단한 분기 처리**:
+
+```typescript
+// src/core/llm-client.ts
+
+/**
+ * 모델별 메시지 전처리 (간단한 버전)
+ */
+private preprocessMessages(messages: Message[], modelId: string): Message[] {
+  // gpt-oss-120b / gpt-oss-20b: Harmony 포맷 처리
+  if (/^gpt-oss-(120b|20b)$/i.test(modelId)) {
+    return messages.map((msg) => {
+      if (msg.role === 'assistant' && msg.tool_calls && msg.tool_calls.length > 0) {
+        if (!msg.content || msg.content.trim() === '') {
+          return {
+            ...msg,
+            content: msg.reasoning_content || `Calling tools: ${msg.tool_calls.map(tc => tc.function.name).join(', ')}`,
+          };
+        }
+      }
+      return msg;
+    });
+  }
+
+  // 기본: 그대로 반환
+  return messages;
+}
+
+async chatCompletion(options: Partial<LLMRequestOptions>): Promise<LLMResponse> {
+  const messages = options.messages ? this.preprocessMessages(options.messages, this.model) : [];
+
+  const requestBody = {
+    model: options.model || this.model,
+    messages,
+    // ...
+  };
+
+  // 나머지 로직
+}
+```
+
+**장점**: 빠르게 구현 가능, 코드 간단
+**단점**: 모델이 늘어나면 if문이 복잡해짐
+
+---
+
+##### 1.7.8 Configuration: Model Quirks (Config 기반)
+
+**config.json에 모델별 quirks 정의** (선택사항):
+
+```json
+{
+  "modelQuirks": {
+    "gpt-oss-120b": {
+      "requiresAssistantContent": true,
+      "supportedFeatures": {
+        "toolCalling": true,
+        "structuredOutputs": false,
+        "streaming": true
+      },
+      "warnings": {
+        "toolChoice": "tool_choice='required' may be ignored"
+      }
+    },
+    "gpt-oss-20b": {
+      "requiresAssistantContent": true,
+      "supportedFeatures": {
+        "toolCalling": true,
+        "structuredOutputs": false,
+        "streaming": true
+      }
+    }
+  }
+}
+```
+
+**Config 읽기**:
+
+```typescript
+// src/core/config-manager.ts
+
+export interface ModelQuirks {
+  requiresAssistantContent?: boolean;
+  supportedFeatures?: {
+    toolCalling?: boolean;
+    structuredOutputs?: boolean;
+    streaming?: boolean;
+  };
+  warnings?: Record<string, string>;
+}
+
+export class ConfigManager {
+  // ...
+
+  getModelQuirks(modelId: string): ModelQuirks | null {
+    const config = this.loadConfig();
+    return config.modelQuirks?.[modelId] || null;
+  }
+}
+```
+
+---
+
+##### 1.7.9 Testing Scenarios
+
+**테스트 케이스**:
+
+1. **gpt-oss-120b: Tool call without content**:
+```typescript
+const messages = [
+  { role: 'user', content: 'Read package.json' },
+  {
+    role: 'assistant',
+    tool_calls: [{ function: { name: 'read_file', arguments: '{"file_path":"package.json"}' } }],
+    // content 없음 → Adapter가 자동 추가
+  },
+];
+
+const adapter = new HarmonyAdapter();
+const processed = adapter.preprocessRequest({ messages });
+
+// 예상 결과: content가 자동으로 추가됨
+assert(processed.messages[1].content !== '');
+```
+
+2. **일반 모델: Tool call without content**:
+```typescript
+const adapter = new OpenAIAdapter();
+const processed = adapter.preprocessRequest({ messages });
+
+// 예상 결과: 그대로 통과
+assert(processed.messages[1].content === undefined);
+```
+
+3. **Validation Error**:
+```typescript
+const adapter = new HarmonyAdapter();
+const validation = adapter.validateMessages(messages);
+
+// 예상 결과: valid: false, errors 포함
+assert(!validation.valid);
+assert(validation.errors.length > 0);
+```
+
+---
+
+##### 1.7.10 Implementation Checklist
+
+**작업 체크리스트**:
+
+**방법 A: Adapter Pattern (권장)**
+- [ ] `src/core/adapters/base-adapter.ts` 생성
+  - [ ] `IModelAdapter` 인터페이스
+  - [ ] `BaseModelAdapter` 추상 클래스
+- [ ] `src/core/adapters/openai-adapter.ts` 생성
+- [ ] `src/core/adapters/harmony-adapter.ts` 생성
+  - [ ] `preprocessRequest()` 구현
+  - [ ] `generateDefaultContent()` 구현
+  - [ ] `validateMessages()` 구현
+- [ ] `src/core/adapters/adapter-factory.ts` 생성
+  - [ ] `getAdapter()` 메서드
+  - [ ] `registerAdapter()` 메서드
+- [ ] `src/core/llm-client.ts` 수정
+  - [ ] Adapter 통합
+  - [ ] `chatCompletion()` 수정
+  - [ ] `chatCompletionStream()` 수정
+  - [ ] `chatCompletionWithTools()` 수정
+
+**방법 B: Simple If-Branch (빠른 구현)**
+- [ ] `src/core/llm-client.ts` 수정
+  - [ ] `preprocessMessages()` 메서드 추가
+  - [ ] gpt-oss-120b/20b 분기 처리
+  - [ ] 모든 API 호출 메서드에 적용
+
+**공통**
+- [ ] `src/types/index.ts` 타입 추가
+  - [ ] `ModelQuirks` 인터페이스
+  - [ ] `Message`에 `reasoning_content` 필드 추가 (선택)
+- [ ] 테스트
+  - [ ] gpt-oss-120b with tool_calls 테스트
+  - [ ] 일반 모델 정상 작동 확인
+  - [ ] 422 에러 해결 확인
+- [ ] 문서화
+  - [ ] README.md에 지원 모델 목록 업데이트
+  - [ ] TROUBLESHOOTING.md 작성 (gpt-oss 관련)
+
+---
+
+##### 1.7.11 Future Extensions
+
+**향후 확장 가능성**:
+
+1. **openai-harmony-js 통합** (선택사항):
+```typescript
+// src/core/adapters/harmony-native-adapter.ts
+import { Conversation, Message, renderConversation } from 'openai-harmony-js';
+
+export class HarmonyNativeAdapter extends BaseModelAdapter {
+  name = 'HarmonyNativeAdapter';
+  modelPattern = /^gpt-oss-(120b|20b)$/i;
+
+  preprocessRequest(options: Partial<LLMRequestOptions>): Partial<LLMRequestOptions> {
+    // Harmony 라이브러리로 메시지 변환
+    const convo = Conversation.fromMessages(options.messages || []);
+    const tokens = renderConversation(convo);
+
+    // Completions API로 전환 (Chat Completions 대신)
+    return {
+      ...options,
+      prompt: tokens.join(''),
+    };
+  }
+}
+```
+
+2. **Gemini 특수 처리**:
+```typescript
+export class GeminiAdapter extends BaseModelAdapter {
+  name = 'GeminiAdapter';
+  modelPattern = /^gemini/i;
+
+  preprocessRequest(options: Partial<LLMRequestOptions>): Partial<LLMRequestOptions> {
+    // Gemini는 system 메시지를 developer로 변환
+    // ...
+  }
+}
+```
+
+3. **Claude 특수 처리**:
+```typescript
+export class ClaudeAdapter extends BaseModelAdapter {
+  name = 'ClaudeAdapter';
+  modelPattern = /^claude/i;
+
+  preprocessRequest(options: Partial<LLMRequestOptions>): Partial<LLMRequestOptions> {
+    // Claude는 thinking tags 지원
+    // ...
+  }
+}
+```
+
+---
+
+##### 1.7.12 Recommendation
+
+**추천 구현 순서**:
+
+1. **Phase 1 (빠른 해결)**: Simple If-Branch (1-2시간)
+   - `preprocessMessages()` 메서드만 추가
+   - gpt-oss-120b/20b 분기 처리
+   - 즉시 422 에러 해결
+
+2. **Phase 2 (리팩토링)**: Adapter Pattern (1-2일)
+   - 아키텍처 개선
+   - 확장 가능한 구조로 전환
+   - 다른 모델 quirks도 쉽게 추가 가능
+
+**Phase 1로 시작하고, 나중에 Phase 2로 리팩토링하는 것을 권장합니다.**
 
 ---
 
