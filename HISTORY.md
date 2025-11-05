@@ -9,8 +9,9 @@
 - **Phase 1**: 100% Complete (11 features)
 - **Phase 2**: 100% Complete (6 features)
 - **Phase 2.5**: 100% Complete (3 features)
+- **Phase 2.6**: In Progress (1 feature completed)
 - **Phase 3**: 100% Complete (4 major Claude Code features + UI)
-- **Total Lines of Code**: ~15,000+
+- **Total Lines of Code**: ~15,300+
 - **Implementation Period**: December 2024 - November 2025
 
 ---
@@ -75,7 +76,9 @@
 
 ## ✅ Phase 2: Advanced Features (100% Complete)
 
-## ✅ Phase 2.5: Auto-Update & Agent Architecture (In Progress)
+## ✅ Phase 2.5: Auto-Update & Agent Architecture (100% Complete)
+
+## ✅ Phase 2.6: UI/UX Enhancements (In Progress)
 
 ### 2.5.1 GitHub Release Auto-Update System
 - **Status**: ✅ Completed
@@ -151,6 +154,20 @@
 - **Date**: 2025-01-08
 - **Details**: [HISTORY_ALL.md#L903-L970](./HISTORY_ALL.md#L903-L970)
 - **Summary**: Smart token counting and truncation
+
+### 2.6.1 @ File Inclusion Feature
+- **Status**: ✅ Completed
+- **Date**: 2025-11-05
+- **Details**: [HISTORY_ALL.md#L1306-L1450](./HISTORY_ALL.md#L1306-L1450)
+- **Summary**: Interactive file browser with @ syntax for file inclusion
+- **Key Features**:
+  - @ trigger detection in input
+  - Pre-loaded file list cache for instant filtering
+  - React Ink UI file browser component
+  - Arrow key navigation and Tab quick-select
+  - Real-time filtering as user types
+  - Automatic @ prefix removal in file operations
+  - Multiple file selection support
 
 ---
 
@@ -322,8 +339,9 @@ open-cli/
 ### Features Implemented
 - **Phase 1 & 2**: 17 features ✅
 - **Phase 2.5**: 3 features ✅
+- **Phase 2.6**: 1 feature ✅ (partial: @ file inclusion)
 - **Phase 3**: 5 major features ✅
-- **Total**: 25 features completed
+- **Total**: 26 features completed (1 partially)
 
 **Full Details**: [HISTORY_ALL.md#L1032-L1082](./HISTORY_ALL.md#L1032-L1082)
 
@@ -367,3 +385,4 @@ open-cli/
 
 *Last Updated: 2025-11-05*
 *Version: 3.0.0 - Claude Code Agent Loop Architecture Complete*
+*Latest: @ File Inclusion Feature (Phase 2.6.1) completed*

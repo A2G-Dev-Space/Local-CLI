@@ -4981,7 +4981,7 @@ Strengthen /help command and add interactive tutorial.
 **Priority**: P2 (Medium)
 **Estimated Time**: 2 days
 **Dependencies**: None
-**Status**: Not Started
+**Status**: Partially Completed (File Browser Done) 🚧
 **Source**: TODO.md Section 9
 
 ### Overview
@@ -4990,13 +4990,38 @@ Add intelligent autocomplete for file paths and commands.
 
 ### Implementation Checklist
 
-- [ ] @path/to/file autocomplete with file system browsing
+- [x] @path/to/file autocomplete with file system browsing ✅ **Completed: 2025-11-05**
 - [ ] / command autocomplete with available commands
 - [ ] Input hint display below input box
-- [ ] Tab completion support
-- [ ] Fuzzy matching for suggestions
+- [x] Tab completion support ✅ **Completed: 2025-11-05** (Tab to quick-select first file)
+- [x] Fuzzy matching for suggestions ✅ **Completed: 2025-11-05** (Filter-based matching in useFileList)
 
-### Estimated Time: 2 days
+### Completed Features (2025-11-05)
+
+**@ File Inclusion Feature**:
+- ✅ @ trigger detection in input (atFileProcessor.ts)
+- ✅ File browser UI component (FileBrowser.tsx)
+- ✅ File list pre-loading and filtering (useFileList.ts)
+- ✅ Interactive file selection with arrow keys
+- ✅ Tab key for quick selection (first file)
+- ✅ ESC key to cancel
+- ✅ Real-time filtering as user types after @
+- ✅ @ 접두사 자동 제거 in file-tools (read_file, write_file)
+- ✅ File paths inserted as @path1 @path2 format
+
+**Implementation Details**:
+- FileBrowser component with React Ink UI
+- Pre-loaded file list cache for instant filtering
+- Filters out node_modules, .git, hidden files
+- Shows up to 100 files with scrolling
+- Integrated into InteractiveApp.tsx
+
+### Remaining Work
+
+- [ ] / command autocomplete (command suggestions)
+- [ ] Input hint display below input box (visual hints)
+
+### Estimated Time: 1 day remaining
 
 ---
 
@@ -5052,9 +5077,9 @@ Improve visual distinction between message types.
 - P1-8: Status Bar (1 day)
 - P1-9: Welcome Screen (1 day)
 
-**Priority 2 (Medium)**: 2 features
+**Priority 2 (Medium)**: 2 features (1 partially completed)
 - P2-1: Tips/Help Section (1 day)
-- P2-2: Input Hints & Autocomplete (2 days)
+- P2-2: Input Hints & Autocomplete (2 days) - 🚧 Partially Completed: @ file inclusion done, command autocomplete remaining
 
 **Priority 3 (Low)**: 1 feature
 - P3-1: Message Type Styling (1 day)

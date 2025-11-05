@@ -128,7 +128,10 @@ export interface ToolExecutionResult {
  */
 export async function executeReadFile(filePath: string): Promise<ToolExecutionResult> {
   try {
-    const resolvedPath = path.resolve(filePath);
+    // @ 접두사 제거
+    const cleanPath = filePath.startsWith('@') ? filePath.slice(1) : filePath;
+
+    const resolvedPath = path.resolve(cleanPath);
     const content = await fs.readFile(resolvedPath, 'utf-8');
 
     return {
@@ -137,15 +140,18 @@ export async function executeReadFile(filePath: string): Promise<ToolExecutionRe
     };
   } catch (error) {
     const err = error as NodeJS.ErrnoException;
+    // 에러 메시지는 원본 경로 사용 (@ 제거 후)
+    const displayPath = filePath.startsWith('@') ? filePath.slice(1) : filePath;
+
     if (err.code === 'ENOENT') {
       return {
         success: false,
-        error: `파일을 찾을 수 없습니다: ${filePath}`,
+        error: `파일을 찾을 수 없습니다: ${displayPath}`,
       };
     } else if (err.code === 'EACCES') {
       return {
         success: false,
-        error: `파일 읽기 권한이 없습니다: ${filePath}`,
+        error: `파일 읽기 권한이 없습니다: ${displayPath}`,
       };
     } else {
       return {
@@ -164,7 +170,10 @@ export async function executeWriteFile(
   content: string
 ): Promise<ToolExecutionResult> {
   try {
-    const resolvedPath = path.resolve(filePath);
+    // @ 접두사 제거
+    const cleanPath = filePath.startsWith('@') ? filePath.slice(1) : filePath;
+
+    const resolvedPath = path.resolve(cleanPath);
 
     // 디렉토리가 없으면 생성
     const dir = path.dirname(resolvedPath);
@@ -172,15 +181,18 @@ export async function executeWriteFile(
 
     await fs.writeFile(resolvedPath, content, 'utf-8');
 
+    // 성공 메시지는 정리된 경로 사용
+    const displayPath = filePath.startsWith('@') ? filePath.slice(1) : filePath;
     return {
       success: true,
-      result: `파일이 성공적으로 작성되었습니다: ${filePath}`,
+      result: `파일이 성공적으로 작성되었습니다: ${displayPath}`,
     };
   } catch (error) {
     const err = error as NodeJS.ErrnoException;
+    const displayPath = filePath.startsWith('@') ? filePath.slice(1) : filePath;
     return {
       success: false,
-      error: `파일 쓰기 실패: ${err.message}`,
+      error: `파일 쓰기 실패 (${displayPath}): ${err.message}`,
     };
   }
 }

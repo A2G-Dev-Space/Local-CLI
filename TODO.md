@@ -8,13 +8,14 @@
 
 - **Total Features**: 20 (기존 14 + Claude Code 방법론 6)
 - **Completed**: 8 features ✅
-- **In Progress**: 2 features 🚧
+- **Partially Completed**: 1 feature 🚧
+- **In Progress**: 1 feature 🚧
 - **Not Started**: 10 features
 - **Priority 0 (Critical)**: 2 remaining (4 completed)
 - **Priority 1 (Important)**: 9 remaining (2 completed)
-- **Priority 2 (Medium)**: 2 features
+- **Priority 2 (Medium)**: 1.5 remaining (0.5 completed - @ file inclusion)
 - **Priority 3 (Low)**: 1 feature
-- **Estimated Remaining Time**: 8-10 weeks
+- **Estimated Remaining Time**: 7-9 weeks
 
 ---
 
@@ -143,10 +144,11 @@
 - **Summary**: Enhanced help system with examples
 
 ### 19. Input Hints & Autocomplete
-- **Time**: 2 days
-- **Status**: [ ] Not Started
-- **Details**: [TODO_ALL.md#L4977-L5006](./TODO_ALL.md#L4977-L5006)
-- **Summary**: Command suggestions and auto-completion
+- **Time**: 2 days (1 day remaining)
+- **Status**: [~] Partially Completed 🚧
+- **Details**: [TODO_ALL.md#L4977-L5030](./TODO_ALL.md#L4977-L5030)
+- **Summary**: @path/to/file autocomplete with file browser ✅ | / command autocomplete ⏳
+- **Completed**: 2025-11-05 (@ file inclusion feature)
 
 ---
 
@@ -242,3 +244,4 @@
 
 *Last Updated: 2025-11-05*
 *Version: 3.0.0 - Phase 1 & 2 Complete, 8 Major Features Implemented*
+*Latest: @ File Inclusion Feature (P2-2 partial) completed*

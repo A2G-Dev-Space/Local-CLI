@@ -4,12 +4,15 @@
  * React + Ink 기반 인터랙티브 터미널 UI
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Text, useInput, useApp } from 'ink';
 import TextInput from 'ink-text-input';
 import Spinner from 'ink-spinner';
 import { LLMClient } from '../../core/llm-client.js';
 import { Message } from '../../types/index.js';
+import { FileBrowser } from './FileBrowser.js';
+import { detectAtTrigger, insertFilePaths } from '../hooks/atFileProcessor.js';
+import { loadFileList, FileItem } from '../hooks/useFileList.js';
 
 interface InteractiveAppProps {
   llmClient: LLMClient;
@@ -27,6 +30,76 @@ export const InteractiveApp: React.FC<InteractiveAppProps> = ({ llmClient, model
   const [currentResponse, setCurrentResponse] = useState('');
   const [currentThinking, setCurrentThinking] = useState('');
 
+  // File browser state
+  const [showFileBrowser, setShowFileBrowser] = useState(false);
+  const [atPosition, setAtPosition] = useState(-1);
+  const [filterText, setFilterText] = useState('');
+  const [inputKey, setInputKey] = useState(0); // Force TextInput re-render for cursor position
+
+  // Pre-loaded file list cache (loaded once at startup)
+  const [cachedFileList, setCachedFileList] = useState<FileItem[]>([]);
+  const [isLoadingFiles, setIsLoadingFiles] = useState(true);
+
+  // Load file list once on mount (background loading)
+  useEffect(() => {
+    let mounted = true;
+
+    const preloadFiles = async () => {
+      try {
+        const files = await loadFileList();
+        if (mounted) {
+          setCachedFileList(files);
+          setIsLoadingFiles(false);
+        }
+      } catch (error) {
+        if (mounted) {
+          console.error('Failed to preload file list:', error);
+          setIsLoadingFiles(false);
+        }
+      }
+    };
+
+    preloadFiles();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Monitor input for '@' trigger
+  useEffect(() => {
+    console.log('[DEBUG] @ trigger check - input:', JSON.stringify(input));
+    console.log('[DEBUG] isProcessing:', isProcessing, 'showFileBrowser:', showFileBrowser);
+
+    if (isProcessing) {
+      console.log('[DEBUG] Skipping @ detection - isProcessing is true');
+      return; // Don't trigger while processing
+    }
+
+    const triggerInfo = detectAtTrigger(input);
+    console.log('[DEBUG] detectAtTrigger result:', triggerInfo);
+
+    if (triggerInfo.detected && !showFileBrowser) {
+      // '@' detected, show file browser
+      console.log('[DEBUG] Showing file browser - @ detected at position', triggerInfo.position);
+      setShowFileBrowser(true);
+      setAtPosition(triggerInfo.position);
+      setFilterText(triggerInfo.filter);
+    } else if (triggerInfo.detected && showFileBrowser) {
+      // Update filter as user types
+      console.log('[DEBUG] Updating filter:', triggerInfo.filter);
+      setFilterText(triggerInfo.filter);
+    } else if (!triggerInfo.detected && showFileBrowser) {
+      // '@' removed, hide file browser
+      console.log('[DEBUG] Hiding file browser - @ removed');
+      setShowFileBrowser(false);
+      setAtPosition(-1);
+      setFilterText('');
+    } else {
+      console.log('[DEBUG] No action taken - detected:', triggerInfo.detected, 'showFileBrowser:', showFileBrowser);
+    }
+  }, [input, isProcessing, showFileBrowser]);
+
   // 키보드 단축키
   useInput((inputChar: string, key: { ctrl: boolean; shift: boolean; meta: boolean }) => {
     if (key.ctrl && inputChar === 'c') {
@@ -34,8 +107,33 @@ export const InteractiveApp: React.FC<InteractiveAppProps> = ({ llmClient, model
     }
   });
 
+  // Handle file selection from browser
+  const handleFileSelect = (filePaths: string[]) => {
+    // Insert file paths into input at @ position
+    // Note: insertFilePaths adds a trailing space for continued typing
+    const newInput = insertFilePaths(input, atPosition, filterText.length, filePaths);
+    setInput(newInput);
+
+    // Force TextInput to re-render with new value and reset cursor to end
+    setInputKey((prev) => prev + 1);
+
+    // Close file browser
+    setShowFileBrowser(false);
+    setAtPosition(-1);
+    setFilterText('');
+  };
+
+  // Handle file browser cancellation
+  const handleFileBrowserCancel = () => {
+    // Close file browser but keep '@' in input
+    setShowFileBrowser(false);
+    setAtPosition(-1);
+    setFilterText('');
+  };
+
   const handleSubmit = async (value: string) => {
-    if (!value.trim() || isProcessing) {
+    // Prevent message submission while file browser is open
+    if (!value.trim() || isProcessing || showFileBrowser) {
       return;
     }
 
@@ -121,7 +219,7 @@ export const InteractiveApp: React.FC<InteractiveAppProps> = ({ llmClient, model
             Model: {modelInfo.model} | Endpoint: {modelInfo.endpoint}
           </Text>
           <Text dimColor>
-            Commands: /exit /clear /help | Ctrl+C to quit
+            Commands: /exit /clear /help | @file for file inclusion | Ctrl+C to quit
           </Text>
         </Box>
       </Box>
@@ -178,10 +276,33 @@ export const InteractiveApp: React.FC<InteractiveAppProps> = ({ llmClient, model
             <Text bold color="green">
               You:{' '}
             </Text>
-            <TextInput value={input} onChange={setInput} onSubmit={handleSubmit} />
+            <TextInput
+              key={inputKey}
+              value={input}
+              onChange={setInput}
+              onSubmit={handleSubmit}
+            />
           </Box>
         )}
       </Box>
+
+      {/* File Browser (shown when '@' is typed) */}
+      {showFileBrowser && !isProcessing && (
+        <Box>
+          {isLoadingFiles ? (
+            <Box borderStyle="single" borderColor="yellow" paddingX={1}>
+              <Text color="yellow">Loading file list...</Text>
+            </Box>
+          ) : (
+            <FileBrowser
+              filter={filterText}
+              onSelect={handleFileSelect}
+              onCancel={handleFileBrowserCancel}
+              cachedFiles={cachedFileList}
+            />
+          )}
+        </Box>
+      )}
     </Box>
   );
 };

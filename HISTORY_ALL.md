@@ -1301,5 +1301,147 @@ Save Session with TODO State
 
 ---
 
-*This document represents the complete implementation history of OPEN-CLI through Phase 2.5 (ongoing).*
+---
+
+## Phase 2.6: UI/UX Enhancements (In Progress)
+
+### 2.6.1 @ File Inclusion Feature
+- **Status**: ✅ Completed
+- **Date**: 2025-11-05
+- **Priority**: P2 (Medium - Part of P2-2)
+
+#### Implementation Details
+
+**Goal**: Enable users to include file paths in messages using @ syntax with interactive file browser
+
+**Core Components Created**:
+
+1. **FileBrowser Component** (`src/ui/components/FileBrowser.tsx`):
+   - React Ink-based file selection UI
+   - Displays file list with filtering
+   - Arrow key navigation
+   - Enter to select, Tab to quick-select first file
+   - ESC to cancel
+   - Shows file count (X of Y files)
+   - Visual feedback with borders and colors
+
+2. **atFileProcessor Hook** (`src/ui/hooks/atFileProcessor.ts`):
+   - Detects '@' trigger in input string
+   - Returns position and filter text after '@'
+   - Inserts file paths into input at cursor position
+   - Formats paths as @path1 @path2 @path3
+   - Handles trailing spaces for continued typing
+
+3. **useFileList Hook** (`src/ui/hooks/useFileList.ts`):
+   - Pre-loads file list at app startup (background loading)
+   - Filters files based on search pattern
+   - Excludes node_modules, .git, hidden files, dist, build, coverage
+   - Currently shows only files (directories filtered out for future directory navigation)
+   - Sorts alphabetically
+   - Supports up to 100 files with scrolling
+
+4. **File Tools Enhancement** (`src/tools/file-tools.ts`):
+   - Added @ prefix removal in executeReadFile and executeWriteFile
+   - Automatically strips '@' before path resolution
+   - Error messages use clean paths (without @)
+
+5. **InteractiveApp Integration** (`src/ui/components/InteractiveApp.tsx`):
+   - File list pre-loading on mount (useEffect)
+   - @ trigger detection and monitoring
+   - FileBrowser component rendering when @ detected
+   - File selection handler
+   - File browser cancellation handler
+   - Prevents message submission while file browser is open
+   - Updated help text to mention @file feature
+
+#### Architecture Flow
+
+```
+User types '@' in input
+    ↓
+detectAtTrigger() detects @ and filter text
+    ↓
+showFileBrowser = true
+    ↓
+FileBrowser component renders with filtered files
+    ↓
+User navigates with arrow keys or types filter
+    ↓
+User presses Enter or Tab
+    ↓
+handleFileSelect() called
+    ↓
+insertFilePaths() inserts @path1 @path2 into input
+    ↓
+File browser closes, input updated
+```
+
+#### Key Features Implemented
+
+- **Real-time Filtering**: As user types after '@', file list filters instantly
+- **Pre-loaded Cache**: File list loaded once at startup for instant display
+- **Smart Filtering**: Excludes build artifacts, dependencies, hidden files
+- **Quick Selection**: Tab key selects first file immediately
+- **Multiple Selection Support**: Architecture supports selecting multiple files
+- **Clean Path Handling**: @ prefix automatically removed in file operations
+- **Visual Feedback**: Color-coded borders, file icons, status messages
+- **Keyboard Navigation**: Full keyboard support (↑↓ Enter Tab ESC)
+
+#### Code Statistics
+
+- **New Files**: 3 (FileBrowser.tsx, atFileProcessor.ts, useFileList.ts)
+- **Modified Files**: 2 (InteractiveApp.tsx, file-tools.ts)
+- **Lines of Code**: ~300+ lines
+- **Components**: 1 React component, 2 hooks, 2 utility functions
+
+#### User Experience
+
+**Before**:
+```
+User: "Please read src/utils/logger.ts"
+→ User must type full path manually
+```
+
+**After**:
+```
+User types: "@src/utils/log"
+→ File browser appears showing matching files
+→ User navigates and selects with Enter
+→ Input becomes: "@src/utils/logger.ts "
+→ User continues typing message
+```
+
+#### Technical Highlights
+
+1. **Performance**: Pre-loading file list eliminates delay when @ is typed
+2. **Responsiveness**: Filtering happens in real-time as user types
+3. **User-Friendly**: Visual feedback and keyboard shortcuts
+4. **Integration**: Seamlessly integrated into existing InteractiveApp
+5. **Extensibility**: Architecture supports future directory navigation
+
+#### Future Enhancements (Not Yet Implemented)
+
+- Directory navigation in file browser
+- / command autocomplete (remaining part of P2-2)
+- Input hint display below input box
+- Enhanced fuzzy matching algorithms
+
+#### Testing Considerations
+
+- File list loading with large directories
+- Filtering performance with 1000+ files
+- Edge cases: no files found, permission errors
+- Keyboard navigation edge cases
+- Input insertion with various cursor positions
+
+#### Impact
+
+- **User Experience**: Significantly faster file path input
+- **Error Reduction**: Less typos in file paths
+- **Discovery**: Users can explore project structure visually
+- **Productivity**: Faster workflow for file-related tasks
+
+---
+
+*This document represents the complete implementation history of OPEN-CLI through Phase 2.6 (ongoing).*
 *For upcoming features and plans, see TODO_ALL.md.*

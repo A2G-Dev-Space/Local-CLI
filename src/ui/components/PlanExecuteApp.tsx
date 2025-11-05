@@ -15,6 +15,9 @@ import { TodoExecutor } from '../../core/todo-executor.js';
 import { TodoPanel, TodoStatusBar } from '../TodoPanel.js';
 import { sessionManager } from '../../core/session-manager.js';
 import { initializeDocsDirectory } from '../../core/docs-search-agent.js';
+import { FileBrowser } from './FileBrowser.js';
+import { detectAtTrigger, insertFilePaths } from '../hooks/atFileProcessor.js';
+import { loadFileList, FileItem } from '../hooks/useFileList.js';
 
 interface PlanExecuteAppProps {
   llmClient: LLMClient;
@@ -40,10 +43,70 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
   const [showTodoPanel, setShowTodoPanel] = useState(true);
   const [executionPhase, setExecutionPhase] = useState<'idle' | 'planning' | 'executing'>('idle');
 
+  // File browser state
+  const [showFileBrowser, setShowFileBrowser] = useState(false);
+  const [atPosition, setAtPosition] = useState(-1);
+  const [filterText, setFilterText] = useState('');
+  const [inputKey, setInputKey] = useState(0); // Force TextInput re-render for cursor position
+
+  // Pre-loaded file list cache (loaded once at startup)
+  const [cachedFileList, setCachedFileList] = useState<FileItem[]>([]);
+  const [isLoadingFiles, setIsLoadingFiles] = useState(true);
+
   // Initialize docs directory on startup
   useEffect(() => {
     initializeDocsDirectory().catch(console.warn);
   }, []);
+
+  // Load file list once on mount (background loading)
+  useEffect(() => {
+    let mounted = true;
+
+    const preloadFiles = async () => {
+      try {
+        const files = await loadFileList();
+        if (mounted) {
+          setCachedFileList(files);
+          setIsLoadingFiles(false);
+        }
+      } catch (error) {
+        if (mounted) {
+          console.error('Failed to preload file list:', error);
+          setIsLoadingFiles(false);
+        }
+      }
+    };
+
+    preloadFiles();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Monitor input for '@' trigger
+  useEffect(() => {
+    if (isProcessing) {
+      return; // Don't trigger while processing
+    }
+
+    const triggerInfo = detectAtTrigger(input);
+
+    if (triggerInfo.detected && !showFileBrowser) {
+      // '@' detected, show file browser
+      setShowFileBrowser(true);
+      setAtPosition(triggerInfo.position);
+      setFilterText(triggerInfo.filter);
+    } else if (triggerInfo.detected && showFileBrowser) {
+      // Update filter as user types
+      setFilterText(triggerInfo.filter);
+    } else if (!triggerInfo.detected && showFileBrowser) {
+      // '@' removed, hide file browser
+      setShowFileBrowser(false);
+      setAtPosition(-1);
+      setFilterText('');
+    }
+  }, [input, isProcessing, showFileBrowser]);
 
   // Keyboard shortcuts
   useInput((inputChar: string, key: { ctrl: boolean; shift: boolean; meta: boolean; escape: boolean }) => {
@@ -62,6 +125,29 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
       setMode(modes[nextIndex]!);
     }
   });
+
+  // Handle file selection from browser
+  const handleFileSelect = (filePaths: string[]) => {
+    // Insert file paths into input at @ position
+    const newInput = insertFilePaths(input, atPosition, filterText.length, filePaths);
+    setInput(newInput);
+
+    // Force TextInput to re-render with new value and reset cursor to end
+    setInputKey((prev) => prev + 1);
+
+    // Close file browser
+    setShowFileBrowser(false);
+    setAtPosition(-1);
+    setFilterText('');
+  };
+
+  // Handle file browser cancellation
+  const handleFileBrowserCancel = () => {
+    // Close file browser but keep '@' in input
+    setShowFileBrowser(false);
+    setAtPosition(-1);
+    setFilterText('');
+  };
 
   // TODO update callback
   const handleTodoUpdate = useCallback((todo: TodoItem) => {
@@ -161,7 +247,8 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
   };
 
   const handleSubmit = async (value: string) => {
-    if (!value.trim() || isProcessing) {
+    // Prevent message submission while file browser is open
+    if (!value.trim() || isProcessing || showFileBrowser) {
       return;
     }
 
@@ -301,6 +388,7 @@ Keyboard shortcuts:
           <Text color="green" bold>You: </Text>
           <Box flexGrow={1}>
             <TextInput
+              key={inputKey}
               value={input}
               onChange={setInput}
               onSubmit={handleSubmit}
@@ -309,6 +397,24 @@ Keyboard shortcuts:
           </Box>
         </Box>
       </Box>
+
+      {/* File Browser (shown when '@' is typed) */}
+      {showFileBrowser && !isProcessing && (
+        <Box marginTop={0}>
+          {isLoadingFiles ? (
+            <Box borderStyle="single" borderColor="yellow" paddingX={1}>
+              <Text color="yellow">Loading file list...</Text>
+            </Box>
+          ) : (
+            <FileBrowser
+              filter={filterText}
+              onSelect={handleFileSelect}
+              onCancel={handleFileBrowserCancel}
+              cachedFiles={cachedFileList}
+            />
+          )}
+        </Box>
+      )}
 
       {/* Status Bar */}
       <Box justifyContent="space-between" paddingX={1}>
