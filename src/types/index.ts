@@ -156,3 +156,33 @@ export interface AutoUpdateConfig {
   channel: 'stable' | 'beta' | 'nightly';
   skipVersion?: string;
 }
+
+/**
+ * TODO Item type for Plan-and-Execute Architecture
+ */
+export interface TodoItem {
+  id: string;
+  title: string;
+  description: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  requiresDocsSearch: boolean;
+  dependencies: string[]; // Other TODO ids
+  result?: string;
+  error?: string;
+  startedAt?: string; // ISO timestamp
+  completedAt?: string; // ISO timestamp
+}
+
+/**
+ * Planning result from Planning LLM
+ */
+export interface PlanningResult {
+  todos: TodoItem[];
+  estimatedTime?: string;
+  complexity: 'simple' | 'moderate' | 'complex';
+}
+
+/**
+ * TODO status type
+ */
+export type TodoStatus = 'pending' | 'in_progress' | 'completed' | 'failed';

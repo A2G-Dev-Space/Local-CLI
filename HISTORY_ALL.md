@@ -1215,5 +1215,91 @@ private preprocessMessages(messages: Message[], modelId: string): Message[] {
 
 ---
 
+### 2.5.3 Plan-and-Execute Architecture
+- **Status**: ✅ Completed
+- **Date**: 2025-11-05
+- **Priority**: P0 (Critical)
+
+#### Implementation Details
+
+**Core Components Created**:
+
+1. **PlanningLLM** (`src/core/planning-llm.ts`):
+   - Converts user requests into executable TODO lists
+   - Validates TODO dependencies
+   - Topological sorting for execution order
+   - Fallback to single TODO on planning failure
+
+2. **TodoExecutor** (`src/core/todo-executor.ts`):
+   - Sequential TODO execution with dependency checking
+   - Pre-execution docs search for context
+   - Integration with file-tools for LLM capabilities
+   - Resume capability for interrupted executions
+   - Progress callbacks for UI updates
+
+3. **Docs Search Agent** (`src/core/docs-search-agent.ts`):
+   - Sub-LLM with bash command access
+   - Searches ~/.open-cli/docs directory
+   - Multi-iteration search capability (max 10)
+   - Security-hardened bash command execution
+
+4. **Bash Command Tool** (`src/core/bash-command-tool.ts`):
+   - Secure command execution with whitelisting
+   - Dangerous command blocking
+   - Timeout and buffer limits
+   - Restricted to docs directory
+
+5. **UI Components** (`src/ui/TodoPanel.tsx`, `src/ui/components/PlanExecuteApp.tsx`):
+   - React-based TODO panel with progress tracking
+   - Status indicators and duration tracking
+   - Mode switching (Auto/Direct/Plan-Execute)
+   - Keyboard shortcuts (Tab for mode, Ctrl+T for panel toggle)
+
+#### Architecture Flow
+
+```
+User Request
+    ↓
+Mode Detection (Auto/Direct/Plan-Execute)
+    ↓
+[Plan-Execute Mode]
+    ↓
+PlanningLLM → Generate TODO List
+    ↓
+TodoExecutor → For Each TODO:
+    ├─ Check Dependencies
+    ├─ Docs Search (if required)
+    ├─ Execute with LLM + Tools
+    └─ Update UI Progress
+    ↓
+Save Session with TODO State
+```
+
+#### Key Features Implemented
+
+- **Intelligent Planning**: LLM breaks complex requests into 5-7 manageable TODOs
+- **Dependency Management**: TODOs can depend on others, executed in correct order
+- **Documentation Integration**: Pre-execution search for relevant docs
+- **Progress Tracking**: Real-time UI updates with TODO status
+- **Mode Flexibility**: Auto-detect complexity or manual mode selection
+- **Error Recovery**: Continues execution even if individual TODOs fail
+- **Session Persistence**: TODO state saved for later resumption
+
+#### Testing & Validation
+
+- TypeScript compilation successful
+- All components properly typed and integrated
+- Security measures in place for bash execution
+- UI responsive with keyboard shortcuts
+
+#### Impact
+
+- Enables handling of complex multi-step requests
+- Provides transparency through TODO breakdown
+- Improves success rate with documentation context
+- Better user experience with progress tracking
+
+---
+
 *This document represents the complete implementation history of OPEN-CLI through Phase 2.5 (ongoing).*
 *For upcoming features and plans, see TODO_ALL.md.*

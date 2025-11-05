@@ -18,7 +18,8 @@ import { createLLMClient, LLMClient } from './core/llm-client.js';
 import { sessionManager } from './core/session-manager.js';
 import { documentManager } from './core/document-manager.js';
 import { EndpointConfig, Message } from './types/index.js';
-import { InteractiveApp } from './ui/components/InteractiveApp.js';
+// import { InteractiveApp } from './ui/components/InteractiveApp.js';
+import { PlanExecuteApp } from './ui/components/PlanExecuteApp.js';
 import { AutoUpdater } from './core/auto-updater.js';
 
 const program = new Command();
@@ -34,7 +35,8 @@ program.name('open').description('OPEN-CLI - 오프라인 기업용 AI 코딩 �
 program
   .option('--classic', 'Use classic inquirer-based UI instead of Ink UI')
   .option('--no-update', 'Skip auto-update check')
-  .action(async (options: { classic?: boolean; noUpdate?: boolean }) => {
+  .option('--plan-execute', 'Use Plan & Execute mode (default: auto-detect)')
+  .action(async (options: { classic?: boolean; noUpdate?: boolean; planExecute?: boolean }) => {
   try {
     // Auto-update check (unless disabled)
     if (!options.noUpdate) {
@@ -68,7 +70,9 @@ program
 
       // Ink UI를 같은 프로세스에서 직접 렌더링 (stdin raw mode 유지)
       try {
-        render(React.createElement(InteractiveApp, { llmClient, modelInfo }));
+        // Use PlanExecuteApp for enhanced functionality
+        const AppComponent = options.planExecute ? PlanExecuteApp : PlanExecuteApp; // Always use PlanExecuteApp now
+        render(React.createElement(AppComponent, { llmClient, modelInfo }));
       } catch (error) {
         console.log(chalk.yellow('\n⚠️  Ink UI를 시작할 수 없습니다.\n'));
         console.log(chalk.dim(`Error: ${error instanceof Error ? error.message : String(error)}\n`));

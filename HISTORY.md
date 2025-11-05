@@ -100,6 +100,20 @@
   - Case-insensitive model matching
   - Works for both streaming and non-streaming API calls
 
+### 2.5.3 Plan-and-Execute Architecture
+- **Status**: ✅ Completed
+- **Date**: 2025-11-05
+- **Details**: [HISTORY_ALL.md#L1301-L1500](./HISTORY_ALL.md#L1301-L1500)
+- **Summary**: Two-LLM system for breaking down complex tasks into TODO lists
+- **Key Features**:
+  - PlanningLLM converts user requests into structured TODO lists
+  - TodoExecutor executes TODOs sequentially with dependency management
+  - Docs Search Agent for intelligent documentation searching
+  - React-based TODO panel UI with progress tracking
+  - Auto/Direct/Plan-Execute mode switching
+  - Session persistence for TODO state
+  - Integrated with Ink UI interactive mode
+
 ### 2.1 Ink/React UI Implementation
 - **Status**: ✅ Completed
 - **Date**: 2024-12-25
