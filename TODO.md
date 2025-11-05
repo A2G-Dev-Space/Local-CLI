@@ -6,12 +6,12 @@
 
 ## 📊 Summary
 
-- **Total Features**: 14
-- **Priority 0 (Critical)**: 2 features
-- **Priority 1 (Important)**: 9 features
+- **Total Features**: 20 (기존 14 + Claude Code 방법론 6)
+- **Priority 0 (Critical)**: 6 features
+- **Priority 1 (Important)**: 11 features
 - **Priority 2 (Medium)**: 2 features
 - **Priority 3 (Low)**: 1 feature
-- **Estimated Total Time**: 8-12 weeks
+- **Estimated Total Time**: 12-15 weeks
 
 ---
 
@@ -29,75 +29,111 @@
 - **Details**: [TODO_ALL.md#L761-L1830](./TODO_ALL.md#L761-L1830)
 - **Summary**: Two-LLM system for planning and execution with TODO tracking
 
+### 3. Claude Code Agent Loop Implementation 🆕
+- **Time**: 7-10 days
+- **Status**: [ ] Not Started
+- **Details**: [TODO_ALL.md#L5158-L5602](./TODO_ALL.md#L5158-L5602)
+- **Summary**: gather context → take action → verify work → repeat 에이전트 루프
+
+### 4. Multi-Layered Execution Architecture 🆕
+- **Time**: 10-12 days
+- **Status**: [ ] Not Started
+- **Details**: [TODO_ALL.md#L5603-L6160](./TODO_ALL.md#L5603-L6160)
+- **Summary**: 4계층 동적 실행 시스템 (Standard/SDK/SubAgent/Skills)
+
+### 5. Internal Monologue and Scratchpad System 🆕
+- **Time**: 5-6 days
+- **Status**: [ ] Not Started
+- **Details**: [TODO_ALL.md#L6161-L6640](./TODO_ALL.md#L6161-L6640)
+- **Summary**: 확장된 사고와 외부 스크래치패드를 통한 계획 수립
+
+### 6. TDD Workflow and Verification System 🆕
+- **Time**: 6-7 days
+- **Status**: [ ] Not Started
+- **Details**: [TODO_ALL.md#L6641-L7173](./TODO_ALL.md#L6641-L7173)
+- **Summary**: 테스트 주도 개발과 3단계 검증 시스템 (Rules/Visual/LLM-Judge)
+
 ---
 
 ## ⚡ Priority 1 - Important
 
-### 3. Model Compatibility Layer
+### 7. Model Compatibility Layer
 - **Time**: 1-2 hours (quick fix) or 3-5 days (full)
 - **Status**: [ ] Not Started
 - **Details**: [TODO_ALL.md#L1831-L2225](./TODO_ALL.md#L1831-L2225)
 - **Summary**: Fix Harmony format 422 error for gpt-oss models
 
-### 4. ESC Key LLM Interrupt
+### 8. ESC Key LLM Interrupt
 - **Time**: 1 day
 - **Status**: [ ] Not Started
 - **Details**: [TODO_ALL.md#L2226-L2523](./TODO_ALL.md#L2226-L2523)
 - **Summary**: Press ESC to stop LLM generation immediately
 
-### 5. YOLO Mode vs Ask Mode
+### 9. YOLO Mode vs Ask Mode
 - **Time**: 1-2 days
 - **Status**: [ ] Not Started
 - **Details**: [TODO_ALL.md#L2524-L2904](./TODO_ALL.md#L2524-L2904)
 - **Summary**: Tab to toggle between auto-execute and confirmation modes
 
-### 6. File Edit Tool Improvements
+### 10. File Edit Tool Improvements
 - **Time**: 1 day
 - **Status**: [ ] Not Started
 - **Details**: [TODO_ALL.md#L2905-L3306](./TODO_ALL.md#L2905-L3306)
 - **Summary**: Line-based editing with content verification
 
-### 7. Config Init & Model Management
+### 11. Config Init & Model Management
 - **Time**: 2 days
 - **Status**: [ ] Not Started
 - **Details**: [TODO_ALL.md#L3307-L4049](./TODO_ALL.md#L3307-L4049)
 - **Summary**: First-run setup, /addmodel, /deletemodel, /model, /reset commands
 
-### 8. TODO Auto-Save
+### 12. TODO Auto-Save
 - **Time**: 1 day
 - **Status**: [ ] Not Started
 - **Details**: [TODO_ALL.md#L4050-L4500](./TODO_ALL.md#L4050-L4500)
 - **Summary**: Auto-save session after each TODO completion
 
-### 9. Tool Usage UI
+### 13. Tool Usage UI
 - **Time**: 1 day
 - **Status**: [ ] Not Started
 - **Details**: [TODO_ALL.md#L4501-L4670](./TODO_ALL.md#L4501-L4670)
 - **Summary**: Visual display of tool calls and results
 
-### 10. Status Bar
+### 14. Status Bar
 - **Time**: 1 day
 - **Status**: [ ] Not Started
 - **Details**: [TODO_ALL.md#L4671-L4793](./TODO_ALL.md#L4671-L4793)
 - **Summary**: Bottom bar showing path, model, context usage
 
-### 11. Welcome Screen
+### 15. Welcome Screen
 - **Time**: 1 day
 - **Status**: [ ] Not Started
 - **Details**: [TODO_ALL.md#L4794-L4950](./TODO_ALL.md#L4794-L4950)
 - **Summary**: ASCII logo and tips on startup
 
+### 16. MCP (Model Context Protocol) Integration 🆕
+- **Time**: 4-5 days
+- **Status**: [ ] Not Started
+- **Details**: [TODO_ALL.md#L7174-L7281](./TODO_ALL.md#L7174-L7281)
+- **Summary**: 외부 서비스와의 표준화된 통합 (GitHub, Slack, DBs)
+
+### 17. Human-in-the-Loop Safety System 🆕
+- **Time**: 3 days
+- **Status**: [ ] Not Started
+- **Details**: [TODO_ALL.md#L7282-L7381](./TODO_ALL.md#L7282-L7381)
+- **Summary**: 위험한 작업에 대한 명시적 승인 시스템
+
 ---
 
 ## 📋 Priority 2 - Medium
 
-### 12. Tips/Help Section
+### 18. Tips/Help Section
 - **Time**: 1 day
 - **Status**: [ ] Not Started
 - **Details**: [TODO_ALL.md#L4951-L4976](./TODO_ALL.md#L4951-L4976)
 - **Summary**: Enhanced help system with examples
 
-### 13. Input Hints & Autocomplete
+### 19. Input Hints & Autocomplete
 - **Time**: 2 days
 - **Status**: [ ] Not Started
 - **Details**: [TODO_ALL.md#L4977-L5006](./TODO_ALL.md#L4977-L5006)
@@ -107,7 +143,7 @@
 
 ## 🎨 Priority 3 - Low
 
-### 14. Message Type Styling
+### 20. Message Type Styling
 - **Time**: 1 day
 - **Status**: [ ] Not Started
 - **Details**: [TODO_ALL.md#L5007-L5156](./TODO_ALL.md#L5007-L5156)
@@ -115,40 +151,71 @@
 
 ---
 
-## 📈 Implementation Order (Recommended)
+## 📈 Implementation Order (Recommended) - UPDATED
 
-### Week 1-2: Foundation
+### Phase 1: Foundation (Weeks 1-3)
 - [ ] P0-1: Auto-Update System
-- [ ] P1-1: Model Compatibility Layer
-
-### Week 3-4: Core Architecture
+- [ ] P1-7: Model Compatibility Layer
 - [ ] P0-2: Plan-and-Execute
 
-### Week 5-6: Essential Features
-- [ ] P1-2: ESC Interrupt
-- [ ] P1-3: YOLO/Ask Mode
-- [ ] P1-4: File Edit Improvements
-- [ ] P1-5: Config & Model Management
+### Phase 2: Core Agent Loop (Weeks 4-6) 🆕
+- [ ] P0-3: Claude Code Agent Loop
+- [ ] P0-5: Internal Monologue & Scratchpad
+- [ ] P0-6: TDD & Verification System
 
-### Week 7-8: UI Enhancements
-- [ ] P1-9: Welcome Screen
-- [ ] P1-10: Status Bar
-- [ ] P1-7: Tool Usage UI
-- [ ] P1-6: TODO Auto-Save
+### Phase 3: Advanced Execution (Weeks 7-9) 🆕
+- [ ] P0-4: Multi-Layer Execution Architecture
+- [ ] P1-16: MCP Integration
+- [ ] P1-17: Human-in-the-Loop Safety
 
-### Week 9-10: Polish
-- [ ] P2-1: Tips/Help
-- [ ] P2-2: Autocomplete
-- [ ] P3-1: Message Styling
+### Phase 4: Essential Features (Weeks 10-11)
+- [ ] P1-8: ESC Interrupt
+- [ ] P1-9: YOLO/Ask Mode
+- [ ] P1-10: File Edit Improvements
+- [ ] P1-11: Config & Model Management
+
+### Phase 5: UI Enhancements (Weeks 12-13)
+- [ ] P1-15: Welcome Screen
+- [ ] P1-14: Status Bar
+- [ ] P1-13: Tool Usage UI
+- [ ] P1-12: TODO Auto-Save
+
+### Phase 6: Polish (Weeks 14-15)
+- [ ] P2-18: Tips/Help
+- [ ] P2-19: Autocomplete
+- [ ] P3-20: Message Styling
+
+---
+
+## 🚀 Claude Code Methodology Implementation
+
+이제 OPEN-CLI는 Claude Code의 핵심 방법론을 완벽하게 구현합니다:
+
+### 핵심 구현 요소
+1. **에이전트 루프**: gather → act → verify → repeat
+2. **다계층 실행**: 복잡도에 따른 동적 실행 계층
+3. **내부 독백**: 확장된 사고와 질문 분해
+4. **TDD 워크플로우**: 테스트 우선 개발
+5. **3단계 검증**: Rules, Visual, LLM-as-Judge
+6. **MCP 통합**: 외부 서비스 표준 프로토콜
+7. **안전성 시스템**: Human-in-the-Loop
+
+### 기대 효과
+- ✅ 자율적 작업 수행 능력
+- ✅ 복잡한 태스크의 체계적 분해
+- ✅ 병렬 처리를 통한 성능 향상
+- ✅ 검증 가능한 신뢰성
+- ✅ 안전한 실행 환경
 
 ---
 
 ## 🔗 Related Documents
 
-- **[TODO_ALL.md](./TODO_ALL.md)** - Complete implementation details (5,156 lines)
+- **[TODO_ALL.md](./TODO_ALL.md)** - Complete implementation details (7,445 lines)
 - **[HISTORY_ALL.md](./HISTORY_ALL.md)** - Completed features documentation
 - **[BIND_TOOLS.md](./BIND_TOOLS.md)** - LLM tool bindings reference
 
 ---
 
-*Last Updated: 2025-01-15*
+*Last Updated: 2025-11-05*
+*Version: 2.0.0 - Claude Code Methodology Added*

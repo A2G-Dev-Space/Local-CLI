@@ -5154,3 +5154,2293 @@ This TODO_ALL.md document represents the complete implementation roadmap for OPE
 ---
 
 **End of TODO_ALL.md**
+
+## P0-3: Claude Code Agent Loop Implementation 🆕
+
+**목표**: gather context → take action → verify work → repeat 에이전트 루프 구현
+
+**Priority**: P0 (Critical)
+**Estimated Time**: 7-10 days
+**Dependencies**: P0-2 (Plan-and-Execute)
+**Status**: Not Started
+
+### Overview
+
+Claude Code의 핵심 에이전트 루프를 완벽하게 구현합니다. 이는 단순한 순차 실행이 아닌,
+각 단계마다 명시적인 검증과 피드백을 통해 자율적으로 작업을 수행하는 진정한 에이전트 시스템입니다.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────┐
+│              Agent Loop Controller               │
+├─────────────────────────────────────────────────┤
+│                                                  │
+│  ┌──────────────────────────────────────────┐   │
+│  │ 1. Gather Context                        │   │
+│  │   - File system exploration (grep, tail) │   │
+│  │   - OPEN_CLI.md project config load      │   │
+│  │   - Previous loop feedback               │   │
+│  └──────────────────────────────────────────┘   │
+│                      ↓                           │
+│  ┌──────────────────────────────────────────┐   │
+│  │ 2. Take Action                           │   │
+│  │   - Tool execution                       │   │
+│  │   - Code generation                      │   │
+│  │   - API calls                            │   │
+│  └──────────────────────────────────────────┘   │
+│                      ↓                           │
+│  ┌──────────────────────────────────────────┐   │
+│  │ 3. Verify Work                           │   │
+│  │   - Rule-based verification              │   │
+│  │   - Visual feedback (screenshots)        │   │
+│  │   - LLM-as-Judge evaluation              │   │
+│  └──────────────────────────────────────────┘   │
+│                      ↓                           │
+│  ┌──────────────────────────────────────────┐   │
+│  │ 4. Repeat Decision                       │   │
+│  │   - Success → Next TODO                  │   │
+│  │   - Failure → Retry with feedback        │   │
+│  │   - Error → Error recovery strategy      │   │
+│  └──────────────────────────────────────────┘   │
+│                      ↓                           │
+│              [Loop or Complete]                  │
+└─────────────────────────────────────────────────┘
+```
+
+### Phase 1: Agent Loop Controller (3 days)
+
+**Files to Create**:
+- `src/core/agent-loop.ts` (NEW)
+- `src/core/context-gatherer.ts` (NEW)
+- `src/core/action-executor.ts` (NEW)
+- `src/core/work-verifier.ts` (NEW)
+
+**Core Implementation**:
+
+```typescript
+// src/core/agent-loop.ts
+
+export interface LoopContext {
+  currentTodo: TodoItem;
+  previousResults: ExecutionResult[];
+  fileSystemContext: FileSystemContext;
+  projectConfig: ProjectConfig;
+  feedback: VerificationFeedback[];
+}
+
+export interface ExecutionResult {
+  action: string;
+  toolName?: string;
+  output: any;
+  success: boolean;
+  error?: Error;
+  timestamp: string;
+}
+
+export interface VerificationFeedback {
+  rule: string;
+  passed: boolean;
+  message: string;
+  severity: 'info' | 'warning' | 'error';
+  suggestions?: string[];
+}
+
+export class AgentLoopController {
+  private contextGatherer: ContextGatherer;
+  private actionExecutor: ActionExecutor;
+  private workVerifier: WorkVerifier;
+  private maxIterations: number = 10;
+  private currentIteration: number = 0;
+
+  constructor(
+    private llmClient: LLMClient,
+    private toolRegistry: ToolRegistry,
+    private config: Config
+  ) {
+    this.contextGatherer = new ContextGatherer();
+    this.actionExecutor = new ActionExecutor(llmClient, toolRegistry);
+    this.workVerifier = new WorkVerifier();
+  }
+
+  async executeTodoWithLoop(
+    todo: TodoItem,
+    messages: Message[],
+    onProgress?: (update: ProgressUpdate) => void
+  ): Promise<TodoExecutionResult> {
+    let context = await this.gatherInitialContext(todo);
+
+    while (this.currentIteration < this.maxIterations) {
+      // 1. Gather Context
+      context = await this.contextGatherer.gather({
+        ...context,
+        iteration: this.currentIteration,
+        previousFeedback: context.feedback
+      });
+
+      // 2. Take Action
+      const action = await this.actionExecutor.execute(
+        context,
+        messages
+      );
+
+      // 3. Verify Work
+      const verification = await this.workVerifier.verify(
+        action,
+        todo,
+        context
+      );
+
+      // 4. Decide to Repeat
+      if (verification.isComplete) {
+        return {
+          success: true,
+          result: action.output,
+          iterations: this.currentIteration + 1,
+          verificationReport: verification
+        };
+      }
+
+      // Add feedback to context for next iteration
+      context.feedback.push(...verification.feedback);
+      this.currentIteration++;
+
+      // Notify progress
+      onProgress?.({
+        iteration: this.currentIteration,
+        action: action.action,
+        verification: verification,
+        willRetry: !verification.isComplete
+      });
+    }
+
+    // Max iterations reached
+    return {
+      success: false,
+      error: 'Max iterations reached without completing task',
+      iterations: this.maxIterations,
+      lastVerification: context.feedback[context.feedback.length - 1]
+    };
+  }
+}
+```
+
+### Phase 2: Context Gathering System (2 days)
+
+**Context Gatherer Implementation**:
+
+```typescript
+// src/core/context-gatherer.ts
+
+export class ContextGatherer {
+  private fileExplorer: FileExplorer;
+  private configLoader: ConfigLoader;
+
+  async gather(request: ContextRequest): Promise<LoopContext> {
+    const context: LoopContext = {
+      currentTodo: request.todo,
+      previousResults: request.previousResults || [],
+      fileSystemContext: await this.exploreFileSystem(request),
+      projectConfig: await this.loadProjectConfig(),
+      feedback: request.previousFeedback || []
+    };
+
+    // 1. Active file system exploration
+    if (request.todo.requiresDocsSearch) {
+      const relevantFiles = await this.searchRelevantFiles(
+        request.todo.title
+      );
+      context.fileSystemContext.relevantFiles = relevantFiles;
+    }
+
+    // 2. Load OPEN_CLI.md if exists
+    const projectConfigPath = path.join(process.cwd(), 'OPEN_CLI.md');
+    if (fs.existsSync(projectConfigPath)) {
+      context.projectConfig = await this.loadProjectSpecificConfig(
+        projectConfigPath
+      );
+    }
+
+    // 3. Analyze previous failures
+    if (context.feedback.length > 0) {
+      const failureAnalysis = await this.analyzeFailures(
+        context.feedback
+      );
+      context.failureAnalysis = failureAnalysis;
+    }
+
+    return context;
+  }
+
+  private async exploreFileSystem(
+    request: ContextRequest
+  ): Promise<FileSystemContext> {
+    // Use grep, find, ls to explore
+    const commands = [
+      `find . -type f -name "*.ts" -o -name "*.js" | head -20`,
+      `grep -r "${request.todo.title}" --include="*.md" | head -10`,
+      `ls -la`
+    ];
+
+    const explorationResults = await Promise.all(
+      commands.map(cmd => this.executeCommand(cmd))
+    );
+
+    return {
+      structure: explorationResults[0],
+      relevantMentions: explorationResults[1],
+      currentDirectory: explorationResults[2]
+    };
+  }
+}
+```
+
+### Phase 3: Action Execution Layer (2 days)
+
+**Action Executor with Planning**:
+
+```typescript
+// src/core/action-executor.ts
+
+export class ActionExecutor {
+  constructor(
+    private llmClient: LLMClient,
+    private toolRegistry: ToolRegistry
+  ) {}
+
+  async execute(
+    context: LoopContext,
+    messages: Message[]
+  ): Promise<ExecutionResult> {
+    // 1. Generate action plan based on context
+    const actionPlan = await this.generateActionPlan(context, messages);
+
+    // 2. Validate action safety
+    const validation = await this.validateAction(actionPlan);
+    if (!validation.safe) {
+      return {
+        action: actionPlan.description,
+        success: false,
+        error: new Error(`Action blocked: ${validation.reason}`),
+        timestamp: new Date().toISOString()
+      };
+    }
+
+    // 3. Execute the action
+    try {
+      const result = await this.executeAction(actionPlan);
+
+      return {
+        action: actionPlan.description,
+        toolName: actionPlan.toolName,
+        output: result,
+        success: true,
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      return {
+        action: actionPlan.description,
+        success: false,
+        error: error as Error,
+        timestamp: new Date().toISOString()
+      };
+    }
+  }
+
+  private async generateActionPlan(
+    context: LoopContext,
+    messages: Message[]
+  ): Promise<ActionPlan> {
+    const systemPrompt = this.buildActionSystemPrompt(context);
+    const response = await this.llmClient.complete({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...messages,
+        {
+          role: 'user',
+          content: `Based on the context and previous feedback,
+                    what specific action should be taken next?
+                    Current TODO: ${context.currentTodo.title}
+                    Previous failures: ${context.feedback.length}`
+        }
+      ]
+    });
+
+    return this.parseActionPlan(response);
+  }
+}
+```
+
+### Phase 4: Work Verification System (2-3 days)
+
+**Three-Mode Verifier**:
+
+```typescript
+// src/core/work-verifier.ts
+
+export class WorkVerifier {
+  private ruleEngine: RuleEngine;
+  private visualVerifier: VisualVerifier;
+  private llmJudge: LLMJudge;
+
+  async verify(
+    action: ExecutionResult,
+    todo: TodoItem,
+    context: LoopContext
+  ): Promise<VerificationResult> {
+    const verifications: VerificationFeedback[] = [];
+
+    // 1. Rule-based verification (strongest)
+    if (todo.verificationRules) {
+      const ruleResults = await this.ruleEngine.verify(
+        action,
+        todo.verificationRules
+      );
+      verifications.push(...ruleResults);
+    }
+
+    // 2. Visual verification (for UI tasks)
+    if (todo.requiresVisualVerification) {
+      const visualResults = await this.visualVerifier.verify(
+        action,
+        todo.visualCriteria
+      );
+      verifications.push(...visualResults);
+    }
+
+    // 3. LLM-as-Judge (for fuzzy criteria)
+    if (todo.fuzzyCriteria) {
+      const llmResults = await this.llmJudge.evaluate(
+        action,
+        todo.fuzzyCriteria,
+        context
+      );
+      verifications.push(...llmResults);
+    }
+
+    // Determine if work is complete
+    const failures = verifications.filter(v => !v.passed);
+    const isComplete = failures.length === 0;
+
+    return {
+      isComplete,
+      feedback: verifications,
+      summary: this.generateSummary(verifications),
+      nextStepSuggestions: isComplete ? [] : this.suggestNextSteps(failures)
+    };
+  }
+}
+
+// Rule Engine for deterministic verification
+export class RuleEngine {
+  async verify(
+    action: ExecutionResult,
+    rules: VerificationRule[]
+  ): Promise<VerificationFeedback[]> {
+    const feedback: VerificationFeedback[] = [];
+
+    for (const rule of rules) {
+      let passed = false;
+      let message = '';
+
+      switch (rule.type) {
+        case 'lint':
+          const lintResult = await this.runLint(action.output);
+          passed = lintResult.errorCount === 0;
+          message = passed
+            ? 'No lint errors'
+            : `${lintResult.errorCount} lint errors found`;
+          break;
+
+        case 'test':
+          const testResult = await this.runTests(rule.testPattern);
+          passed = testResult.failed === 0;
+          message = `${testResult.passed} tests passed, ${testResult.failed} failed`;
+          break;
+
+        case 'file_exists':
+          passed = fs.existsSync(rule.filePath);
+          message = passed
+            ? `File exists: ${rule.filePath}`
+            : `File not found: ${rule.filePath}`;
+          break;
+
+        case 'output_contains':
+          passed = action.output?.includes(rule.expectedContent);
+          message = passed
+            ? `Output contains expected content`
+            : `Expected content not found in output`;
+          break;
+      }
+
+      feedback.push({
+        rule: rule.name,
+        passed,
+        message,
+        severity: passed ? 'info' : 'error',
+        suggestions: passed ? [] : rule.failureSuggestions
+      });
+    }
+
+    return feedback;
+  }
+}
+```
+
+### Acceptance Criteria
+
+- [ ] Agent loop executes gather → action → verify → repeat
+- [ ] Context gathering includes file system exploration
+- [ ] OPEN_CLI.md automatically loaded when present
+- [ ] Three verification modes working (rules, visual, LLM)
+- [ ] Loop terminates on success or max iterations
+- [ ] Feedback from failed iterations used in next attempt
+- [ ] Progress updates sent to UI in real-time
+- [ ] All tests passing
+
+---
+
+## P0-4: Multi-Layered Execution Architecture 🆕
+
+**목표**: 태스크 복잡도에 따라 동적으로 확장되는 4계층 실행 아키텍처 구현
+
+**Priority**: P0 (Critical)
+**Estimated Time**: 10-12 days
+**Dependencies**: P0-3 (Agent Loop)
+**Status**: Not Started
+
+### Overview
+
+Claude Code의 정교한 다계층 실행 시스템을 구현합니다:
+1. **표준 도구 사용**: 간단한 API 호출
+2. **Agent SDK**: 동적 코드 생성 및 셸 접근
+3. **Task/SubAgent**: 병렬 다중 에이전트 처리
+4. **Agent Skills**: 프롬프트 기반 메타-도구
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                 Execution Layer Manager                      │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Complexity Analyzer                                         │
+│       ↓                                                      │
+│  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐       │
+│  │ Layer 1 │  │ Layer 2 │  │ Layer 3 │  │ Layer 4 │       │
+│  │Standard │  │   SDK   │  │SubAgent │  │ Skills  │       │
+│  │  Tools  │  │ Dynamic │  │ Parallel│  │  Meta   │       │
+│  └─────────┘  └─────────┘  └─────────┘  └─────────┘       │
+│                                                              │
+│  Selection based on:                                         │
+│  • Task complexity                                           │
+│  • Required parallelism                                      │
+│  • Dynamic generation needs                                  │
+│  • Workflow complexity                                       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Phase 1: Standard Tool Layer (2 days)
+
+**Implementation**:
+
+```typescript
+// src/execution/standard-tools.ts
+
+export class StandardToolLayer implements ExecutionLayer {
+  private tools: Map<string, ToolDefinition> = new Map();
+
+  async canHandle(task: Task): Promise<boolean> {
+    // Simple, structured API calls
+    return task.complexity === 'simple' &&
+           task.requiresTools.every(t => this.tools.has(t));
+  }
+
+  async execute(task: Task): Promise<ExecutionResult> {
+    const tool = this.tools.get(task.toolName);
+    if (!tool) {
+      throw new Error(`Tool not found: ${task.toolName}`);
+    }
+
+    // Validate parameters
+    const validation = this.validateParameters(
+      task.parameters,
+      tool.schema
+    );
+
+    if (!validation.valid) {
+      return {
+        success: false,
+        error: validation.errors,
+        layer: 'standard-tools'
+      };
+    }
+
+    // Execute tool
+    try {
+      const result = await tool.execute(task.parameters);
+      return {
+        success: true,
+        output: result,
+        layer: 'standard-tools',
+        executionTime: Date.now() - startTime
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message,
+        layer: 'standard-tools'
+      };
+    }
+  }
+}
+```
+
+### Phase 2: Dynamic SDK Layer (3 days)
+
+**Dynamic Code Generation**:
+
+```typescript
+// src/execution/sdk-layer.ts
+
+export class SDKLayer implements ExecutionLayer {
+  private bashExecutor: BashExecutor;
+  private codeGenerator: CodeGenerator;
+  private sandboxManager: SandboxManager;
+
+  async canHandle(task: Task): Promise<boolean> {
+    return task.requiresDynamicCode ||
+           task.requiresSystemAccess ||
+           task.complexity === 'moderate';
+  }
+
+  async execute(task: Task): Promise<ExecutionResult> {
+    if (task.requiresDynamicCode) {
+      return await this.executeDynamicCode(task);
+    }
+
+    if (task.requiresSystemAccess) {
+      return await this.executeBashCommands(task);
+    }
+
+    return await this.executeHybrid(task);
+  }
+
+  private async executeDynamicCode(task: Task): Promise<ExecutionResult> {
+    // 1. Generate code based on task
+    const code = await this.codeGenerator.generate({
+      task: task.description,
+      language: task.targetLanguage || 'typescript',
+      requirements: task.requirements,
+      context: task.context
+    });
+
+    // 2. Create sandbox environment
+    const sandbox = await this.sandboxManager.create({
+      language: task.targetLanguage,
+      timeout: task.timeout || 30000,
+      memoryLimit: task.memoryLimit || '512MB'
+    });
+
+    // 3. Execute in sandbox
+    try {
+      const result = await sandbox.execute(code);
+
+      // 4. Validate output
+      const validation = await this.validateOutput(
+        result,
+        task.expectedOutputSchema
+      );
+
+      return {
+        success: validation.valid,
+        output: result.output,
+        generatedCode: code,
+        layer: 'sdk-dynamic',
+        sandbox: sandbox.id,
+        logs: result.logs
+      };
+    } finally {
+      await sandbox.cleanup();
+    }
+  }
+
+  private async executeBashCommands(task: Task): Promise<ExecutionResult> {
+    const commands = task.commands ||
+                    await this.generateBashCommands(task);
+
+    const results = [];
+    for (const command of commands) {
+      // Safety check
+      if (!this.isSafeCommand(command)) {
+        return {
+          success: false,
+          error: `Unsafe command blocked: ${command}`,
+          layer: 'sdk-bash'
+        };
+      }
+
+      const result = await this.bashExecutor.execute(command);
+      results.push(result);
+
+      if (!result.success) {
+        break; // Stop on first failure
+      }
+    }
+
+    return {
+      success: results.every(r => r.success),
+      output: results,
+      layer: 'sdk-bash',
+      commands: commands
+    };
+  }
+}
+```
+
+### Phase 3: SubAgent Parallel Architecture (4 days)
+
+**Task Tool and SubAgent System**:
+
+```typescript
+// src/execution/subagent-layer.ts
+
+export interface SubAgentTask {
+  id: string;
+  description: string;
+  assignedAgent: string;
+  dependencies: string[];
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  result?: any;
+}
+
+export class SubAgentLayer implements ExecutionLayer {
+  private taskQueue: TaskQueue;
+  private agentPool: AgentPool;
+  private resultSynthesizer: ResultSynthesizer;
+
+  async canHandle(task: Task): Promise<boolean> {
+    return task.complexity === 'complex' ||
+           task.requiresParallelism ||
+           task.subtasks?.length > 3;
+  }
+
+  async execute(task: Task): Promise<ExecutionResult> {
+    // 1. Decompose into subtasks
+    const subtasks = await this.decomposeTask(task);
+
+    // 2. Create execution plan with dependencies
+    const executionPlan = this.createExecutionPlan(subtasks);
+
+    // 3. Initialize agent pool
+    const agents = await this.agentPool.initialize({
+      count: Math.min(subtasks.length, this.config.maxAgents || 5),
+      model: task.preferredModel || 'default',
+      isolated: true // Each agent gets isolated context
+    });
+
+    // 4. Execute in parallel with dependency management
+    const results = await this.executeParallel(
+      executionPlan,
+      agents
+    );
+
+    // 5. Synthesize results
+    const synthesized = await this.resultSynthesizer.synthesize({
+      task: task,
+      subtaskResults: results,
+      synthesisStrategy: task.synthesisStrategy || 'intelligent-merge'
+    });
+
+    return {
+      success: synthesized.success,
+      output: synthesized.output,
+      layer: 'subagent',
+      subtasks: results.length,
+      parallelism: agents.length,
+      executionPlan: executionPlan
+    };
+  }
+
+  private async decomposeTask(task: Task): Promise<SubAgentTask[]> {
+    // Use planning LLM to decompose
+    const decomposition = await this.planningLLM.decompose({
+      task: task.description,
+      constraints: task.constraints,
+      suggestedDecomposition: task.subtasks
+    });
+
+    return decomposition.subtasks.map((st, idx) => ({
+      id: `subtask-${idx}`,
+      description: st.description,
+      assignedAgent: '',
+      dependencies: st.dependencies || [],
+      status: 'pending' as const
+    }));
+  }
+
+  private async executeParallel(
+    plan: ExecutionPlan,
+    agents: Agent[]
+  ): Promise<SubTaskResult[]> {
+    const results: SubTaskResult[] = [];
+    const running = new Map<string, Promise<SubTaskResult>>();
+
+    // Process tasks in dependency order
+    for (const batch of plan.executionBatches) {
+      const batchPromises = batch.map(async (subtask) => {
+        // Wait for dependencies
+        await Promise.all(
+          subtask.dependencies.map(dep => running.get(dep))
+        );
+
+        // Assign to available agent
+        const agent = await this.agentPool.getAvailable();
+
+        // Execute subtask
+        const promise = this.executeSubtask(subtask, agent);
+        running.set(subtask.id, promise);
+
+        const result = await promise;
+        results.push(result);
+
+        // Release agent back to pool
+        this.agentPool.release(agent);
+
+        return result;
+      });
+
+      await Promise.all(batchPromises);
+    }
+
+    return results;
+  }
+}
+
+// Result Synthesizer
+export class ResultSynthesizer {
+  async synthesize(request: SynthesisRequest): Promise<SynthesisResult> {
+    const { subtaskResults, synthesisStrategy } = request;
+
+    switch (synthesisStrategy) {
+      case 'simple-merge':
+        return this.simpleMerge(subtaskResults);
+
+      case 'intelligent-merge':
+        return await this.intelligentMerge(subtaskResults, request.task);
+
+      case 'llm-synthesis':
+        return await this.llmSynthesis(subtaskResults, request.task);
+
+      default:
+        return this.simpleMerge(subtaskResults);
+    }
+  }
+
+  private async intelligentMerge(
+    results: SubTaskResult[],
+    originalTask: Task
+  ): Promise<SynthesisResult> {
+    // 1. Detect conflicts
+    const conflicts = this.detectConflicts(results);
+
+    // 2. Resolve conflicts
+    const resolved = await this.resolveConflicts(conflicts);
+
+    // 3. Merge non-conflicting results
+    const merged = this.mergeResults(results, resolved);
+
+    // 4. Validate against original task
+    const validation = await this.validateSynthesis(
+      merged,
+      originalTask
+    );
+
+    return {
+      success: validation.valid,
+      output: merged,
+      conflicts: conflicts.length,
+      resolutionStrategy: 'intelligent',
+      validation: validation
+    };
+  }
+}
+```
+
+### Phase 4: Agent Skills Meta-Layer (3 days)
+
+**Prompt-Based Meta-Tools**:
+
+```typescript
+// src/execution/skills-layer.ts
+
+export interface AgentSkill {
+  name: string;
+  description: string;
+  promptExpansion: string;
+  requiredTools?: string[];
+  modelOverride?: string;
+  contextModifications?: ContextModification[];
+}
+
+export class SkillsLayer implements ExecutionLayer {
+  private skills: Map<string, AgentSkill> = new Map();
+  private skillLoader: SkillLoader;
+
+  async canHandle(task: Task): Promise<boolean> {
+    // Skills are for complex workflows that need behavior modification
+    return task.requiresSkill ||
+           task.workflowComplexity === 'high' ||
+           task.requiresBehaviorChange;
+  }
+
+  async execute(task: Task): Promise<ExecutionResult> {
+    // 1. Discover appropriate skill
+    const skill = await this.discoverSkill(task);
+
+    if (!skill) {
+      return {
+        success: false,
+        error: 'No appropriate skill found for task',
+        layer: 'skills'
+      };
+    }
+
+    // 2. Load skill definition
+    const skillDef = await this.skillLoader.load(skill.name);
+
+    // 3. Modify execution context
+    const modifiedContext = await this.applySkill(
+      task.context,
+      skillDef
+    );
+
+    // 4. Execute with modified context
+    // Note: Skill doesn't execute directly, it modifies behavior
+    const executor = new EnhancedExecutor(modifiedContext);
+    const result = await executor.execute(task);
+
+    return {
+      success: result.success,
+      output: result.output,
+      layer: 'skills',
+      skillUsed: skill.name,
+      contextModifications: skillDef.contextModifications
+    };
+  }
+
+  private async discoverSkill(task: Task): Promise<AgentSkill | null> {
+    // Use LLM to match task intent with available skills
+    const skillDescriptions = Array.from(this.skills.values())
+      .map(s => `${s.name}: ${s.description}`);
+
+    const match = await this.llm.complete({
+      messages: [{
+        role: 'system',
+        content: `Available skills:\n${skillDescriptions.join('\n')}`
+      }, {
+        role: 'user',
+        content: `Which skill best matches this task: ${task.description}`
+      }]
+    });
+
+    return this.skills.get(match.skillName);
+  }
+
+  private async applySkill(
+    context: ExecutionContext,
+    skill: AgentSkill
+  ): Promise<ExecutionContext> {
+    const modified = { ...context };
+
+    // 1. Expand prompt with skill instructions
+    modified.systemPrompt = `${context.systemPrompt}\n\n${skill.promptExpansion}`;
+
+    // 2. Modify available tools
+    if (skill.requiredTools) {
+      modified.availableTools = [
+        ...context.availableTools,
+        ...skill.requiredTools
+      ];
+    }
+
+    // 3. Override model if specified
+    if (skill.modelOverride) {
+      modified.model = skill.modelOverride;
+    }
+
+    // 4. Apply context modifications
+    for (const mod of skill.contextModifications || []) {
+      switch (mod.type) {
+        case 'add-instruction':
+          modified.additionalInstructions.push(mod.value);
+          break;
+        case 'set-parameter':
+          modified.parameters[mod.key] = mod.value;
+          break;
+        case 'enable-feature':
+          modified.features[mod.feature] = true;
+          break;
+      }
+    }
+
+    return modified;
+  }
+}
+```
+
+### Integration: Execution Layer Manager
+
+```typescript
+// src/execution/layer-manager.ts
+
+export class ExecutionLayerManager {
+  private layers: ExecutionLayer[] = [
+    new StandardToolLayer(),
+    new SDKLayer(),
+    new SubAgentLayer(),
+    new SkillsLayer()
+  ];
+
+  async execute(task: Task): Promise<ExecutionResult> {
+    // 1. Analyze task complexity
+    const analysis = await this.analyzeTask(task);
+
+    // 2. Select appropriate layer
+    for (const layer of this.layers) {
+      if (await layer.canHandle(task)) {
+        console.log(`Executing task with ${layer.name} layer`);
+
+        // 3. Execute with monitoring
+        const result = await this.executeWithMonitoring(
+          layer,
+          task
+        );
+
+        // 4. Record metrics
+        await this.recordMetrics({
+          task: task.id,
+          layer: layer.name,
+          success: result.success,
+          executionTime: result.executionTime,
+          complexity: analysis.complexity
+        });
+
+        return result;
+      }
+    }
+
+    throw new Error('No suitable execution layer found for task');
+  }
+
+  private async analyzeTask(task: Task): Promise<TaskAnalysis> {
+    return {
+      complexity: this.calculateComplexity(task),
+      estimatedTime: this.estimateTime(task),
+      requiredCapabilities: this.identifyCapabilities(task),
+      recommendedLayer: this.recommendLayer(task)
+    };
+  }
+}
+```
+
+### Acceptance Criteria
+
+- [ ] All 4 execution layers implemented and functional
+- [ ] Dynamic layer selection based on task complexity
+- [ ] SubAgent system supports true parallel execution
+- [ ] Skills system can modify agent behavior dynamically
+- [ ] Proper isolation between SubAgents
+- [ ] Result synthesis handles conflicts intelligently
+- [ ] Performance metrics collected for each layer
+- [ ] Safety checks in place for bash/code execution
+- [ ] All tests passing
+
+---
+
+## P0-5: Internal Monologue and Scratchpad System 🆕
+
+**목표**: 확장된 사고(Extended Thinking)와 외부 스크래치패드를 통한 계획 수립
+
+**Priority**: P0 (Critical)
+**Estimated Time**: 5-6 days
+**Dependencies**: P0-2 (Plan-and-Execute)
+**Status**: Not Started
+
+### Overview
+
+Claude의 내부 독백과 스크래치패드 시스템을 구현하여, 복잡한 작업을 체계적으로 분해하고
+상태를 유지하며 진행할 수 있도록 합니다.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────┐
+│            Thinking & Planning System                │
+├─────────────────────────────────────────────────────┤
+│                                                      │
+│  ┌──────────────────────────────────────────────┐   │
+│  │     Internal Monologue (Hidden)              │   │
+│  │  - Extended thinking mode                    │   │
+│  │  - Question decomposition                    │   │
+│  │  - Self-questioning & evaluation             │   │
+│  └──────────────────────────────────────────────┘   │
+│                      ↓                               │
+│  ┌──────────────────────────────────────────────┐   │
+│  │     External Scratchpad (Visible)            │   │
+│  │  - Markdown TODO lists                       │   │
+│  │  - Progress tracking                         │   │
+│  │  - State persistence                         │   │
+│  └──────────────────────────────────────────────┘   │
+│                      ↓                               │
+│  ┌──────────────────────────────────────────────┐   │
+│  │     Project Config (OPEN_CLI.md)             │   │
+│  │  - Project-specific instructions             │   │
+│  │  - Custom commands                           │   │
+│  │  - Style guides                              │   │
+│  └──────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────┘
+```
+
+### Phase 1: Internal Monologue System (2 days)
+
+```typescript
+// src/core/internal-monologue.ts
+
+export interface ThinkingSession {
+  id: string;
+  thoughts: Thought[];
+  questions: Question[];
+  evaluations: Evaluation[];
+  finalPlan: Plan;
+  duration: number;
+  tokenCount: number;
+}
+
+export class InternalMonologue {
+  private thinkingMode: 'standard' | 'extended' | 'deep';
+  private maxThinkingTokens: number = 4000;
+
+  async think(
+    task: string,
+    context: Context
+  ): Promise<ThinkingSession> {
+    const session: ThinkingSession = {
+      id: generateId(),
+      thoughts: [],
+      questions: [],
+      evaluations: [],
+      finalPlan: null,
+      duration: 0,
+      tokenCount: 0
+    };
+
+    const startTime = Date.now();
+
+    // 1. Initial analysis
+    const analysis = await this.analyzeTask(task, context);
+    session.thoughts.push(analysis);
+
+    // 2. Generate questions (Question Decomposition)
+    const questions = await this.generateQuestions(analysis);
+    session.questions = questions;
+
+    // 3. Answer each question in separate context
+    for (const question of questions) {
+      const answer = await this.answerQuestion(
+        question,
+        context,
+        session.thoughts
+      );
+      session.thoughts.push(answer);
+    }
+
+    // 4. Evaluate approach options
+    const options = await this.generateOptions(session.thoughts);
+    for (const option of options) {
+      const evaluation = await this.evaluateOption(option, context);
+      session.evaluations.push(evaluation);
+    }
+
+    // 5. Synthesize final plan
+    session.finalPlan = await this.synthesizePlan(
+      session.thoughts,
+      session.evaluations
+    );
+
+    session.duration = Date.now() - startTime;
+    session.tokenCount = this.countTokens(session);
+
+    return session;
+  }
+
+  private async generateQuestions(
+    analysis: Thought
+  ): Promise<Question[]> {
+    // Implement question decomposition
+    const prompt = `
+      Break down this task into simpler questions that, when answered,
+      will provide a complete solution:
+
+      Task: ${analysis.content}
+
+      Generate 3-5 specific questions.
+    `;
+
+    const response = await this.llm.complete({
+      messages: [{ role: 'user', content: prompt }]
+    });
+
+    return this.parseQuestions(response);
+  }
+
+  private async answerQuestion(
+    question: Question,
+    context: Context,
+    previousThoughts: Thought[]
+  ): Promise<Thought> {
+    // Answer in separate context for faithfulness
+    const isolatedContext = this.createIsolatedContext(context);
+
+    const answer = await this.llm.complete({
+      messages: [{
+        role: 'system',
+        content: 'Answer this specific question based on the context.'
+      }, {
+        role: 'user',
+        content: question.text
+      }],
+      context: isolatedContext
+    });
+
+    return {
+      type: 'answer',
+      question: question.id,
+      content: answer,
+      confidence: this.assessConfidence(answer),
+      timestamp: Date.now()
+    };
+  }
+}
+```
+
+### Phase 2: External Scratchpad System (2 days)
+
+```typescript
+// src/core/scratchpad.ts
+
+export class Scratchpad {
+  private filePath: string;
+  private content: ScratchpadContent;
+  private autoSave: boolean = true;
+
+  constructor(
+    projectPath: string,
+    sessionId?: string
+  ) {
+    this.filePath = path.join(
+      projectPath,
+      '.open-cli',
+      'scratchpad',
+      `${sessionId || 'current'}.md`
+    );
+    this.load();
+  }
+
+  async addTodoList(todos: TodoItem[]): Promise<void> {
+    const markdown = this.generateTodoMarkdown(todos);
+
+    this.content.sections.push({
+      type: 'todo-list',
+      title: 'Task Breakdown',
+      content: markdown,
+      created: Date.now(),
+      items: todos
+    });
+
+    if (this.autoSave) {
+      await this.save();
+    }
+  }
+
+  async updateTodoStatus(
+    todoId: string,
+    status: TodoStatus,
+    notes?: string
+  ): Promise<void> {
+    const section = this.content.sections.find(
+      s => s.type === 'todo-list'
+    );
+
+    if (section && section.items) {
+      const todo = section.items.find(t => t.id === todoId);
+      if (todo) {
+        todo.status = status;
+        if (notes) {
+          todo.notes = notes;
+        }
+        todo.updatedAt = Date.now();
+
+        // Regenerate markdown
+        section.content = this.generateTodoMarkdown(section.items);
+
+        if (this.autoSave) {
+          await this.save();
+        }
+      }
+    }
+  }
+
+  private generateTodoMarkdown(todos: TodoItem[]): string {
+    const lines: string[] = ['## TODO List', ''];
+
+    for (const todo of todos) {
+      const checkbox = todo.status === 'completed' ? '[x]' : '[ ]';
+      const status = todo.status === 'in_progress' ? ' 🔄' : '';
+
+      lines.push(`- ${checkbox} **${todo.title}**${status}`);
+
+      if (todo.description) {
+        lines.push(`  ${todo.description}`);
+      }
+
+      if (todo.notes) {
+        lines.push(`  > ${todo.notes}`);
+      }
+
+      if (todo.subtasks && todo.subtasks.length > 0) {
+        for (const subtask of todo.subtasks) {
+          const subCheck = subtask.completed ? '[x]' : '[ ]';
+          lines.push(`  - ${subCheck} ${subtask.title}`);
+        }
+      }
+
+      lines.push('');
+    }
+
+    return lines.join('\n');
+  }
+
+  async addNote(note: string, type: 'info' | 'warning' | 'error'): Promise<void> {
+    const icon = {
+      info: 'ℹ️',
+      warning: '⚠️',
+      error: '❌'
+    }[type];
+
+    this.content.sections.push({
+      type: 'note',
+      content: `${icon} ${note}`,
+      created: Date.now()
+    });
+
+    if (this.autoSave) {
+      await this.save();
+    }
+  }
+
+  getMarkdown(): string {
+    const sections = this.content.sections
+      .map(s => s.content)
+      .join('\n\n---\n\n');
+
+    return `# Scratchpad - ${this.content.sessionId}
+
+Created: ${new Date(this.content.created).toISOString()}
+Last Updated: ${new Date(this.content.updated).toISOString()}
+
+---
+
+${sections}`;
+  }
+
+  private async save(): Promise<void> {
+    const markdown = this.getMarkdown();
+    await fs.promises.mkdir(path.dirname(this.filePath), {
+      recursive: true
+    });
+    await fs.promises.writeFile(this.filePath, markdown, 'utf-8');
+    this.content.updated = Date.now();
+  }
+}
+```
+
+### Phase 3: Project Configuration System (1-2 days)
+
+```typescript
+// src/core/project-config.ts
+
+export interface ProjectConfig {
+  instructions: string[];
+  commands: CustomCommand[];
+  styleGuides: StyleGuide[];
+  tools: ToolConfig[];
+  constraints: Constraint[];
+  metadata: ProjectMetadata;
+}
+
+export class ProjectConfigManager {
+  private configPath: string = 'OPEN_CLI.md';
+  private config: ProjectConfig | null = null;
+  private watcher: FSWatcher | null = null;
+
+  async load(): Promise<ProjectConfig> {
+    const fullPath = path.join(process.cwd(), this.configPath);
+
+    if (!fs.existsSync(fullPath)) {
+      // Create default config
+      return this.createDefaultConfig();
+    }
+
+    const content = await fs.promises.readFile(fullPath, 'utf-8');
+    this.config = await this.parseConfig(content);
+
+    // Start watching for changes
+    this.startWatching(fullPath);
+
+    return this.config;
+  }
+
+  private async parseConfig(markdown: string): Promise<ProjectConfig> {
+    const config: ProjectConfig = {
+      instructions: [],
+      commands: [],
+      styleGuides: [],
+      tools: [],
+      constraints: [],
+      metadata: {}
+    };
+
+    // Parse markdown sections
+    const sections = this.parseMarkdownSections(markdown);
+
+    // Extract instructions
+    if (sections['instructions']) {
+      config.instructions = this.parseInstructions(
+        sections['instructions']
+      );
+    }
+
+    // Extract custom commands
+    if (sections['commands']) {
+      config.commands = this.parseCommands(sections['commands']);
+    }
+
+    // Extract style guides
+    if (sections['style']) {
+      config.styleGuides = this.parseStyleGuides(sections['style']);
+    }
+
+    // Extract tool configurations
+    if (sections['tools']) {
+      config.tools = this.parseToolConfigs(sections['tools']);
+    }
+
+    // Extract constraints
+    if (sections['constraints']) {
+      config.constraints = this.parseConstraints(
+        sections['constraints']
+      );
+    }
+
+    return config;
+  }
+
+  async applyToContext(
+    context: ExecutionContext
+  ): Promise<ExecutionContext> {
+    if (!this.config) {
+      await this.load();
+    }
+
+    const modified = { ...context };
+
+    // Add project instructions to system prompt
+    if (this.config.instructions.length > 0) {
+      modified.systemPrompt = `
+        ${context.systemPrompt}
+
+        Project-specific instructions:
+        ${this.config.instructions.join('\n')}
+      `;
+    }
+
+    // Register custom commands
+    for (const command of this.config.commands) {
+      modified.customCommands[command.name] = command;
+    }
+
+    // Apply constraints
+    modified.constraints = [
+      ...context.constraints,
+      ...this.config.constraints
+    ];
+
+    return modified;
+  }
+
+  private createDefaultConfig(): ProjectConfig {
+    const defaultContent = `# OPEN_CLI Configuration
+
+## Instructions
+
+- Follow the project's coding standards
+- Write comprehensive tests for all new features
+- Update documentation when making changes
+- Use TypeScript for all new code
+
+## Commands
+
+### test
+Run all tests with coverage
+\`\`\`bash
+npm test -- --coverage
+\`\`\`
+
+### lint
+Check code quality
+\`\`\`bash
+npm run lint
+\`\`\`
+
+## Style Guide
+
+- Use 2 spaces for indentation
+- Prefer const over let
+- Use async/await over promises
+- Add JSDoc comments for public APIs
+
+## Constraints
+
+- Do not modify files in node_modules
+- Always run tests before committing
+- Keep functions under 50 lines
+- Maintain test coverage above 80%
+`;
+
+    fs.writeFileSync(this.configPath, defaultContent);
+    return this.parseConfig(defaultContent);
+  }
+}
+```
+
+### Acceptance Criteria
+
+- [ ] Internal monologue generates detailed thinking process
+- [ ] Question decomposition improves reasoning faithfulness
+- [ ] External scratchpad maintains TODO lists
+- [ ] Scratchpad auto-saves and persists state
+- [ ] OPEN_CLI.md automatically loaded and applied
+- [ ] Project config hot-reloads on changes
+- [ ] TODO progress tracked in markdown format
+- [ ] Custom commands from config work correctly
+- [ ] All tests passing
+
+---
+
+## P0-6: TDD Workflow and Verification System 🆕
+
+**목표**: 테스트 주도 개발 워크플로우와 3단계 검증 시스템 구현
+
+**Priority**: P0 (Critical)
+**Estimated Time**: 6-7 days
+**Dependencies**: P0-3 (Agent Loop)
+**Status**: Not Started
+
+### Overview
+
+Claude Code의 가장 강력한 워크플로우인 TDD(Test-Driven Development)와
+3가지 검증 방식(Rules, Visual, LLM-as-Judge)을 완벽하게 구현합니다.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────┐
+│              TDD Workflow Manager                    │
+├─────────────────────────────────────────────────────┤
+│                                                      │
+│  1. Test First                                       │
+│     └─> Write failing tests                         │
+│                                                      │
+│  2. Run & Verify Failure                            │
+│     └─> Confirm tests fail as expected              │
+│                                                      │
+│  3. Implementation Loop                              │
+│     ├─> Write code                                  │
+│     ├─> Run tests                                   │
+│     ├─> Analyze failures                            │
+│     └─> Iterate until pass                          │
+│                                                      │
+│  4. Verification System                              │
+│     ├─> Rule-based (deterministic)                  │
+│     ├─> Visual feedback (UI/screenshots)            │
+│     └─> LLM-as-Judge (fuzzy criteria)              │
+└─────────────────────────────────────────────────────┘
+```
+
+### Phase 1: TDD Workflow Implementation (3 days)
+
+```typescript
+// src/workflows/tdd-workflow.ts
+
+export class TDDWorkflow {
+  private testRunner: TestRunner;
+  private codeGenerator: CodeGenerator;
+  private verifier: WorkVerifier;
+
+  async execute(request: TDDRequest): Promise<TDDResult> {
+    const session: TDDSession = {
+      id: generateId(),
+      request,
+      tests: [],
+      implementations: [],
+      iterations: [],
+      status: 'in_progress'
+    };
+
+    // Phase 1: Write tests first
+    const tests = await this.writeTests(request);
+    session.tests = tests;
+
+    // Phase 2: Verify tests fail
+    const initialRun = await this.runTests(tests);
+    if (!this.allTestsFail(initialRun)) {
+      return {
+        success: false,
+        error: 'Tests should fail initially',
+        session
+      };
+    }
+
+    // Phase 3: Implementation loop
+    let iteration = 0;
+    const maxIterations = request.maxIterations || 10;
+
+    while (iteration < maxIterations) {
+      // Generate implementation
+      const implementation = await this.generateImplementation({
+        tests,
+        previousAttempts: session.implementations,
+        failures: this.getLatestFailures(session)
+      });
+
+      session.implementations.push(implementation);
+
+      // Run tests
+      const testResult = await this.runTests(
+        tests,
+        implementation
+      );
+
+      // Record iteration
+      session.iterations.push({
+        number: iteration + 1,
+        implementation,
+        testResult,
+        timestamp: Date.now()
+      });
+
+      // Check if all tests pass
+      if (this.allTestsPass(testResult)) {
+        session.status = 'completed';
+        return {
+          success: true,
+          session,
+          finalImplementation: implementation,
+          iterations: iteration + 1
+        };
+      }
+
+      // Analyze failures for next iteration
+      const analysis = await this.analyzeFailures(testResult);
+      session.failureAnalysis = analysis;
+
+      iteration++;
+    }
+
+    // Max iterations reached
+    session.status = 'failed';
+    return {
+      success: false,
+      error: 'Max iterations reached without passing all tests',
+      session
+    };
+  }
+
+  private async writeTests(request: TDDRequest): Promise<Test[]> {
+    const prompt = `
+      Write comprehensive tests for the following requirement:
+      ${request.requirement}
+
+      Include:
+      - Happy path tests
+      - Edge cases
+      - Error scenarios
+      - Performance tests (if applicable)
+
+      Use ${request.testFramework || 'jest'} syntax.
+    `;
+
+    const response = await this.llm.complete({
+      messages: [{ role: 'user', content: prompt }]
+    });
+
+    return this.parseTests(response);
+  }
+
+  private async generateImplementation(
+    context: ImplementationContext
+  ): Promise<Implementation> {
+    const prompt = `
+      Implement code to pass these tests:
+
+      ${context.tests.map(t => t.code).join('\n')}
+
+      Previous failures:
+      ${context.failures?.map(f => f.message).join('\n')}
+
+      DO NOT modify the tests. Only implement the code.
+    `;
+
+    const response = await this.llm.complete({
+      messages: [{ role: 'user', content: prompt }]
+    });
+
+    return {
+      code: response,
+      language: context.language || 'typescript',
+      timestamp: Date.now()
+    };
+  }
+}
+```
+
+### Phase 2: Three-Mode Verification System (2 days)
+
+```typescript
+// src/verification/verification-system.ts
+
+export interface VerificationRule {
+  name: string;
+  type: 'lint' | 'test' | 'build' | 'custom';
+  command?: string;
+  expectedOutput?: string | RegExp;
+  validator?: (output: any) => boolean;
+  failureMessage: string;
+  suggestions: string[];
+}
+
+export class VerificationSystem {
+  private ruleEngine: RuleEngine;
+  private visualVerifier: VisualVerifier;
+  private llmJudge: LLMJudge;
+
+  async verify(
+    work: WorkOutput,
+    criteria: VerificationCriteria
+  ): Promise<VerificationResult> {
+    const results: VerificationOutcome[] = [];
+
+    // 1. Rule-based verification (strongest, deterministic)
+    if (criteria.rules && criteria.rules.length > 0) {
+      const ruleResults = await this.verifyRules(work, criteria.rules);
+      results.push(...ruleResults);
+    }
+
+    // 2. Visual verification (for UI work)
+    if (criteria.visual) {
+      const visualResults = await this.verifyVisual(
+        work,
+        criteria.visual
+      );
+      results.push(...visualResults);
+    }
+
+    // 3. LLM-as-Judge (for fuzzy criteria)
+    if (criteria.fuzzy) {
+      const llmResults = await this.verifyWithLLM(
+        work,
+        criteria.fuzzy
+      );
+      results.push(...llmResults);
+    }
+
+    return this.aggregateResults(results);
+  }
+
+  private async verifyRules(
+    work: WorkOutput,
+    rules: VerificationRule[]
+  ): Promise<VerificationOutcome[]> {
+    const outcomes: VerificationOutcome[] = [];
+
+    for (const rule of rules) {
+      let passed = false;
+      let output: any;
+
+      switch (rule.type) {
+        case 'lint':
+          output = await this.runCommand('npm run lint');
+          passed = output.exitCode === 0;
+          break;
+
+        case 'test':
+          output = await this.runCommand(
+            rule.command || 'npm test'
+          );
+          passed = output.exitCode === 0;
+          break;
+
+        case 'build':
+          output = await this.runCommand('npm run build');
+          passed = output.exitCode === 0;
+          break;
+
+        case 'custom':
+          if (rule.validator) {
+            passed = rule.validator(work);
+          } else if (rule.command) {
+            output = await this.runCommand(rule.command);
+            if (rule.expectedOutput) {
+              passed = this.matchesExpected(
+                output.stdout,
+                rule.expectedOutput
+              );
+            }
+          }
+          break;
+      }
+
+      outcomes.push({
+        rule: rule.name,
+        passed,
+        output,
+        message: passed ? 'Passed' : rule.failureMessage,
+        suggestions: passed ? [] : rule.suggestions,
+        severity: passed ? 'info' : 'error'
+      });
+    }
+
+    return outcomes;
+  }
+}
+
+// Visual Verifier for UI work
+export class VisualVerifier {
+  private browser: Browser;
+  private diffEngine: ImageDiffEngine;
+
+  async verify(
+    work: WorkOutput,
+    criteria: VisualCriteria
+  ): Promise<VerificationOutcome[]> {
+    const outcomes: VerificationOutcome[] = [];
+
+    // 1. Render the output
+    const screenshot = await this.captureScreenshot(work);
+
+    // 2. Send to LLM for visual analysis
+    const analysis = await this.analyzeScreenshot(
+      screenshot,
+      criteria
+    );
+
+    // 3. Check specific visual criteria
+    for (const criterion of criteria.checks) {
+      const result = await this.checkCriterion(
+        screenshot,
+        criterion,
+        analysis
+      );
+
+      outcomes.push({
+        rule: `Visual: ${criterion.name}`,
+        passed: result.passed,
+        output: result.details,
+        message: result.message,
+        suggestions: result.suggestions || [],
+        severity: result.passed ? 'info' : 'warning',
+        screenshot: screenshot.path
+      });
+    }
+
+    return outcomes;
+  }
+
+  private async captureScreenshot(
+    work: WorkOutput
+  ): Promise<Screenshot> {
+    // If it's HTML/CSS, render it
+    if (work.type === 'html') {
+      const page = await this.browser.newPage();
+      await page.setContent(work.content);
+      const screenshot = await page.screenshot();
+      await page.close();
+      return { data: screenshot, path: this.saveSc
+reenshot(screenshot) };
+    }
+
+    // If it's a URL, navigate and capture
+    if (work.type === 'url') {
+      const page = await this.browser.newPage();
+      await page.goto(work.url);
+      const screenshot = await page.screenshot();
+      await page.close();
+      return { data: screenshot, path: this.saveScreenshot(screenshot) };
+    }
+
+    throw new Error(`Cannot capture screenshot for type: ${work.type}`);
+  }
+
+  private async analyzeScreenshot(
+    screenshot: Screenshot,
+    criteria: VisualCriteria
+  ): Promise<VisualAnalysis> {
+    const prompt = `
+      Analyze this screenshot for:
+      ${criteria.checks.map(c => `- ${c.description}`).join('\n')}
+
+      Provide detailed feedback on each criterion.
+    `;
+
+    const response = await this.llm.complete({
+      messages: [{
+        role: 'user',
+        content: prompt,
+        images: [screenshot.data]
+      }]
+    });
+
+    return this.parseAnalysis(response);
+  }
+}
+
+// LLM-as-Judge for fuzzy criteria
+export class LLMJudge {
+  async evaluate(
+    work: WorkOutput,
+    criteria: FuzzyCriteria
+  ): Promise<VerificationOutcome[]> {
+    const outcomes: VerificationOutcome[] = [];
+
+    for (const criterion of criteria.items) {
+      const judgment = await this.judge(work, criterion);
+
+      outcomes.push({
+        rule: `Fuzzy: ${criterion.name}`,
+        passed: judgment.passed,
+        output: judgment,
+        message: judgment.reasoning,
+        suggestions: judgment.suggestions || [],
+        severity: judgment.confidence > 0.8 ?
+          (judgment.passed ? 'info' : 'error') : 'warning',
+        confidence: judgment.confidence
+      });
+    }
+
+    return outcomes;
+  }
+
+  private async judge(
+    work: WorkOutput,
+    criterion: FuzzyCriterion
+  ): Promise<Judgment> {
+    const prompt = `
+      Evaluate this work against the criterion:
+
+      Criterion: ${criterion.description}
+      Expected: ${criterion.expected}
+
+      Work output:
+      ${work.content}
+
+      Provide:
+      1. Pass/Fail judgment
+      2. Confidence (0-1)
+      3. Detailed reasoning
+      4. Suggestions if failed
+    `;
+
+    const response = await this.llm.complete({
+      messages: [{
+        role: 'system',
+        content: 'You are an expert judge evaluating work quality.'
+      }, {
+        role: 'user',
+        content: prompt
+      }]
+    });
+
+    return this.parseJudgment(response);
+  }
+}
+```
+
+### Phase 3: Integration with Agent Loop (1-2 days)
+
+```typescript
+// src/workflows/tdd-integration.ts
+
+export class TDDIntegration {
+  private tddWorkflow: TDDWorkflow;
+  private agentLoop: AgentLoopController;
+  private verificationSystem: VerificationSystem;
+
+  async executeTDDTodo(
+    todo: TodoItem,
+    context: Context
+  ): Promise<TodoResult> {
+    // Check if this is a TDD task
+    if (!this.isTDDTask(todo)) {
+      // Fall back to regular execution
+      return this.agentLoop.executeTodoWithLoop(todo, context);
+    }
+
+    // Execute TDD workflow
+    const tddResult = await this.tddWorkflow.execute({
+      requirement: todo.description,
+      testFramework: this.detectTestFramework(context),
+      language: this.detectLanguage(context),
+      maxIterations: 15
+    });
+
+    if (!tddResult.success) {
+      return {
+        success: false,
+        error: tddResult.error,
+        todo
+      };
+    }
+
+    // Verify the final implementation
+    const verification = await this.verificationSystem.verify(
+      tddResult.finalImplementation,
+      {
+        rules: [
+          {
+            name: 'All tests pass',
+            type: 'test',
+            failureMessage: 'Some tests are still failing',
+            suggestions: ['Review test failures', 'Check edge cases']
+          },
+          {
+            name: 'No lint errors',
+            type: 'lint',
+            failureMessage: 'Code has lint errors',
+            suggestions: ['Run auto-fix', 'Review style guide']
+          }
+        ]
+      }
+    );
+
+    return {
+      success: verification.allPassed,
+      todo,
+      implementation: tddResult.finalImplementation,
+      verification,
+      iterations: tddResult.session.iterations.length
+    };
+  }
+
+  private isTDDTask(todo: TodoItem): boolean {
+    const tddKeywords = [
+      'test', 'tdd', 'test-driven',
+      'write tests', 'implement with tests'
+    ];
+
+    const description = todo.description.toLowerCase();
+    return tddKeywords.some(keyword =>
+      description.includes(keyword)
+    );
+  }
+}
+```
+
+### Acceptance Criteria
+
+- [ ] TDD workflow writes tests first
+- [ ] Tests verified to fail before implementation
+- [ ] Implementation loop runs until tests pass
+- [ ] Maximum iteration limit enforced
+- [ ] Rule-based verification works for lint/test/build
+- [ ] Visual verification captures and analyzes screenshots
+- [ ] LLM-as-Judge evaluates fuzzy criteria
+- [ ] All three verification modes can be combined
+- [ ] Integration with main agent loop seamless
+- [ ] All tests passing
+
+---
+
+## P1-10: MCP (Model Context Protocol) Integration 🆕
+
+**목표**: 외부 서비스와의 표준화된 통합을 위한 MCP 구현
+
+**Priority**: P1 (Important)
+**Estimated Time**: 4-5 days
+**Dependencies**: P0-3 (Agent Loop)
+**Status**: Not Started
+
+### Overview
+
+MCP를 통해 GitHub, Slack, Databases 등 외부 서비스와 표준화된 방식으로 통합합니다.
+
+### Implementation
+
+```typescript
+// src/mcp/mcp-client.ts
+
+export class MCPClient {
+  private servers: Map<string, MCPServer> = new Map();
+  private discovery: MCPDiscovery;
+
+  async connect(serverUri: string): Promise<void> {
+    const server = await this.discovery.discover(serverUri);
+
+    await server.initialize({
+      clientInfo: {
+        name: 'open-cli',
+        version: '1.0.0'
+      }
+    });
+
+    this.servers.set(server.name, server);
+  }
+
+  async callTool(
+    serverName: string,
+    toolName: string,
+    args: any
+  ): Promise<any> {
+    const server = this.servers.get(serverName);
+    if (!server) {
+      throw new Error(`MCP server not found: ${serverName}`);
+    }
+
+    return await server.callTool({
+      name: toolName,
+      arguments: args
+    });
+  }
+}
+
+// GitHub MCP Server
+export class GitHubMCPServer implements MCPServer {
+  async getTools(): Promise<ToolDefinition[]> {
+    return [
+      {
+        name: 'create_issue',
+        description: 'Create a GitHub issue',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            title: { type: 'string' },
+            body: { type: 'string' },
+            labels: { type: 'array', items: { type: 'string' } }
+          }
+        }
+      },
+      {
+        name: 'create_pr',
+        description: 'Create a pull request',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            title: { type: 'string' },
+            body: { type: 'string' },
+            base: { type: 'string' },
+            head: { type: 'string' }
+          }
+        }
+      }
+    ];
+  }
+
+  async callTool(request: ToolRequest): Promise<any> {
+    switch (request.name) {
+      case 'create_issue':
+        return await this.createIssue(request.arguments);
+      case 'create_pr':
+        return await this.createPR(request.arguments);
+      default:
+        throw new Error(`Unknown tool: ${request.name}`);
+    }
+  }
+}
+```
+
+### Acceptance Criteria
+
+- [ ] MCP client can discover and connect to servers
+- [ ] GitHub integration working (issues, PRs)
+- [ ] Tool definitions automatically registered
+- [ ] Authentication handled properly
+- [ ] Error handling and retries implemented
+- [ ] All tests passing
+
+---
+
+## P1-11: Human-in-the-Loop Safety System 🆕
+
+**목표**: 위험한 작업에 대한 명시적 승인 시스템 구현
+
+**Priority**: P1 (Important)
+**Estimated Time**: 3 days
+**Dependencies**: P0-3 (Agent Loop)
+**Status**: Not Started
+
+### Overview
+
+모든 파일 수정, bash 명령어, 외부 API 호출에 대해 사용자 승인을 요청하는
+안전성 시스템을 구현합니다.
+
+### Implementation
+
+```typescript
+// src/safety/approval-system.ts
+
+export interface ApprovalRequest {
+  action: string;
+  tool: string;
+  args: any;
+  risk: 'low' | 'medium' | 'high' | 'critical';
+  description: string;
+  potentialImpact: string[];
+  reversible: boolean;
+}
+
+export class ApprovalSystem {
+  private autoApprove: Set<string> = new Set();
+  private alwaysDeny: Set<string> = new Set();
+  private sessionApprovals: Map<string, boolean> = new Map();
+
+  async requestApproval(
+    request: ApprovalRequest
+  ): Promise<ApprovalResult> {
+    // Check auto-approve list
+    if (this.autoApprove.has(request.tool)) {
+      return { approved: true, automatic: true };
+    }
+
+    // Check deny list
+    if (this.alwaysDeny.has(request.tool)) {
+      return { approved: false, reason: 'Tool is blocked' };
+    }
+
+    // Check session approvals
+    const sessionKey = this.getSessionKey(request);
+    if (this.sessionApprovals.has(sessionKey)) {
+      return {
+        approved: this.sessionApprovals.get(sessionKey)!,
+        fromSession: true
+      };
+    }
+
+    // Show approval UI
+    const response = await this.showApprovalUI(request);
+
+    // Handle "approve all similar"
+    if (response.approveAllSimilar) {
+      this.sessionApprovals.set(sessionKey, true);
+    }
+
+    return response;
+  }
+
+  private async showApprovalUI(
+    request: ApprovalRequest
+  ): Promise<ApprovalResult> {
+    const ui = new ApprovalUI();
+
+    return await ui.prompt({
+      title: `🔐 Approval Required (Risk: ${request.risk})`,
+      action: request.action,
+      description: request.description,
+      impact: request.potentialImpact,
+      reversible: request.reversible,
+      options: [
+        'Approve',
+        'Deny',
+        'Approve all similar this session',
+        'View details',
+        'Modify and approve'
+      ]
+    });
+  }
+}
+
+// Risk Assessment
+export class RiskAssessor {
+  assess(action: Action): RiskLevel {
+    // File operations
+    if (action.tool === 'delete_file') {
+      return 'critical';
+    }
+    if (action.tool === 'write_file' && action.args.path.includes('config')) {
+      return 'high';
+    }
+
+    // Bash commands
+    if (action.tool === 'bash') {
+      const command = action.args.command;
+      if (command.includes('rm -rf')) return 'critical';
+      if (command.includes('sudo')) return 'critical';
+      if (command.includes('chmod')) return 'high';
+      if (command.includes('git push --force')) return 'high';
+    }
+
+    // API calls
+    if (action.tool.includes('api')) {
+      if (action.method === 'DELETE') return 'high';
+      if (action.method === 'POST') return 'medium';
+    }
+
+    return 'low';
+  }
+}
+```
+
+### Acceptance Criteria
+
+- [ ] All file modifications require approval
+- [ ] Dangerous bash commands blocked or warned
+- [ ] Session-based approval caching works
+- [ ] Risk levels correctly assessed
+- [ ] UI clearly shows potential impacts
+- [ ] "Approve all similar" functionality works
+- [ ] YOLO mode bypasses approvals when enabled
+- [ ] All tests passing
+
+---
+
+## Summary of New Claude Code Methodology Implementation
+
+이제 OPEN-CLI는 Claude Code의 핵심 방법론을 완벽하게 구현하게 됩니다:
+
+### 🎯 핵심 구현 (P0 - Critical)
+
+1. **P0-3: Agent Loop** - gather → act → verify → repeat
+2. **P0-4: Multi-Layer Execution** - 4계층 동적 실행 아키텍처
+3. **P0-5: Internal Monologue** - 확장된 사고와 스크래치패드
+4. **P0-6: TDD & Verification** - 테스트 주도 개발과 3단계 검증
+
+### ⚡ 추가 구현 (P1 - Important)
+
+5. **P1-10: MCP Integration** - 외부 서비스 표준 통합
+6. **P1-11: Safety System** - Human-in-the-Loop 승인 시스템
+
+### 📊 총 예상 소요 시간
+
+- P0 항목들: 28-35일
+- P1 항목들: 7-8일
+- **총계**: 35-43일 (약 6-7주)
+
+### 🚀 구현 후 기대 효과
+
+1. **진정한 에이전트 시스템**: 단순 응답이 아닌 자율적 작업 수행
+2. **신뢰성 향상**: 체계적인 검증과 TDD로 오류 최소화
+3. **확장성**: 복잡한 작업도 SubAgent로 병렬 처리
+4. **안전성**: 모든 위험 작업에 대한 명시적 제어
+5. **표준화**: MCP를 통한 외부 서비스 통합
+
+이 구현이 완료되면 OPEN-CLI는 Claude Code와 동등한 수준의
+정교한 AI 에이전트 시스템이 될 것입니다.
