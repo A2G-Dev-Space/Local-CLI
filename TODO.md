@@ -6,13 +6,13 @@
 
 ## 📊 Summary
 
-- **Total Features**: 20 (기존 14 + Claude Code 방법론 6)
-- **Completed**: 8 features ✅
+- **Total Features**: 21 (기존 14 + Claude Code 방법론 6 + Error Logging 1)
+- **Completed**: 9 features ✅
 - **Partially Completed**: 1 feature 🚧
-- **In Progress**: 1 feature 🚧
-- **Not Started**: 10 features
+- **In Progress**: 0 features
+- **Not Started**: 11 features
 - **Priority 0 (Critical)**: 2 remaining (4 completed)
-- **Priority 1 (Important)**: 9 remaining (2 completed)
+- **Priority 1 (Important)**: 9 remaining (3 completed)
 - **Priority 2 (Medium)**: 1.5 remaining (0.5 completed - @ file inclusion)
 - **Priority 3 (Low)**: 1 feature
 - **Estimated Remaining Time**: 7-9 weeks
@@ -114,6 +114,20 @@
 - **Details**: [TODO_ALL.md#L4671-L4793](./TODO_ALL.md#L4671-L4793)
 - **Summary**: Bottom bar showing path, model, context usage
 - **Completed**: 2025-11-05 (StatusBar component with context usage)
+
+### 21. Comprehensive Error Logging & Debugging System 🆕
+- **Time**: 1 day
+- **Status**: [x] Completed ✅
+- **Details**: [HISTORY_ALL.md#L1446-L2069](./HISTORY_ALL.md#L1446-L2069)
+- **Summary**: Detailed error classification and logging for debugging
+- **Completed**: 2025-11-05
+- **Key Features**:
+  - Logger system with 5 log levels (ERROR/WARN/INFO/DEBUG/VERBOSE)
+  - 12+ specific error types with detailed messages
+  - `--verbose` and `--debug` CLI flags
+  - Rich error display in UI with code, details, recovery hints
+  - HTTP request/response logging
+  - Tool execution tracking
 
 ### 15. Welcome Screen
 - **Time**: 1 day

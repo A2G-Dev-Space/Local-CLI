@@ -78,7 +78,9 @@
 
 ## ✅ Phase 2.5: Auto-Update & Agent Architecture (100% Complete)
 
-## ✅ Phase 2.6: UI/UX Enhancements (In Progress)
+## ✅ Phase 2.6: UI/UX Enhancements (100% Complete)
+
+## ✅ Phase 2.7: Error Logging & Debugging System (100% Complete)
 
 ### 2.5.1 GitHub Release Auto-Update System
 - **Status**: ✅ Completed
@@ -168,6 +170,48 @@
   - Real-time filtering as user types
   - Automatic @ prefix removal in file operations
   - Multiple file selection support
+
+### 2.7.1 Comprehensive Error Logging and Debugging System
+- **Status**: ✅ Completed
+- **Date**: 2025-11-05
+- **Details**: [HISTORY_ALL.md#L1446-L2069](./HISTORY_ALL.md#L1446-L2069)
+- **Summary**: Detailed error classification and logging for debugging
+- **Key Features**:
+  - **Logger System**: 5 log levels (ERROR/WARN/INFO/DEBUG/VERBOSE)
+  - **Error Classification**: 12+ specific error types with detailed messages
+  - **CLI Options**: `--verbose` and `--debug` flags for detailed logging
+  - **UI Error Display**: Rich error formatting with code, details, and recovery hints
+  - **HTTP Logging**: Request/response logging in verbose mode
+  - **Tool Execution Tracking**: Success/failure logging for all tool calls
+
+**Error Types Covered**:
+- Network errors (ECONNREFUSED, ENOTFOUND, ECONNRESET, EHOSTUNREACH, timeout)
+- API errors (401, 403, 404, 429, 5xx)
+- Context/Token limit exceeded
+- Tool execution failures (parsing errors, execution errors)
+
+**Verbose Mode Example**:
+```bash
+$ open --verbose
+[2025-11-05T12:00:00.000Z] [OPEN-CLI] → HTTP REQUEST: POST http://localhost:11434/chat/completions
+[2025-11-05T12:00:01.234Z] [OPEN-CLI] ← HTTP RESPONSE: 200 OK
+[2025-11-05T12:00:01.500Z] [OPEN-CLI] 🔧 TOOL SUCCESS: read_file
+```
+
+**Error Message Example**:
+```
+❌ API 키가 유효하지 않습니다. 설정을 확인해주세요.
+상세: Incorrect API key provided
+
+📋 Error Code: API_ERROR
+
+🔍 Details:
+  • apiKeyProvided: true
+  • apiKeyLength: 32
+  • endpoint: https://api.example.com
+
+🕐 시간: 2025-11-05 12:00:00
+```
 
 ---
 

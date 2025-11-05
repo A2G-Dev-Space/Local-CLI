@@ -1443,5 +1443,627 @@ User types: "@src/utils/log"
 
 ---
 
-*This document represents the complete implementation history of OPEN-CLI through Phase 2.6 (ongoing).*
+### 2.7 Comprehensive Error Logging and Debugging System ✅
+**Implementation Date**: 2025-11-05
+**Lines of Code**: ~800+
+**Status**: ✅ Completed
+
+**Description**:
+Implemented a comprehensive error logging and debugging system to provide detailed, actionable error messages instead of generic "network error" messages. The system includes structured logging with multiple levels, specialized error handlers for different failure scenarios, and user-friendly error display in the UI.
+
+**Problem Statement**:
+Previously, all errors were displayed as generic messages like "Error: 네트워크 에러 엔드포인트에 연결할 수 없습니다", making debugging extremely difficult. Users couldn't distinguish between:
+- Connection failures (ECONNREFUSED, ENOTFOUND)
+- Authentication errors (401, 403)
+- Rate limiting (429)
+- Context/Token limits exceeded
+- Tool execution failures
+- Server errors (5xx)
+
+**Solution Architecture**:
+```
+Logger System (src/utils/logger.ts)
+├── 5 Log Levels: ERROR/WARN/INFO/DEBUG/VERBOSE
+├── Colored terminal output with timestamps
+├── HTTP request/response logging
+├── Tool execution tracking (success/failure)
+└── Environment variable support (LOG_LEVEL, VERBOSE)
+
+Enhanced LLM Client Error Handler (src/core/llm-client.ts)
+├── handleError() - Main error classification
+├── Network Errors (ECONNREFUSED, ENOTFOUND, ECONNRESET, etc.)
+├── API Errors (401, 403, 404, 429, 5xx)
+├── Context/Token Limit Detection
+├── Tool Execution Error Handling
+└── Request context logging
+
+UI Error Display (src/ui/components/PlanExecuteApp.tsx)
+├── formatErrorMessage() - Rich error formatting
+├── Error code display
+├── Details section with key-value pairs
+├── Recovery hints
+└── Timestamp display
+
+CLI Options (src/cli.ts)
+├── --verbose flag (DEBUG level)
+├── --debug flag (VERBOSE level)
+└── Log level configuration on startup
+```
+
+#### Key Files Created/Modified
+
+**New Files**:
+- `src/utils/logger.ts` (280 lines) - Structured logging system
+
+**Modified Files**:
+- `src/core/llm-client.ts` (+350 lines) - Enhanced error handler
+- `src/ui/components/PlanExecuteApp.tsx` (+60 lines) - Error display
+- `src/cli.ts` (+15 lines) - CLI options
+- `README.md` (+40 lines) - Documentation
+
+#### Implementation Details
+
+##### 1. Logger System (src/utils/logger.ts)
+
+**Features**:
+- **5 Log Levels**: ERROR (0) → WARN (1) → INFO (2) → DEBUG (3) → VERBOSE (4)
+- **Colored Output**: Different colors for each log level
+- **Timestamps**: ISO 8601 format with configurable display
+- **Prefix Support**: Customizable logger prefix (default: "OPEN-CLI")
+- **Specialized Loggers**: HTTP requests, HTTP responses, tool execution
+
+**Code Example**:
+```typescript
+export class Logger {
+  private level: LogLevel;
+  private prefix: string;
+  private showTimestamp: boolean;
+
+  error(message: string, error?: Error | unknown): void {
+    console.error(timestamp, prefix, chalk.red('❌ ERROR:'), message);
+    if (error instanceof Error) {
+      console.error(chalk.red('  Message:'), error.message);
+      console.error(chalk.gray('  Stack:'), error.stack);
+      if ((error as any).cause) {
+        console.error(chalk.red('  Cause:'), (error as any).cause);
+      }
+      if ((error as any).details) {
+        console.error(chalk.yellow('  Details:'), JSON.stringify((error as any).details, null, 2));
+      }
+    }
+  }
+
+  httpRequest(method: string, url: string, body?: unknown): void {
+    console.log(timestamp, prefix, chalk.cyan('→ HTTP REQUEST:'), chalk.bold(method), url);
+    if (body) {
+      console.log(chalk.cyan('  Body:'), JSON.stringify(body, null, 2));
+    }
+  }
+
+  toolExecution(toolName: string, args: unknown, result?: unknown, error?: Error): void {
+    if (error) {
+      console.log(timestamp, prefix, chalk.red('🔧 TOOL FAILED:'), chalk.bold(toolName));
+      console.log(chalk.red('  Args:'), JSON.stringify(args, null, 2));
+      console.log(chalk.red('  Error:'), error.message);
+    } else {
+      console.log(timestamp, prefix, chalk.green('🔧 TOOL SUCCESS:'), chalk.bold(toolName));
+      console.log(chalk.green('  Args:'), JSON.stringify(args, null, 2));
+      if (result && this.level >= LogLevel.VERBOSE) {
+        console.log(chalk.green('  Result:'), JSON.stringify(result, null, 2));
+      }
+    }
+  }
+}
+```
+
+**Usage**:
+```typescript
+import { logger, LogLevel, setLogLevel } from './utils/logger.js';
+
+// Set log level
+setLogLevel(LogLevel.DEBUG);
+
+// Use logger
+logger.error('Connection failed', error);
+logger.httpRequest('POST', '/chat/completions', requestBody);
+logger.toolExecution('read_file', { file_path: '/path/to/file' }, result);
+```
+
+##### 2. Enhanced Error Handler (src/core/llm-client.ts)
+
+**Error Classification Matrix**:
+
+| Error Type | Detection | User Message | Recoverable | Details Logged |
+|------------|-----------|--------------|-------------|----------------|
+| **Timeout** | `ECONNABORTED` or timeout in message | "요청 시간 초과 (60000ms)" | ✅ Yes | timeout, endpoint, method, url |
+| **Connection Refused** | `ECONNREFUSED` | "서버에 연결할 수 없습니다" + full URL | ✅ Yes | code, endpoint, message |
+| **DNS Failure** | `ENOTFOUND` | "서버에 연결할 수 없습니다" + full URL | ✅ Yes | code, endpoint, message |
+| **Connection Reset** | `ECONNRESET` | "서버에 연결할 수 없습니다" + full URL | ✅ Yes | code, endpoint, message |
+| **Host Unreachable** | `EHOSTUNREACH` | "서버에 연결할 수 없습니다" + full URL | ✅ Yes | code, endpoint, message |
+| **Authentication Failed** | HTTP 401 | "API 키가 유효하지 않습니다" + details | ❌ No | apiKeyProvided, apiKeyLength, fullError |
+| **Access Forbidden** | HTTP 403 | "접근 거부" + message | ❌ No | fullError |
+| **Not Found** | HTTP 404 | "엔드포인트를 찾을 수 없습니다" + full URL | ❌ No | url, fullError |
+| **Rate Limit** | HTTP 429 | "API 요청 한도 초과" + retry seconds | ✅ Yes | retryAfter, endpoint, model, fullError |
+| **Server Error** | HTTP 5xx | "서버 에러" + status + message | ✅ Yes | status, fullError |
+| **Context Length Exceeded** | `context_length_exceeded` in error | "대화 컨텍스트가 너무 깁니다" + max/current | ✅ Yes | maxLength, actualLength, model, errorType, fullError |
+| **Token Limit** | "token" + "limit" in message | "토큰 한도 초과" + original message | ✅ Yes | model, endpoint, fullError |
+| **Tool Arg Parsing Failed** | JSON.parse() exception | "Failed to parse tool arguments" + error | N/A | raw arguments |
+| **Tool Execution Failed** | Tool execution exception | Tool error message | N/A | toolName, args, error stack |
+
+**Example Error Handler Code**:
+```typescript
+private handleError(error: unknown, requestContext?: { method?: string; url?: string; body?: unknown }): Error {
+  logger.error('LLM Client Error', error);
+
+  if (axios.isAxiosError(error)) {
+    const axiosError = error as AxiosError;
+
+    // Timeout detection
+    if (axiosError.code === 'ECONNABORTED' || axiosError.message.includes('timeout')) {
+      logger.error('Request Timeout', {
+        timeout: this.axiosInstance.defaults.timeout,
+        endpoint: this.baseUrl,
+      });
+      return new TimeoutError(
+        this.axiosInstance.defaults.timeout || 60000,
+        {
+          cause: axiosError,
+          details: { endpoint: this.baseUrl, method: requestContext?.method, url: requestContext?.url },
+        }
+      );
+    }
+
+    if (axiosError.response) {
+      const status = axiosError.response.status;
+      const data = axiosError.response.data as any;
+      const errorMessage = data?.error?.message || data?.message || axiosError.message;
+      const errorType = data?.error?.type || 'unknown';
+      const errorCode = data?.error?.code || data?.code;
+
+      logger.httpResponse(status, axiosError.response.statusText, data);
+
+      // Context length exceeded detection
+      if (
+        errorType === 'invalid_request_error' &&
+        (errorMessage.includes('context_length_exceeded') ||
+         errorMessage.includes('maximum context length') ||
+         errorCode === 'context_length_exceeded')
+      ) {
+        const maxLength = data?.error?.param?.max_tokens || 'unknown';
+        logger.error('Context Length Exceeded', {
+          maxLength,
+          errorMessage,
+          model: this.model,
+        });
+
+        return new ContextLengthError(
+          typeof maxLength === 'number' ? maxLength : 0,
+          undefined,
+          {
+            cause: axiosError,
+            details: { model: this.model, endpoint: this.baseUrl, errorType, fullError: data },
+          }
+        );
+      }
+
+      // Rate limit (429)
+      if (status === 429) {
+        const retryAfter = axiosError.response.headers['retry-after'];
+        const retrySeconds = retryAfter ? parseInt(retryAfter) : undefined;
+
+        logger.error('Rate Limit Exceeded', { retryAfter: retrySeconds, errorMessage });
+
+        return new RateLimitError(retrySeconds, {
+          cause: axiosError,
+          details: { endpoint: this.baseUrl, model: this.model, fullError: data },
+        });
+      }
+
+      // Authentication (401)
+      if (status === 401) {
+        logger.error('Authentication Failed', { endpoint: this.baseUrl, errorMessage });
+
+        return new APIError(
+          `인증 실패: ${errorMessage}`,
+          status,
+          this.baseUrl,
+          {
+            cause: axiosError,
+            details: {
+              apiKeyProvided: !!this.apiKey,
+              apiKeyLength: this.apiKey?.length || 0,
+              fullError: data,
+            },
+            isRecoverable: false,
+            userMessage: `API 키가 유효하지 않습니다. 설정을 확인해주세요.\n상세: ${errorMessage}`,
+          }
+        );
+      }
+    } else if (axiosError.request) {
+      // Network errors (no response)
+      const errorCode = axiosError.code;
+
+      if (
+        errorCode === 'ECONNREFUSED' ||
+        errorCode === 'ENOTFOUND' ||
+        errorCode === 'ECONNRESET' ||
+        errorCode === 'EHOSTUNREACH'
+      ) {
+        return new ConnectionError(this.baseUrl, {
+          cause: axiosError,
+          details: { code: errorCode, message: axiosError.message },
+          userMessage: `서버에 연결할 수 없습니다.\n엔드포인트: ${this.baseUrl}\n에러 코드: ${errorCode}\n상세: ${axiosError.message}\n\n네트워크 연결과 엔드포인트 URL을 확인해주세요.`,
+        });
+      }
+    }
+  }
+
+  return new LLMError('알 수 없는 에러가 발생했습니다.', {
+    details: { unknownError: error },
+  });
+}
+```
+
+##### 3. Tool Execution Error Handling
+
+**Before**:
+```typescript
+const result = await executeFileTool(toolName, toolArgs);
+// If tool fails, generic error
+```
+
+**After**:
+```typescript
+let toolArgs: Record<string, unknown>;
+
+try {
+  toolArgs = JSON.parse(toolCall.function.arguments);
+} catch (parseError) {
+  logger.error(`Tool argument parsing failed for ${toolName}`, parseError);
+  logger.debug('Raw arguments', { raw: toolCall.function.arguments });
+
+  messages.push({
+    role: 'tool',
+    content: `Error: Failed to parse tool arguments - ${parseError instanceof Error ? parseError.message : 'Unknown error'}`,
+    tool_call_id: toolCall.id,
+  });
+
+  continue;
+}
+
+logger.debug(`Executing tool: ${toolName}`, toolArgs);
+
+let result: { success: boolean; result?: string; error?: string };
+
+try {
+  result = await executeFileTool(toolName, toolArgs);
+  logger.toolExecution(toolName, toolArgs, result);
+} catch (toolError) {
+  logger.toolExecution(toolName, toolArgs, undefined, toolError as Error);
+
+  result = {
+    success: false,
+    error: toolError instanceof Error ? toolError.message : String(toolError),
+  };
+}
+```
+
+##### 4. UI Error Display (src/ui/components/PlanExecuteApp.tsx)
+
+**formatErrorMessage() Function**:
+```typescript
+function formatErrorMessage(error: unknown): string {
+  if (error instanceof BaseError) {
+    // Use custom error's userMessage
+    let message = `❌ ${error.getUserMessage()}\n`;
+
+    // Add error code
+    message += `\n📋 Error Code: ${error.code}`;
+
+    // Add details if available
+    if (error.details && Object.keys(error.details).length > 0) {
+      message += `\n\n🔍 Details:`;
+      for (const [key, value] of Object.entries(error.details)) {
+        if (key === 'fullError') continue; // Skip verbose data
+
+        if (typeof value === 'object') {
+          message += `\n  • ${key}: ${JSON.stringify(value, null, 2)}`;
+        } else {
+          message += `\n  • ${key}: ${value}`;
+        }
+      }
+    }
+
+    // Add recovery hint
+    if (error.isRecoverable) {
+      message += `\n\n💡 이 오류는 복구 가능합니다. 다시 시도해보세요.`;
+    }
+
+    // Add timestamp
+    message += `\n\n🕐 시간: ${error.timestamp.toLocaleString('ko-KR')}`;
+
+    return message;
+  }
+
+  // Regular Error
+  if (error instanceof Error) {
+    let message = `❌ Error: ${error.message}\n`;
+    if (error.stack) {
+      message += `\n📚 Stack Trace:\n${error.stack}`;
+    }
+    return message;
+  }
+
+  return `❌ Unknown Error: ${String(error)}`;
+}
+```
+
+**Usage in Component**:
+```typescript
+try {
+  const result = await llmClient.chatCompletionWithTools(messages, FILE_TOOLS, 5);
+  setMessages(result.allMessages);
+} catch (error) {
+  const errorMessage = formatErrorMessage(error); // Rich error display
+  setMessages([
+    ...messages,
+    { role: 'user', content: userMessage },
+    { role: 'assistant', content: errorMessage }
+  ]);
+}
+```
+
+##### 5. CLI Options
+
+**Added Flags**:
+```typescript
+program
+  .option('--verbose', 'Enable verbose logging (shows detailed error messages, HTTP requests, tool execution)')
+  .option('--debug', 'Enable debug logging (shows all debug information)')
+  .action(async (options: { verbose?: boolean; debug?: boolean }) => {
+    // Set log level based on options
+    if (options.debug) {
+      setLogLevel(LogLevel.VERBOSE);
+      logger.info('🔍 Debug mode enabled - verbose logging activated');
+    } else if (options.verbose) {
+      setLogLevel(LogLevel.DEBUG);
+      logger.info('📝 Verbose mode enabled - detailed logging activated');
+    }
+
+    // ... rest of code
+  });
+```
+
+#### Error Message Examples
+
+##### Example 1: Connection Refused
+```
+❌ 서버에 연결할 수 없습니다.
+엔드포인트: http://localhost:11434
+에러 코드: ECONNREFUSED
+상세: connect ECONNREFUSED 127.0.0.1:11434
+
+네트워크 연결과 엔드포인트 URL을 확인해주세요.
+
+📋 Error Code: CONNECTION_ERROR
+
+🔍 Details:
+  • code: ECONNREFUSED
+  • message: connect ECONNREFUSED 127.0.0.1:11434
+
+💡 이 오류는 복구 가능합니다. 다시 시도해보세요.
+
+🕐 시간: 2025-11-05 12:00:00
+```
+
+##### Example 2: Authentication Failed (401)
+```
+❌ API 키가 유효하지 않습니다. 설정을 확인해주세요.
+상세: Incorrect API key provided
+
+📋 Error Code: API_ERROR
+
+🔍 Details:
+  • apiKeyProvided: true
+  • apiKeyLength: 32
+  • endpoint: https://api.example.com
+
+🕐 시간: 2025-11-05 12:00:00
+```
+
+##### Example 3: Context Length Exceeded
+```
+❌ 대화 컨텍스트가 너무 깁니다 (최대: 4096). /clear 명령어로 대화를 초기화해주세요.
+
+📋 Error Code: CONTEXT_LENGTH_ERROR
+
+🔍 Details:
+  • maxLength: 4096
+  • model: gpt-oss-120b
+  • endpoint: http://localhost:11434
+  • errorType: invalid_request_error
+
+💡 이 오류는 복구 가능합니다. 다시 시도해보세요.
+
+🕐 시간: 2025-11-05 12:00:00
+```
+
+##### Example 4: Rate Limit (429)
+```
+❌ API 요청 한도를 초과했습니다. 60초 후 다시 시도해주세요.
+
+📋 Error Code: RATE_LIMIT_ERROR
+
+🔍 Details:
+  • retryAfter: 60
+  • endpoint: https://api.example.com
+  • model: gpt-oss-120b
+
+💡 이 오류는 복구 가능합니다. 다시 시도해보세요.
+
+🕐 시간: 2025-11-05 12:00:00
+```
+
+##### Example 5: Tool Execution Failed
+**Console Log (with --verbose)**:
+```
+[2025-11-05T12:00:00.123Z] [OPEN-CLI] 🔧 TOOL FAILED: read_file
+  Args: {
+  "file_path": "/nonexistent/file.txt"
+}
+  Error: ENOENT: no such file or directory, open '/nonexistent/file.txt'
+```
+
+#### Verbose Mode Output Examples
+
+**Without --verbose**:
+```
+$ open
+AI: Let me read that file...
+Error: Network error
+```
+
+**With --verbose**:
+```
+$ open --verbose
+[2025-11-05T12:00:00.000Z] [OPEN-CLI] 📝 Verbose mode enabled - detailed logging activated
+[2025-11-05T12:00:01.234Z] [OPEN-CLI] → HTTP REQUEST: POST http://localhost:11434/chat/completions
+  Body: {
+  "model": "gpt-oss-120b",
+  "messages": "3 messages",
+  "temperature": 0.7,
+  "tools": "7 tools"
+}
+[2025-11-05T12:00:02.456Z] [OPEN-CLI] ❌ ERROR: Network Error - No Response
+  Message: connect ECONNREFUSED 127.0.0.1:11434
+  Stack: Error: connect ECONNREFUSED 127.0.0.1:11434
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1555:16)
+  Details: {
+  "code": "ECONNREFUSED",
+  "endpoint": "http://localhost:11434"
+}
+```
+
+**With --debug** (most verbose):
+```
+$ open --debug
+[2025-11-05T12:00:00.000Z] [OPEN-CLI] 🔍 Debug mode enabled - verbose logging activated
+[2025-11-05T12:00:01.234Z] [OPEN-CLI] → HTTP REQUEST: POST http://localhost:11434/chat/completions
+  Body: {
+  "model": "gpt-oss-120b",
+  "messages": "3 messages",
+  "temperature": 0.7,
+  "tools": "7 tools"
+}
+[2025-11-05T12:00:01.235Z] [OPEN-CLI] 🔍 VERBOSE: Full Request Body
+  Data: {
+  "model": "gpt-oss-120b",
+  "messages": [
+    { "role": "system", "content": "You are a helpful assistant..." },
+    { "role": "user", "content": "Read the file..." }
+  ],
+  "temperature": 0.7,
+  "tools": [ ... ]
+}
+[2025-11-05T12:00:01.236Z] [OPEN-CLI] 🐛 DEBUG: Executing tool: read_file
+  Data: {
+  "file_path": "/home/user/test.txt"
+}
+[2025-11-05T12:00:01.240Z] [OPEN-CLI] 🔧 TOOL SUCCESS: read_file
+  Args: {
+  "file_path": "/home/user/test.txt"
+}
+  Result: {
+  "success": true,
+  "result": "File contents here..."
+}
+```
+
+#### Testing Coverage
+
+**Scenarios Tested**:
+1. ✅ Connection refused (ECONNREFUSED)
+2. ✅ DNS failure (ENOTFOUND)
+3. ✅ Connection timeout (ECONNABORTED)
+4. ✅ Authentication failed (401)
+5. ✅ Rate limit exceeded (429)
+6. ✅ Context length exceeded
+7. ✅ Token limit exceeded
+8. ✅ Tool argument parsing failure
+9. ✅ Tool execution exception
+10. ✅ Server errors (500, 502, 503)
+
+**Manual Testing**:
+```bash
+# Test connection error
+$ open --verbose
+# (with LLM server stopped)
+# Expected: Detailed ECONNREFUSED error
+
+# Test authentication error
+$ open config init
+# (enter wrong API key)
+# Expected: 401 error with API key details
+
+# Test tool error
+You: Read file /nonexistent/file.txt
+# Expected: Tool execution error with full path
+
+# Test verbose logging
+$ open --verbose
+You: Hello
+# Expected: HTTP request/response logs
+
+# Test debug logging
+$ open --debug
+You: Read src/cli.ts
+# Expected: Full request body, tool execution logs
+```
+
+#### Code Statistics
+
+- **New Files**: 1 (logger.ts)
+- **Modified Files**: 4 (llm-client.ts, PlanExecuteApp.tsx, cli.ts, README.md)
+- **Lines Added**: ~800+
+- **Lines Modified**: ~100+
+- **Total Commits**: 1
+
+#### Impact
+
+**Before**:
+- ❌ All errors showed as "네트워크 에러"
+- ❌ No way to distinguish error types
+- ❌ No debugging information
+- ❌ Users had to guess what went wrong
+
+**After**:
+- ✅ Specific error messages for each scenario
+- ✅ Error codes and detailed information
+- ✅ Recovery hints for fixable errors
+- ✅ Verbose/debug modes for troubleshooting
+- ✅ Complete request/response logging
+- ✅ Tool execution tracking
+- ✅ Timestamps for all errors
+
+**User Experience Improvement**:
+```
+Before: "Error: 네트워크 에러"
+After:  "서버에 연결할 수 없습니다.
+         엔드포인트: http://localhost:11434
+         에러 코드: ECONNREFUSED
+
+         네트워크 연결과 엔드포인트 URL을 확인해주세요."
+```
+
+#### Future Enhancements
+
+- Error analytics dashboard
+- Error reporting to external services (optional)
+- Automatic retry with exponential backoff for recoverable errors
+- Error trend analysis
+- Custom error handlers per tool
+
+---
+
+*This document represents the complete implementation history of OPEN-CLI through Phase 2.7.*
 *For upcoming features and plans, see TODO_ALL.md.*
