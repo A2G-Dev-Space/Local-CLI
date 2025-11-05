@@ -646,6 +646,148 @@ export interface ProjectConfiguration {
   metadata: ProjectMetadata;
 }
 
+// ============== TDD Workflow & Verification System ==============
+
+/**
+ * TDD Request
+ */
+export interface TDDRequest {
+  requirement: string;
+  testFramework?: string;
+  language?: string;
+  maxIterations?: number;
+  timeout?: number;
+}
+
+/**
+ * Test case
+ */
+export interface Test {
+  id: string;
+  name: string;
+  code: string;
+  description?: string;
+  type: 'unit' | 'integration' | 'e2e';
+}
+
+/**
+ * Implementation
+ */
+export interface Implementation {
+  code: string;
+  language: string;
+  timestamp: number;
+  files?: { path: string; content: string }[];
+}
+
+/**
+ * Test result
+ */
+export interface TestResult {
+  passed: number;
+  failed: number;
+  total: number;
+  failures: TestFailure[];
+  duration: number;
+  coverage?: number;
+}
+
+/**
+ * Test failure
+ */
+export interface TestFailure {
+  testName: string;
+  message: string;
+  stack?: string;
+  expected?: any;
+  actual?: any;
+}
+
+/**
+ * TDD Iteration
+ */
+export interface TDDIteration {
+  number: number;
+  implementation: Implementation;
+  testResult: TestResult;
+  timestamp: number;
+}
+
+/**
+ * TDD Session
+ */
+export interface TDDSession {
+  id: string;
+  request: TDDRequest;
+  tests: Test[];
+  implementations: Implementation[];
+  iterations: TDDIteration[];
+  status: 'in_progress' | 'completed' | 'failed';
+  failureAnalysis?: string;
+}
+
+/**
+ * TDD Result
+ */
+export interface TDDResult {
+  success: boolean;
+  session: TDDSession;
+  finalImplementation?: Implementation;
+  iterations?: number;
+  error?: string;
+}
+
+/**
+ * Implementation context
+ */
+export interface ImplementationContext {
+  tests: Test[];
+  previousAttempts: Implementation[];
+  failures?: TestFailure[];
+  language?: string;
+}
+
+/**
+ * Verification criteria
+ */
+export interface VerificationCriteria {
+  rules?: VerificationRule[];
+  visual?: VisualCriteria;
+  fuzzy?: string[];
+}
+
+/**
+ * Visual criteria for UI verification
+ */
+export interface VisualCriteria {
+  url?: string;
+  screenshots?: string[];
+  expectedElements?: string[];
+  viewport?: { width: number; height: number };
+}
+
+/**
+ * Verification outcome
+ */
+export interface VerificationOutcome {
+  rule: string;
+  passed: boolean;
+  output?: any;
+  message: string;
+  suggestions: string[];
+  severity: 'info' | 'warning' | 'error';
+}
+
+/**
+ * Work output for verification
+ */
+export interface WorkOutput {
+  code?: string;
+  files?: { path: string; content: string }[];
+  artifacts?: any[];
+  metadata?: Record<string, any>;
+}
+
 /**
  * Verification rule for deterministic checking
  */
