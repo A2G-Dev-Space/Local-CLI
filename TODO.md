@@ -399,6 +399,239 @@ Priority 3 (낮음)
 
 ---
 
+
+---
+
+### 8. ESC로 LLM Interrupt [P1] 🆕
+
+**목표**: ESC 키로 LLM 응답 생성을 즉시 중단
+
+**📖 설계 문서**:
+- **NEW_FEATURES.md**: [Section 2.7](./NEW_FEATURES.md#27-esc로-llm-interrupt-생성-중지)
+- **PROGRESS.md**: [Section 2.7](./PROGRESS.md#27-esc로-llm-interrupt-생성-중지-p1-)
+
+**예상 소요 시간**: 1일
+
+- [ ] **Dependencies 설치**
+  - [ ] `npm install node-abort-controller`
+
+- [ ] **LLMClient 수정** (`src/core/llm-client.ts`)
+  - [ ] AbortController 통합
+  - [ ] `interrupt()` 메서드 구현
+  - [ ] `chatCompletionStream()`에 abort signal 추가
+  - [ ] Abort 이벤트 리스너
+  - [ ] 에러 처리 (AbortError)
+
+- [ ] **InteractiveApp 수정** (`src/ui/InteractiveApp.tsx`)
+  - [ ] ESC 키 감지 (useInput hook)
+  - [ ] `llmClient.interrupt()` 호출
+  - [ ] Interrupt indicator UI
+  - [ ] 부분 응답 보존
+
+- [ ] **테스트**
+  - [ ] 짧은 응답 중단
+  - [ ] 긴 응답 중단
+  - [ ] Tool 호출 중 중단
+  - [ ] 연속 중단 (메모리 누수 확인)
+
+**✅ 완료 조건**:
+- ESC 키로 즉시 중단 가능
+- 부분 응답이 보존됨
+- UI에 중단 메시지 표시
+- 메모리 누수 없음
+
+---
+
+### 9. YOLO Mode vs Ask Mode 전환 [P1] 🆕
+
+**목표**: Tab 키로 YOLO/Ask 모드 전환, 위험한 작업 전 확인
+
+**📖 설계 문서**:
+- **NEW_FEATURES.md**: [Section 2.8](./NEW_FEATURES.md#28-yolo-mode-vs-ask-mode-전환)
+- **PROGRESS.md**: [Section 2.8](./PROGRESS.md#28-yolo-mode-vs-ask-mode-전환-p1-)
+
+**예상 소요 시간**: 1-2일
+
+- [ ] **타입 정의** (`src/types/index.ts`)
+  - [ ] `ExecutionMode` 타입 ('yolo' | 'ask')
+  - [ ] `AppState`에 mode 추가
+
+- [ ] **ConfigManager 수정** (`src/core/config-manager.ts`)
+  - [ ] `getExecutionMode()` 메서드
+  - [ ] `setExecutionMode()` 메서드
+  - [ ] Config에 executionMode 필드 추가
+
+- [ ] **InteractiveApp 수정** (`src/ui/InteractiveApp.tsx`)
+  - [ ] Tab 키로 모드 전환 (useInput)
+  - [ ] 모드 상태 관리
+  - [ ] 모드 변경 시 config 저장
+
+- [ ] **Header 컴포넌트** (`src/ui/components/Header.tsx`)
+  - [ ] 모드 표시 ([YOLO MODE] / [ASK MODE])
+  - [ ] Tab↔다른모드 힌트 표시
+  - [ ] 색상 구분 (YOLO: red, Ask: green)
+
+- [ ] **ToolExecutor 수정** (`src/core/tool-executor.ts`)
+  - [ ] 모드 속성 추가
+  - [ ] 위험한 Tool 목록 정의
+  - [ ] Ask Mode에서 확인 프롬프트
+  - [ ] YOLO Mode에서 즉시 실행
+
+- [ ] **테스트**
+  - [ ] Tab으로 모드 전환
+  - [ ] Ask Mode에서 확인 프롬프트 표시
+  - [ ] YOLO Mode에서 즉시 실행
+  - [ ] 모드 저장 및 복원
+
+**✅ 완료 조건**:
+- Tab 키로 모드 전환 가능
+- UI에 현재 모드 명확히 표시
+- Ask Mode에서 위험한 작업 전 확인
+- YOLO Mode에서 모든 작업 즉시 실행
+
+---
+
+### 10. File Edit Tool 개선 (Replace 방식) [P1] 🆕
+
+**목표**: Original content 검증 후 replace, 불일치 시 재시도 유도
+
+**📖 설계 문서**:
+- **NEW_FEATURES.md**: [Section 2.9](./NEW_FEATURES.md#29-file-edit-tool-개선-replace-방식)
+- **PROGRESS.md**: [Section 2.9](./PROGRESS.md#29-file-edit-tool-개선-replace-방식-p1-)
+
+**예상 소요 시간**: 1일
+
+- [ ] **새로운 EDIT_FILE_TOOL 정의** (`src/tools/file-tools.ts`)
+  - [ ] 스키마 정의 (line numbers + content)
+  - [ ] Description 업데이트 (사용 지침)
+
+- [ ] **editFile() 함수 구현**
+  - [ ] 파일 존재 확인
+  - [ ] 라인 번호 검증
+  - [ ] Original content 추출
+  - [ ] Content 비교 로직
+  - [ ] 불일치 시 actual_content 반환
+  - [ ] Replace 로직
+  - [ ] 파일 쓰기
+
+- [ ] **System Prompt 업데이트** (`src/prompts/system-prompt.ts`)
+  - [ ] edit_file 사용 지침 추가
+  - [ ] 재시도 프로세스 설명
+
+- [ ] **기존 edit_file 제거**
+  - [ ] 또는 deprecated 처리
+
+- [ ] **테스트**
+  - [ ] 정상 수정
+  - [ ] 원본 불일치 → 재시도 → 성공
+  - [ ] 라인 번호 초과
+  - [ ] 파일 없음
+
+**✅ 완료 조건**:
+- Line numbers로 정확한 수정 가능
+- Original content 불일치 시 에러 + actual_content 제공
+- LLM이 재시도로 성공 가능
+
+---
+
+### 11. Config Init 개선 및 Model Management [P1] 🆕
+
+**목표**: open 한 번에 설정 완료, /addmodel /deletemodel /model /reset 명령어
+
+**📖 설계 문서**:
+- **NEW_FEATURES.md**: [Section 2.10](./NEW_FEATURES.md#210-config-init-개선-및-model-management)
+- **PROGRESS.md**: [Section 2.10](./PROGRESS.md#210-config-init-개선-및-model-management-p1-)
+
+**예상 소요 시간**: 2일
+
+- [ ] **Config 구조 변경**
+  - [ ] `models` 배열 추가
+  - [ ] `currentModel` 필드 추가
+  - [ ] `ModelConfig` 인터페이스 정의
+
+- [ ] **ConfigManager 확장** (`src/core/config-manager.ts`)
+  - [ ] `hasModels()` 메서드
+  - [ ] `addModel()` 메서드
+  - [ ] `deleteModel()` 메서드
+  - [ ] `switchModel()` 메서드
+  - [ ] `getAllModels()` 메서드
+  - [ ] `reset()` 메서드
+
+- [ ] **CLI 시작 로직** (`src/cli.ts`)
+  - [ ] 모델 존재 여부 체크
+  - [ ] 최초 설정 UI (runFirstTimeSetup)
+  - [ ] inquirer prompt
+  - [ ] 모델 자동 추가
+
+- [ ] **메타 명령어** (`src/modes/interactive.ts`)
+  - [ ] `/addmodel` 구현
+  - [ ] `/deletemodel` 구현
+  - [ ] `/model` 구현
+  - [ ] `/reset` 구현
+
+- [ ] **기존 명령어 제거**
+  - [ ] `open config init` 제거
+
+- [ ] **테스트**
+  - [ ] 최초 실행 (모델 없음)
+  - [ ] /addmodel
+  - [ ] /deletemodel
+  - [ ] /model 전환
+  - [ ] /reset
+
+**✅ 완료 조건**:
+- open 한 번에 모든 설정 완료
+- /addmodel, /deletemodel, /model, /reset 명령어 작동
+- 저장된 모델 없으면 안내 메시지
+
+---
+
+### 12. TODO 완료 시 자동 Save [P1] 🆕
+
+**목표**: 각 TODO 완료 시 세션 자동 저장, 재시작 시 복구
+
+**📖 설계 문서**:
+- **NEW_FEATURES.md**: [Section 2.11](./NEW_FEATURES.md#211-todo-완료-시-자동-save)
+- **PROGRESS.md**: [Section 2.11](./PROGRESS.md#211-todo-완료-시-자동-save-p1-)
+
+**예상 소요 시간**: 1일
+
+- [ ] **SessionData 확장** (`src/types/index.ts`)
+  - [ ] `todos` 필드 추가
+  - [ ] `metadata` 확장 (completedTodos, totalTodos)
+
+- [ ] **TodoExecutor 수정** (`src/core/todo-executor.ts`)
+  - [ ] `autoSave()` 메서드 추가
+  - [ ] TODO 완료 시 호출
+  - [ ] TODO 실패 시에도 호출
+
+- [ ] **SessionManager 수정** (`src/core/session-manager.ts`)
+  - [ ] `saveSession()`에 todos 저장
+  - [ ] `recoverSession()` 구현
+  - [ ] `listSessions()` 구현
+  - [ ] nextTodoIndex 계산
+
+- [ ] **CLI 시작 시 복구** (`src/cli.ts`)
+  - [ ] 이전 세션 감지
+  - [ ] 미완료 TODO 확인
+  - [ ] 복구 프롬프트
+  - [ ] 복구된 상태로 시작
+
+- [ ] **UI Feedback (선택)**
+  - [ ] StatusBar에 저장 인디케이터
+  - [ ] TODO 완료 시 💾 표시
+
+- [ ] **테스트**
+  - [ ] TODO 완료 → 저장 확인
+  - [ ] 중단 → 재시작 → 복구
+  - [ ] 여러 TODO 연속 실행
+  - [ ] 세션 파일 검증
+
+**✅ 완료 조건**:
+- 각 TODO 완료 시 자동 저장
+- 재시작 시 복구 프롬프트 표시
+- 마지막 완료 시점부터 재개 가능
+
 ## 📋 Priority 2: 보통 과제 (1주)
 
 ### 8. Tips/Help 섹션

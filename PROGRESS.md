@@ -2787,6 +2787,78 @@ export const StatusBar: React.FC<StatusBarProps> = ({
 - [ ] 유틸리티 함수 분리 (src/ui/utils.ts)
 
 ---
+---
+
+#### 2.7 ESC로 LLM Interrupt (생성 중지) [P1] 🆕
+
+**목표**: ESC 키로 LLM 응답 생성을 즉시 중단
+
+**상세 설계**: [Section 2.7 상세 내용](#detailed-27) (파일 하단 참조)
+
+**체크리스트**:
+- [ ] AbortController 통합
+- [ ] ESC 키 감지 (Ink useInput)
+- [ ] Interrupt indicator UI
+- [ ] 부분 응답 보존
+
+---
+
+#### 2.8 YOLO Mode vs Ask Mode 전환 [P1] 🆕
+
+**목표**: Tab 키로 YOLO/Ask 모드 전환, 위험한 작업 전 확인
+
+**상세 설계**: [Section 2.8 상세 내용](#detailed-28) (파일 하단 참조)
+
+**체크리스트**:
+- [ ] ExecutionMode 타입 정의
+- [ ] Tab 키로 모드 전환
+- [ ] 모드 표시 (Header)
+- [ ] 위험한 Tool 확인 프롬프트 (Ask Mode)
+
+---
+
+#### 2.9 File Edit Tool 개선 (Replace 방식) [P1] 🆕
+
+**목표**: Original content 검증 후 replace, 불일치 시 재시도 유도
+
+**상세 설계**: [Section 2.9 상세 내용](#detailed-29) (파일 하단 참조)
+
+**체크리스트**:
+- [ ] 새로운 EDIT_FILE_TOOL 스키마 (line numbers + content)
+- [ ] Original content 검증 로직
+- [ ] 불일치 시 에러 + actual_content 반환
+- [ ] System prompt 업데이트
+
+---
+
+#### 2.10 Config Init 개선 및 Model Management [P1] 🆕
+
+**목표**: open 한 번에 설정 완료, /addmodel /deletemodel /model /reset 명령어
+
+**상세 설계**: [Section 2.10 상세 내용](#detailed-210) (파일 하단 참조)
+
+**체크리스트**:
+- [ ] 최초 실행 시 자동 설정 UI
+- [ ] /addmodel 명령어
+- [ ] /deletemodel 명령어
+- [ ] /model 명령어
+- [ ] /reset 명령어
+- [ ] open config init 제거
+
+---
+
+#### 2.11 TODO 완료 시 자동 Save [P1] 🆕
+
+**목표**: 각 TODO 완료 시 세션 자동 저장, 재시작 시 복구
+
+**상세 설계**: [Section 2.11 상세 내용](#detailed-211) (파일 하단 참조)
+
+**체크리스트**:
+- [ ] TodoExecutor.autoSave() 메서드
+- [ ] TODO 완료 시 자동 저장
+- [ ] SessionData에 todos 필드 추가
+- [ ] 세션 복구 프롬프트
+
 
 ### 🧪 3단계: 테스트 (TESTING)
 
