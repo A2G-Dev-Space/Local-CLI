@@ -7,7 +7,7 @@
 
 import React from 'react';
 import { render } from 'ink';
-import { InteractiveApp } from './components/InteractiveApp.js';
+import { PlanExecuteApp } from './components/PlanExecuteApp.js';
 import { createLLMClient } from '../core/llm-client.js';
 import { configManager } from '../core/config-manager.js';
 
@@ -21,8 +21,8 @@ import { configManager } from '../core/config-manager.js';
     const llmClient = createLLMClient();
     const modelInfo = llmClient.getModelInfo();
 
-    // Ink UI 렌더링
-    render(<InteractiveApp llmClient={llmClient} modelInfo={modelInfo} />);
+    // Ink UI 렌더링 (PlanExecuteApp supports both direct and plan-execute modes)
+    render(<PlanExecuteApp llmClient={llmClient} modelInfo={modelInfo} />);
   } catch (error) {
     console.error('❌ 에러 발생:', error instanceof Error ? error.message : String(error));
     process.exit(1);
