@@ -13,7 +13,6 @@ import {
   StyleGuide,
   ToolConfig,
   Constraint,
-  ProjectMetadata,
   ExecutionContext,
 } from '../types/index.js';
 

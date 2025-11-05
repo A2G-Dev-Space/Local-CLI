@@ -8,9 +8,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import {
   ScratchpadContent,
-  ScratchpadSection,
   ScratchpadTodoItem,
-  ScratchpadSubtask,
 } from '../types/index.js';
 
 // Simple ID generator

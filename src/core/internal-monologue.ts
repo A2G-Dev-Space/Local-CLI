@@ -26,7 +26,9 @@ export interface ThinkingContext {
 }
 
 export class InternalMonologue {
+  // @ts-expect-error - Used for state management
   private thinkingMode: 'standard' | 'extended' | 'deep';
+  // @ts-expect-error - Used for state management
   private maxThinkingTokens: number = 4000;
   private llm: LLMClient;
 
@@ -230,7 +232,7 @@ Format as JSON array:
   private async answerQuestion(
     question: Question,
     context: ThinkingContext,
-    previousThoughts: Thought[]
+    _previousThoughts: Thought[]
   ): Promise<Thought> {
     // Create isolated context for faithfulness
     const isolatedPrompt = `Answer this specific question based on the context:

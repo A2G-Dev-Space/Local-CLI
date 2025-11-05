@@ -7,11 +7,8 @@
 import { BaseError as BaseErrorClass } from './base.js';
 
 // Base
-export {
-  BaseError,
-  ErrorDetails,
-  ErrorOptions,
-} from './base.js';
+export { BaseError } from './base.js';
+export type { ErrorDetails, ErrorOptions } from './base.js';
 
 // Network
 export {

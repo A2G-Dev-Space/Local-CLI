@@ -98,8 +98,11 @@ export class WorkVerifier {
     // Check if TODO mentions testing
     if (todo.description.toLowerCase().includes('test')) {
       rules.push({
+        name: 'test-execution',
         type: 'test',
         description: 'Tests should pass',
+        failureMessage: 'Tests failed to execute or did not pass',
+        suggestions: ['Check test output for specific failures', 'Fix failing tests and retry'],
       });
     }
 
@@ -107,8 +110,11 @@ export class WorkVerifier {
     if (todo.description.toLowerCase().includes('lint') ||
         todo.description.toLowerCase().includes('eslint')) {
       rules.push({
+        name: 'lint-check',
         type: 'lint',
         description: 'Code should pass linting',
+        failureMessage: 'Linting errors detected',
+        suggestions: ['Run linter to see specific issues', 'Fix linting errors and retry'],
       });
     }
 
@@ -116,8 +122,11 @@ export class WorkVerifier {
     if (todo.description.toLowerCase().includes('build') ||
         todo.description.toLowerCase().includes('compile')) {
       rules.push({
+        name: 'build-success',
         type: 'build',
         description: 'Project should build successfully',
+        failureMessage: 'Build failed',
+        suggestions: ['Check build output for errors', 'Fix compilation errors and retry'],
       });
     }
 
@@ -128,10 +137,12 @@ export class WorkVerifier {
    * Convert project rules to verification rules
    */
   private convertProjectRulesToVerificationRules(projectRules: string[]): VerificationRule[] {
-    return projectRules.map(rule => ({
-      type: 'custom',
+    return projectRules.map((rule, index) => ({
+      name: `project-rule-${index}`,
+      type: 'custom' as const,
       description: rule,
-      // Simplified: We'll check these via LLM or basic pattern matching
+      failureMessage: `Project rule not met: ${rule}`,
+      suggestions: ['Review the project rule', 'Adjust implementation to meet the rule'],
     }));
   }
 

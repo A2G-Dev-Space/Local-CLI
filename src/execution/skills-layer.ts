@@ -9,8 +9,8 @@ import {
   ExecutionLayer,
   LayerExecutionResult,
   AgentSkill,
-  ContextModification,
   ExecutionContext,
+  Message,
 } from '../types/index.js';
 import { LLMClient } from '../core/llm-client.js';
 import * as fs from 'fs/promises';
@@ -200,7 +200,7 @@ export class EnhancedExecutor {
 
   async execute(task: Task): Promise<any> {
     // Execute with enhanced context
-    const messages = [
+    const messages: Message[] = [
       {
         role: 'system' as const,
         content: this.context.systemPrompt
@@ -259,9 +259,9 @@ export class SkillsLayer implements ExecutionLayer {
 
   async canHandle(task: Task): Promise<boolean> {
     // Skills are for complex workflows that need behavior modification
-    return task.requiresSkill ||
+    return !!task.requiresSkill ||
            task.workflowComplexity === 'high' ||
-           task.requiresBehaviorChange ||
+           task.requiresBehaviorChange === true ||
            task.complexity === 'meta';
   }
 
@@ -314,7 +314,7 @@ export class SkillsLayer implements ExecutionLayer {
 
   private async discoverSkill(task: Task): Promise<AgentSkill | null> {
     // If skill is explicitly specified
-    if (task.requiresSkill && this.skills.has(task.requiresSkill)) {
+    if (typeof task.requiresSkill === 'string' && this.skills.has(task.requiresSkill)) {
       return this.skills.get(task.requiresSkill) || null;
     }
 

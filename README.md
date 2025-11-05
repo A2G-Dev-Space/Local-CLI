@@ -196,46 +196,49 @@ You: /docs search typescript
   - gpt-oss-120b/20b 모델 Harmony format 422 에러 해결
   - tool_calls 메시지에 자동으로 content 필드 추가
   - 모든 OpenAI 호환 모델과의 완벽한 호환성
+- ✅ **Plan-and-Execute Architecture** 🆕
+  - 사용자 요청을 자동으로 TODO list로 분해하고 순차 실행
+  - Agent Loop with Context Gathering 및 Work Verification
+  - 의존성 관리 및 실시간 진행 상황 추적
+- ✅ **Multi-Layered Execution System** 🆕
+  - Tool, Code-Gen, SubAgent, Skills 4개 계층 지원
+  - 작업 복잡도에 따른 자동 계층 선택
+  - 병렬 실행 및 결과 합성 지원
+- ✅ **Internal Monologue & Scratchpad** 🆕
+  - Extended Thinking (Question Decomposition)
+  - Self-Evaluation 및 Plan Generation
+  - 외부 Scratchpad (.md 파일)로 TODO 관리
+- ✅ **TDD Workflow & Verification System** 🆕
+  - 자동 테스트 생성 및 실행
+  - Rule-based, Visual, LLM-as-Judge 3가지 검증 모드
+  - Red-Green-Refactor 사이클 자동화
 
-### 🚧 개발 중 (Phase 2.5)
+### 🚧 개발 중 (Phase 3)
 
-**Plan-and-Execute 아키텍처** (3-4주 예상)
+**Advanced Features & Integrations**
 
-사용자 요청을 자동으로 TODO list로 분해하고 순차 실행하는 시스템:
+다음 단계로 계획된 기능들:
 
-```
-사용자: "TypeScript로 REST API 만들어줘"
-    ↓
-Planning LLM → TODO List 자동 생성
-    ├─ ☐ 1. TypeScript 프로젝트 설정 조사
-    ├─ ☐ 2. Express.js 설치
-    ├─ ☐ 3. 라우트 구조 생성
-    ├─ ☐ 4. API 엔드포인트 구현
-    └─ ☐ 5. 테스트 코드 작성
-    ↓
-각 TODO 순차 실행
-    ├─ Docs Search Agent (선행)
-    ├─ LLM 실행 (Tools 사용)
-    └─ ✓ 완료
-    ↓
-Session에 진행 상황 저장
-```
+- 🎨 **Enhanced UI/UX**
+  - Tool 사용 내역 박스 표시
+  - 하단 상태바 (컨텍스트 사용률)
+  - ASCII 로고 및 Welcome 화면
+  - 실시간 진행 상황 시각화
 
-**주요 기능**:
-- 📋 TODO list 자동 생성 및 UI 표시
-- 🔍 Docs Search Agent (각 TODO 실행 전 문서 검색)
-- 🎯 실시간 진행 상황 추적
-- 💾 TODO 상태 저장/복구
+- 🔍 **Advanced Search & Context**
+  - Docs Search Agent Tool (multi-iteration bash 검색)
+  - 스마트 컨텍스트 우선순위 지정
+  - 프로젝트별 컨텍스트 자동 감지
 
-**Docs Search Agent Tool**:
-- LLM이 bash 명령어로 ~/.open-cli/docs 폴더 검색
-- Multi-iteration (최대 10회) 복잡한 검색 수행
-- 검색 결과 자동 요약
+- 🧪 **Testing & Quality**
+  - UI 자동화 테스트 통합
+  - 성능 벤치마크 시스템
+  - 코드 품질 메트릭 수집
 
-**UI 개선**:
-- Tool 사용 내역 박스 표시
-- 하단 상태바 (컨텍스트 사용률)
-- ASCII 로고 및 Welcome 화면
+- 📦 **Integration & Deployment**
+  - Docker 컨테이너 지원
+  - CI/CD 파이프라인 템플릿
+  - 플러그인 시스템 (확장 가능한 도구)
 
 ---
 
@@ -478,46 +481,49 @@ You: /docs search typescript
   - Fixes Harmony format 422 errors for gpt-oss-120b/20b models
   - Automatically adds content field to tool_calls messages
   - Full compatibility with all OpenAI-compatible models
+- ✅ **Plan-and-Execute Architecture** 🆕
+  - Auto-decompose user requests into TODO lists and execute sequentially
+  - Agent Loop with Context Gathering and Work Verification
+  - Dependency management and real-time progress tracking
+- ✅ **Multi-Layered Execution System** 🆕
+  - 4-layer support: Tool, Code-Gen, SubAgent, Skills
+  - Auto-select layer based on task complexity
+  - Parallel execution and result synthesis
+- ✅ **Internal Monologue & Scratchpad** 🆕
+  - Extended Thinking (Question Decomposition)
+  - Self-Evaluation and Plan Generation
+  - External Scratchpad (.md files) for TODO management
+- ✅ **TDD Workflow & Verification System** 🆕
+  - Auto test generation and execution
+  - 3 verification modes: Rule-based, Visual, LLM-as-Judge
+  - Automated Red-Green-Refactor cycle
 
-### 🚧 In Development (Phase 2.5)
+### 🚧 In Development (Phase 3)
 
-**Plan-and-Execute Architecture** (3-4 weeks estimated)
+**Advanced Features & Integrations**
 
-System that automatically decomposes user requests into TODO lists and executes sequentially:
+Planned features for next phase:
 
-```
-User: "Build REST API with TypeScript"
-    ↓
-Planning LLM → Auto-generate TODO List
-    ├─ ☐ 1. Research TypeScript project setup
-    ├─ ☐ 2. Install Express.js
-    ├─ ☐ 3. Create route structure
-    ├─ ☐ 4. Implement API endpoints
-    └─ ☐ 5. Write tests
-    ↓
-Execute each TODO sequentially
-    ├─ Docs Search Agent (pre-execution)
-    ├─ LLM execution (with Tools)
-    └─ ✓ Complete
-    ↓
-Save progress to Session
-```
+- 🎨 **Enhanced UI/UX**
+  - Tool usage display box
+  - Bottom status bar (context usage)
+  - ASCII logo and welcome screen
+  - Real-time progress visualization
 
-**Key Features**:
-- 📋 Auto-generate TODO list with UI display
-- 🔍 Docs Search Agent (search docs before each TODO)
-- 🎯 Real-time progress tracking
-- 💾 Save/restore TODO state
+- 🔍 **Advanced Search & Context**
+  - Docs Search Agent Tool (multi-iteration bash search)
+  - Smart context prioritization
+  - Auto-detect project-specific context
 
-**Docs Search Agent Tool**:
-- LLM searches ~/.open-cli/docs using bash commands
-- Multi-iteration (max 10) for complex searches
-- Auto-summarize search results
+- 🧪 **Testing & Quality**
+  - UI automation test integration
+  - Performance benchmark system
+  - Code quality metrics collection
 
-**UI Improvements**:
-- Tool usage display box
-- Bottom status bar (context usage)
-- ASCII logo and welcome screen
+- 📦 **Integration & Deployment**
+  - Docker container support
+  - CI/CD pipeline templates
+  - Plugin system (extensible tools)
 
 ---
 
@@ -564,5 +570,5 @@ MIT License
 
 ---
 
-**Version**: 0.2.0
-**Last Updated**: 2025-11-04
+**Version**: 0.3.0
+**Last Updated**: 2025-11-05

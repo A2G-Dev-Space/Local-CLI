@@ -330,7 +330,7 @@ export interface Task {
   requiresDynamicCode?: boolean;
   requiresSystemAccess?: boolean;
   requiresParallelism?: boolean;
-  requiresSkill?: boolean;
+  requiresSkill?: boolean | string;
   requiresBehaviorChange?: boolean;
   workflowComplexity?: 'low' | 'medium' | 'high';
   targetLanguage?: string;
@@ -792,9 +792,13 @@ export interface WorkOutput {
  * Verification rule for deterministic checking
  */
 export interface VerificationRule {
+  name: string;
   type: 'lint' | 'test' | 'build' | 'custom';
   description: string;
   testPattern?: string;
   command?: string;
   expectedOutput?: string | RegExp;
+  validator?: (output: any) => boolean;
+  failureMessage: string;
+  suggestions: string[];
 }

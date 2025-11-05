@@ -150,12 +150,13 @@ export class VisualVerifier {
 }
 
 export class VerificationSystem {
-  private ruleEngine: RuleEngine;
+  // @ts-expect-error - Reserved for future use
+  private _ruleEngine: RuleEngine;
   private visualVerifier: VisualVerifier;
   private llmJudge: LLMJudge;
 
   constructor(llmClient?: LLMClient) {
-    this.ruleEngine = new RuleEngine();
+    this._ruleEngine = new RuleEngine();
     this.visualVerifier = new VisualVerifier();
     this.llmJudge = llmClient ? new LLMJudge(llmClient) : new LLMJudge(null as any);
   }
@@ -374,7 +375,7 @@ export class VerificationSystem {
 }
 
 // Extend LLMJudge to add criterion evaluation
-declare module '../core/work-verifier' {
+declare module '../core/work-verifier.js' {
   interface LLMJudge {
     evaluateCriterion(work: WorkOutput, criterion: string): Promise<{
       passed: boolean;

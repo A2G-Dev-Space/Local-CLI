@@ -13,7 +13,6 @@ import {
   SubTaskResult,
   SynthesisRequest,
   SynthesisResult,
-  SubTaskDescription,
 } from '../types/index.js';
 import { LLMClient } from '../core/llm-client.js';
 import { EventEmitter } from 'events';
@@ -93,7 +92,7 @@ export class AgentPool extends EventEmitter {
       await new Promise(resolve => setTimeout(resolve, 100));
     }
 
-    const agentId = this.availableAgents.values().next().value;
+    const agentId = this.availableAgents.values().next().value as string;
     this.availableAgents.delete(agentId);
 
     const agent = this.agents.get(agentId)!;
@@ -453,7 +452,7 @@ Provide subtasks in JSON format:
 
   private async executeParallel(
     plan: ExecutionPlan,
-    agents: Agent[]
+    _agents: Agent[]
   ): Promise<SubTaskResult[]> {
     const results: SubTaskResult[] = [];
 

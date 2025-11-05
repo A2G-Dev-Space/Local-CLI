@@ -66,7 +66,7 @@ export class TestRunner {
 
       // Run tests with Jest
       try {
-        const { stdout, stderr } = await execAsync(
+        const { stdout } = await execAsync(
           `npx jest ${testDir} --json --testTimeout=10000`,
           {
             cwd: process.cwd(),
@@ -297,7 +297,8 @@ Provide the complete implementation.`;
 export class TDDWorkflow {
   private testRunner: TestRunner;
   private codeGenerator: CodeGenerator;
-  private verifier: WorkVerifier;
+  // @ts-expect-error - Reserved for future verification features
+  private _verifier: WorkVerifier;
 
   constructor(
     llmClient: LLMClient,
@@ -305,7 +306,7 @@ export class TDDWorkflow {
   ) {
     this.testRunner = new TestRunner();
     this.codeGenerator = new CodeGenerator(llmClient);
-    this.verifier = verifier || new WorkVerifier(llmClient);
+    this._verifier = verifier || new WorkVerifier(llmClient);
   }
 
   /**
