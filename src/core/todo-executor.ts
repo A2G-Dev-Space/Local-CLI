@@ -2,12 +2,14 @@
  * TODO Executor for Plan-and-Execute Architecture
  *
  * Executes TODO items sequentially with documentation search and LLM tools
+ * Now enhanced with Agent Loop methodology
  */
 
 import { LLMClient } from './llm-client.js';
-import { TodoItem, Message } from '../types/index.js';
+import { TodoItem, Message, TodoExecutionResult } from '../types/index.js';
 import { executeDocsSearchAgent } from './docs-search-agent.js';
 import { FILE_TOOLS } from '../tools/file-tools.js';
+import { AgentLoopController } from './agent-loop.js';
 
 /**
  * Callback type for TODO updates
@@ -21,13 +23,47 @@ export type TodoUpdateCallback = (todo: TodoItem) => void;
 export class TodoExecutor {
   private llmClient: LLMClient;
   private onTodoUpdate?: TodoUpdateCallback;
+  private agentLoopController?: AgentLoopController;
 
   constructor(
     llmClient: LLMClient,
-    onTodoUpdate?: TodoUpdateCallback
+    onTodoUpdate?: TodoUpdateCallback,
+    useAgentLoop: boolean = false
   ) {
     this.llmClient = llmClient;
     this.onTodoUpdate = onTodoUpdate;
+
+    if (useAgentLoop) {
+      this.agentLoopController = new AgentLoopController(
+        llmClient,
+        FILE_TOOLS,
+        {
+          verbose: true,
+          enableLLMJudge: true,
+          maxIterations: 5
+        }
+      );
+    }
+  }
+
+  /**
+   * Execute single TODO with Agent Loop (if enabled)
+   */
+  async executeTodoWithAgentLoop(
+    todo: TodoItem,
+    messages: Message[]
+  ): Promise<TodoExecutionResult> {
+    if (!this.agentLoopController) {
+      throw new Error('Agent Loop Controller not initialized');
+    }
+
+    return await this.agentLoopController.executeTodoWithLoop(
+      todo,
+      messages,
+      (update) => {
+        console.log(`🔄 Agent Loop Progress - Iteration ${update.iteration}: ${update.action}`);
+      }
+    );
   }
 
   /**

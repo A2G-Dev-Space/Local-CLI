@@ -70,6 +70,27 @@ export interface LLMRequestOptions {
 }
 
 /**
+ * LLM Response
+ */
+export interface LLMResponse {
+  choices: {
+    message: {
+      role: 'assistant' | 'system' | 'user';
+      content: string;
+      tool_calls?: ToolCall[];
+    };
+    finish_reason: 'stop' | 'length' | 'tool_calls' | 'function_call';
+    index?: number;
+  }[];
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
+  model?: string;
+}
+
+/**
  * Tool 정의
  */
 export interface ToolDefinition {
@@ -186,3 +207,123 @@ export interface PlanningResult {
  * TODO status type
  */
 export type TodoStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
+
+/**
+ * Agent Loop Context for Claude Code methodology
+ */
+export interface LoopContext {
+  currentTodo: TodoItem;
+  previousResults: ExecutionResult[];
+  fileSystemContext: FileSystemContext;
+  projectConfig?: ProjectConfig;
+  feedback: VerificationFeedback[];
+  iteration?: number;
+  failureAnalysis?: FailureAnalysis;
+}
+
+/**
+ * Execution result from Agent Loop action
+ */
+export interface ExecutionResult {
+  action: string;
+  toolName?: string;
+  output: any;
+  success: boolean;
+  error?: Error;
+  timestamp: string;
+}
+
+/**
+ * Verification feedback for work validation
+ */
+export interface VerificationFeedback {
+  rule: string;
+  passed: boolean;
+  message: string;
+  severity: 'info' | 'warning' | 'error';
+  suggestions?: string[];
+}
+
+/**
+ * File system exploration context
+ */
+export interface FileSystemContext {
+  structure?: string;
+  relevantFiles?: string[];
+  relevantMentions?: string;
+  currentDirectory?: string;
+}
+
+/**
+ * Project configuration from OPEN_CLI.md
+ */
+export interface ProjectConfig {
+  name?: string;
+  description?: string;
+  rules?: string[];
+  dependencies?: string[];
+  testCommand?: string;
+  buildCommand?: string;
+}
+
+/**
+ * Failure analysis from previous iterations
+ */
+export interface FailureAnalysis {
+  commonPatterns: string[];
+  suggestedFixes: string[];
+  rootCause?: string;
+}
+
+/**
+ * Verification result from Work Verifier
+ */
+export interface VerificationResult {
+  isComplete: boolean;
+  feedback: VerificationFeedback[];
+  summary: string;
+  nextStepSuggestions?: string[];
+}
+
+/**
+ * TODO execution result with Agent Loop
+ */
+export interface TodoExecutionResult {
+  success: boolean;
+  result?: any;
+  error?: string;
+  iterations: number;
+  verificationReport?: VerificationResult;
+  lastVerification?: VerificationFeedback;
+}
+
+/**
+ * Action plan from LLM
+ */
+export interface ActionPlan {
+  description: string;
+  toolName?: string;
+  parameters?: Record<string, any>;
+  reasoning?: string;
+}
+
+/**
+ * Progress update for UI
+ */
+export interface ProgressUpdate {
+  iteration: number;
+  action: string;
+  verification?: VerificationResult;
+  willRetry: boolean;
+}
+
+/**
+ * Verification rule for deterministic checking
+ */
+export interface VerificationRule {
+  type: 'lint' | 'test' | 'build' | 'custom';
+  description: string;
+  testPattern?: string;
+  command?: string;
+  expectedOutput?: string | RegExp;
+}
