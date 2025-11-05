@@ -1,22 +1,21 @@
 # TEST_SCENARIO.md
 
-**OPEN-CLI 테스트 시나리오 문서**
+**OPEN-CLI 실사용 테스트 시나리오**
 
 작성일: 2025-11-05
-버전: 0.3.0
+버전: 3.0.0
 
 ---
 
 ## 📋 목차
 
 1. [환경 설정](#환경-설정)
-2. [기본 기능 테스트](#기본-기능-테스트)
-3. [Plan-and-Execute 테스트](#plan-and-execute-테스트)
-4. [Multi-Layered Execution 테스트](#multi-layered-execution-테스트)
-5. [Internal Monologue 테스트](#internal-monologue-테스트)
-6. [TDD Workflow 테스트](#tdd-workflow-테스트)
-7. [통합 테스트](#통합-테스트)
-8. [성능 테스트](#성능-테스트)
+2. [기본 사용 시나리오](#기본-사용-시나리오)
+3. [파일 작업 시나리오](#파일-작업-시나리오)
+4. [Plan-Execute 모드 시나리오](#plan-execute-모드-시나리오)
+5. [세션 관리 시나리오](#세션-관리-시나리오)
+6. [고급 사용 시나리오](#고급-사용-시나리오)
+7. [문제 해결](#문제-해결)
 
 ---
 
@@ -25,892 +24,767 @@
 ### 사전 요구사항
 
 ```bash
-# Node.js 버전 확인
-node --version  # v20 이상 필요
+# Node.js 버전 확인 (v20 이상 필요)
+node --version
 
-# 프로젝트 클론
-git clone https://github.com/A2G-Dev-Space/Open-Code-CLI.git
-cd Open-Code-CLI
-
-# 의존성 설치
-npm install
-
-# 빌드
-npm run build
+# OPEN-CLI 설치 확인
+open --version
 ```
 
-### 테스트 환경 확인
+**처음 사용하는 경우:**
 
 ```bash
-# 단위 테스트 실행
-npm test
+# 1. 초기 설정 (대화형)
+open config init
 
-# 빌드 확인
-npm run build
+# 프롬프트 예시:
+? 엔드포인트 이름: My LLM Server
+? Base URL: https://your-llm-server.com/v1/
+? API Key (선택사항): [Enter your API key or press Enter to skip]
+? Model ID: gemini-2.0-flash
+? Model 이름: Gemini Flash
+? Max Tokens: 1048576
 
-# 설정 파일 초기화
-rm -rf ~/.open-cli  # 기존 설정 삭제 (선택사항)
+# 연결 테스트 성공 메시지 확인
+✅ 초기화 완료!
 ```
 
 ---
 
-## 기본 기능 테스트
+## 기본 사용 시나리오
 
-### 1. 초기 설정 테스트
+### 시나리오 1: 첫 대화 시작하기
 
-**목적**: CLI 초기 설정이 정상적으로 작동하는지 확인
-
-**테스트 단계**:
+**목적**: OPEN-CLI를 처음 실행하고 간단한 대화를 나누기
 
 ```bash
-# 1. 초기화 명령 실행
-node dist/cli.js config init
+# Interactive 모드 시작
+$ open
 
-# 예상 출력:
-# 🚀 OPEN-CLI 초기화
-# ? 엔드포인트 이름: [입력 대기]
+# 예상 화면:
+╔════════════════════════════════════════════════╗
+║        OPEN-CLI Interactive Mode (Ink UI)      ║
+╚════════════════════════════════════════════════╝
+
+Model: gemini-2.0-flash
+Endpoint: My LLM Server
+Commands: /exit /clear /help | Ctrl+C to quit
+
+🧑 You: _
 ```
 
-**입력 값**:
-- 엔드포인트 이름: `Test LLM Server`
-- Base URL: `https://your-llm-server.com/v1/`
-- API Key: (선택사항, 비워두기)
-- Model ID: `gpt-4`
-- Model 이름: `GPT-4`
-- Max Tokens: `8192`
+**테스트 대화:**
 
-**성공 조건**:
-- ✅ 설정 파일 생성 확인: `~/.open-cli/config.json` 파일 존재
-- ✅ 엔드포인트 정보가 올바르게 저장됨
-- ✅ 연결 테스트 성공 메시지 출력
+```
+🧑 You: 안녕하세요! OPEN-CLI가 무엇인가요?
 
-**실패 시 조치**:
-- 네트워크 연결 확인
-- LLM 서버 URL 및 API 키 재확인
-- 로그 파일 확인: `~/.open-cli/logs/`
+[LLM 응답 스트리밍 중...]
+
+🤖 Assistant: 안녕하세요! OPEN-CLI는 오프라인 환경에서 사용할 수
+있는 로컬 LLM CLI 도구입니다. 인터넷 없이 기업 내부의 LLM 서버와
+연결하여 AI 기능을 활용할 수 있습니다.
+
+주요 기능:
+- 파일 읽기/쓰기
+- 코드 생성 및 수정
+- 프로젝트 분석
+- TODO 리스트 관리
+
+무엇을 도와드릴까요?
+
+🧑 You: _
+```
+
+**성공 조건:**
+- ✅ UI가 정상적으로 표시됨
+- ✅ 사용자 입력이 가능함
+- ✅ LLM 응답이 스트리밍으로 표시됨
+- ✅ 대화가 자연스럽게 이어짐
 
 ---
 
-### 2. 설정 확인 테스트
+### 시나리오 2: 메타 명령어 사용하기
 
-**목적**: 저장된 설정을 올바르게 불러오는지 확인
+**목적**: /help, /clear, /exit 등 메타 명령어 테스트
 
-```bash
-# 설정 보기
-node dist/cli.js config show
+```
+🧑 You: /help
 
-# 예상 출력:
-# 📋 현재 설정
-#
-# 엔드포인트: Test LLM Server
-# Base URL: https://your-llm-server.com/v1/
-# Model: GPT-4 (gpt-4)
-# Max Tokens: 8192
+🤖 System:
+사용 가능한 메타 명령어:
+  /exit             - 종료
+  /clear            - 대화 초기화
+  /save [name]      - 현재 세션 저장
+  /load             - 저장된 세션 불러오기
+  /sessions         - 세션 목록 보기
+  /endpoint         - 엔드포인트 전환
+  /docs [keyword]   - 로컬 문서 검색
+  /help             - 도움말 표시
+
+🧑 You: /clear
+
+🤖 System: 대화가 초기화되었습니다.
+
+🧑 You: /exit
+
+# 프로그램 종료
 ```
 
-**성공 조건**:
-- ✅ 모든 설정 항목이 정확하게 표시됨
-- ✅ JSON 형식이 올바름
+**성공 조건:**
+- ✅ 모든 메타 명령어가 정상 작동
+- ✅ /clear 후 대화 히스토리가 초기화됨
+- ✅ /exit로 정상 종료
 
 ---
 
-### 3. 파일 시스템 도구 테스트
+## 파일 작업 시나리오
 
-**목적**: LLM이 파일을 읽고 쓸 수 있는지 확인
+### 시나리오 3: 파일 읽기
 
-**테스트 파일 준비**:
+**목적**: LLM이 파일을 자동으로 읽는지 테스트
+
+**준비:**
 ```bash
-# 테스트용 파일 생성
+# 테스트 파일 생성
 echo "Hello, OPEN-CLI!" > test.txt
 ```
 
-**테스트 시나리오**:
-
-#### 3-1. 파일 읽기
+**테스트:**
 ```bash
-# 대화형 모드 시작
-node dist/cli.js
+$ open
 
-# 프롬프트 입력
-You: test.txt 파일의 내용을 읽어줘
-```
+🧑 You: test.txt 파일의 내용을 알려주세요
 
-**예상 동작**:
-```
-🔧 Tool: read_file(file_path="test.txt")
+[LLM이 자동으로 read_file 도구 사용]
+
+🔧 Tool Call: read_file
+📁 file_path: test.txt
 
 🤖 Assistant: test.txt 파일의 내용은 "Hello, OPEN-CLI!" 입니다.
+
+🧑 You: _
 ```
 
-**성공 조건**:
-- ✅ `read_file` 도구가 자동으로 호출됨
+**성공 조건:**
+- ✅ LLM이 자동으로 read_file 도구를 호출
 - ✅ 파일 내용이 정확하게 읽힘
-- ✅ 응답이 자연스러움
-
-#### 3-2. 파일 쓰기
-```bash
-You: "OPEN-CLI is awesome!" 내용으로 awesome.txt 파일을 만들어줘
-```
-
-**예상 동작**:
-```
-🔧 Tool: write_file(file_path="awesome.txt", content="OPEN-CLI is awesome!")
-
-🤖 Assistant: awesome.txt 파일을 생성했습니다.
-```
-
-**검증**:
-```bash
-cat awesome.txt
-# 출력: OPEN-CLI is awesome!
-```
-
-**성공 조건**:
-- ✅ `write_file` 도구가 자동으로 호출됨
-- ✅ 파일이 올바른 내용으로 생성됨
-- ✅ 파일 권한이 적절함
-
-#### 3-3. 파일 검색
-```bash
-You: 현재 디렉토리에서 *.txt 파일을 모두 찾아줘
-```
-
-**예상 동작**:
-```
-🔧 Tool: find_files(pattern="*.txt", directory_path=".")
-
-🤖 Assistant: 다음 .txt 파일들을 찾았습니다:
-- test.txt
-- awesome.txt
-```
-
-**성공 조건**:
-- ✅ `find_files` 도구가 자동으로 호출됨
-- ✅ 모든 .txt 파일이 검색됨
-- ✅ 경로가 정확함
+- ✅ 도구 사용이 UI에 표시됨
 
 ---
 
-### 4. 세션 저장/복구 테스트
+### 시나리오 4: 파일 생성 및 수정
 
-**목적**: 대화 세션을 저장하고 불러올 수 있는지 확인
+**목적**: LLM이 파일을 생성하고 수정할 수 있는지 테스트
 
-**테스트 단계**:
+```
+🧑 You: hello.py 파일을 만들어주세요. 내용은 "print('Hello, World!')" 로 해주세요.
 
+🔧 Tool Call: write_file
+📁 file_path: hello.py
+📝 content: print('Hello, World!')
+
+🤖 Assistant: hello.py 파일을 생성했습니다.
+파이썬을 실행하면 "Hello, World!"가 출력됩니다.
+
+🧑 You: 이제 "Hello, OPEN-CLI!"로 바꿔주세요
+
+🔧 Tool Call: write_file
+📁 file_path: hello.py
+📝 content: print('Hello, OPEN-CLI!')
+
+🤖 Assistant: hello.py 파일의 내용을 업데이트했습니다.
+
+🧑 You: _
+```
+
+**검증:**
 ```bash
-# 1. 대화 시작
-You: 안녕하세요!
-🤖 Assistant: 안녕하세요! 무엇을 도와드릴까요?
+# 별도 터미널에서 확인
+$ cat hello.py
+print('Hello, OPEN-CLI!')
 
-You: TypeScript에 대해 알려주세요
-🤖 Assistant: TypeScript는... [응답]
-
-# 2. 세션 저장
-You: /save typescript-session
-
-# 예상 출력:
-# ✅ 세션 저장 완료: typescript-session
-
-# 3. 대화 종료
-You: /exit
-
-# 4. 새로운 세션 시작 후 불러오기
-node dist/cli.js
-
-You: /load
-# ? 불러올 세션 선택:
-#   > typescript-session
-#   [선택]
-
-# 예상: 이전 대화 내역이 복원됨
+$ python hello.py
+Hello, OPEN-CLI!
 ```
 
-**성공 조건**:
-- ✅ 세션이 `~/.open-cli/sessions/` 디렉토리에 저장됨
-- ✅ 불러온 세션의 대화 내역이 정확함
-- ✅ 컨텍스트가 유지됨
+**성공 조건:**
+- ✅ 파일이 정확하게 생성됨
+- ✅ 파일 수정이 제대로 반영됨
+- ✅ 생성된 코드가 실행 가능함
 
 ---
 
-## Plan-and-Execute 테스트
+### 시나리오 5: 파일 검색
 
-### 5. TODO 리스트 자동 생성 테스트
+**목적**: 프로젝트 내 파일을 검색하는 시나리오
 
-**목적**: 복잡한 작업을 자동으로 TODO로 분해하는지 확인
+```
+🧑 You: 현재 디렉토리에서 .js 파일을 모두 찾아주세요
 
-**테스트 시나리오**:
+🔧 Tool Call: find_files
+📁 pattern: *.js
+📂 directory_path: .
 
-```typescript
-// 테스트 코드 (test/integration/plan-execute.test.ts)
-import { PlanningLLM } from '../src/core/planning-llm';
-import { LLMClient } from '../src/core/llm-client';
+🤖 Assistant: 다음 JavaScript 파일들을 찾았습니다:
+- src/cli.js
+- src/core/llm-client.js
+- src/core/config-manager.js
+... (총 32개 파일)
 
-describe('Plan-and-Execute Architecture', () => {
-  it('should decompose task into TODO list', async () => {
-    const userRequest = "TypeScript로 간단한 REST API 서버를 만들어줘";
+🧑 You: src 폴더에서만 찾아주세요
 
-    const planner = new PlanningLLM(llmClient);
-    const result = await planner.plan(userRequest);
+🔧 Tool Call: find_files
+📁 pattern: *.js
+📂 directory_path: src
 
-    // 검증
-    expect(result.todos.length).toBeGreaterThan(0);
-    expect(result.todos[0]).toHaveProperty('title');
-    expect(result.todos[0]).toHaveProperty('description');
-    expect(result.todos[0]).toHaveProperty('status', 'pending');
-  });
-});
+🤖 Assistant: src 폴더에서 다음 파일들을 찾았습니다:
+- src/cli.js
+- src/core/llm-client.js
+... (총 28개 파일)
+
+🧑 You: _
 ```
 
-**성공 조건**:
-- ✅ TODO 리스트가 생성됨
-- ✅ 각 TODO에 title, description, status가 있음
-- ✅ 의존성이 올바르게 설정됨
+**성공 조건:**
+- ✅ 패턴 매칭이 정확함
+- ✅ 디렉토리 범위 지정이 작동함
+- ✅ 검색 결과가 정확함
 
 ---
 
-### 6. Agent Loop 실행 테스트
+## Plan-Execute 모드 시나리오
 
-**목적**: TODO가 순차적으로 실행되고 검증되는지 확인
+### 시나리오 6: 복잡한 작업 자동 분해
 
-**테스트 시나리오**:
-
-```typescript
-import { AgentLoopController } from '../src/core/agent-loop';
-
-describe('Agent Loop Execution', () => {
-  it('should execute TODO with verification', async () => {
-    const todo = {
-      id: 'test-1',
-      title: '간단한 파일 생성',
-      description: 'hello.txt 파일을 "Hello World" 내용으로 생성',
-      status: 'pending',
-      requiresDocsSearch: false,
-      dependencies: []
-    };
-
-    const controller = new AgentLoopController(llmClient, workVerifier);
-    const result = await controller.executeTodoWithLoop(todo, context);
-
-    // 검증
-    expect(result.success).toBe(true);
-    expect(result.iterations).toBeLessThanOrEqual(5);
-  });
-});
-```
-
-**성공 조건**:
-- ✅ TODO가 성공적으로 실행됨
-- ✅ Work Verifier가 작업을 검증함
-- ✅ 최대 반복 횟수 내에 완료됨
-- ✅ 실패 시 재시도 로직이 작동함
-
----
-
-### 7. Context Gathering 테스트
-
-**목적**: 파일 시스템 탐색 및 컨텍스트 수집이 작동하는지 확인
-
-**테스트 시나리오**:
+**목적**: 복잡한 요청을 자동으로 TODO 리스트로 분해하고 실행
 
 ```bash
-# 테스트 프로젝트 구조 생성
-mkdir -p test-project/src
-echo "export const hello = 'world';" > test-project/src/index.ts
-echo "# Test Project" > test-project/README.md
+$ open
 
-# Context Gatherer 테스트
-node dist/cli.js
-You: test-project 디렉토리의 구조를 파악하고 요약해줘
+🧑 You: TypeScript로 간단한 TODO CLI 앱을 만들어주세요.
+파일 저장/불러오기 기능도 포함해서요.
+
+[Plan-Execute 모드 자동 활성화]
+
+╔════════════════════════════════════════╗
+║   OPEN-CLI Plan-and-Execute Mode      ║
+╚════════════════════════════════════════╝
+
+📋 Planning... (TODO 리스트 생성 중)
+
+✅ TODO List Generated:
+
+┌─ TODO List ─────────────────────────────┐
+│                                          │
+│ ✓ 1. TypeScript 프로젝트 구조 생성      │
+│ ⟳ 2. package.json 및 tsconfig.json 생성 │ [IN PROGRESS]
+│ ○ 3. TODO 데이터 타입 정의              │
+│ ○ 4. 파일 저장/불러오기 모듈 구현       │
+│ ○ 5. CLI 메인 로직 구현                 │
+│ ○ 6. 테스트 코드 작성                   │
+│                                          │
+│ Progress: 1/6 completed (17%)            │
+└──────────────────────────────────────────┘
+
+┌─ Agent Loop Execution ──────────────────┐
+│                                          │
+│ TODO: package.json 및 tsconfig.json 생성 │
+│                                          │
+│ Iteration: 2/10 (20%)                    │
+│                                          │
+│ ● EXECUTING...                           │
+│                                          │
+│ Action: Creating package.json file       │
+│                                          │
+│ Recent Actions:                          │
+│ • Created project directory              │
+│ • Initialized Git repository             │
+│ • Writing package.json                   │
+│                                          │
+└──────────────────────────────────────────┘
+
+[Status Bar]
+─────────────────────────────────────────────
+● EXECUTING | Working on: package.json
+Endpoint: My LLM Server | Model: gemini-2.0-flash
+Context: 45% (2340/5000)
+─────────────────────────────────────────────
+
+[자동으로 각 TODO 순차 실행...]
+
+✅ All tasks completed!
+
+🧑 You: _
 ```
 
-**예상 동작**:
-```
-🔍 Context Gathering...
-  - 디렉토리 구조 분석
-  - 관련 파일 검색
-  - 컨텍스트 요약
-
-🤖 Assistant: test-project는 다음과 같은 구조입니다:
-- src/index.ts: TypeScript 소스 파일
-- README.md: 프로젝트 설명 파일
-```
-
-**성공 조건**:
-- ✅ 디렉토리 구조가 올바르게 분석됨
-- ✅ 관련 파일이 검색됨
-- ✅ 컨텍스트가 요약됨
-
----
-
-## Multi-Layered Execution 테스트
-
-### 8. 계층 선택 테스트
-
-**목적**: 작업 복잡도에 따라 올바른 계층이 선택되는지 확인
-
-**테스트 케이스**:
-
-#### 8-1. Tool Layer (단순 작업)
-```typescript
-const simpleTask = {
-  id: 'task-1',
-  description: 'package.json 파일 읽기',
-  complexity: 'simple',
-  requiresTools: ['read_file']
-};
-
-// 예상: ToolLayer 선택
-```
-
-#### 8-2. Code-Gen Layer (코드 생성)
-```typescript
-const codeGenTask = {
-  id: 'task-2',
-  description: 'fibonacci 함수를 TypeScript로 구현',
-  complexity: 'moderate',
-  requiresDynamicCode: true,
-  targetLanguage: 'typescript'
-};
-
-// 예상: CodeGenLayer 선택
-```
-
-#### 8-3. SubAgent Layer (병렬 작업)
-```typescript
-const parallelTask = {
-  id: 'task-3',
-  description: 'REST API의 여러 엔드포인트를 동시에 구현',
-  complexity: 'complex',
-  requiresParallelism: true,
-  subtasks: [
-    { description: 'GET /users 엔드포인트' },
-    { description: 'POST /users 엔드포인트' },
-    { description: 'DELETE /users/:id 엔드포인트' }
-  ]
-};
-
-// 예상: SubAgentLayer 선택, 병렬 실행
-```
-
-#### 8-4. Skills Layer (행동 변경)
-```typescript
-const skillTask = {
-  id: 'task-4',
-  description: '코드 리뷰 수행',
-  complexity: 'meta',
-  requiresSkill: 'code-reviewer'
-};
-
-// 예상: SkillsLayer 선택, code-reviewer 스킬 적용
-```
-
-**성공 조건**:
-- ✅ 각 작업에 적절한 계층이 선택됨
-- ✅ 계층 간 전환이 원활함
-- ✅ 결과가 정확함
-
----
-
-### 9. 병렬 실행 테스트
-
-**목적**: SubAgent 계층이 작업을 병렬로 실행하는지 확인
-
-**테스트 시나리오**:
-
-```typescript
-import { SubAgentLayer } from '../src/execution/subagent-layer';
-
-describe('SubAgent Parallel Execution', () => {
-  it('should execute subtasks in parallel', async () => {
-    const task = {
-      id: 'parallel-test',
-      description: '3개의 파일을 동시에 생성',
-      complexity: 'complex',
-      requiresParallelism: true,
-      subtasks: [
-        { description: 'file1.txt 생성' },
-        { description: 'file2.txt 생성' },
-        { description: 'file3.txt 생성' }
-      ]
-    };
-
-    const startTime = Date.now();
-    const layer = new SubAgentLayer(llmClient);
-    const result = await layer.execute(task);
-    const executionTime = Date.now() - startTime;
-
-    // 검증
-    expect(result.success).toBe(true);
-    expect(result.parallelism).toBeGreaterThan(1);
-    // 병렬 실행이므로 순차 실행보다 빨라야 함
-  });
-});
-```
-
-**성공 조건**:
-- ✅ 작업이 병렬로 실행됨
-- ✅ 실행 시간이 순차 실행보다 짧음
-- ✅ 모든 서브태스크 결과가 합성됨
-- ✅ 의존성이 있는 작업은 순서대로 실행됨
-
----
-
-## Internal Monologue 테스트
-
-### 10. Extended Thinking 테스트
-
-**목적**: Question Decomposition이 작동하는지 확인
-
-**테스트 시나리오**:
-
-```typescript
-import { InternalMonologue } from '../src/core/internal-monologue';
-
-describe('Internal Monologue System', () => {
-  it('should perform extended thinking', async () => {
-    const context = {
-      task: '효율적인 REST API를 설계하는 방법',
-      context: loopContext,
-      background: 'TypeScript와 Express.js 사용'
-    };
-
-    const monologue = new InternalMonologue(llmClient, 'extended');
-    const session = await monologue.think(context);
-
-    // 검증
-    expect(session.thoughts.length).toBeGreaterThan(0);
-    expect(session.questions.length).toBeGreaterThan(0);
-    expect(session.evaluations.length).toBeGreaterThan(0);
-    expect(session.finalPlan).toBeDefined();
-  });
-});
-```
-
-**성공 조건**:
-- ✅ 작업이 여러 질문으로 분해됨
-- ✅ 각 질문에 대한 답변이 생성됨
-- ✅ 옵션들이 평가됨
-- ✅ 최종 계획이 합성됨
-
----
-
-### 11. Scratchpad 관리 테스트
-
-**목적**: 외부 Scratchpad 파일로 TODO를 관리하는지 확인
-
-**테스트 시나리오**:
-
-```typescript
-import { Scratchpad } from '../src/core/scratchpad';
-
-describe('Scratchpad System', () => {
-  it('should manage TODO list in markdown', async () => {
-    const scratchpad = new Scratchpad('./test-project');
-
-    // TODO 추가
-    await scratchpad.addTodo('파일 생성', '테스트 파일 생성');
-    await scratchpad.addTodo('테스트 실행', '단위 테스트 실행');
-
-    // 파일 확인
-    const content = await scratchpad.getContent();
-
-    // 검증
-    expect(content.sections).toHaveLength(1);
-    expect(content.sections[0].type).toBe('todo-list');
-    expect(content.sections[0].items).toHaveLength(2);
-  });
-});
-```
-
-**검증**:
-```bash
-# Scratchpad 파일 확인
-cat ./test-project/.open-cli/scratchpad.md
-
-# 예상 내용:
-# # OPEN-CLI Scratchpad
-#
-# ## TODO List
-#
-# - [ ] 파일 생성 - 테스트 파일 생성
-# - [ ] 테스트 실행 - 단위 테스트 실행
-```
-
-**성공 조건**:
-- ✅ Scratchpad 파일이 생성됨
-- ✅ TODO가 마크다운 형식으로 저장됨
-- ✅ 상태 업데이트가 반영됨
-
----
-
-## TDD Workflow 테스트
-
-### 12. 자동 테스트 생성 테스트
-
-**목적**: 요구사항으로부터 테스트 코드가 자동 생성되는지 확인
-
-**테스트 시나리오**:
-
-```typescript
-import { TDDWorkflow } from '../src/workflows/tdd-workflow';
-
-describe('TDD Workflow', () => {
-  it('should generate tests from requirements', async () => {
-    const request = {
-      requirement: '숫자 배열의 합을 계산하는 sum 함수',
-      testFramework: 'jest',
-      language: 'typescript'
-    };
-
-    const workflow = new TDDWorkflow(llmClient);
-    const result = await workflow.execute(request);
-
-    // 검증
-    expect(result.success).toBe(true);
-    expect(result.session.tests.length).toBeGreaterThan(0);
-    expect(result.finalImplementation).toBeDefined();
-  });
-});
-```
-
-**예상 생성 테스트**:
-```typescript
-describe('sum', () => {
-  it('should return 0 for empty array', () => {
-    expect(sum([])).toBe(0);
-  });
-
-  it('should return sum of positive numbers', () => {
-    expect(sum([1, 2, 3])).toBe(6);
-  });
-
-  it('should handle negative numbers', () => {
-    expect(sum([-1, -2, -3])).toBe(-6);
-  });
-});
-```
-
-**성공 조건**:
-- ✅ 테스트 케이스가 자동 생성됨
-- ✅ Edge case가 포함됨
-- ✅ 테스트가 실행 가능함
-
----
-
-### 13. Red-Green-Refactor 사이클 테스트
-
-**목적**: TDD 사이클이 자동으로 실행되는지 확인
-
-**테스트 시나리오**:
-
-```typescript
-describe('TDD Workflow - Red-Green-Refactor', () => {
-  it('should follow Red-Green-Refactor cycle', async () => {
-    const request = {
-      requirement: 'fibonacci 수를 계산하는 함수',
-      testFramework: 'jest',
-      language: 'typescript',
-      maxIterations: 5
-    };
-
-    const workflow = new TDDWorkflow(llmClient);
-    const result = await workflow.execute(request);
-
-    // 검증
-    expect(result.session.iterations.length).toBeGreaterThan(0);
-
-    // 첫 번째 반복: RED (테스트 실패)
-    const firstIteration = result.session.iterations[0];
-    expect(firstIteration.testResult.passed).toBe(0);
-
-    // 마지막 반복: GREEN (테스트 통과)
-    const lastIteration = result.session.iterations[result.session.iterations.length - 1];
-    expect(lastIteration.testResult.passed).toBeGreaterThan(0);
-    expect(lastIteration.testResult.failed).toBe(0);
-  });
-});
-```
-
-**성공 조건**:
-- ✅ Red 단계: 테스트가 실패함
-- ✅ Green 단계: 구현 후 테스트가 통과함
-- ✅ Refactor 단계: 코드가 개선됨
-- ✅ 최대 반복 횟수 내에 완료됨
-
----
-
-### 14. Verification System 테스트
-
-**목적**: 3가지 검증 모드가 작동하는지 확인
-
-#### 14-1. Rule-based Verification
-```typescript
-const rule = {
-  name: 'lint-check',
-  type: 'lint',
-  description: 'ESLint 검사',
-  command: 'npm run lint',
-  failureMessage: 'Linting 오류 발견',
-  suggestions: ['ESLint 오류를 수정하세요']
-};
-
-const outcome = await verifier.verifyRules(work, [rule]);
-expect(outcome[0].passed).toBe(true);
-```
-
-#### 14-2. Visual Verification (UI 테스트)
-```typescript
-const visualCriteria = {
-  url: 'http://localhost:3000',
-  expectedElements: ['#header', '.main-content', 'footer']
-};
-
-const outcome = await verifier.verifyVisual(work, visualCriteria);
-expect(outcome.allFound).toBe(true);
-```
-
-#### 14-3. LLM-as-Judge
-```typescript
-const fuzzyC criteria = [
-  '코드가 읽기 쉽고 유지보수 가능한가?',
-  '적절한 주석이 포함되어 있는가?'
-];
-
-const outcome = await verifier.verifyWithLLM(work, fuzzyCriteria);
-expect(outcome.every(o => o.passed)).toBe(true);
-```
-
-**성공 조건**:
-- ✅ Rule-based: 명확한 규칙이 정확히 검증됨
-- ✅ Visual: UI 요소가 올바르게 감지됨
-- ✅ LLM-as-Judge: 모호한 기준이 합리적으로 평가됨
-
----
-
-## 통합 테스트
-
-### 15. End-to-End 테스트
-
-**목적**: 전체 워크플로우가 통합되어 작동하는지 확인
-
-**시나리오: TypeScript 프로젝트 생성**
-
-```bash
-# 1. OPEN-CLI 시작
-node dist/cli.js
-
-# 2. 복잡한 요청
-You: TypeScript로 간단한 TODO 앱 CLI를 만들어줘. 파일 저장/불러오기 기능과 테스트 코드도 포함해서.
-
-# 예상 동작:
-# 1. Plan-and-Execute가 TODO 리스트 생성
-#    - ☐ 프로젝트 구조 생성
-#    - ☐ TypeScript 설정
-#    - ☐ TODO 관리 모듈 구현
-#    - ☐ 파일 저장/불러오기 구현
-#    - ☐ 테스트 코드 작성
-#
-# 2. Multi-Layered Execution이 적절한 계층 선택
-#    - Tool Layer: 파일 생성
-#    - Code-Gen Layer: 코드 구현
-#    - TDD Layer: 테스트 작성
-#
-# 3. Internal Monologue가 각 TODO에 대해 사고
-#    - 질문 분해: "어떤 파일 구조가 좋을까?"
-#    - 옵션 평가: "JSON vs 텍스트 파일"
-#    - 계획 수립: "단계별 구현 순서"
-#
-# 4. TDD Workflow가 테스트 먼저 작성
-#    - Red: 테스트 작성 (실패)
-#    - Green: 구현 (통과)
-#    - Refactor: 개선
-#
-# 5. Verification이 각 단계 검증
-#    - Rule-based: 빌드 성공
-#    - LLM-as-Judge: 코드 품질
-```
-
-**검증 포인트**:
-1. ✅ TODO 리스트가 자동 생성됨
-2. ✅ 각 TODO가 순차적으로 실행됨
-3. ✅ 파일이 올바르게 생성됨
-4. ✅ 테스트 코드가 포함됨
-5. ✅ 모든 테스트가 통과함
-6. ✅ 프로젝트가 정상 작동함
-
-**최종 확인**:
+**성공 조건:**
+- ✅ TODO 리스트가 자동 생성됨
+- ✅ UI에 진행 상황이 실시간 표시됨
+- ✅ 각 TODO가 순차적으로 실행됨
+- ✅ 모든 파일이 정확하게 생성됨
+- ✅ 최종 프로젝트가 실행 가능함
+
+**검증:**
 ```bash
 # 생성된 프로젝트 확인
-cd todo-cli
-npm install
-npm test    # 모든 테스트 통과
-npm start   # 정상 실행
+$ cd todo-cli
+$ npm install
+$ npm run build
+$ npm start
+
+# 정상 작동 확인
+TODO CLI >
 ```
 
 ---
 
-### 16. 장시간 실행 테스트
+### 시나리오 7: 의존성이 있는 TODO 실행
 
-**목적**: 메모리 누수 및 안정성 확인
+**목적**: TODO 간 의존성 관리가 제대로 작동하는지 테스트
 
-**테스트 시나리오**:
+```
+🧑 You: REST API 서버를 만들어주세요. Express.js를 사용하고,
+GET /users, POST /users, DELETE /users/:id 엔드포인트를
+만들어주세요. 각각에 대한 테스트도 포함해주세요.
+
+[Plan-Execute 모드]
+
+✅ TODO List Generated:
+
+┌─ TODO List ─────────────────────────────┐
+│                                          │
+│ ○ 1. Express.js 프로젝트 초기화         │ [Dependency: none]
+│ ○ 2. 라우터 구조 생성                   │ [Dependency: 1]
+│ ○ 3. GET /users 엔드포인트 구현         │ [Dependency: 2]
+│ ○ 4. POST /users 엔드포인트 구현        │ [Dependency: 2]
+│ ○ 5. DELETE /users/:id 엔드포인트 구현  │ [Dependency: 2]
+│ ○ 6. 테스트 환경 설정 (Jest + Supertest)│ [Dependency: 1]
+│ ○ 7. 각 엔드포인트 테스트 코드 작성     │ [Dependency: 3,4,5,6]
+│                                          │
+│ Progress: 0/7 completed (0%)             │
+└──────────────────────────────────────────┘
+
+[TODO 1 실행 → 완료]
+[TODO 2 실행 → 완료]
+[TODO 3, 4, 5 병렬 실행 가능하지만 순차 실행]
+[TODO 6 실행 → 완료]
+[TODO 7 실행 → 완료]
+
+✅ All tasks completed!
+
+🤖 Assistant: REST API 서버가 완성되었습니다!
+
+생성된 파일:
+- server.js: Express 서버 메인
+- routes/users.js: 사용자 라우트
+- tests/users.test.js: 테스트 코드
+
+서버 시작: npm start
+테스트 실행: npm test
+
+🧑 You: _
+```
+
+**성공 조건:**
+- ✅ 의존성이 올바르게 인식됨
+- ✅ TODO가 의존성 순서대로 실행됨
+- ✅ 의존성이 없는 TODO는 스킵하지 않음
+- ✅ 모든 파일이 생성되고 테스트가 통과함
+
+---
+
+## 세션 관리 시나리오
+
+### 시나리오 8: 세션 저장 및 불러오기
+
+**목적**: 대화 세션을 저장하고 나중에 복원하기
 
 ```bash
-# 100개의 TODO를 순차 실행
-for i in {1..100}; do
-  echo "Iteration $i"
-  node dist/cli.js --non-interactive "간단한 파일 $i.txt 생성"
+$ open
 
-  # 메모리 사용량 확인
-  ps aux | grep node
-done
+🧑 You: Python으로 피보나치 수열을 계산하는 함수를 만들어주세요
 
-# 예상: 메모리 사용량이 선형적으로 증가하지 않음
+🤖 Assistant: [코드 생성...]
+
+def fibonacci(n):
+    if n <= 1:
+        return n
+    return fibonacci(n-1) + fibonacci(n-2)
+
+🧑 You: 좋아요! 이 세션을 저장해주세요
+
+🧑 You: /save fibonacci-tutorial
+
+✅ 세션 'fibonacci-tutorial'이 저장되었습니다.
+
+🧑 You: /exit
+
+# 나중에 다시 시작
+
+$ open
+
+🧑 You: /load
+
+? 불러올 세션을 선택하세요:
+❯ fibonacci-tutorial (2025-11-05 14:30)
+  typescript-project (2025-11-04 10:15)
+  rest-api-guide (2025-11-03 16:45)
+
+[Enter 선택]
+
+✅ 세션 'fibonacci-tutorial'을 불러왔습니다.
+
+[이전 대화 내역 복원됨]
+
+🧑 You: 이제 메모이제이션을 추가해서 성능을 개선해주세요
+
+🤖 Assistant: [이전 컨텍스트를 기억하며 개선된 코드 제공]
+
+def fibonacci(n, memo={}):
+    if n in memo:
+        return memo[n]
+    if n <= 1:
+        return n
+    memo[n] = fibonacci(n-1, memo) + fibonacci(n-2, memo)
+    return memo[n]
+
+🧑 You: _
 ```
 
-**성공 조건**:
-- ✅ 메모리 사용량이 안정적임
-- ✅ 모든 반복이 성공함
-- ✅ 응답 시간이 일정함
+**성공 조건:**
+- ✅ 세션이 정확하게 저장됨
+- ✅ 세션 목록이 올바르게 표시됨
+- ✅ 세션을 불러오면 이전 컨텍스트가 복원됨
+- ✅ 대화가 자연스럽게 이어짐
 
 ---
 
-## 성능 테스트
+### 시나리오 9: 여러 세션 관리
 
-### 17. 응답 시간 측정
+**목적**: 여러 프로젝트의 세션을 독립적으로 관리
 
-**테스트 케이스**:
+```
+🧑 You: /sessions
 
-```typescript
-describe('Performance Tests', () => {
-  it('should respond within acceptable time', async () => {
-    const startTime = Date.now();
+저장된 세션 목록:
+  1. fibonacci-tutorial (2025-11-05 14:30) - 5 messages
+  2. typescript-project (2025-11-04 10:15) - 23 messages
+  3. rest-api-guide (2025-11-03 16:45) - 15 messages
 
-    const result = await llmClient.chatCompletion({
-      messages: [
-        { role: 'user', content: 'Hello' }
-      ]
-    });
+🧑 You: /load
 
-    const responseTime = Date.now() - startTime;
+? 불러올 세션 선택: typescript-project
 
-    // 검증: 5초 이내 응답
-    expect(responseTime).toBeLessThan(5000);
-  });
-});
+[TypeScript 프로젝트 세션 로드]
+
+🧑 You: 이전에 작업하던 타입 정의를 계속 해주세요
+
+[컨텍스트 유지됨]
+
+🤖 Assistant: 네, 계속하겠습니다. User 인터페이스에 email 필드를
+추가하고 있었죠...
 ```
 
-**벤치마크 기준**:
-- 단순 응답: < 3초
-- 파일 읽기/쓰기: < 2초
-- TODO 계획 생성: < 10초
-- 코드 생성: < 15초
+**성공 조건:**
+- ✅ 여러 세션을 독립적으로 관리
+- ✅ 각 세션의 컨텍스트가 섞이지 않음
+- ✅ 세션 간 전환이 원활함
 
 ---
 
-### 18. 동시성 테스트
+## 고급 사용 시나리오
 
-**목적**: 여러 요청을 동시에 처리할 수 있는지 확인
+### 시나리오 10: 로컬 문서 검색
 
-```typescript
-describe('Concurrency Tests', () => {
-  it('should handle multiple requests', async () => {
-    const requests = Array(10).fill(null).map((_, i) =>
-      llmClient.chatCompletion({
-        messages: [{ role: 'user', content: `Test ${i}` }]
-      })
-    );
+**목적**: 프로젝트 문서를 검색하고 활용하기
 
-    const results = await Promise.all(requests);
+```bash
+$ open
 
-    // 모든 요청이 성공해야 함
-    expect(results.every(r => r.choices.length > 0)).toBe(true);
-  });
-});
+🧑 You: /docs typescript
+
+📚 로컬 문서 검색 결과:
+
+1. TypeScript Best Practices.md
+   - 타입 안전성, 인터페이스 설계, 제네릭 사용법
+
+2. TypeScript Configuration.md
+   - tsconfig.json 설정 가이드
+
+3. TypeScript with React.md
+   - React 프로젝트에서의 TypeScript 사용
+
+? 어떤 문서를 보시겠습니까? [1]
+
+[문서 내용 표시]
+
+🧑 You: 이 문서의 내용을 참고해서 TypeScript 프로젝트를
+초기화해주세요
+
+🤖 Assistant: [문서 내용을 참고하여 적절한 설정으로 프로젝트 생성]
 ```
 
-**성공 조건**:
-- ✅ 모든 요청이 성공함
-- ✅ 응답이 섞이지 않음
-- ✅ 메모리 사용량이 합리적임
+**성공 조건:**
+- ✅ 키워드로 문서 검색이 가능함
+- ✅ 검색 결과가 정확함
+- ✅ 문서 내용이 LLM 컨텍스트에 반영됨
 
 ---
 
-## 🔧 문제 해결 가이드
+### 시나리오 11: 엔드포인트 전환
 
-### 테스트 실패 시 체크리스트
+**목적**: 여러 LLM 서버 간 전환하기
 
-1. **환경 확인**
-   - [ ] Node.js 버전 (v20+)
-   - [ ] npm 의존성 설치
-   - [ ] 빌드 완료
+```
+🧑 You: /endpoint
 
-2. **설정 확인**
-   - [ ] config.json 파일 존재
-   - [ ] LLM 서버 연결
-   - [ ] API 키 유효성
+사용 가능한 엔드포인트:
+  ❯ 1. My LLM Server (gemini-2.0-flash) [현재]
+    2. OpenAI Server (gpt-4)
+    3. Local LLaMA (llama-3-70b)
 
-3. **로그 확인**
-   - [ ] `~/.open-cli/logs/` 디렉토리 확인
-   - [ ] 에러 메시지 분석
-   - [ ] 스택 트레이스 확인
+? 전환할 엔드포인트를 선택하세요: [2]
 
-4. **재시도**
-   - [ ] 캐시 삭제: `rm -rf ~/.open-cli/cache`
-   - [ ] 재빌드: `npm run build`
-   - [ ] 테스트 재실행
+✅ 엔드포인트가 'OpenAI Server'로 전환되었습니다.
+Model: gpt-4
+
+🧑 You: 안녕하세요
+
+[새로운 엔드포인트의 LLM이 응답]
+
+🤖 Assistant: Hello! How can I assist you today?
+```
+
+**성공 조건:**
+- ✅ 엔드포인트 목록이 표시됨
+- ✅ 엔드포인트 전환이 즉시 반영됨
+- ✅ 새 엔드포인트로 정상 통신됨
 
 ---
 
-## 📝 테스트 결과 보고
+### 시나리오 12: 다중 파일 프로젝트 생성
 
-### 테스트 결과 템플릿
+**목적**: 여러 파일로 구성된 프로젝트를 한 번에 생성
+
+```
+🧑 You: React + TypeScript 프로젝트를 만들어주세요.
+- src/components/Header.tsx
+- src/components/Footer.tsx
+- src/App.tsx
+- src/index.tsx
+- src/types.ts
+- package.json
+- tsconfig.json
+위 파일들을 모두 만들어주세요.
+
+[Plan-Execute 모드 활성화]
+
+✅ TODO List Generated:
+
+┌─ TODO List ─────────────────────────────┐
+│ ○ 1. package.json 생성                  │
+│ ○ 2. tsconfig.json 생성                 │
+│ ○ 3. src/types.ts 생성                  │
+│ ○ 4. src/components/Header.tsx 생성     │
+│ ○ 5. src/components/Footer.tsx 생성     │
+│ ○ 6. src/App.tsx 생성                   │
+│ ○ 7. src/index.tsx 생성                 │
+└──────────────────────────────────────────┘
+
+[각 파일 순차 생성...]
+
+✅ All files created successfully!
+
+🤖 Assistant: React + TypeScript 프로젝트가 완성되었습니다!
+
+설치 및 실행:
+$ npm install
+$ npm start
+
+🧑 You: _
+```
+
+**검증:**
+```bash
+# 파일 구조 확인
+$ tree -L 2
+.
+├── package.json
+├── tsconfig.json
+└── src
+    ├── App.tsx
+    ├── components
+    │   ├── Footer.tsx
+    │   └── Header.tsx
+    ├── index.tsx
+    └── types.ts
+
+# 빌드 및 실행
+$ npm install
+$ npm start
+
+# 브라우저에서 http://localhost:3000 접속
+# 정상 렌더링 확인
+```
+
+**성공 조건:**
+- ✅ 모든 파일이 생성됨
+- ✅ 파일 간 import가 정확함
+- ✅ TypeScript 설정이 올바름
+- ✅ 프로젝트가 빌드되고 실행됨
+
+---
+
+## 문제 해결
+
+### 문제 1: LLM이 응답하지 않음
+
+**증상:**
+```
+🧑 You: 안녕하세요
+
+[아무 응답 없음, 커서만 깜빡임]
+```
+
+**확인 사항:**
+1. 엔드포인트 연결 확인
+   ```bash
+   open config show
+   ```
+
+2. LLM 서버 상태 확인
+   ```bash
+   curl https://your-llm-server.com/v1/models
+   ```
+
+3. 로그 확인
+   ```bash
+   cat ~/.open-cli/logs/latest.log
+   ```
+
+**해결 방법:**
+- 네트워크 연결 확인
+- API 키 유효성 확인
+- LLM 서버 재시작
+
+---
+
+### 문제 2: 파일 생성 실패
+
+**증상:**
+```
+🔧 Tool Call: write_file
+📁 file_path: test.txt
+
+❌ Error: Permission denied
+```
+
+**해결 방법:**
+```bash
+# 디렉토리 권한 확인
+ls -la
+
+# 필요시 권한 변경
+chmod 755 .
+
+# 또는 다른 디렉토리에서 실행
+cd ~/projects/my-project
+open
+```
+
+---
+
+### 문제 3: 세션 로드 실패
+
+**증상:**
+```
+🧑 You: /load
+
+❌ Error: No saved sessions found
+```
+
+**해결 방법:**
+```bash
+# 세션 디렉토리 확인
+ls ~/.open-cli/sessions/
+
+# 세션이 없으면 새로 생성
+# 대화 후 /save로 저장
+```
+
+---
+
+### 문제 4: Plan-Execute 모드가 활성화되지 않음
+
+**증상:**
+- 복잡한 요청을 해도 TODO 리스트가 생성되지 않음
+
+**해결 방법:**
+```
+# 명시적으로 Plan-Execute 요청
+🧑 You: [PLAN-EXECUTE] TypeScript 프로젝트를 만들어주세요
+
+# 또는 복잡한 작업을 단계별로 요청
+🧑 You: 다음 작업들을 순서대로 해주세요:
+1. package.json 생성
+2. tsconfig.json 생성
+3. src 폴더 및 파일 생성
+```
+
+---
+
+## 📊 테스트 결과 보고 템플릿
 
 ```markdown
 ## 테스트 결과 보고서
 
 **날짜**: YYYY-MM-DD
 **테스터**: [이름]
-**버전**: 0.3.0
+**버전**: 3.0.0
 
-### 테스트 환경
+### 환경
 - OS: [운영체제]
 - Node.js: [버전]
 - LLM 서버: [서버 정보]
 
-### 테스트 결과 요약
-- 총 테스트: [개수]
-- 성공: [개수]
-- 실패: [개수]
-- 스킵: [개수]
+### 시나리오별 결과
 
-### 실패한 테스트
-1. [테스트 번호 및 이름]
-   - 에러: [에러 메시지]
-   - 재현 방법: [단계]
-   - 예상 결과: [설명]
-   - 실제 결과: [설명]
+| 시나리오 | 상태 | 비고 |
+|---------|------|------|
+| 1. 첫 대화 시작 | ✅ Pass | |
+| 2. 메타 명령어 | ✅ Pass | |
+| 3. 파일 읽기 | ✅ Pass | |
+| 4. 파일 생성/수정 | ✅ Pass | |
+| 5. 파일 검색 | ✅ Pass | |
+| 6. Plan-Execute | ✅ Pass | |
+| 7. 의존성 TODO | ✅ Pass | |
+| 8. 세션 저장/불러오기 | ✅ Pass | |
+| 9. 여러 세션 관리 | ✅ Pass | |
+| 10. 문서 검색 | ✅ Pass | |
+| 11. 엔드포인트 전환 | ✅ Pass | |
+| 12. 다중 파일 프로젝트 | ✅ Pass | |
 
-### 성능 측정
-- 평균 응답 시간: [시간]
-- 메모리 사용량: [용량]
-- CPU 사용률: [퍼센트]
+### 발견된 이슈
+[이슈 내용]
 
-### 추가 의견
-[자유 기술]
+### 개선 제안
+[제안 사항]
+
+### 전반적 평가
+[종합 의견]
 ```
 
 ---
 
 ## 🎯 다음 단계
 
-이 테스트 시나리오는 지속적으로 업데이트됩니다:
-
-1. **새로운 기능 추가 시**: 해당 기능의 테스트 시나리오 추가
-2. **버그 발견 시**: 재현 시나리오 추가
-3. **성능 개선 시**: 벤치마크 업데이트
+테스트 완료 후:
+1. 발견된 버그를 GitHub Issues에 보고
+2. 성능 측정 결과 기록
+3. 사용성 개선 제안 작성
+4. 추가 테스트 시나리오 제안
 
 ---
 
-**문서 버전**: 1.0
+**문서 버전**: 3.0.0 - 실사용 시나리오 기반
 **마지막 업데이트**: 2025-11-05
