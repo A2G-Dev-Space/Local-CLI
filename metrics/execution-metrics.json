@@ -1,0 +1,36 @@
+[
+  {
+    "task": "timeout-1",
+    "layer": "standard-tools",
+    "success": false,
+    "executionTime": 0,
+    "complexity": 2,
+    "timestamp": "2025-11-05T03:11:35.795Z",
+    "error": "No tool specified for execution"
+  },
+  {
+    "task": "integration-moderate",
+    "layer": "sdk-dynamic",
+    "success": true,
+    "executionTime": 1,
+    "complexity": 7,
+    "timestamp": "2025-11-05T03:11:35.798Z"
+  },
+  {
+    "task": "integration-complex",
+    "layer": "subagent",
+    "success": true,
+    "executionTime": 0,
+    "complexity": 9,
+    "timestamp": "2025-11-05T03:11:35.799Z"
+  },
+  {
+    "task": "integration-meta",
+    "layer": "skills",
+    "success": false,
+    "executionTime": 0,
+    "complexity": 10,
+    "timestamp": "2025-11-05T03:11:35.800Z",
+    "error": "No appropriate skill found for task"
+  }
+]

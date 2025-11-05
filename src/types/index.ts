@@ -317,6 +317,174 @@ export interface ProgressUpdate {
   willRetry: boolean;
 }
 
+// ============== Multi-Layered Execution Architecture ==============
+
+/**
+ * Task for multi-layered execution
+ */
+export interface Task {
+  id: string;
+  description: string;
+  complexity: 'simple' | 'moderate' | 'complex' | 'meta';
+  requiresTools: string[];
+  requiresDynamicCode?: boolean;
+  requiresSystemAccess?: boolean;
+  requiresParallelism?: boolean;
+  requiresSkill?: boolean;
+  requiresBehaviorChange?: boolean;
+  workflowComplexity?: 'low' | 'medium' | 'high';
+  targetLanguage?: string;
+  requirements?: string[];
+  context?: ExecutionContext;
+  timeout?: number;
+  memoryLimit?: string;
+  commands?: string[];
+  constraints?: string[];
+  subtasks?: SubTaskDescription[];
+  preferredModel?: string;
+  synthesisStrategy?: 'simple-merge' | 'intelligent-merge' | 'llm-synthesis';
+  expectedOutputSchema?: any;
+  toolName?: string;
+  parameters?: Record<string, any>;
+}
+
+/**
+ * Execution layer interface
+ */
+export interface ExecutionLayer {
+  name: string;
+  canHandle(task: Task): Promise<boolean>;
+  execute(task: Task): Promise<LayerExecutionResult>;
+}
+
+/**
+ * Layer execution result
+ */
+export interface LayerExecutionResult {
+  success: boolean;
+  output?: any;
+  error?: string | string[];
+  layer: string;
+  executionTime?: number;
+  generatedCode?: string;
+  sandbox?: string;
+  logs?: string[];
+  commands?: string[];
+  subtasks?: number;
+  parallelism?: number;
+  executionPlan?: ExecutionPlan;
+  skillUsed?: string;
+  contextModifications?: ContextModification[];
+}
+
+/**
+ * SubTask description for parallel execution
+ */
+export interface SubTaskDescription {
+  description: string;
+  dependencies?: string[];
+}
+
+/**
+ * SubAgent task
+ */
+export interface SubAgentTask {
+  id: string;
+  description: string;
+  assignedAgent: string;
+  dependencies: string[];
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  result?: any;
+}
+
+/**
+ * Execution plan with batches
+ */
+export interface ExecutionPlan {
+  executionBatches: SubAgentTask[][];
+  totalTasks: number;
+  estimatedTime?: number;
+}
+
+/**
+ * SubTask result
+ */
+export interface SubTaskResult {
+  taskId: string;
+  success: boolean;
+  output?: any;
+  error?: string;
+  executionTime: number;
+  agentId: string;
+}
+
+/**
+ * Synthesis request
+ */
+export interface SynthesisRequest {
+  task: Task;
+  subtaskResults: SubTaskResult[];
+  synthesisStrategy: 'simple-merge' | 'intelligent-merge' | 'llm-synthesis';
+}
+
+/**
+ * Synthesis result
+ */
+export interface SynthesisResult {
+  success: boolean;
+  output: any;
+  conflicts?: number;
+  resolutionStrategy?: string;
+  validation?: {
+    valid: boolean;
+    errors?: string[];
+  };
+}
+
+/**
+ * Agent skill definition
+ */
+export interface AgentSkill {
+  name: string;
+  description: string;
+  promptExpansion: string;
+  requiredTools?: string[];
+  modelOverride?: string;
+  contextModifications?: ContextModification[];
+}
+
+/**
+ * Context modification
+ */
+export interface ContextModification {
+  type: 'add-instruction' | 'set-parameter' | 'enable-feature';
+  key?: string;
+  value?: any;
+  feature?: string;
+}
+
+/**
+ * Enhanced execution context
+ */
+export interface ExecutionContext {
+  systemPrompt: string;
+  availableTools: string[];
+  model: string;
+  additionalInstructions: string[];
+  parameters: Record<string, any>;
+  features: Record<string, boolean>;
+}
+
+/**
+ * Task analysis result
+ */
+export interface TaskAnalysis {
+  complexity: number;
+  estimatedTime: number;
+  requiredCapabilities: string[];
+  recommendedLayer: string;
+}
+
 /**
  * Verification rule for deterministic checking
  */
