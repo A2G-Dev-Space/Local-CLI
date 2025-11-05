@@ -15,13 +15,13 @@ export const READ_FILE_TOOL: ToolDefinition = {
   type: 'function',
   function: {
     name: 'read_file',
-    description: '파일의 내용을 읽습니다. 텍스트 파일만 지원됩니다.',
+    description: 'Read the contents of a file. Only text files are supported.',
     parameters: {
       type: 'object',
       properties: {
         file_path: {
           type: 'string',
-          description: '읽을 파일의 절대 경로 또는 상대 경로',
+          description: 'Absolute or relative path of the file to read',
         },
       },
       required: ['file_path'],
@@ -36,17 +36,17 @@ export const WRITE_FILE_TOOL: ToolDefinition = {
   type: 'function',
   function: {
     name: 'write_file',
-    description: '파일에 내용을 씁니다. 기존 파일이 있으면 덮어씁니다.',
+    description: 'Write content to a file. Overwrites if file exists.',
     parameters: {
       type: 'object',
       properties: {
         file_path: {
           type: 'string',
-          description: '쓸 파일의 절대 경로 또는 상대 경로',
+          description: 'Absolute or relative path of the file to write',
         },
         content: {
           type: 'string',
-          description: '파일에 쓸 내용',
+          description: 'Content to write to the file',
         },
       },
       required: ['file_path', 'content'],
@@ -61,17 +61,17 @@ export const LIST_FILES_TOOL: ToolDefinition = {
   type: 'function',
   function: {
     name: 'list_files',
-    description: '디렉토리의 파일 및 폴더 목록을 반환합니다.',
+    description: 'List files and folders in a directory.',
     parameters: {
       type: 'object',
       properties: {
         directory_path: {
           type: 'string',
-          description: '목록을 조회할 디렉토리 경로 (기본값: 현재 디렉토리)',
+          description: 'Directory path to list (default: current directory)',
         },
         recursive: {
           type: 'boolean',
-          description: '하위 디렉토리까지 재귀적으로 조회할지 여부 (기본값: false)',
+          description: 'Whether to list subdirectories recursively (default: false)',
         },
       },
       required: [],
@@ -86,17 +86,17 @@ export const FIND_FILES_TOOL: ToolDefinition = {
   type: 'function',
   function: {
     name: 'find_files',
-    description: '파일명 패턴으로 파일을 검색합니다.',
+    description: 'Search for files by filename pattern.',
     parameters: {
       type: 'object',
       properties: {
         pattern: {
           type: 'string',
-          description: '검색할 파일명 패턴 (예: *.ts, package.json)',
+          description: 'Filename pattern to search for (e.g., *.ts, package.json)',
         },
         directory_path: {
           type: 'string',
-          description: '검색을 시작할 디렉토리 경로 (기본값: 현재 디렉토리)',
+          description: 'Directory path to start search from (default: current directory)',
         },
       },
       required: ['pattern'],

@@ -213,6 +213,25 @@ $ open --verbose
 🕐 시간: 2025-11-05 12:00:00
 ```
 
+### 2.7.2 Function Internationalization & Timeout Improvements
+- **Status**: ✅ Completed
+- **Date**: 2025-11-05
+- **Details**: [HISTORY_ALL.md#L2070-L2270](./HISTORY_ALL.md#L2070-L2270)
+- **Summary**: LLM function descriptions to English, 10x timeout increase
+- **Key Changes**:
+  - **Function Descriptions**: All 4 file tool descriptions converted to English
+    - `read_file`: "Read the contents of a file. Only text files are supported."
+    - `write_file`: "Write content to a file. Overwrites if file exists."
+    - `list_files`: "List files and folders in a directory."
+    - `find_files`: "Search for files by filename pattern."
+  - **Timeout Increases**:
+    - Main API timeout: 60s → 600s (10 minutes)
+    - Connection test timeout: 30s → 300s (5 minutes)
+- **Benefits**:
+  - Better LLM function calling accuracy for English-trained models
+  - Handles large file operations without timeout
+  - Supports slow network environments
+
 ---
 
 ## ✅ Phase 3: Claude Code Agent Loop Architecture (100% Complete)

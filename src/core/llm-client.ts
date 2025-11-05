@@ -89,7 +89,7 @@ export class LLMClient {
         'Content-Type': 'application/json',
         ...(this.apiKey && { Authorization: `Bearer ${this.apiKey}` }),
       },
-      timeout: 60000, // 60초
+      timeout: 600000, // 600초 (10분)
     });
   }
 
@@ -915,7 +915,7 @@ export class LLMClient {
           'Content-Type': 'application/json',
           ...(apiKey && { Authorization: `Bearer ${apiKey}` }),
         },
-        timeout: 30000, // 30초
+        timeout: 300000, // 300초 (5분)
       });
 
       // 간단한 테스트 메시지로 연결 확인

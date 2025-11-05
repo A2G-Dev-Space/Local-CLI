@@ -2065,5 +2065,198 @@ After:  "서버에 연결할 수 없습니다.
 
 ---
 
-*This document represents the complete implementation history of OPEN-CLI through Phase 2.7.*
+### 2.7.2 LLM Function Descriptions Internationalization & Timeout Increase ✅
+**Implementation Date**: 2025-11-05
+**Lines of Code**: ~20 (modified)
+**Status**: ✅ Completed
+
+**Description**:
+Changed all LLM function (tool) descriptions from Korean to English for better international compatibility and multilingual LLM support. Also increased timeout values by 10x to handle longer-running requests and large file operations.
+
+**Problem Statement**:
+- Korean function descriptions may not work well with non-Korean LLMs
+- International users and LLMs trained primarily on English benefit from English descriptions
+- 60-second timeout was too short for large file operations or slow network conditions
+- Connection test 30-second timeout was insufficient for slow servers
+
+**Changes Made**:
+
+#### 1. Function Description Language (src/tools/file-tools.ts)
+
+**Before (Korean)**:
+```typescript
+export const READ_FILE_TOOL: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'read_file',
+    description: '파일의 내용을 읽습니다. 텍스트 파일만 지원됩니다.',
+    parameters: {
+      type: 'object',
+      properties: {
+        file_path: {
+          type: 'string',
+          description: '읽을 파일의 절대 경로 또는 상대 경로',
+        },
+      },
+      required: ['file_path'],
+    },
+  },
+};
+```
+
+**After (English)**:
+```typescript
+export const READ_FILE_TOOL: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'read_file',
+    description: 'Read the contents of a file. Only text files are supported.',
+    parameters: {
+      type: 'object',
+      properties: {
+        file_path: {
+          type: 'string',
+          description: 'Absolute or relative path of the file to read',
+        },
+      },
+      required: ['file_path'],
+    },
+  },
+};
+```
+
+**All Function Description Changes**:
+
+| Function | Korean Description | English Description |
+|----------|-------------------|---------------------|
+| **read_file** | 파일의 내용을 읽습니다. 텍스트 파일만 지원됩니다. | Read the contents of a file. Only text files are supported. |
+| read_file.file_path | 읽을 파일의 절대 경로 또는 상대 경로 | Absolute or relative path of the file to read |
+| **write_file** | 파일에 내용을 씁니다. 기존 파일이 있으면 덮어씁니다. | Write content to a file. Overwrites if file exists. |
+| write_file.file_path | 쓸 파일의 절대 경로 또는 상대 경로 | Absolute or relative path of the file to write |
+| write_file.content | 파일에 쓸 내용 | Content to write to the file |
+| **list_files** | 디렉토리의 파일 및 폴더 목록을 반환합니다. | List files and folders in a directory. |
+| list_files.directory_path | 목록을 조회할 디렉토리 경로 (기본값: 현재 디렉토리) | Directory path to list (default: current directory) |
+| list_files.recursive | 하위 디렉토리까지 재귀적으로 조회할지 여부 (기본값: false) | Whether to list subdirectories recursively (default: false) |
+| **find_files** | 파일명 패턴으로 파일을 검색합니다. | Search for files by filename pattern. |
+| find_files.pattern | 검색할 파일명 패턴 (예: *.ts, package.json) | Filename pattern to search for (e.g., *.ts, package.json) |
+| find_files.directory_path | 검색을 시작할 디렉토리 경로 (기본값: 현재 디렉토리) | Directory path to start search from (default: current directory) |
+
+**Total Changes**: 11 description strings converted to English
+
+#### 2. Timeout Increase (src/core/llm-client.ts)
+
+**Main LLM Client Timeout**:
+```typescript
+// Before
+timeout: 60000, // 60초
+
+// After
+timeout: 600000, // 600초 (10분)
+```
+
+**Connection Test Timeout**:
+```typescript
+// Before (in testConnection)
+timeout: 30000, // 30초
+
+// After
+timeout: 300000, // 300초 (5분)
+```
+
+**Timeout Comparison**:
+
+| Context | Before | After | Increase |
+|---------|--------|-------|----------|
+| **LLM API Requests** | 60 seconds (1 min) | 600 seconds (10 min) | 10x |
+| **Connection Test** | 30 seconds | 300 seconds (5 min) | 10x |
+
+#### Benefits
+
+**English Function Descriptions**:
+- ✅ Better compatibility with international LLMs (GPT-4, Claude, etc.)
+- ✅ Improved function calling accuracy for English-trained models
+- ✅ Easier for international developers to understand tool behavior
+- ✅ Consistent with OpenAI's function calling best practices
+- ✅ Reduces potential confusion for multilingual LLM models
+
+**Increased Timeouts**:
+- ✅ Handles large file operations (reading/writing multi-MB files)
+- ✅ Works with slow network connections
+- ✅ Prevents premature timeout on complex LLM requests
+- ✅ Allows for longer thinking time on difficult tasks
+- ✅ Better experience in offline/corporate environments with slower servers
+
+#### Use Cases That Benefit
+
+**Large File Operations**:
+- Reading large log files (>10MB)
+- Writing generated code files
+- Processing multiple files in sequence
+
+**Slow Network Scenarios**:
+- Corporate VPN connections
+- Remote server endpoints
+- Bandwidth-limited environments
+
+**Complex LLM Requests**:
+- Long context conversations
+- Multiple tool calls in sequence
+- Deep reasoning tasks
+
+#### Backward Compatibility
+
+- ✅ No breaking changes to API
+- ✅ Existing tool calls continue to work
+- ✅ Function names unchanged
+- ✅ Parameter names unchanged
+- ✅ Only description text changed (not used in code)
+
+#### Testing
+
+**Manual Testing**:
+```bash
+# Test function descriptions (check LLM response quality)
+$ open
+You: Read the file package.json
+# Expected: LLM correctly understands "read_file" tool in English
+
+# Test timeout with slow server
+$ open config init
+# (use slow endpoint)
+# Expected: Connection test completes without timeout (within 5 minutes)
+
+# Test large file read
+You: Read the large log file
+# Expected: Completes within 10 minutes
+```
+
+#### Code Statistics
+
+- **Modified Files**: 2 (file-tools.ts, llm-client.ts)
+- **Description Strings Changed**: 11
+- **Timeout Values Changed**: 2
+- **Lines Modified**: ~20
+
+#### Impact
+
+**Before**:
+- Korean descriptions potentially confusing for international LLMs
+- 60-second timeout causing failures on large operations
+- Connection tests timing out on slow servers
+
+**After**:
+- Clear English descriptions for all LLMs
+- 10-minute timeout handles large operations comfortably
+- Connection tests succeed even on slow networks
+
+#### Future Enhancements
+
+- Internationalization (i18n) system for error messages
+- Configurable timeout values via environment variables
+- Per-tool timeout settings
+- Adaptive timeout based on request size
+
+---
+
+*This document represents the complete implementation history of OPEN-CLI through Phase 2.7.2.*
 *For upcoming features and plans, see TODO_ALL.md.*
