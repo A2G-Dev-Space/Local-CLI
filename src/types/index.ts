@@ -485,6 +485,167 @@ export interface TaskAnalysis {
   recommendedLayer: string;
 }
 
+// ============== Internal Monologue & Scratchpad System ==============
+
+/**
+ * Thought in the thinking process
+ */
+export interface Thought {
+  type: 'analysis' | 'answer' | 'synthesis' | 'evaluation';
+  content: string;
+  confidence: number;
+  question?: string;
+  timestamp: number;
+}
+
+/**
+ * Question for decomposition
+ */
+export interface Question {
+  id: string;
+  text: string;
+  priority: 'high' | 'medium' | 'low';
+  answered: boolean;
+  answer?: string;
+}
+
+/**
+ * Evaluation of an approach option
+ */
+export interface Evaluation {
+  option: string;
+  score: number;
+  pros: string[];
+  cons: string[];
+  risks: string[];
+  recommendation: boolean;
+}
+
+/**
+ * Plan from thinking session
+ */
+export interface Plan {
+  steps: string[];
+  estimatedTime: number;
+  confidence: number;
+  alternatives: string[];
+}
+
+/**
+ * Thinking session
+ */
+export interface ThinkingSession {
+  id: string;
+  thoughts: Thought[];
+  questions: Question[];
+  evaluations: Evaluation[];
+  finalPlan: Plan | null;
+  duration: number;
+  tokenCount: number;
+}
+
+/**
+ * Scratchpad content
+ */
+export interface ScratchpadContent {
+  sessionId: string;
+  created: number;
+  updated: number;
+  sections: ScratchpadSection[];
+}
+
+/**
+ * Scratchpad section
+ */
+export interface ScratchpadSection {
+  type: 'todo-list' | 'note' | 'code' | 'diagram';
+  title?: string;
+  content: string;
+  created: number;
+  items?: ScratchpadTodoItem[];
+}
+
+/**
+ * Scratchpad TODO item
+ */
+export interface ScratchpadTodoItem {
+  id: string;
+  title: string;
+  description?: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  notes?: string;
+  subtasks?: ScratchpadSubtask[];
+  createdAt: number;
+  updatedAt?: number;
+}
+
+/**
+ * Scratchpad subtask
+ */
+export interface ScratchpadSubtask {
+  id: string;
+  title: string;
+  completed: boolean;
+}
+
+/**
+ * Custom command from project config
+ */
+export interface CustomCommand {
+  name: string;
+  description: string;
+  script: string;
+  args?: string[];
+}
+
+/**
+ * Style guide from project config
+ */
+export interface StyleGuide {
+  name: string;
+  rules: string[];
+}
+
+/**
+ * Tool configuration from project config
+ */
+export interface ToolConfig {
+  name: string;
+  config: Record<string, any>;
+}
+
+/**
+ * Constraint from project config
+ */
+export interface Constraint {
+  type: 'file' | 'code' | 'pattern';
+  rule: string;
+  severity: 'error' | 'warning' | 'info';
+}
+
+/**
+ * Project metadata
+ */
+export interface ProjectMetadata {
+  name?: string;
+  version?: string;
+  description?: string;
+  author?: string;
+  license?: string;
+}
+
+/**
+ * Project configuration from OPEN_CLI.md
+ */
+export interface ProjectConfiguration {
+  instructions: string[];
+  commands: CustomCommand[];
+  styleGuides: StyleGuide[];
+  tools: ToolConfig[];
+  constraints: Constraint[];
+  metadata: ProjectMetadata;
+}
+
 /**
  * Verification rule for deterministic checking
  */
