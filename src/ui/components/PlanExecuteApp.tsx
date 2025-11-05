@@ -18,6 +18,7 @@ import { initializeDocsDirectory } from '../../core/docs-search-agent.js';
 import { FileBrowser } from './FileBrowser.js';
 import { detectAtTrigger, insertFilePaths } from '../hooks/atFileProcessor.js';
 import { loadFileList, FileItem } from '../hooks/useFileList.js';
+import { BaseError } from '../../errors/base.js';
 
 interface PlanExecuteAppProps {
   llmClient: LLMClient;
@@ -28,6 +29,58 @@ interface PlanExecuteAppProps {
 }
 
 type AppMode = 'direct' | 'plan-execute' | 'auto';
+
+/**
+ * Format error for display with all available details
+ */
+function formatErrorMessage(error: unknown): string {
+  if (error instanceof BaseError) {
+    // Use custom error's userMessage which is designed for end users
+    let message = `❌ ${error.getUserMessage()}\n`;
+
+    // Add error code
+    message += `\n📋 Error Code: ${error.code}`;
+
+    // Add details if available and not empty
+    if (error.details && Object.keys(error.details).length > 0) {
+      message += `\n\n🔍 Details:`;
+      for (const [key, value] of Object.entries(error.details)) {
+        // Skip fullError as it's too verbose
+        if (key === 'fullError') continue;
+
+        if (typeof value === 'object') {
+          message += `\n  • ${key}: ${JSON.stringify(value, null, 2)}`;
+        } else {
+          message += `\n  • ${key}: ${value}`;
+        }
+      }
+    }
+
+    // Add recovery hint
+    if (error.isRecoverable) {
+      message += `\n\n💡 이 오류는 복구 가능합니다. 다시 시도해보세요.`;
+    }
+
+    // Add timestamp
+    message += `\n\n🕐 시간: ${error.timestamp.toLocaleString('ko-KR')}`;
+
+    return message;
+  }
+
+  // Regular Error
+  if (error instanceof Error) {
+    let message = `❌ Error: ${error.message}\n`;
+
+    if (error.stack) {
+      message += `\n📚 Stack Trace:\n${error.stack}`;
+    }
+
+    return message;
+  }
+
+  // Unknown error type
+  return `❌ Unknown Error: ${String(error)}`;
+}
 
 export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, modelInfo }) => {
   const { exit } = useApp();
@@ -175,10 +228,11 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
       setMessages(result.allMessages);
       setCurrentResponse('');
     } catch (error) {
+      const errorMessage = formatErrorMessage(error);
       setMessages([
         ...messages,
         { role: 'user', content: userMessage },
-        { role: 'assistant', content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }
+        { role: 'assistant', content: errorMessage }
       ]);
     }
   };
@@ -236,10 +290,11 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
       );
 
     } catch (error) {
+      const errorMessage = formatErrorMessage(error);
       setMessages([
         ...messages,
         { role: 'user', content: userMessage },
-        { role: 'assistant', content: `Error in Plan & Execute: ${error instanceof Error ? error.message : 'Unknown error'}` }
+        { role: 'assistant', content: `Plan & Execute 모드 실행 중 오류 발생:\n\n${errorMessage}` }
       ]);
     } finally {
       setExecutionPhase('idle');

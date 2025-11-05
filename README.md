@@ -85,11 +85,58 @@ node dist/cli.js config init
 # 대화형 모드 시작 (추천!)
 open
 
+# Verbose 로깅 활성화 (상세 에러 메시지, HTTP 요청, Tool 실행 내역)
+open --verbose
+
+# Debug 로깅 활성화 (모든 디버그 정보 표시)
+open --debug
+
+# 자동 업데이트 비활성화
+open --no-update
+
 # 도움말
 open help
 
 # 설정 확인
 open config show
+```
+
+### 🐛 디버깅 & 에러 처리
+
+OPEN-CLI는 상세한 에러 로깅 시스템을 제공합니다:
+
+**에러 타입별 상세 메시지**:
+- ✅ **네트워크 에러**: 연결 실패, 타임아웃, DNS 오류 등
+- ✅ **API 에러**: 인증 실패, Rate Limit, 잘못된 엔드포인트 등
+- ✅ **Context 초과**: 대화 길이 초과, 토큰 제한 등
+- ✅ **Tool 실행 실패**: 파일 접근 오류, JSON 파싱 실패 등
+
+**Verbose 모드**:
+```bash
+# 상세 로깅으로 실행
+open --verbose
+
+# 출력 예시:
+# [2025-11-05T12:00:00.000Z] [OPEN-CLI] → HTTP REQUEST: POST https://api.example.com/v1/chat/completions
+# [2025-11-05T12:00:01.000Z] [OPEN-CLI] ← HTTP RESPONSE: 200 OK
+# [2025-11-05T12:00:01.500Z] [OPEN-CLI] 🔧 TOOL SUCCESS: read_file
+```
+
+**에러 메시지 예시**:
+```
+❌ API 키가 유효하지 않습니다. 설정을 확인해주세요.
+상세: Incorrect API key provided
+
+📋 Error Code: API_ERROR
+
+🔍 Details:
+  • apiKeyProvided: true
+  • apiKeyLength: 32
+  • endpoint: https://api.example.com
+
+💡 이 오류는 복구 가능하지 않습니다.
+
+🕐 시간: 2025-11-05 12:00:00
 ```
 
 ### 대화형 모드 (Interactive Mode)

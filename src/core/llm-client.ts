@@ -8,6 +8,19 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import { Message, LLMRequestOptions } from '../types/index.js';
 import { configManager } from './config-manager.js';
+import {
+  NetworkError,
+  APIError,
+  TimeoutError,
+  ConnectionError,
+} from '../errors/network.js';
+import {
+  LLMError,
+  TokenLimitError,
+  RateLimitError,
+  ContextLengthError,
+} from '../errors/llm.js';
+import { logger } from '../utils/logger.js';
 
 /**
  * LLM 응답 인터페이스 (OpenAI Compatible)
@@ -113,6 +126,8 @@ export class LLMClient {
    * Chat Completion API 호출 (Non-streaming)
    */
   async chatCompletion(options: Partial<LLMRequestOptions>): Promise<LLMResponse> {
+    const url = '/chat/completions';
+
     try {
       // Preprocess messages for model-specific requirements
       const modelId = options.model || this.model;
@@ -128,11 +143,34 @@ export class LLMClient {
         ...(options.tools && { tools: options.tools }),
       };
 
-      const response = await this.axiosInstance.post<LLMResponse>('/chat/completions', requestBody);
+      // Log request
+      logger.httpRequest('POST', `${this.baseUrl}${url}`, {
+        model: modelId,
+        messages: `${processedMessages.length} messages`,
+        temperature: requestBody.temperature,
+        max_tokens: requestBody.max_tokens,
+        tools: options.tools ? `${options.tools.length} tools` : 'none',
+      });
+
+      logger.verbose('Full Request Body', requestBody);
+
+      const response = await this.axiosInstance.post<LLMResponse>(url, requestBody);
+
+      // Log response
+      logger.httpResponse(response.status, response.statusText, {
+        choices: response.data.choices.length,
+        usage: response.data.usage,
+      });
+
+      logger.verbose('Full Response', response.data);
 
       return response.data;
     } catch (error) {
-      throw this.handleError(error);
+      throw this.handleError(error, {
+        method: 'POST',
+        url,
+        body: options,
+      });
     }
   }
 
@@ -142,6 +180,8 @@ export class LLMClient {
   async *chatCompletionStream(
     options: Partial<LLMRequestOptions>
   ): AsyncGenerator<LLMStreamChunk, void, unknown> {
+    const url = '/chat/completions';
+
     try {
       // Preprocess messages for model-specific requirements
       const modelId = options.model || this.model;
@@ -157,13 +197,26 @@ export class LLMClient {
         ...(options.tools && { tools: options.tools }),
       };
 
-      const response = await this.axiosInstance.post('/chat/completions', requestBody, {
+      // Log request
+      logger.httpRequest('POST (stream)', `${this.baseUrl}${url}`, {
+        model: modelId,
+        messages: `${processedMessages.length} messages`,
+        temperature: requestBody.temperature,
+        max_tokens: requestBody.max_tokens,
+      });
+
+      logger.verbose('Full Streaming Request Body', requestBody);
+
+      const response = await this.axiosInstance.post(url, requestBody, {
         responseType: 'stream',
       });
+
+      logger.debug('Streaming response started', { status: response.status });
 
       // SSE (Server-Sent Events) 파싱
       const stream = response.data as AsyncIterable<Buffer>;
       let buffer = '';
+      let chunkCount = 0;
 
       for await (const chunk of stream) {
         buffer += chunk.toString();
@@ -178,16 +231,25 @@ export class LLMClient {
             try {
               const jsonStr = trimmed.slice(6);
               const data = JSON.parse(jsonStr) as LLMStreamChunk;
+              chunkCount++;
               yield data;
             } catch (parseError) {
               // JSON 파싱 에러 무시 (불완전한 청크)
+              logger.debug('Skipping invalid chunk', { line: trimmed });
               continue;
             }
           }
         }
       }
+
+      logger.debug('Streaming response completed', { chunkCount });
+
     } catch (error) {
-      throw this.handleError(error);
+      throw this.handleError(error, {
+        method: 'POST (stream)',
+        url,
+        body: options,
+      });
     }
   }
 
@@ -295,11 +357,48 @@ export class LLMClient {
         // Tool calls 실행
         for (const toolCall of message.tool_calls) {
           const toolName = toolCall.function.name;
-          const toolArgs = JSON.parse(toolCall.function.arguments) as Record<string, unknown>;
+          let toolArgs: Record<string, unknown>;
+
+          try {
+            toolArgs = JSON.parse(toolCall.function.arguments) as Record<string, unknown>;
+          } catch (parseError) {
+            const errorMsg = `Tool argument parsing failed for ${toolName}`;
+            logger.error(errorMsg, parseError);
+            logger.debug('Raw arguments', { raw: toolCall.function.arguments });
+
+            messages.push({
+              role: 'tool',
+              content: `Error: Failed to parse tool arguments - ${parseError instanceof Error ? parseError.message : 'Unknown error'}`,
+              tool_call_id: toolCall.id,
+            });
+
+            toolCallHistory.push({
+              tool: toolName,
+              args: { raw: toolCall.function.arguments },
+              result: `Error: Argument parsing failed`,
+            });
+
+            continue;
+          }
 
           // Tool 실행 (외부에서 주입받아야 함 - 여기서는 import)
           const { executeFileTool } = await import('../tools/file-tools.js');
-          const result = await executeFileTool(toolName, toolArgs);
+
+          logger.debug(`Executing tool: ${toolName}`, toolArgs);
+
+          let result: { success: boolean; result?: string; error?: string };
+
+          try {
+            result = await executeFileTool(toolName, toolArgs);
+            logger.toolExecution(toolName, toolArgs, result);
+          } catch (toolError) {
+            logger.toolExecution(toolName, toolArgs, undefined, toolError as Error);
+
+            result = {
+              success: false,
+              error: toolError instanceof Error ? toolError.message : String(toolError),
+            };
+          }
 
           // 결과를 메시지에 추가
           messages.push({
@@ -370,11 +469,48 @@ export class LLMClient {
         // Tool calls 실행
         for (const toolCall of assistantMessage.tool_calls) {
           const toolName = toolCall.function.name;
-          const toolArgs = JSON.parse(toolCall.function.arguments) as Record<string, unknown>;
+          let toolArgs: Record<string, unknown>;
+
+          try {
+            toolArgs = JSON.parse(toolCall.function.arguments) as Record<string, unknown>;
+          } catch (parseError) {
+            const errorMsg = `Tool argument parsing failed for ${toolName}`;
+            logger.error(errorMsg, parseError);
+            logger.debug('Raw arguments', { raw: toolCall.function.arguments });
+
+            workingMessages.push({
+              role: 'tool',
+              content: `Error: Failed to parse tool arguments - ${parseError instanceof Error ? parseError.message : 'Unknown error'}`,
+              tool_call_id: toolCall.id,
+            });
+
+            toolCallHistory.push({
+              tool: toolName,
+              args: { raw: toolCall.function.arguments },
+              result: `Error: Argument parsing failed`,
+            });
+
+            continue;
+          }
 
           // Tool 실행
           const { executeFileTool } = await import('../tools/file-tools.js');
-          const result = await executeFileTool(toolName, toolArgs);
+
+          logger.debug(`Executing tool: ${toolName}`, toolArgs);
+
+          let result: { success: boolean; result?: string; error?: string };
+
+          try {
+            result = await executeFileTool(toolName, toolArgs);
+            logger.toolExecution(toolName, toolArgs, result);
+          } catch (toolError) {
+            logger.toolExecution(toolName, toolArgs, undefined, toolError as Error);
+
+            result = {
+              success: false,
+              error: toolError instanceof Error ? toolError.message : String(toolError),
+            };
+          }
 
           // 결과를 메시지에 추가
           workingMessages.push({
@@ -429,39 +565,312 @@ export class LLMClient {
   }
 
   /**
-   * 에러 처리
+   * Enhanced error handler with detailed logging
    */
-  private handleError(error: unknown): Error {
+  private handleError(error: unknown, requestContext?: { method?: string; url?: string; body?: unknown }): Error {
+    // Log the error with context
+    logger.error('LLM Client Error', error);
+
+    if (requestContext) {
+      logger.debug('Request Context', requestContext);
+    }
+
     if (axios.isAxiosError(error)) {
       const axiosError = error as AxiosError;
 
-      if (axiosError.response) {
-        // 서버 응답 에러 (4xx, 5xx)
-        const status = axiosError.response.status;
-        const data = axiosError.response.data as { error?: { message?: string } };
-        const message = data?.error?.message || axiosError.message;
-
-        if (status === 401) {
-          return new Error(`인증 실패: API 키가 유효하지 않습니다. (${message})`);
-        } else if (status === 429) {
-          return new Error(`Rate limit 초과: 잠시 후 다시 시도해주세요. (${message})`);
-        } else if (status >= 500) {
-          return new Error(`서버 에러 (${status}): ${message}`);
-        } else {
-          return new Error(`API 에러 (${status}): ${message}`);
-        }
-      } else if (axiosError.request) {
-        // 요청 전송됐지만 응답 없음 (네트워크 에러)
-        return new Error(`네트워크 에러: 엔드포인트에 연결할 수 없습니다. (${this.baseUrl})`);
+      // Timeout error
+      if (axiosError.code === 'ECONNABORTED' || axiosError.message.includes('timeout')) {
+        logger.error('Request Timeout', {
+          timeout: this.axiosInstance.defaults.timeout,
+          endpoint: this.baseUrl,
+        });
+        return new TimeoutError(
+          this.axiosInstance.defaults.timeout || 60000,
+          {
+            cause: axiosError,
+            details: {
+              endpoint: this.baseUrl,
+              method: requestContext?.method,
+              url: requestContext?.url,
+            },
+          }
+        );
       }
+
+      if (axiosError.response) {
+        // Server responded with error status (4xx, 5xx)
+        const status = axiosError.response.status;
+        const data = axiosError.response.data as any;
+        const errorMessage = data?.error?.message || data?.message || axiosError.message;
+        const errorType = data?.error?.type || 'unknown';
+        const errorCode = data?.error?.code || data?.code;
+
+        logger.httpResponse(status, axiosError.response.statusText, data);
+
+        // Context length exceeded (common OpenAI error)
+        if (
+          errorType === 'invalid_request_error' &&
+          (errorMessage.includes('context_length_exceeded') ||
+           errorMessage.includes('maximum context length') ||
+           errorCode === 'context_length_exceeded')
+        ) {
+          const maxLength = data?.error?.param?.max_tokens || 'unknown';
+          logger.error('Context Length Exceeded', {
+            maxLength,
+            errorMessage,
+            model: this.model,
+          });
+
+          return new ContextLengthError(
+            typeof maxLength === 'number' ? maxLength : 0,
+            undefined,
+            {
+              cause: axiosError,
+              details: {
+                model: this.model,
+                endpoint: this.baseUrl,
+                errorType,
+                fullError: data,
+              },
+            }
+          );
+        }
+
+        // Token limit error
+        if (
+          errorMessage.includes('token') &&
+          (errorMessage.includes('limit') || errorMessage.includes('exceeded'))
+        ) {
+          logger.error('Token Limit Error', {
+            errorMessage,
+            model: this.model,
+          });
+
+          return new TokenLimitError(
+            0, // We don't know the exact limit from error message
+            undefined,
+            {
+              cause: axiosError,
+              details: {
+                model: this.model,
+                endpoint: this.baseUrl,
+                fullError: data,
+              },
+              userMessage: errorMessage,
+            }
+          );
+        }
+
+        // Rate limit (429)
+        if (status === 429) {
+          const retryAfter = axiosError.response.headers['retry-after'];
+          const retrySeconds = retryAfter ? parseInt(retryAfter) : undefined;
+
+          logger.error('Rate Limit Exceeded', {
+            retryAfter: retrySeconds,
+            errorMessage,
+          });
+
+          return new RateLimitError(retrySeconds, {
+            cause: axiosError,
+            details: {
+              endpoint: this.baseUrl,
+              model: this.model,
+              fullError: data,
+            },
+          });
+        }
+
+        // Authentication error (401)
+        if (status === 401) {
+          logger.error('Authentication Failed', {
+            endpoint: this.baseUrl,
+            errorMessage,
+          });
+
+          return new APIError(
+            `인증 실패: ${errorMessage}`,
+            status,
+            this.baseUrl,
+            {
+              cause: axiosError,
+              details: {
+                apiKeyProvided: !!this.apiKey,
+                apiKeyLength: this.apiKey?.length || 0,
+                fullError: data,
+              },
+              isRecoverable: false,
+              userMessage: `API 키가 유효하지 않습니다. 설정을 확인해주세요.\n상세: ${errorMessage}`,
+            }
+          );
+        }
+
+        // Forbidden (403)
+        if (status === 403) {
+          logger.error('Access Forbidden', {
+            endpoint: this.baseUrl,
+            errorMessage,
+          });
+
+          return new APIError(
+            `접근 거부: ${errorMessage}`,
+            status,
+            this.baseUrl,
+            {
+              cause: axiosError,
+              details: {
+                fullError: data,
+              },
+              isRecoverable: false,
+            }
+          );
+        }
+
+        // Not found (404)
+        if (status === 404) {
+          logger.error('Endpoint Not Found', {
+            endpoint: this.baseUrl,
+            url: requestContext?.url,
+            errorMessage,
+          });
+
+          return new APIError(
+            `엔드포인트를 찾을 수 없습니다: ${errorMessage}`,
+            status,
+            this.baseUrl,
+            {
+              cause: axiosError,
+              details: {
+                url: requestContext?.url,
+                fullError: data,
+              },
+              isRecoverable: false,
+              userMessage: `API 엔드포인트가 존재하지 않습니다.\nURL: ${this.baseUrl}${requestContext?.url || ''}\n상세: ${errorMessage}`,
+            }
+          );
+        }
+
+        // Server error (5xx)
+        if (status >= 500) {
+          logger.error('Server Error', {
+            status,
+            endpoint: this.baseUrl,
+            errorMessage,
+          });
+
+          return new APIError(
+            `서버 에러 (${status}): ${errorMessage}`,
+            status,
+            this.baseUrl,
+            {
+              cause: axiosError,
+              details: {
+                fullError: data,
+              },
+              isRecoverable: true, // Server errors are usually temporary
+            }
+          );
+        }
+
+        // Other API errors (4xx)
+        logger.error('API Error', {
+          status,
+          endpoint: this.baseUrl,
+          errorMessage,
+          errorType,
+          errorCode,
+        });
+
+        return new APIError(
+          `API 에러 (${status}): ${errorMessage}`,
+          status,
+          this.baseUrl,
+          {
+            cause: axiosError,
+            details: {
+              errorType,
+              errorCode,
+              fullError: data,
+            },
+            userMessage: `API 요청 실패 (${status}):\n${errorMessage}\n\n에러 타입: ${errorType}\n에러 코드: ${errorCode}`,
+          }
+        );
+
+      } else if (axiosError.request) {
+        // Request sent but no response received (network error)
+        const errorCode = axiosError.code;
+
+        logger.error('Network Error - No Response', {
+          code: errorCode,
+          endpoint: this.baseUrl,
+          message: axiosError.message,
+        });
+
+        // Connection refused, host not found, etc.
+        if (
+          errorCode === 'ECONNREFUSED' ||
+          errorCode === 'ENOTFOUND' ||
+          errorCode === 'ECONNRESET' ||
+          errorCode === 'EHOSTUNREACH'
+        ) {
+          return new ConnectionError(this.baseUrl, {
+            cause: axiosError,
+            details: {
+              code: errorCode,
+              message: axiosError.message,
+            },
+            userMessage: `서버에 연결할 수 없습니다.\n엔드포인트: ${this.baseUrl}\n에러 코드: ${errorCode}\n상세: ${axiosError.message}\n\n네트워크 연결과 엔드포인트 URL을 확인해주세요.`,
+          });
+        }
+
+        // General network error
+        return new NetworkError(
+          `네트워크 에러: ${axiosError.message}`,
+          {
+            cause: axiosError,
+            details: {
+              code: errorCode,
+              endpoint: this.baseUrl,
+            },
+            userMessage: `네트워크 연결 실패.\n엔드포인트: ${this.baseUrl}\n에러: ${axiosError.message}`,
+          }
+        );
+      }
+
+      // Axios error without response or request
+      logger.error('Axios Error', {
+        code: axiosError.code,
+        message: axiosError.message,
+      });
+
+      return new LLMError(
+        `LLM 클라이언트 에러: ${axiosError.message}`,
+        {
+          cause: axiosError,
+          details: {
+            code: axiosError.code,
+          },
+        }
+      );
     }
 
-    // 기타 에러
+    // Non-axios error
     if (error instanceof Error) {
-      return error;
+      logger.error('Unexpected Error', error);
+      return new LLMError(
+        `예상치 못한 에러: ${error.message}`,
+        {
+          cause: error,
+          userMessage: `오류가 발생했습니다:\n${error.message}\n\n스택:\n${error.stack}`,
+        }
+      );
     }
 
-    return new Error('알 수 없는 에러가 발생했습니다.');
+    // Unknown error type
+    logger.error('Unknown Error Type', { error });
+    return new LLMError('알 수 없는 에러가 발생했습니다.', {
+      details: { unknownError: error },
+    });
   }
 
   /**

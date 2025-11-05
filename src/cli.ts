@@ -21,6 +21,7 @@ import { EndpointConfig, Message } from './types/index.js';
 // import { InteractiveApp } from './ui/components/InteractiveApp.js';
 import { PlanExecuteApp } from './ui/components/PlanExecuteApp.js';
 import { AutoUpdater } from './core/auto-updater.js';
+import { logger, LogLevel, setLogLevel } from './utils/logger.js';
 
 const program = new Command();
 
@@ -36,8 +37,19 @@ program
   .option('--classic', 'Use classic inquirer-based UI instead of Ink UI')
   .option('--no-update', 'Skip auto-update check')
   .option('--plan-execute', 'Use Plan & Execute mode (default: auto-detect)')
-  .action(async (options: { classic?: boolean; noUpdate?: boolean; planExecute?: boolean }) => {
+  .option('--verbose', 'Enable verbose logging (shows detailed error messages, HTTP requests, tool execution)')
+  .option('--debug', 'Enable debug logging (shows all debug information)')
+  .action(async (options: { classic?: boolean; noUpdate?: boolean; planExecute?: boolean; verbose?: boolean; debug?: boolean }) => {
   try {
+    // Set log level based on options
+    if (options.debug) {
+      setLogLevel(LogLevel.VERBOSE);
+      logger.info('🔍 Debug mode enabled - verbose logging activated');
+    } else if (options.verbose) {
+      setLogLevel(LogLevel.DEBUG);
+      logger.info('📝 Verbose mode enabled - detailed logging activated');
+    }
+
     // Auto-update check (unless disabled)
     if (!options.noUpdate) {
       const updater = new AutoUpdater();
