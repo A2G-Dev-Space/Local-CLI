@@ -5,6 +5,7 @@
  */
 
 import chalk from 'chalk';
+import { getJsonStreamLogger } from './json-stream-logger.js';
 
 export enum LogLevel {
   ERROR = 0,
@@ -92,6 +93,12 @@ export class Logger {
         console.error(chalk.red('  Error:'), error);
       }
     }
+
+    // Log to JSON stream if enabled
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logError(error || new Error(message), this.prefix || 'logger');
+    }
   }
 
   /**
@@ -111,6 +118,12 @@ export class Logger {
 
     if (data) {
       console.warn(chalk.yellow('  Data:'), JSON.stringify(data, null, 2));
+    }
+
+    // Log to JSON stream if enabled
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logInfo(`[WARN] ${message}`, data);
     }
   }
 
@@ -132,6 +145,12 @@ export class Logger {
     if (data) {
       console.log(chalk.blue('  Data:'), JSON.stringify(data, null, 2));
     }
+
+    // Log to JSON stream if enabled
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logInfo(message, data);
+    }
   }
 
   /**
@@ -152,6 +171,12 @@ export class Logger {
     if (data) {
       console.log(chalk.magenta('  Data:'), JSON.stringify(data, null, 2));
     }
+
+    // Log to JSON stream if enabled
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(message, data);
+    }
   }
 
   /**
@@ -171,6 +196,12 @@ export class Logger {
 
     if (data) {
       console.log(chalk.gray('  Data:'), JSON.stringify(data, null, 2));
+    }
+
+    // Log to JSON stream if enabled
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[VERBOSE] ${message}`, data);
     }
   }
 
@@ -193,6 +224,12 @@ export class Logger {
     if (body) {
       console.log(chalk.cyan('  Body:'), JSON.stringify(body, null, 2));
     }
+
+    // Log to JSON stream if enabled
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`HTTP ${method} ${url}`, { body });
+    }
   }
 
   /**
@@ -214,6 +251,12 @@ export class Logger {
 
     if (data && this.level >= LogLevel.VERBOSE) {
       console.log(chalk.cyan('  Data:'), JSON.stringify(data, null, 2));
+    }
+
+    // Log to JSON stream if enabled
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`HTTP Response ${status} ${statusText}`, { status, statusText, data: this.level >= LogLevel.VERBOSE ? data : undefined });
     }
   }
 
@@ -246,6 +289,12 @@ export class Logger {
       if (result && this.level >= LogLevel.VERBOSE) {
         console.log(chalk.green('  Result:'), JSON.stringify(result, null, 2));
       }
+    }
+
+    // Log to JSON stream if enabled
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logToolCall(toolName, args, result, error);
     }
   }
 }
