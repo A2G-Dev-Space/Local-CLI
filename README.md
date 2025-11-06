@@ -91,6 +91,9 @@ open --verbose
 # Debug 로깅 활성화 (모든 디버그 정보 표시)
 open --debug
 
+# JSON 스트림 로그 저장 (모든 터미널 로그를 JSON 파일로 저장, 위치: ~/.open-cli/logs/)
+open --output-format stream-json
+
 # 자동 업데이트 비활성화
 open --no-update
 

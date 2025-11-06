@@ -22,6 +22,9 @@ import { EndpointConfig, Message } from './types/index.js';
 import { PlanExecuteApp } from './ui/components/PlanExecuteApp.js';
 import { GitAutoUpdater } from './core/git-auto-updater.js';
 import { logger, LogLevel, setLogLevel } from './utils/logger.js';
+import { initializeJsonStreamLogger, closeJsonStreamLogger } from './utils/json-stream-logger.js';
+import { homedir } from 'os';
+import { join } from 'path';
 
 const program = new Command();
 
@@ -39,7 +42,8 @@ program
   .option('--plan-execute', 'Use Plan & Execute mode (default: auto-detect)')
   .option('--verbose', 'Enable verbose logging (shows detailed error messages, HTTP requests, tool execution)')
   .option('--debug', 'Enable debug logging (shows all debug information)')
-  .action(async (options: { classic?: boolean; noUpdate?: boolean; planExecute?: boolean; verbose?: boolean; debug?: boolean }) => {
+  .option('--output-format <format>', 'Output format: stream-json saves all logs to JSON file')
+  .action(async (options: { classic?: boolean; noUpdate?: boolean; planExecute?: boolean; verbose?: boolean; debug?: boolean; outputFormat?: string }) => {
   try {
     // Set log level based on options
     if (options.debug) {
@@ -48,6 +52,24 @@ program
     } else if (options.verbose) {
       setLogLevel(LogLevel.DEBUG);
       logger.info('📝 Verbose mode enabled - detailed logging activated');
+    }
+
+    // Initialize JSON stream logger if requested
+    if (options.outputFormat === 'stream-json') {
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const logDir = join(homedir(), '.open-cli', 'logs');
+      const logFile = join(logDir, `session-${timestamp}.json`);
+      await initializeJsonStreamLogger(logFile);
+
+      // Ensure cleanup on exit
+      process.on('SIGINT', async () => {
+        await closeJsonStreamLogger();
+        process.exit(0);
+      });
+      process.on('SIGTERM', async () => {
+        await closeJsonStreamLogger();
+        process.exit(0);
+      });
     }
 
     // Git-based auto-update (unless disabled)
