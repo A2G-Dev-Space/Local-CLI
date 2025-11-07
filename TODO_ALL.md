@@ -4998,7 +4998,7 @@ Strengthen /help command and add interactive tutorial.
 **Priority**: P2 (Medium)
 **Estimated Time**: 2 days
 **Dependencies**: None
-**Status**: Partially Completed (File Browser Done) 🚧
+**Status**: ✅ Completed
 **Source**: TODO.md Section 9
 
 ### Overview
@@ -5008,8 +5008,8 @@ Add intelligent autocomplete for file paths and commands.
 ### Implementation Checklist
 
 - [x] @path/to/file autocomplete with file system browsing ✅ **Completed: 2025-11-05**
-- [ ] / command autocomplete with available commands
-- [ ] Input hint display below input box
+- [x] / command autocomplete with available commands ✅ **Completed: 2025-11-08**
+- [x] Input hint display (argument hints for commands) ✅ **Completed: 2025-11-08**
 - [x] Tab completion support ✅ **Completed: 2025-11-05** (Tab to quick-select first file)
 - [x] Fuzzy matching for suggestions ✅ **Completed: 2025-11-05** (Filter-based matching in useFileList)
 
@@ -5033,12 +5033,30 @@ Add intelligent autocomplete for file paths and commands.
 - Shows up to 100 files with scrolling
 - Integrated into InteractiveApp.tsx
 
-### Remaining Work
+### Slash Command Autocomplete (2025-11-08)
 
-- [ ] / command autocomplete (command suggestions)
-- [ ] Input hint display below input box (visual hints)
+**/ Command Autocomplete Feature**:
+- ✅ Slash command processor with detection and validation
+- ✅ CommandBrowser UI component for autocomplete display
+- ✅ Up to 10 commands with aligned descriptions (25-char column)
+- ✅ Keyboard navigation (Tab, Enter, Arrow keys, ESC)
+- ✅ Argument hints for parameterized commands (/mode, /save)
+- ✅ Command alias support (/exit and /quit as aliases)
+- ✅ Smart submission (valid commands can be submitted when browser open)
+- ✅ Input clearing after command execution
+- ✅ Integrated with PlanExecuteApp
+- ✅ Centralized command execution in core/slash-command-handler.ts
 
-### Estimated Time: 1 day remaining
+**Implementation Details**:
+- **slashCommandProcessor.ts**: Detection, filtering, validation logic
+- **CommandBrowser.tsx**: Autocomplete UI with SelectInput
+- **slash-command-handler.ts**: Centralized command execution for reusability
+- Real-time filtering as user types after /
+- "//" not recognized as command (edge case handled)
+- Tab key inserts command for argument input
+- Enter key executes command immediately
+
+### Estimated Time: Completed (2 days total)
 
 ---
 

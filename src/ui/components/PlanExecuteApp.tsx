@@ -20,6 +20,18 @@ import { FileBrowser } from './FileBrowser.js';
 import { detectAtTrigger, insertFilePaths } from '../hooks/atFileProcessor.js';
 import { loadFileList, FileItem } from '../hooks/useFileList.js';
 import { BaseError } from '../../errors/base.js';
+import { CommandBrowser } from './CommandBrowser.js';
+import {
+  detectSlashTrigger,
+  insertSlashCommand,
+  isValidCommand,
+} from '../hooks/slashCommandProcessor.js';
+import {
+  executeSlashCommand,
+  isSlashCommand,
+  type CommandHandlerContext,
+  type AppMode,
+} from '../../core/slash-command-handler.js';
 
 interface PlanExecuteAppProps {
   llmClient: LLMClient;
@@ -28,8 +40,6 @@ interface PlanExecuteAppProps {
     endpoint: string;
   };
 }
-
-type AppMode = 'direct' | 'plan-execute' | 'auto';
 
 /**
  * Format error for display with all available details
@@ -107,6 +117,11 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
   const [cachedFileList, setCachedFileList] = useState<FileItem[]>([]);
   const [isLoadingFiles, setIsLoadingFiles] = useState(true);
 
+  // Command browser state
+  const [showCommandBrowser, setShowCommandBrowser] = useState(false);
+  const [partialCommand, setPartialCommand] = useState('');
+  const [commandArgs, setCommandArgs] = useState('');
+
   // Initialize docs directory on startup
   useEffect(() => {
     initializeDocsDirectory().catch(console.warn);
@@ -162,6 +177,36 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
     }
   }, [input, isProcessing, showFileBrowser]);
 
+  // Monitor input for '/' slash command trigger
+  useEffect(() => {
+    if (isProcessing) {
+      return; // Don't trigger while processing
+    }
+
+    // Don't process empty input (happens after submit)
+    if (!input) {
+      return;
+    }
+
+    const slashInfo = detectSlashTrigger(input);
+
+    if (slashInfo.detected && !showCommandBrowser) {
+      // '/' detected at start, show command browser
+      setShowCommandBrowser(true);
+      setPartialCommand(slashInfo.partialCommand);
+      setCommandArgs(slashInfo.args);
+    } else if (slashInfo.detected && showCommandBrowser) {
+      // Update partial command as user types
+      setPartialCommand(slashInfo.partialCommand);
+      setCommandArgs(slashInfo.args);
+    } else if (!slashInfo.detected && showCommandBrowser) {
+      // '/' removed or input doesn't match pattern, hide command browser
+      setShowCommandBrowser(false);
+      setPartialCommand('');
+      setCommandArgs('');
+    }
+  }, [input, isProcessing, showCommandBrowser]);
+
   // Keyboard shortcuts
   useInput((inputChar: string, key: { ctrl: boolean; shift: boolean; meta: boolean; escape: boolean }) => {
     if (key.ctrl && inputChar === 'c') {
@@ -201,6 +246,32 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
     setShowFileBrowser(false);
     setAtPosition(-1);
     setFilterText('');
+  };
+
+  // Handle command selection from browser
+  const handleCommandSelect = (command: string, shouldSubmit: boolean) => {
+    // Close command browser
+    setShowCommandBrowser(false);
+    setPartialCommand('');
+    setCommandArgs('');
+
+    if (shouldSubmit) {
+      // Enter key: Submit the command directly
+      handleSubmit(command);
+    } else {
+      // Tab key: Insert command into input for further editing (e.g., adding arguments)
+      const newInput = insertSlashCommand(input, command);
+      setInput(newInput);
+      setInputKey((prev) => prev + 1);
+    }
+  };
+
+  // Handle command browser cancellation
+  const handleCommandBrowserCancel = () => {
+    // Close command browser
+    setShowCommandBrowser(false);
+    setPartialCommand('');
+    setCommandArgs('');
   };
 
   // TODO update callback
@@ -312,50 +383,37 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
       return;
     }
 
+    // Allow submission if command browser is open but command is valid
+    if (showCommandBrowser && !isValidCommand(value.trim())) {
+      return;
+    }
+
     const userMessage = value.trim();
+
+    // Close command browser if open (before clearing input)
+    if (showCommandBrowser) {
+      setShowCommandBrowser(false);
+      setPartialCommand('');
+      setCommandArgs('');
+    }
+
     setInput('');
+    setInputKey((prev) => prev + 1);
 
-    // Handle meta commands
-    if (userMessage.startsWith('/')) {
-      if (userMessage === '/exit' || userMessage === '/quit') {
-        exit();
-        return;
-      }
+    if (isSlashCommand(userMessage)) {
+      const commandContext: CommandHandlerContext = {
+        mode,
+        messages,
+        todos,
+        setMode,
+        setMessages,
+        setTodos,
+        exit,
+      };
 
-      if (userMessage === '/clear') {
-        setMessages([]);
-        setTodos([]);
-        return;
-      }
+      const result = executeSlashCommand(userMessage, commandContext);
 
-      if (userMessage === '/mode') {
-        // Show current mode
-        return;
-      }
-
-      if (userMessage.startsWith('/mode ')) {
-        const newMode = userMessage.split(' ')[1] as AppMode;
-        if (['direct', 'plan-execute', 'auto'].includes(newMode)) {
-          setMode(newMode);
-        }
-        return;
-      }
-
-      if (userMessage === '/help') {
-        const helpMessage = `
-Available commands:
-  /exit, /quit    - Exit the application
-  /clear          - Clear conversation and TODOs
-  /mode [type]    - Switch mode (direct/plan-execute/auto)
-  /save [name]    - Save current session
-  /load           - Load a saved session
-
-Keyboard shortcuts:
-  Tab             - Cycle through modes
-  Ctrl+T          - Toggle TODO panel
-  Ctrl+C          - Exit
-        `;
-        setMessages([...messages, { role: 'assistant', content: helpMessage }]);
+      if (result.handled) {
         return;
       }
     }
@@ -473,6 +531,18 @@ Keyboard shortcuts:
               cachedFiles={cachedFileList}
             />
           )}
+        </Box>
+      )}
+
+      {/* Command Browser (shown when '/' is typed at start) */}
+      {showCommandBrowser && !isProcessing && !showFileBrowser && (
+        <Box marginTop={0}>
+          <CommandBrowser
+            partialCommand={partialCommand}
+            args={commandArgs}
+            onSelect={handleCommandSelect}
+            onCancel={handleCommandBrowserCancel}
+          />
         </Box>
       )}
 
