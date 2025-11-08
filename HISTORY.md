@@ -13,8 +13,9 @@
 - **Phase 2.7**: 100% Complete (4 features)
 - **Phase 2.8**: 100% Complete (1 feature)
 - **Phase 2.9**: 100% Complete (1 feature)
+- **Phase 2.10**: 100% Complete (1 feature)
 - **Phase 3**: 100% Complete (4 major Claude Code features + UI)
-- **Total Lines of Code**: ~16,800+
+- **Total Lines of Code**: ~17,000+
 - **Implementation Period**: December 2024 - November 2025
 
 ---
@@ -472,12 +473,13 @@ open-cli/
 ## 📈 Statistics
 
 ### Code Metrics
-- **Total LOC**: ~16,800+
+- **Total LOC**: ~17,000+
 - **Phase 1**: ~4,500 lines
 - **Phase 2**: ~2,500 lines
 - **Phase 2.5**: ~2,000 lines
 - **Phase 2.6-2.8**: ~800 lines (@ File, Error Logging, Docs Search)
 - **Phase 2.9**: ~970 lines (Slash Command Autocomplete)
+- **Phase 2.10**: ~170 lines (Status Command)
 - **Phase 3**: ~6,000+ lines (Agent Loop, Multi-Layer, TDD, UI)
 - **Files**: 79+ total (59+ TypeScript)
 - **UI Components**: 11+ React components
@@ -501,8 +503,9 @@ open-cli/
 - **Phase 2.7**: 4 features ✅ (Error logging, Function i18n, Auto-update logging, Git-based update)
 - **Phase 2.8**: 1 feature ✅ (Framework-aware docs search)
 - **Phase 2.9**: 1 feature ✅ (Slash command autocomplete)
+- **Phase 2.10**: 1 feature ✅ (Status command)
 - **Phase 3**: 5 major features ✅
-- **Total**: 32 features completed
+- **Total**: 33 features completed
 
 **Full Details**: [HISTORY_ALL.md#L1032-L1082](./HISTORY_ALL.md#L1032-L1082)
 
@@ -548,5 +551,40 @@ open-cli/
 ---
 
 *Last Updated: 2025-11-08*
-*Version: 3.2.0 - Slash Command Autocomplete System Complete*
-*Latest: Slash Command Autocomplete with Browser UI (Phase 2.9.1) completed*
+*Version: 3.3.0 - Status Command Implementation Complete*
+*Latest: /status Command for System Status Display (Phase 2.10.1) completed*
+---
+
+## ✅ Phase 2.10: Status Command Implementation (100% Complete)
+
+### 2.10.1 /status Command for System Status Display
+- **Status**: ✅ Completed
+- **Date**: 2025-11-08
+- **Details**: [HISTORY_ALL.md#L3521-L3800](./HISTORY_ALL.md#L3521-L3800)
+- **Summary**: System status command displaying version, session ID, working directory, endpoint, and model information
+- **Key Features**:
+  - **Version Display**: Read from package.json with fallback
+  - **Session ID**: Unique runtime session identifier
+  - **Working Directory**: Current working directory path
+  - **Endpoint URL**: Active LLM endpoint configuration
+  - **Model Info**: Current model name and ID
+  - **Dual Mode Support**: Works in both Ink UI and Classic CLI
+  - **Autocomplete**: Integrated with slash command browser
+  - **Async Support**: Enhanced command handler with async/await
+- **Components**:
+  - `slash-command-handler.ts` (Modified): Added /status handler for both modes
+  - `session-manager.ts` (Modified): Session ID tracking methods
+  - `slashCommandProcessor.ts` (Modified): Autocomplete registration
+  - `PlanExecuteApp.tsx` (Modified): Async handler integration
+- **Display Format**:
+  - Version: 0.1.0
+  - Session ID: session-{timestamp}-{random}
+  - Working Dir: Full path
+  - Endpoint URL: Configured URL or "Not configured"
+  - LLM Model: Name (ID) or "Not configured"
+- **Performance**:
+  - Version Read: <5ms
+  - Total Execution: <10ms
+  - UI Render: <100ms
+
+---

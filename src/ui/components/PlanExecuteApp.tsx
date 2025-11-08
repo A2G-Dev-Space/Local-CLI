@@ -411,7 +411,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
         exit,
       };
 
-      const result = executeSlashCommand(userMessage, commandContext);
+      const result = await executeSlashCommand(userMessage, commandContext);
 
       if (result.handled) {
         return;

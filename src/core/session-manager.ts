@@ -49,9 +49,12 @@ export interface SessionSummary {
  */
 export class SessionManager {
   private sessionsDir: string;
+  private currentSessionId: string | null = null;
 
   constructor() {
     this.sessionsDir = SESSIONS_DIR;
+    // Generate a new session ID for this runtime instance
+    this.currentSessionId = `session-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
   }
 
   /**
@@ -204,6 +207,20 @@ export class SessionManager {
     await fs.writeFile(filePath, JSON.stringify(sessionData, null, 2), 'utf-8');
 
     return true;
+  }
+
+  /**
+   * 현재 세션 ID 가져오기
+   */
+  getCurrentSessionId(): string | null {
+    return this.currentSessionId;
+  }
+
+  /**
+   * 현재 세션 ID 설정
+   */
+  setCurrentSessionId(sessionId: string): void {
+    this.currentSessionId = sessionId;
   }
 }
 

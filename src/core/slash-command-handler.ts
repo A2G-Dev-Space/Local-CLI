@@ -48,10 +48,10 @@ export interface ClassicCommandResult {
  * Execute a slash command
  * Returns true if command was handled, false otherwise
  */
-export function executeSlashCommand(
+export async function executeSlashCommand(
   command: string,
   context: CommandHandlerContext
-): CommandExecutionResult {
+): Promise<CommandExecutionResult> {
   const trimmedCommand = command.trim();
 
   // Exit commands
@@ -136,6 +136,7 @@ Available commands:
   /mode [type]    - Switch mode (direct/plan-execute/auto)
   /save [name]    - Save current session
   /load           - Load a saved session
+  /status         - Show system status
 
 Keyboard shortcuts:
   Tab             - Cycle through modes
@@ -180,6 +181,52 @@ Keyboard shortcuts:
     const updatedMessages = [
       ...context.messages,
       { role: 'assistant' as const, content: loadMessage },
+    ];
+    context.setMessages(updatedMessages);
+    return {
+      handled: true,
+      shouldContinue: false,
+      updatedContext: {
+        messages: updatedMessages,
+      },
+    };
+  }
+
+  // Status command - show system information
+  if (trimmedCommand === '/status') {
+    const endpoint = configManager.getCurrentEndpoint();
+    const model = configManager.getCurrentModel();
+    const cwd = process.cwd();
+
+    // Read package.json for version
+    let version = 'unknown';
+    try {
+      // Get package.json from the module root
+      const { readFile } = await import('fs/promises');
+      const { fileURLToPath } = await import('url');
+      const { dirname, join } = await import('path');
+      const __filename = fileURLToPath(import.meta.url);
+      const __dirname = dirname(__filename);
+      const packageJsonPath = join(__dirname, '../../package.json');
+      const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf-8'));
+      version = packageJson.version;
+    } catch {
+      // If we can't read package.json, use the default version
+      version = '0.1.0';
+    }
+
+    const statusMessage = `
+System Status:
+  Version:      ${version}
+  Session ID:   ${sessionManager.getCurrentSessionId() || 'No active session'}
+  Working Dir:  ${cwd}
+  Endpoint URL: ${endpoint?.baseUrl || 'Not configured'}
+  LLM Model:    ${model?.name || 'Not configured'} (${model?.id || 'N/A'})
+    `;
+
+    const updatedMessages = [
+      ...context.messages,
+      { role: 'assistant' as const, content: statusMessage },
     ];
     context.setMessages(updatedMessages);
     return {
@@ -280,6 +327,7 @@ export async function executeClassicSlashCommand(
     console.log(chalk.white('  /sessions       - 저장된 대화 목록 보기'));
     console.log(chalk.white('  /endpoint       - 엔드포인트 보기/전환'));
     console.log(chalk.white('  /docs           - 로컬 문서 보기/검색'));
+    console.log(chalk.white('  /status         - 시스템 상태 보기'));
     console.log(chalk.white('  /help           - 이 도움말\n'));
     return { handled: true, shouldContinue: false, shouldBreak: false };
   }
@@ -598,6 +646,37 @@ export async function executeClassicSlashCommand(
       }
       console.log();
     }
+    return { handled: true, shouldContinue: false, shouldBreak: false };
+  }
+
+  // /status - Show system status
+  if (userMessage === '/status') {
+    const endpoint = configManager.getCurrentEndpoint();
+    const model = configManager.getCurrentModel();
+    const cwd = process.cwd();
+
+    // Read package.json for version
+    let version = 'unknown';
+    try {
+      const { readFile } = await import('fs/promises');
+      const { fileURLToPath } = await import('url');
+      const { dirname, join } = await import('path');
+      const __filename = fileURLToPath(import.meta.url);
+      const __dirname = dirname(__filename);
+      const packageJsonPath = join(__dirname, '../../package.json');
+      const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf-8'));
+      version = packageJson.version;
+    } catch {
+      version = '0.1.0';
+    }
+
+    console.log(chalk.cyan.bold('\n📊 System Status\n'));
+    console.log(chalk.white(`  Version:      ${chalk.green(version)}`));
+    console.log(chalk.white(`  Session ID:   ${chalk.green(sessionManager.getCurrentSessionId() || 'No active session')}`));
+    console.log(chalk.white(`  Working Dir:  ${chalk.green(cwd)}`));
+    console.log(chalk.white(`  Endpoint URL: ${chalk.green(endpoint?.baseUrl || 'Not configured')}`));
+    console.log(chalk.white(`  LLM ID:    ${chalk.green(model?.name || 'Not configured')} ${chalk.dim(`(${model?.id || 'N/A'})`)}\n`));
+
     return { handled: true, shouldContinue: false, shouldBreak: false };
   }
 

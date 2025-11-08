@@ -7,12 +7,12 @@
 ## 📊 Summary
 
 - **Total Features**: 22 (기존 14 + Claude Code 방법론 6 + Error Logging 1 + Docs Search Enhancement 1)
-- **Completed**: 12 features ✅
+- **Completed**: 13 features ✅
 - **Partially Completed**: 0 features
 - **In Progress**: 0 features
-- **Not Started**: 10 features
+- **Not Started**: 9 features
 - **Priority 0 (Critical)**: 2 remaining (4 completed)
-- **Priority 1 (Important)**: 7 remaining (5 completed)
+- **Priority 1 (Important)**: 6 remaining (6 completed)
 - **Priority 2 (Medium)**: 0 remaining (2 completed - @ file inclusion + slash command autocomplete)
 - **Priority 3 (Low)**: 1 feature
 - **Estimated Remaining Time**: 5-7 weeks
@@ -108,12 +108,12 @@
 - **Summary**: Visual display of tool calls and results
 - **Progress**: UI components created, needs integration with workflow
 
-### 14. Status Bar
+### 14. Status Bar / Status Command
 - **Time**: 1 day
 - **Status**: [x] Completed ✅
 - **Details**: [TODO_ALL.md#L4671-L4793](./TODO_ALL.md#L4671-L4793)
-- **Summary**: Bottom bar showing path, model, context usage
-- **Completed**: 2025-11-05 (StatusBar component with context usage)
+- **Summary**: Bottom bar showing path, model, context usage + /status command
+- **Completed**: 2025-11-05 (StatusBar component) | 2025-11-08 (/status command)
 
 ### 21. Comprehensive Error Logging & Debugging System 🆕
 - **Time**: 1 day
@@ -285,5 +285,5 @@
 ---
 
 *Last Updated: 2025-11-08*
-*Version: 3.2.0 - Phase 2.9 Complete: Slash Command Autocomplete System*
-*Latest: Slash Command Autocomplete with Browser UI (P2-2) completed*
+*Version: 3.3.0 - Phase 2.10 Complete: Status Command Implementation*
+*Latest: /status Command for System Status Display (P1-14 extension) completed*

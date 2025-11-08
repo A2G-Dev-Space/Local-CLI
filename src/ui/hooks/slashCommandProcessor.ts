@@ -48,6 +48,10 @@ export const SLASH_COMMANDS: CommandMetadata[] = [
     description: 'Load a saved session',
   },
   {
+    name: '/status',
+    description: 'Show system status',
+  },
+  {
     name: '/help',
     description: 'Show help message',
   },
