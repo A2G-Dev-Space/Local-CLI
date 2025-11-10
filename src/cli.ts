@@ -147,6 +147,8 @@ program
       // 메타 명령어 처리
       if (userMessage === '/exit' || userMessage === '/quit') {
         console.log(chalk.cyan('\n👋 OPEN-CLI를 종료합니다.\n'));
+        // Close JSON stream logger before exit
+        await closeJsonStreamLogger();
         running = false;
         break;
       }

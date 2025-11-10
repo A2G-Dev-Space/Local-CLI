@@ -33,6 +33,7 @@ import {
   type CommandHandlerContext,
   type AppMode,
 } from '../../core/slash-command-handler.js';
+  import { closeJsonStreamLogger } from '../../utils/json-stream-logger.js';
 
 interface PlanExecuteAppProps {
   llmClient: LLMClient;
@@ -211,10 +212,17 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
     }
   }, [input, isProcessing, showCommandBrowser]);
 
+  // Wrapped exit function to ensure cleanup
+  const handleExit = useCallback(async () => {
+    // Close JSON stream logger before exit
+    await closeJsonStreamLogger();
+    exit();
+  }, [exit]);
+
   // Keyboard shortcuts
   useInput((inputChar: string, key: { ctrl: boolean; shift: boolean; meta: boolean; escape: boolean }) => {
     if (key.ctrl && inputChar === 'c') {
-      exit();
+      handleExit().catch(console.error);
     }
     // Toggle TODO panel with Ctrl+T
     if (key.ctrl && inputChar === 't') {
@@ -455,7 +463,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
         setMode,
         setMessages,
         setTodos,
-        exit,
+        exit: handleExit,
         // Provide UI control callback for SessionBrowser
         onShowSessionBrowser: () => {
           setShowSessionBrowser(true);
