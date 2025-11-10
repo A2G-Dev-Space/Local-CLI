@@ -700,7 +700,6 @@ configCommand
       console.log(chalk.white('생성된 디렉토리:'));
       console.log(chalk.dim('  ~/.open-cli/'));
       console.log(chalk.dim('  ~/.open-cli/config.json'));
-      console.log(chalk.dim('  ~/.open-cli/sessions/'));
       console.log(chalk.dim('  ~/.open-cli/docs/'));
       console.log(chalk.dim('  ~/.open-cli/backups/'));
       console.log(chalk.dim('  ~/.open-cli/projects/\n'));

@@ -26,12 +26,6 @@ export const CONFIG_FILE_PATH = path.join(OPEN_HOME_DIR, 'config.json');
 export const ENDPOINTS_FILE_PATH = path.join(OPEN_HOME_DIR, 'endpoints.json');
 
 /**
- * 세션 저장 디렉토리
- * ~/.open-cli/sessions/
- */
-export const SESSIONS_DIR = path.join(OPEN_HOME_DIR, 'sessions');
-
-/**
  * 문서 디렉토리
  * ~/.open-cli/docs/
  */
