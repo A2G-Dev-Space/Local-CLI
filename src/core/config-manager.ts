@@ -9,7 +9,6 @@ import { OpenConfig, EndpointConfig, ModelInfo } from '../types/index.js';
 import {
   OPEN_HOME_DIR,
   CONFIG_FILE_PATH,
-  SESSIONS_DIR,
   DOCS_DIR,
   BACKUPS_DIR,
   PROJECTS_DIR,
@@ -59,7 +58,6 @@ export class ConfigManager {
     await ensureDirectory(OPEN_HOME_DIR);
 
     // 하위 디렉토리 생성
-    await ensureDirectory(SESSIONS_DIR);
     await ensureDirectory(DOCS_DIR);
     await ensureDirectory(BACKUPS_DIR);
     await ensureDirectory(PROJECTS_DIR);
