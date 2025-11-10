@@ -7,7 +7,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as chalk from 'chalk';
-import { LOGS_DIR } from '../constants.js';
+import { PROJECTS_DIR } from '../constants.js';
 import { ensureDirectory } from '../utils/file-system.js';
 
 /**
@@ -88,8 +88,10 @@ export class Logger {
       maxFiles: options.maxFiles ?? 7,
     };
 
-    this.logFilePath = path.join(LOGS_DIR, 'open-cli.log');
-    this.errorLogFilePath = path.join(LOGS_DIR, 'error.log');
+    // Note: This logger is deprecated in favor of json-stream-logger
+    // Keeping minimal functionality for backwards compatibility
+    this.logFilePath = path.join(PROJECTS_DIR, 'deprecated.log');
+    this.errorLogFilePath = path.join(PROJECTS_DIR, 'deprecated-error.log');
 
     // 로그 디렉토리 생성
     this.initializeLogsDirectory();
@@ -110,7 +112,7 @@ export class Logger {
    */
   private initializeLogsDirectory(): void {
     try {
-      ensureDirectory(LOGS_DIR);
+      ensureDirectory(PROJECTS_DIR);
     } catch (error) {
       console.error('Failed to create logs directory:', error);
     }

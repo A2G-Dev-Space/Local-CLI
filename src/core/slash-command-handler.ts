@@ -134,7 +134,6 @@ Available commands:
   /exit, /quit    - Exit the application
   /clear          - Clear conversation and TODOs
   /mode [type]    - Switch mode (direct/plan-execute/auto)
-  /save [name]    - Save current session
   /load           - Load a saved session
   /status         - Show system status
 
@@ -142,6 +141,8 @@ Keyboard shortcuts:
   Tab             - Cycle through modes
   Ctrl+T          - Toggle TODO panel
   Ctrl+C          - Exit
+
+Note: All conversations are automatically saved.
     `;
     const updatedMessages = [
       ...context.messages,
@@ -157,39 +158,113 @@ Keyboard shortcuts:
     };
   }
 
-  // Save command (placeholder - to be implemented)
-  if (trimmedCommand.startsWith('/save')) {
-    const sessionName = trimmedCommand.substring(5).trim() || `session-${Date.now()}`;
-    const saveMessage = `Session saving not yet implemented. Would save as: ${sessionName}`;
-    const updatedMessages = [
-      ...context.messages,
-      { role: 'assistant' as const, content: saveMessage },
-    ];
-    context.setMessages(updatedMessages);
-    return {
-      handled: true,
-      shouldContinue: false,
-      updatedContext: {
-        messages: updatedMessages,
-      },
-    };
-  }
+  // Load command - load saved session
+  if (trimmedCommand.startsWith('/load')) {
+    const parts = trimmedCommand.split(' ');
+    const sessionIdOrIndex = parts[1];
 
-  // Load command (placeholder - to be implemented)
-  if (trimmedCommand === '/load') {
-    const loadMessage = 'Session loading not yet implemented.';
-    const updatedMessages = [
-      ...context.messages,
-      { role: 'assistant' as const, content: loadMessage },
-    ];
-    context.setMessages(updatedMessages);
-    return {
-      handled: true,
-      shouldContinue: false,
-      updatedContext: {
-        messages: updatedMessages,
-      },
-    };
+    try {
+      const sessions = await sessionManager.listSessions();
+
+      if (sessions.length === 0) {
+        const noSessionMessage = '저장된 세션이 없습니다.';
+        const updatedMessages = [
+          ...context.messages,
+          { role: 'assistant' as const, content: noSessionMessage },
+        ];
+        context.setMessages(updatedMessages);
+        return {
+          handled: true,
+          shouldContinue: false,
+          updatedContext: {
+            messages: updatedMessages,
+          },
+        };
+      }
+
+      // If no session ID provided, show list
+      if (!sessionIdOrIndex) {
+        const sessionList = sessions.map((session, index) => {
+          const date = new Date(session.createdAt).toLocaleDateString('ko-KR');
+          return `${index + 1}. ${session.name} (${session.messageCount}개 메시지, ${date})`;
+        }).join('\n');
+
+        const listMessage = `저장된 세션 목록:\n\n${sessionList}\n\n사용법: /load <번호> 또는 /load <세션ID>`;
+        const updatedMessages = [
+          ...context.messages,
+          { role: 'assistant' as const, content: listMessage },
+        ];
+        context.setMessages(updatedMessages);
+        return {
+          handled: true,
+          shouldContinue: false,
+          updatedContext: {
+            messages: updatedMessages,
+          },
+        };
+      }
+
+      // Load session by index or ID
+      let sessionId: string;
+      const index = parseInt(sessionIdOrIndex);
+      if (!isNaN(index) && index > 0 && index <= sessions.length) {
+        // Load by index
+        sessionId = sessions[index - 1]!.id;
+      } else {
+        // Load by ID
+        sessionId = sessionIdOrIndex;
+      }
+
+      const sessionData = await sessionManager.loadSession(sessionId);
+      if (!sessionData) {
+        const errorMessage = `세션을 찾을 수 없습니다: ${sessionIdOrIndex}`;
+        const updatedMessages = [
+          ...context.messages,
+          { role: 'assistant' as const, content: errorMessage },
+        ];
+        context.setMessages(updatedMessages);
+        return {
+          handled: true,
+          shouldContinue: false,
+          updatedContext: {
+            messages: updatedMessages,
+          },
+        };
+      }
+
+      // Restore messages
+      const loadedMessages = sessionData.messages;
+      context.setMessages(loadedMessages);
+
+      const successMessage = `✅ 세션이 복원되었습니다!\n이름: ${sessionData.metadata.name}\n메시지: ${loadedMessages.length}개`;
+      const updatedMessages = [
+        ...loadedMessages,
+        { role: 'assistant' as const, content: successMessage },
+      ];
+      context.setMessages(updatedMessages);
+
+      return {
+        handled: true,
+        shouldContinue: false,
+        updatedContext: {
+          messages: updatedMessages,
+        },
+      };
+    } catch (error) {
+      const errorMessage = `세션 로드 실패: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      const updatedMessages = [
+        ...context.messages,
+        { role: 'assistant' as const, content: errorMessage },
+      ];
+      context.setMessages(updatedMessages);
+      return {
+        handled: true,
+        shouldContinue: false,
+        updatedContext: {
+          messages: updatedMessages,
+        },
+      };
+    }
   }
 
   // Status command - show system information
@@ -322,13 +397,13 @@ export async function executeClassicSlashCommand(
     console.log(chalk.white('  /exit, /quit    - 종료'));
     console.log(chalk.white('  /context        - 대화 히스토리 보기'));
     console.log(chalk.white('  /clear          - 대화 히스토리 초기화'));
-    console.log(chalk.white('  /save [name]    - 현재 대화 저장'));
     console.log(chalk.white('  /load           - 저장된 대화 불러오기'));
     console.log(chalk.white('  /sessions       - 저장된 대화 목록 보기'));
     console.log(chalk.white('  /endpoint       - 엔드포인트 보기/전환'));
     console.log(chalk.white('  /docs           - 로컬 문서 보기/검색'));
     console.log(chalk.white('  /status         - 시스템 상태 보기'));
     console.log(chalk.white('  /help           - 이 도움말\n'));
+    console.log(chalk.dim('참고: 모든 대화는 자동으로 저장됩니다.\n'));
     return { handled: true, shouldContinue: false, shouldBreak: false };
   }
 
@@ -523,37 +598,6 @@ export async function executeClassicSlashCommand(
     return { handled: true, shouldContinue: false, shouldBreak: false };
   }
 
-  // /save [name] - Save session
-  if (userMessage.startsWith('/save')) {
-    const parts = userMessage.split(' ');
-    const sessionName =
-      parts.slice(1).join(' ').trim() ||
-      `session-${new Date().toISOString().split('T')[0]}`;
-
-    if (context.messages.length === 0) {
-      console.log(chalk.yellow('\n⚠️  저장할 대화 내용이 없습니다.\n'));
-      return { handled: true, shouldContinue: false, shouldBreak: false };
-    }
-
-    try {
-      const sessionId = await sessionManager.saveSession(
-        sessionName,
-        context.messages
-      );
-      console.log(chalk.green('\n✅ 대화가 저장되었습니다!'));
-      console.log(chalk.dim(`  이름: ${sessionName}`));
-      console.log(chalk.dim(`  ID: ${sessionId}`));
-      console.log(chalk.dim(`  메시지: ${context.messages.length}개\n`));
-    } catch (error) {
-      console.error(chalk.red('\n❌ 세션 저장 실패:'));
-      if (error instanceof Error) {
-        console.error(chalk.red(error.message));
-      }
-      console.log();
-    }
-    return { handled: true, shouldContinue: false, shouldBreak: false };
-  }
-
   // /sessions - List sessions
   if (userMessage === '/sessions') {
     try {
@@ -639,6 +683,19 @@ export async function executeClassicSlashCommand(
       console.log(
         chalk.dim(`  메시지: ${sessionData.messages.length}개\n`)
       );
+
+      // Display conversation history
+      console.log(chalk.yellow('📝 복원된 대화 내용:\n'));
+      sessionData.messages.forEach((msg, index) => {
+        const roleLabel = msg.role === 'user' ? chalk.green('You') : chalk.cyan('Assistant');
+        const content = msg.content || '';
+        const preview = content.length > 200 ? content.substring(0, 200) + '...' : content;
+
+        console.log(chalk.white(`${index + 1}. ${roleLabel}:`));
+        console.log(chalk.dim(`   ${preview.replace(/\n/g, '\n   ')}\n`));
+      });
+
+      console.log(chalk.dim('대화를 계속하려면 메시지를 입력하세요.\n'));
     } catch (error) {
       console.error(chalk.red('\n❌ 세션 로드 실패:'));
       if (error instanceof Error) {

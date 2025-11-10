@@ -91,9 +91,6 @@ open --verbose
 # Debug 로깅 활성화 (모든 디버그 정보 표시)
 open --debug
 
-# JSON 스트림 로그 저장 (모든 터미널 로그를 JSON 파일로 저장, 위치: ~/.open-cli/logs/)
-open --output-format stream-json
-
 # 자동 업데이트 비활성화
 open --no-update
 
@@ -166,10 +163,10 @@ You: _
 **주요 메타 명령어**:
 - `/exit` - 종료
 - `/clear` - 대화 초기화
-- `/save [name]` - 현재 대화 저장
-- `/load` - 저장된 대화 불러오기
+- `/load` - 저장된 대화 불러오기 (세션은 자동 저장됨)
 - `/endpoint` - LLM 엔드포인트 전환
 - `/docs` - 로컬 문서 보기/검색
+- `/status` - 시스템 상태 확인
 - `/help` - 도움말
 
 ### LLM 도구 (자동 실행)
@@ -194,15 +191,21 @@ You: src 폴더에 있는 모든 TypeScript 파일을 찾아줘
 ...
 ```
 
-### 세션 관리
+### 세션 관리 (자동 저장)
+
+모든 대화는 자동으로 저장됩니다!
 
 ```bash
-# 대화 저장
-You: /save typescript-tutorial
-
-# 대화 불러오기
+# 대화 불러오기 (Classic UI)
 You: /load
-? 불러올 대화 선택: typescript-tutorial
+? 불러올 대화 선택: auto-save-session-123 (5개 메시지, 2025-11-10)
+
+# 대화 불러오기 (Ink UI)
+You: /load
+→ 1. auto-save-session-123 (5개 메시지, 2025-11-10)
+   2. auto-save-session-456 (10개 메시지, 2025-11-09)
+
+You: /load 1
 
 # 저장된 대화 목록
 You: /sessions
@@ -296,11 +299,16 @@ You: /docs search typescript
 
 ```
 ~/.open-cli/
-├── config.json       # 설정 파일
-├── sessions/         # 저장된 대화
-├── docs/            # 로컬 문서 (마크다운)
-├── backups/         # 백업
-└── logs/            # 로그
+├── config.json                # 설정 파일
+├── endpoints.json             # 엔드포인트 설정
+├── docs/                      # 로컬 문서 (마크다운)
+├── backups/                   # 백업
+├── repo/                      # Git 기반 자동 업데이트용
+└── projects/                  # 프로젝트별 데이터
+    └── {sanitized_cwd}/       # 현재 작업 디렉토리
+        ├── {session-id}.json     # 자동 저장된 세션
+        ├── {session-id}_log.json         # JSON 스트림 로그
+        └── {session-id}_error.json       # 에러 로그 (발생 시)
 ```
 
 ---
@@ -620,5 +628,5 @@ MIT License
 
 ---
 
-**Version**: 0.3.0
-**Last Updated**: 2025-11-05
+**Version**: 0.3.4
+**Last Updated**: 2025-11-10

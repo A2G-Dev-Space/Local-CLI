@@ -303,13 +303,20 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
 
       setMessages(result.allMessages);
       setCurrentResponse('');
+
+      // Auto-save current session (fire-and-forget)
+      sessionManager.autoSaveCurrentSession(result.allMessages);
     } catch (error) {
       const errorMessage = formatErrorMessage(error);
-      setMessages([
+      const updatedMessages: Message[] = [
         ...messages,
         { role: 'user', content: userMessage },
         { role: 'assistant', content: errorMessage }
-      ]);
+      ];
+      setMessages(updatedMessages);
+
+      // Auto-save even on error (fire-and-forget)
+      sessionManager.autoSaveCurrentSession(updatedMessages);
     }
   };
 
@@ -357,21 +364,20 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
       setMessages(executionResult.messages);
       setTodos(executionResult.todos);
 
-      // Save session with TODOs
-      // Note: sessionManager.saveSession expects (name, messages) not metadata
-      // For now, we'll just save the messages
-      await sessionManager.saveSession(
-        `plan-execute-${Date.now()}`,
-        executionResult.messages
-      );
+      // Auto-save current session (fire-and-forget)
+      sessionManager.autoSaveCurrentSession(executionResult.messages);
 
     } catch (error) {
       const errorMessage = formatErrorMessage(error);
-      setMessages([
+      const updatedMessages: Message[] = [
         ...messages,
         { role: 'user', content: userMessage },
         { role: 'assistant', content: `Plan & Execute 모드 실행 중 오류 발생:\n\n${errorMessage}` }
-      ]);
+      ];
+      setMessages(updatedMessages);
+
+      // Auto-save even on error (fire-and-forget)
+      sessionManager.autoSaveCurrentSession(updatedMessages);
     } finally {
       setExecutionPhase('idle');
     }

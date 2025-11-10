@@ -8,7 +8,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { Message } from '../types/index.js';
 import { configManager } from './config-manager.js';
-import { SESSIONS_DIR } from '../constants.js';
+import { PROJECTS_DIR } from '../constants.js';
 
 /**
  * 세션 메타데이터 인터페이스
@@ -48,23 +48,35 @@ export interface SessionSummary {
  * Session Manager 클래스
  */
 export class SessionManager {
-  private sessionsDir: string;
   private currentSessionId: string | null = null;
+  private currentSessionCreatedAt: string | null = null;
+  private isSaving: boolean = false;
 
   constructor() {
-    this.sessionsDir = SESSIONS_DIR;
     // Generate a new session ID for this runtime instance
     this.currentSessionId = `session-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    this.currentSessionCreatedAt = new Date().toISOString();
+  }
+
+  /**
+   * Get project-specific sessions directory based on current working directory
+   */
+  private getSessionsDir(): string {
+    // Get current working directory and sanitize it for use in path
+    // Replace '/' with '-' and remove leading '-' if present (for absolute paths)
+    const cwd = process.cwd().replace(/\//g, '-').replace(/^-/, '');
+    return path.join(PROJECTS_DIR, cwd);
   }
 
   /**
    * 세션 디렉토리 초기화
    */
   async ensureSessionsDir(): Promise<void> {
+    const sessionsDir = this.getSessionsDir();
     try {
-      await fs.access(this.sessionsDir);
+      await fs.access(sessionsDir);
     } catch {
-      await fs.mkdir(this.sessionsDir, { recursive: true });
+      await fs.mkdir(sessionsDir, { recursive: true });
     }
   }
 
@@ -96,7 +108,8 @@ export class SessionManager {
     };
 
     // 파일로 저장
-    const filePath = path.join(this.sessionsDir, `${sessionId}.json`);
+    const sessionsDir = this.getSessionsDir();
+    const filePath = path.join(sessionsDir, `${sessionId}.json`);
     await fs.writeFile(filePath, JSON.stringify(sessionData, null, 2), 'utf-8');
 
     return sessionId;
@@ -108,7 +121,8 @@ export class SessionManager {
   async loadSession(sessionId: string): Promise<SessionData | null> {
     await this.ensureSessionsDir();
 
-    const filePath = path.join(this.sessionsDir, `${sessionId}.json`);
+    const sessionsDir = this.getSessionsDir();
+    const filePath = path.join(sessionsDir, `${sessionId}.json`);
 
     try {
       const content = await fs.readFile(filePath, 'utf-8');
@@ -131,28 +145,39 @@ export class SessionManager {
     await this.ensureSessionsDir();
 
     try {
-      const files = await fs.readdir(this.sessionsDir);
-      const sessionFiles = files.filter((f) => f.endsWith('.json'));
+      const sessionsDir = this.getSessionsDir();
+      const files = await fs.readdir(sessionsDir);
+      // 세션 파일만 필터링 (_log.json, _error.json 제외)
+      const sessionFiles = files.filter((f) =>
+        f.endsWith('.json') &&
+        !f.endsWith('_log.json') &&
+        !f.endsWith('_error.json')
+      );
 
       const sessions: SessionSummary[] = [];
 
       for (const file of sessionFiles) {
-        const filePath = path.join(this.sessionsDir, file);
-        const content = await fs.readFile(filePath, 'utf-8');
-        const sessionData = JSON.parse(content) as SessionData;
+        try {
+          const filePath = path.join(sessionsDir, file);
+          const content = await fs.readFile(filePath, 'utf-8');
+          const sessionData = JSON.parse(content) as SessionData;
 
-        // 첫 번째 사용자 메시지 찾기
-        const firstUserMessage = sessionData.messages.find((m) => m.role === 'user');
+          // 첫 번째 사용자 메시지 찾기
+          const firstUserMessage = sessionData.messages.find((m) => m.role === 'user');
 
-        sessions.push({
-          id: sessionData.metadata.id,
-          name: sessionData.metadata.name,
-          createdAt: sessionData.metadata.createdAt,
-          updatedAt: sessionData.metadata.updatedAt,
-          messageCount: sessionData.metadata.messageCount,
-          model: sessionData.metadata.model,
-          firstMessage: firstUserMessage?.content?.substring(0, 50),
-        });
+          sessions.push({
+            id: sessionData.metadata.id,
+            name: sessionData.metadata.name,
+            createdAt: sessionData.metadata.createdAt,
+            updatedAt: sessionData.metadata.updatedAt,
+            messageCount: sessionData.metadata.messageCount,
+            model: sessionData.metadata.model,
+            firstMessage: firstUserMessage?.content?.substring(0, 50),
+          });
+        } catch (parseError) {
+          // Skip invalid session files
+          console.error(`Failed to parse session file ${file}:`, parseError);
+        }
       }
 
       // 최근 업데이트 순으로 정렬
@@ -170,7 +195,8 @@ export class SessionManager {
   async deleteSession(sessionId: string): Promise<boolean> {
     await this.ensureSessionsDir();
 
-    const filePath = path.join(this.sessionsDir, `${sessionId}.json`);
+    const sessionsDir = this.getSessionsDir();
+    const filePath = path.join(sessionsDir, `${sessionId}.json`);
 
     try {
       await fs.unlink(filePath);
@@ -203,10 +229,65 @@ export class SessionManager {
     sessionData.metadata.messageCount = messages.length;
     sessionData.metadata.updatedAt = new Date().toISOString();
 
-    const filePath = path.join(this.sessionsDir, `${sessionId}.json`);
+    const sessionsDir = this.getSessionsDir();
+    const filePath = path.join(sessionsDir, `${sessionId}.json`);
     await fs.writeFile(filePath, JSON.stringify(sessionData, null, 2), 'utf-8');
 
     return true;
+  }
+
+  /**
+   * 현재 세션 자동 저장 (메시지가 추가될 때마다 호출)
+   * Fire-and-forget 방식으로 비동기 저장 (블로킹 없음)
+   */
+  autoSaveCurrentSession(messages: Message[]): void {
+    // Skip if already saving or no messages
+    if (this.isSaving || !this.currentSessionId || messages.length === 0) {
+      return;
+    }
+
+    // Fire-and-forget: 비동기 저장을 백그라운드에서 실행
+    this.performAutoSave(messages).catch((err: unknown) => {
+      // Silently log errors without blocking
+      const error = err as Error;
+      console.error('Auto-save failed:', error.message || 'Unknown error');
+    });
+  }
+
+  /**
+   * 실제 저장 작업 수행 (내부 메서드)
+   */
+  private async performAutoSave(messages: Message[]): Promise<void> {
+    this.isSaving = true;
+
+    try {
+      await this.ensureSessionsDir();
+
+      // 현재 모델 정보 가져오기
+      const endpoint = configManager.getCurrentEndpoint();
+      const model = configManager.getCurrentModel();
+
+      // 세션 데이터 생성/업데이트
+      const sessionData: SessionData = {
+        metadata: {
+          id: this.currentSessionId!,
+          name: `auto-save-${this.currentSessionId}`,
+          createdAt: this.currentSessionCreatedAt || new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          messageCount: messages.length,
+          model: model?.id || 'unknown',
+          endpoint: endpoint?.baseUrl || 'unknown',
+        },
+        messages: messages,
+      };
+
+      // 파일로 저장 (덮어쓰기)
+      const sessionsDir = this.getSessionsDir();
+      const filePath = path.join(sessionsDir, `${this.currentSessionId!}.json`);
+      await fs.writeFile(filePath, JSON.stringify(sessionData, null, 2), 'utf-8');
+    } finally {
+      this.isSaving = false;
+    }
   }
 
   /**

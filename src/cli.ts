@@ -23,8 +23,6 @@ import { PlanExecuteApp } from './ui/components/PlanExecuteApp.js';
 import { GitAutoUpdater } from './core/git-auto-updater.js';
 import { logger, LogLevel, setLogLevel } from './utils/logger.js';
 import { initializeJsonStreamLogger, closeJsonStreamLogger } from './utils/json-stream-logger.js';
-import { homedir } from 'os';
-import { join } from 'path';
 
 const program = new Command();
 
@@ -42,8 +40,7 @@ program
   .option('--plan-execute', 'Use Plan & Execute mode (default: auto-detect)')
   .option('--verbose', 'Enable verbose logging (shows detailed error messages, HTTP requests, tool execution)')
   .option('--debug', 'Enable debug logging (shows all debug information)')
-  .option('--output-format <format>', 'Output format: stream-json saves all logs to JSON file')
-  .action(async (options: { classic?: boolean; noUpdate?: boolean; planExecute?: boolean; verbose?: boolean; debug?: boolean; outputFormat?: string }) => {
+  .action(async (options: { classic?: boolean; noUpdate?: boolean; planExecute?: boolean; verbose?: boolean; debug?: boolean }) => {
   try {
     // Set log level based on options
     if (options.debug) {
@@ -54,23 +51,19 @@ program
       logger.info('📝 Verbose mode enabled - detailed logging activated');
     }
 
-    // Initialize JSON stream logger if requested
-    if (options.outputFormat === 'stream-json') {
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const logDir = join(homedir(), '.open-cli', 'logs');
-      const logFile = join(logDir, `session-${timestamp}.json`);
-      await initializeJsonStreamLogger(logFile);
+    // Initialize JSON stream logger (always enabled)
+    const sessionId = sessionManager.getCurrentSessionId() || Date.now().toString();
+    await initializeJsonStreamLogger(sessionId);
 
-      // Ensure cleanup on exit
-      process.on('SIGINT', async () => {
-        await closeJsonStreamLogger();
-        process.exit(0);
-      });
-      process.on('SIGTERM', async () => {
-        await closeJsonStreamLogger();
-        process.exit(0);
-      });
-    }
+    // Ensure cleanup on exit
+    process.on('SIGINT', async () => {
+      await closeJsonStreamLogger();
+      process.exit(0);
+    });
+    process.on('SIGTERM', async () => {
+      await closeJsonStreamLogger();
+      process.exit(0);
+    });
 
     // Git-based auto-update (unless disabled)
     if (!options.noUpdate) {
@@ -127,7 +120,6 @@ program
     console.log(chalk.white('  /exit, /quit    - 종료'));
     console.log(chalk.white('  /context        - 대화 히스토리 보기'));
     console.log(chalk.white('  /clear          - 대화 히스토리 초기화'));
-    console.log(chalk.white('  /save [name]    - 현재 대화 저장'));
     console.log(chalk.white('  /load           - 저장된 대화 불러오기'));
     console.log(chalk.white('  /sessions       - 저장된 대화 목록 보기'));
     console.log(chalk.white('  /endpoint       - 엔드포인트 보기/전환'));
@@ -183,12 +175,12 @@ program
         console.log(chalk.white('  /exit, /quit    - 종료'));
         console.log(chalk.white('  /context        - 대화 히스토리 보기'));
         console.log(chalk.white('  /clear          - 대화 히스토리 초기화'));
-        console.log(chalk.white('  /save [name]    - 현재 대화 저장'));
         console.log(chalk.white('  /load           - 저장된 대화 불러오기'));
         console.log(chalk.white('  /sessions       - 저장된 대화 목록 보기'));
         console.log(chalk.white('  /endpoint       - 엔드포인트 보기/전환'));
         console.log(chalk.white('  /docs           - 로컬 문서 보기/검색'));
         console.log(chalk.white('  /help           - 이 도움말\n'));
+        console.log(chalk.dim('참고: 모든 대화는 자동으로 저장됩니다.\n'));
         continue;
       }
 
@@ -371,32 +363,6 @@ program
         continue;
       }
 
-      // /save [name] - 세션 저장
-      if (userMessage.startsWith('/save')) {
-        const parts = userMessage.split(' ');
-        const sessionName = parts.slice(1).join(' ').trim() || 'session-' + new Date().toISOString().split('T')[0];
-
-        if (messages.length === 0) {
-          console.log(chalk.yellow('\n⚠️  저장할 대화 내용이 없습니다.\n'));
-          continue;
-        }
-
-        try {
-          const sessionId = await sessionManager.saveSession(sessionName, messages);
-          console.log(chalk.green('\n✅ 대화가 저장되었습니다!'));
-          console.log(chalk.dim('  이름: ' + sessionName));
-          console.log(chalk.dim('  ID: ' + sessionId));
-          console.log(chalk.dim('  메시지: ' + messages.length + '개\n'));
-        } catch (error) {
-          console.error(chalk.red('\n❌ 세션 저장 실패:'));
-          if (error instanceof Error) {
-            console.error(chalk.red(error.message));
-          }
-          console.log();
-        }
-        continue;
-      }
-
       // /sessions - 세션 목록
       if (userMessage === '/sessions') {
         try {
@@ -469,6 +435,19 @@ program
           console.log(chalk.green('\n✅ 대화가 복원되었습니다!'));
           console.log(chalk.dim('  이름: ' + sessionData.metadata.name));
           console.log(chalk.dim('  메시지: ' + sessionData.messages.length + '개\n'));
+
+          // 대화 히스토리 표시
+          console.log(chalk.yellow('📝 복원된 대화 내용:\n'));
+          sessionData.messages.forEach((msg, index) => {
+            const roleLabel = msg.role === 'user' ? chalk.green('You') : chalk.cyan('Assistant');
+            const content = msg.content || '';
+            const preview = content.length > 200 ? content.substring(0, 200) + '...' : content;
+
+            console.log(chalk.white(`${index + 1}. ${roleLabel}:`));
+            console.log(chalk.dim(`   ${preview.replace(/\n/g, '\n   ')}\n`));
+          });
+
+          console.log(chalk.dim('대화를 계속하려면 메시지를 입력하세요.\n'));
         } catch (error) {
           console.error(chalk.red('\n❌ 세션 로드 실패:'));
           if (error instanceof Error) {
@@ -516,6 +495,9 @@ program
         // 메시지 히스토리 업데이트 (allMessages에는 tool call/response 포함)
         messages.length = 0;
         messages.push(...result.allMessages);
+
+        // 자동 저장 (fire-and-forget)
+        sessionManager.autoSaveCurrentSession(messages);
 
         // 최종 응답 표시
         console.log(chalk.cyan('Assistant:'));
@@ -719,7 +701,7 @@ configCommand
       console.log(chalk.dim('  ~/.open-cli/sessions/'));
       console.log(chalk.dim('  ~/.open-cli/docs/'));
       console.log(chalk.dim('  ~/.open-cli/backups/'));
-      console.log(chalk.dim('  ~/.open-cli/logs/\n'));
+      console.log(chalk.dim('  ~/.open-cli/projects/\n'));
 
       console.log(chalk.green('📡 등록된 엔드포인트:'));
       console.log(chalk.white('  이름: ' + endpoint.name));

@@ -12,7 +12,7 @@ import {
   SESSIONS_DIR,
   DOCS_DIR,
   BACKUPS_DIR,
-  LOGS_DIR,
+  PROJECTS_DIR,
 } from '../constants.js';
 import {
   ensureDirectory,
@@ -62,7 +62,7 @@ export class ConfigManager {
     await ensureDirectory(SESSIONS_DIR);
     await ensureDirectory(DOCS_DIR);
     await ensureDirectory(BACKUPS_DIR);
-    await ensureDirectory(LOGS_DIR);
+    await ensureDirectory(PROJECTS_DIR);
 
     // 설정 파일 로드 또는 생성
     await this.loadOrCreateConfig();

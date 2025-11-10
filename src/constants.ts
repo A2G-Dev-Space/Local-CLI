@@ -44,10 +44,10 @@ export const DOCS_DIR = path.join(OPEN_HOME_DIR, 'docs');
 export const BACKUPS_DIR = path.join(OPEN_HOME_DIR, 'backups');
 
 /**
- * 로그 디렉토리
- * ~/.open-cli/logs/
+ * 프로젝트별 로그 디렉토리
+ * ~/.open-cli/projects/
  */
-export const LOGS_DIR = path.join(OPEN_HOME_DIR, 'logs');
+export const PROJECTS_DIR = path.join(OPEN_HOME_DIR, 'projects');
 
 /**
  * 기본 엔드포인트 ID

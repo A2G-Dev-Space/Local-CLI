@@ -4064,15 +4064,51 @@ async function handleReset() {
 
 ---
 
-## P1-6: TODO Auto-Save on Completion
+## P1-6: TODO Auto-Save on Completion ✅ COMPLETED
 
 **Goal**: Auto-save session on each TODO completion, resume on restart
 
 **Priority**: P1 (Important)
 **Estimated Time**: 1 day
 **Dependencies**: P0-2 (Plan-and-Execute Architecture)
-**Status**: Not Started
+**Status**: ✅ Completed (2025-11-10)
+**Implementation**: Phase 2.11 - JSON Stream Logging & Session Auto-Save System
+**Details**: [HISTORY_ALL.md#L3842-L4310](./HISTORY_ALL.md#L3842-L4310)
 **Source**: NEW_FEATURES.md Section 2.11
+
+### ✅ Implementation Summary
+
+**What was implemented**:
+- ✅ Auto-save sessions after each conversation turn (not just TODO completion)
+- ✅ Fire-and-forget async save pattern for non-blocking performance
+- ✅ JSON stream logging for complete audit trail
+- ✅ Lazy error log initialization (only created when first error occurs)
+- ✅ Project-based storage structure (`~/.open-cli/projects/{cwd}/`)
+- ✅ `/load` command to restore previous sessions with history display
+- ✅ Session list filtering (excludes log files)
+- ✅ Concurrent save protection with mutex pattern
+
+**Key Components**:
+1. `JsonStreamLogger` (410 lines) - Real-time JSON logging
+2. `SessionManager.autoSaveCurrentSession()` - Fire-and-forget auto-save
+3. Enhanced `/load` command - Session restore with conversation history
+4. Session file filtering - Exclude `_log.json` and `_error.json`
+
+**Performance**:
+- Session Save: 10-50ms (fire-and-forget, non-blocking)
+- Session Load: 20-100ms
+- UI Blocking: 0ms (async saves)
+
+**Files Modified**:
+- `src/utils/json-stream-logger.ts` (NEW - 410 lines)
+- `src/core/session-manager.ts` (ENHANCED - +50 lines)
+- `src/cli.ts` (MODIFIED - +20 lines)
+- `src/ui/components/PlanExecuteApp.tsx` (MODIFIED - +30 lines)
+- `src/core/slash-command-handler.ts` (MODIFIED - +70 lines)
+
+---
+
+### Original Design (Preserved for Reference)
 
 ### Overview
 

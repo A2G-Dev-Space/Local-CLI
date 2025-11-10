@@ -6,8 +6,9 @@
 
 import { createWriteStream, WriteStream } from 'fs';
 import { mkdir } from 'fs/promises';
-import { dirname } from 'path';
+import { dirname, join } from 'path';
 import chalk from 'chalk';
+import { PROJECTS_DIR } from '../constants.js';
 
 export interface StreamLogEntry {
   timestamp: string;
@@ -18,14 +19,20 @@ export interface StreamLogEntry {
 
 export class JsonStreamLogger {
   private writeStream: WriteStream | null = null;
+  private errorWriteStream: WriteStream | null = null;
   private filePath: string;
+  private errorFilePath: string;
   private isFirstEntry = true;
+  private isFirstErrorEntry = true;
   private buffer: StreamLogEntry[] = [];
+  private errorBuffer: StreamLogEntry[] = [];
   private flushInterval: NodeJS.Timeout | null = null;
   private isEnabled = false;
+  private errorStreamInitialized = false;
 
-  constructor(filePath: string) {
+  constructor(filePath: string, errorFilePath: string) {
     this.filePath = filePath;
+    this.errorFilePath = errorFilePath;
   }
 
   /**
@@ -36,7 +43,7 @@ export class JsonStreamLogger {
       // Create directory if it doesn't exist
       await mkdir(dirname(this.filePath), { recursive: true });
 
-      // Create write stream
+      // Create write stream for main log
       this.writeStream = createWriteStream(this.filePath, { flags: 'w' });
 
       // Write opening bracket for JSON array
@@ -48,9 +55,11 @@ export class JsonStreamLogger {
       // Set up periodic flush (every 1 second)
       this.flushInterval = setInterval(() => {
         this.flush();
+        this.flushErrors();
       }, 1000);
 
-      console.log(chalk.dim(`📝 JSON stream logging enabled: ${this.filePath}`));
+      console.log(chalk.dim(`📝 JSON stream logging enabled`));
+      console.log(chalk.dim(`   Log: ${this.filePath}`));
     } catch (error) {
       console.error(chalk.red('Failed to initialize JSON stream logger:'), error);
       this.isEnabled = false;
@@ -65,7 +74,16 @@ export class JsonStreamLogger {
       return;
     }
 
-    // Add to buffer
+    // Add to appropriate buffer
+    if (entry.type === 'error') {
+      // Initialize error stream on first error (lazy initialization)
+      if (!this.errorStreamInitialized) {
+        this.initializeErrorStream().catch(err => {
+          console.error(chalk.red('Failed to initialize error stream:'), err);
+        });
+      }
+      this.errorBuffer.push(entry);
+    }
     this.buffer.push(entry);
   }
 
@@ -96,6 +114,63 @@ export class JsonStreamLogger {
       this.buffer = [];
     } catch (error) {
       console.error(chalk.red('Failed to write to JSON stream:'), error);
+    }
+  }
+
+  /**
+   * Initialize error stream (lazy initialization)
+   */
+  private async initializeErrorStream(): Promise<void> {
+    if (this.errorStreamInitialized) {
+      return;
+    }
+
+    try {
+      // Create directory if it doesn't exist
+      await mkdir(dirname(this.errorFilePath), { recursive: true });
+
+      // Create write stream for error log
+      this.errorWriteStream = createWriteStream(this.errorFilePath, { flags: 'w' });
+
+      // Write opening bracket for JSON array
+      this.errorWriteStream.write('[\n');
+
+      this.isFirstErrorEntry = true;
+      this.errorStreamInitialized = true;
+
+      console.log(chalk.dim(`   Error log: ${this.errorFilePath}`));
+    } catch (error) {
+      console.error(chalk.red('Failed to initialize error stream:'), error);
+    }
+  }
+
+  /**
+   * Flush buffered error entries to error file
+   */
+  private flushErrors(): void {
+    if (!this.errorWriteStream || this.errorBuffer.length === 0) {
+      return;
+    }
+
+    try {
+      for (const entry of this.errorBuffer) {
+        // Add comma if not first entry
+        if (!this.isFirstErrorEntry) {
+          this.errorWriteStream.write(',\n');
+        }
+        this.isFirstErrorEntry = false;
+
+        // Write the entry as formatted JSON
+        const json = JSON.stringify(entry, null, 2);
+        // Indent each line by 2 spaces for array formatting
+        const indentedJson = json.split('\n').map(line => '  ' + line).join('\n');
+        this.errorWriteStream.write(indentedJson);
+      }
+
+      // Clear error buffer
+      this.errorBuffer = [];
+    } catch (error) {
+      console.error(chalk.red('Failed to write to error JSON stream:'), error);
     }
   }
 
@@ -229,23 +304,50 @@ export class JsonStreamLogger {
       this.flushInterval = null;
     }
 
-    // Flush any remaining buffer
+    // Flush any remaining buffers
     this.flush();
+
+    // Only flush errors if error stream was initialized
+    if (this.errorStreamInitialized) {
+      this.flushErrors();
+    }
 
     // Write closing bracket for JSON array
     this.writeStream.write('\n]\n');
 
-    return new Promise<void>((resolve, reject) => {
+    // Close both streams
+    const promises: Promise<void>[] = [];
+
+    promises.push(new Promise<void>((resolve, reject) => {
       this.writeStream!.end((error?: Error) => {
         if (error) {
           console.error(chalk.red('Failed to close JSON stream:'), error);
           reject(error);
         } else {
-          console.log(chalk.dim(`✅ JSON stream log saved to: ${this.filePath}`));
+          console.log(chalk.dim(`✅ Log saved: ${this.filePath}`));
           resolve();
         }
       });
-    });
+    }));
+
+    // Only close error stream if it was initialized
+    if (this.errorStreamInitialized && this.errorWriteStream) {
+      this.errorWriteStream.write('\n]\n');
+
+      promises.push(new Promise<void>((resolve, reject) => {
+        this.errorWriteStream!.end((error?: Error) => {
+          if (error) {
+            console.error(chalk.red('Failed to close error JSON stream:'), error);
+            reject(error);
+          } else {
+            console.log(chalk.dim(`✅ Error log saved: ${this.errorFilePath}`));
+            resolve();
+          }
+        });
+      }));
+    }
+
+    await Promise.all(promises);
   }
 
   /**
@@ -268,13 +370,28 @@ let globalJsonStreamLogger: JsonStreamLogger | null = null;
 
 /**
  * Initialize global JSON stream logger
+ * Automatically generates log paths based on current working directory and session ID
  */
-export async function initializeJsonStreamLogger(filePath: string): Promise<JsonStreamLogger> {
+export async function initializeJsonStreamLogger(sessionId?: string): Promise<JsonStreamLogger> {
   if (globalJsonStreamLogger) {
     await globalJsonStreamLogger.close();
   }
 
-  globalJsonStreamLogger = new JsonStreamLogger(filePath);
+  // Use provided sessionId or generate new one
+  const actualSessionId = sessionId || Date.now().toString();
+
+  // Get current working directory and sanitize it for use in path
+  // Replace '/' with '-' and remove leading '-' if present (for absolute paths)
+  const cwd = process.cwd().replace(/\//g, '-').replace(/^-/, '');
+
+  // Create log directory path
+  const projectLogDir = join(PROJECTS_DIR, cwd);
+
+  // Create log file paths
+  const logFile = join(projectLogDir, `${actualSessionId}_log.json`);
+  const errorLogFile = join(projectLogDir, `${actualSessionId}_error.json`);
+
+  globalJsonStreamLogger = new JsonStreamLogger(logFile, errorLogFile);
   await globalJsonStreamLogger.initialize();
 
   return globalJsonStreamLogger;
