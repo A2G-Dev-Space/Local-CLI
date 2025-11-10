@@ -39,11 +39,6 @@ export const SLASH_COMMANDS: CommandMetadata[] = [
     argsHint: 'Available modes: direct | plan-execute | auto',
   },
   {
-    name: '/save',
-    description: 'Save current session',
-    argsHint: '[session name]',
-  },
-  {
     name: '/load',
     description: 'Load a saved session',
   },

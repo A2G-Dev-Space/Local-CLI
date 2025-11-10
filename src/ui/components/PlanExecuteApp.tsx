@@ -17,6 +17,7 @@ import { sessionManager } from '../../core/session-manager.js';
 import { initializeDocsDirectory } from '../../core/docs-search-agent.js';
 import { performDocsSearchIfNeeded } from '../../core/agent-framework-handler.js';
 import { FileBrowser } from './FileBrowser.js';
+import { SessionBrowser } from './SessionBrowser.js';
 import { detectAtTrigger, insertFilePaths } from '../hooks/atFileProcessor.js';
 import { loadFileList, FileItem } from '../hooks/useFileList.js';
 import { BaseError } from '../../errors/base.js';
@@ -121,6 +122,9 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
   const [showCommandBrowser, setShowCommandBrowser] = useState(false);
   const [partialCommand, setPartialCommand] = useState('');
   const [commandArgs, setCommandArgs] = useState('');
+
+  // Session browser state
+  const [showSessionBrowser, setShowSessionBrowser] = useState(false);
 
   // Initialize docs directory on startup
   useEffect(() => {
@@ -274,6 +278,43 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
     setCommandArgs('');
   };
 
+  // Handle session selection from browser
+  const handleSessionSelect = async (sessionId: string) => {
+    // Close session browser
+    setShowSessionBrowser(false);
+
+    try {
+      // Load session
+      const sessionData = await sessionManager.loadSession(sessionId);
+      
+      if (!sessionData) {
+        const errorMessage = `세션을 찾을 수 없습니다: ${sessionId}`;
+        const updatedMessages = [
+          ...messages,
+          { role: 'assistant' as const, content: errorMessage },
+        ];
+        setMessages(updatedMessages);
+        return;
+      }
+
+      const loadedMessages = sessionData.messages;
+      setMessages(loadedMessages);
+    } catch (error) {
+      const errorMessage = `세션 로드 실패: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      const updatedMessages = [
+        ...messages,
+        { role: 'assistant' as const, content: errorMessage },
+      ];
+      setMessages(updatedMessages);
+    }
+  };
+
+  // Handle session browser cancellation
+  const handleSessionBrowserCancel = () => {
+    // Close session browser
+    setShowSessionBrowser(false);
+  };
+
   // TODO update callback
   const handleTodoUpdate = useCallback((todo: TodoItem) => {
     setTodos(prev => prev.map(t => t.id === todo.id ? todo : t));
@@ -384,8 +425,8 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
   };
 
   const handleSubmit = async (value: string) => {
-    // Prevent message submission while file browser is open
-    if (!value.trim() || isProcessing || showFileBrowser) {
+    // Prevent message submission while file browser or session browser is open
+    if (!value.trim() || isProcessing || showFileBrowser || showSessionBrowser) {
       return;
     }
 
@@ -415,6 +456,10 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
         setMessages,
         setTodos,
         exit,
+        // Provide UI control callback for SessionBrowser
+        onShowSessionBrowser: () => {
+          setShowSessionBrowser(true);
+        },
       };
 
       const result = await executeSlashCommand(userMessage, commandContext);
@@ -514,9 +559,21 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
             <TextInput
               key={inputKey}
               value={input}
-              onChange={setInput}
+              onChange={(value) => {
+                // Block input while SessionBrowser is open
+                if (showSessionBrowser) {
+                  return;
+                }
+                setInput(value);
+              }}
               onSubmit={handleSubmit}
-              placeholder={isProcessing ? "Processing..." : "Type your message..."}
+              placeholder={
+                isProcessing 
+                  ? "Processing..." 
+                  : showSessionBrowser 
+                  ? "Select a session or press ESC to cancel..."
+                  : "Type your message..."
+              }
             />
           </Box>
         </Box>
@@ -548,6 +605,16 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
             args={commandArgs}
             onSelect={handleCommandSelect}
             onCancel={handleCommandBrowserCancel}
+          />
+        </Box>
+      )}
+
+      {/* Session Browser (shown when /load command is submitted) */}
+      {showSessionBrowser && !isProcessing && (
+        <Box marginTop={0}>
+          <SessionBrowser
+            onSelect={handleSessionSelect}
+            onCancel={handleSessionBrowserCancel}
           />
         </Box>
       )}

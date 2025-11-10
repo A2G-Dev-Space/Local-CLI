@@ -20,6 +20,8 @@ export interface CommandHandlerContext {
   setMessages: (messages: Message[]) => void;
   setTodos: (todos: TodoItem[]) => void;
   exit: () => void;
+  // Optional UI control callbacks
+  onShowSessionBrowser?: () => void;
 }
 
 export interface CommandExecutionResult {
@@ -182,8 +184,18 @@ Note: All conversations are automatically saved.
         };
       }
 
-      // If no session ID provided, show list
+      // If no session ID provided, show SessionBrowser UI if available, otherwise show text list
       if (!sessionIdOrIndex) {
+        // If UI callback is available (React UI), trigger SessionBrowser
+        if (context.onShowSessionBrowser) {
+          context.onShowSessionBrowser();
+          return {
+            handled: true,
+            shouldContinue: false,
+          };
+        }
+
+        // Fallback to text list (Classic CLI mode)
         const sessionList = sessions.map((session, index) => {
           const date = new Date(session.createdAt).toLocaleDateString('ko-KR');
           return `${index + 1}. ${session.name} (${session.messageCount}개 메시지, ${date})`;
@@ -232,22 +244,15 @@ Note: All conversations are automatically saved.
         };
       }
 
-      // Restore messages
+      // Restore messages (without adding success message)
       const loadedMessages = sessionData.messages;
       context.setMessages(loadedMessages);
-
-      const successMessage = `✅ 세션이 복원되었습니다!\n이름: ${sessionData.metadata.name}\n메시지: ${loadedMessages.length}개`;
-      const updatedMessages = [
-        ...loadedMessages,
-        { role: 'assistant' as const, content: successMessage },
-      ];
-      context.setMessages(updatedMessages);
 
       return {
         handled: true,
         shouldContinue: false,
         updatedContext: {
-          messages: updatedMessages,
+          messages: loadedMessages,
         },
       };
     } catch (error) {
