@@ -19,7 +19,6 @@ export interface FrameworkDetection {
   framework: 'adk' | 'agno' | null;
   category: string | null;
   basePath: string;
-  requiresBatchLoad: boolean; // Whether to load all files in the directory
 }
 
 /**
@@ -28,7 +27,6 @@ export interface FrameworkDetection {
 interface AgnoCategoryConfig {
   category: string;
   keywords: string[];
-  requiresBatchLoad: boolean;
 }
 
 /**
@@ -38,37 +36,30 @@ const AGNO_CATEGORIES: AgnoCategoryConfig[] = [
   {
     category: 'agent',
     keywords: ['agent', '에이전트'],
-    requiresBatchLoad: true, // Will be checked against isAgentCreationQuery
   },
   {
     category: 'models',
     keywords: ['model', 'llm', '모델', 'gemini', 'openai', 'litellm'],
-    requiresBatchLoad: false,
   },
   {
     category: 'rag',
     keywords: ['rag', 'retrieval', '검색'],
-    requiresBatchLoad: false,
   },
   {
     category: 'workflows',
     keywords: ['workflow', '워크플로우'],
-    requiresBatchLoad: false,
   },
   {
     category: 'teams',
     keywords: ['team', '팀'],
-    requiresBatchLoad: false,
   },
   {
     category: 'memory',
     keywords: ['memory', '메모리'],
-    requiresBatchLoad: false,
   },
   {
     category: 'database',
     keywords: ['database', 'db', '데이터베이스'],
-    requiresBatchLoad: false,
   },
 ];
 
@@ -97,19 +88,6 @@ export function getFrameworkPathsForDocs(): Array<{ name: string; path: string }
   ];
 }
 
-/**
- * Check if query is about agent creation or writing
- * @param query User query string (should be lowercased)
- * @returns true if query contains agent creation keywords
- */
-function isAgentCreationQuery(query: string): boolean {
-  const creationKeywords = [
-    'agent', '에이전트',
-    '작성', '만들', 'create', 'write', '구현'
-  ];
-
-  return creationKeywords.some(keyword => query.includes(keyword));
-}
 
 /**
  * Build AGNO framework path
@@ -137,7 +115,7 @@ function detectAgnoCategory(query: string): AgnoCategoryConfig | null {
  * Detect framework keywords and return relevant directory path
  * Supports both Korean and English keywords
  * @param query User query string
- * @returns Framework detection result with path and batch load requirements
+ * @returns Framework detection result with path
  */
 export function detectFrameworkPath(query: string): FrameworkDetection {
   const lowerQuery = query.toLowerCase();
@@ -148,24 +126,18 @@ export function detectFrameworkPath(query: string): FrameworkDetection {
       framework: 'adk',
       category: null,
       basePath: FRAMEWORK_PATHS.adk,
-      requiresBatchLoad: isAgentCreationQuery(lowerQuery),
     };
   }
 
   // AGNO detection
   if (lowerQuery.includes('agno')) {
     const categoryConfig = detectAgnoCategory(lowerQuery);
-    
+
     if (categoryConfig) {
-      const requiresBatchLoad = categoryConfig.requiresBatchLoad 
-        ? isAgentCreationQuery(lowerQuery)
-        : false;
-      
       return {
         framework: 'agno',
         category: categoryConfig.category,
         basePath: buildAgnoPath(categoryConfig.category),
-        requiresBatchLoad,
       };
     }
 
@@ -174,7 +146,6 @@ export function detectFrameworkPath(query: string): FrameworkDetection {
       framework: 'agno',
       category: null,
       basePath: FRAMEWORK_PATHS.agno,
-      requiresBatchLoad: false,
     };
   }
 
@@ -182,7 +153,6 @@ export function detectFrameworkPath(query: string): FrameworkDetection {
     framework: null,
     category: null,
     basePath: '',
-    requiresBatchLoad: false,
   };
 }
 
@@ -233,7 +203,6 @@ export async function performDocsSearchIfNeeded(
     { name: 'framework', value: detection.framework },
     { name: 'category', value: detection.category },
     { name: 'basePath', value: detection.basePath },
-    { name: 'requiresBatchLoad', value: detection.requiresBatchLoad }
   );
 
   logger.info('📚 DocsSearch triggered', {

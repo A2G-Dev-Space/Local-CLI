@@ -297,7 +297,7 @@ export class SessionManager {
       const sessionData: SessionData = {
         metadata: {
           id: this.currentSessionId!,
-          name: `auto-save-${this.currentSessionId}`,
+          name: `${this.currentSessionId}`,
           createdAt: this.currentSessionCreatedAt || new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           messageCount: messages.length,

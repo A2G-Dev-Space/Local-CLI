@@ -14,8 +14,8 @@ const execAsync = promisify(exec);
 /**
  * Configuration constants
  */
-const BASH_COMMAND_TIMEOUT_MS = 10000; // 10 second timeout (increased for batch operations)
-const BASH_COMMAND_MAX_BUFFER_BYTES = 2 * 1024 * 1024; // 2MB max buffer (increased for batch loading)
+const BASH_COMMAND_TIMEOUT_MS = 10000; // 10 second timeout
+const BASH_COMMAND_MAX_BUFFER_BYTES = 2 * 1024 * 1024; // 2MB max buffer
 
 /**
  * Execute bash command
@@ -27,25 +27,26 @@ export async function executeBashCommand(
 ): Promise<{ success: boolean; result?: string; error?: string }> {
   try {
     // Security validation: Block dangerous commands
-    const dangerousCommands = [
-      'rm -rf',
-      'dd',
-      'mkfs',
-      'format',
-      'sudo',
-      'chmod 777',
-      'curl',
-      'wget',
-      'nc',
-      'netcat',
+    // Use word boundaries to prevent false positives (e.g., "nc" in "agency")
+    const dangerousPatterns = [
+      /\brm\s+-rf\b/,
+      /\bdd\b/,
+      /\bmkfs\b/,
+      /\bformat\b/,
+      /\bsudo\b/,
+      /\bchmod\s+777\b/,
+      /\bcurl\b/,
+      /\bwget\b/,
+      /\bnc\b/,        // Match "nc" as a standalone command only
+      /\bnetcat\b/,
     ];
 
     // Check for dangerous patterns
-    for (const dangerous of dangerousCommands) {
-      if (command.includes(dangerous)) {
+    for (const pattern of dangerousPatterns) {
+      if (pattern.test(command)) {
         return {
           success: false,
-          error: `Command blocked for security reasons: contains "${dangerous}"`,
+          error: `Command blocked for security reasons: matches dangerous pattern "${pattern}"`,
         };
       }
     }
@@ -71,7 +72,6 @@ export async function executeBashCommand(
     }
 
     // Execute command with timeout and buffer limits
-    // Increased buffer for batch loading multiple documentation files
     const { stdout, stderr } = await execAsync(command, {
       cwd: docsPath,
       timeout: BASH_COMMAND_TIMEOUT_MS,
@@ -172,7 +172,6 @@ export function sanitizeCommand(command: string): string {
   let sanitized = command.replace(/`/g, '');
   
   // Allow $(command) substitution only for safe commands (find, cat, sort)
-  // This is needed for batch loading: cat $(find ... -name "*.md" | sort)
   // We keep $( as it's needed, but we'll validate in isCommandSafe
   
   // Remove semicolons to prevent command chaining (except in quotes)
