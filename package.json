@@ -17,7 +17,9 @@
     "format": "prettier --write \"src/**/*.ts\"",
     "test": "NODE_OPTIONS='--experimental-vm-modules' jest --config jest.config.mjs",
     "test:watch": "NODE_OPTIONS='--experimental-vm-modules' jest --config jest.config.mjs --watch",
-    "test:coverage": "NODE_OPTIONS='--experimental-vm-modules' jest --config jest.config.mjs --coverage"
+    "test:coverage": "NODE_OPTIONS='--experimental-vm-modules' jest --config jest.config.mjs --coverage",
+    "test:plan-execute": "npx tsx examples/test-plan-execute.ts",
+    "demo:plan-execute": "npx tsx examples/simple-demo.ts"
   },
   "keywords": [
     "cli",
