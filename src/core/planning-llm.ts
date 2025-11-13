@@ -6,6 +6,7 @@
 
 import { LLMClient } from './llm-client.js';
 import { Message, TodoItem, PlanningResult, TodoStatus } from '../types/index.js';
+import { extractJSON, validateJSONStructure } from '../utils/json-parser.js';
 
 /**
  * Planning LLM
@@ -63,6 +64,13 @@ User: "Create a REST API with TypeScript"
   "estimatedTime": "30-60 minutes",
   "complexity": "moderate"
 }
+
+**CRITICAL RESPONSE RULES**:
+1. Respond with ONLY the JSON object - no markdown, no code blocks
+2. Do NOT wrap JSON in \`\`\`json or \`\`\` blocks
+3. Do NOT include comments in the JSON
+4. Use double quotes (") for all strings, not single quotes (')
+5. Your ENTIRE response must be valid, parseable JSON
 `;
 
     const messages: Message[] = [
@@ -85,13 +93,20 @@ User: "Create a REST API with TypeScript"
 
       const content = response.choices[0]?.message.content || '';
 
-      // Parse JSON from response
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error('Planning LLM did not return valid JSON');
+      // Parse JSON from response using robust parser
+      const planningData = extractJSON(content);
+
+      // Validate structure
+      const validation = validateJSONStructure(planningData, ['todos']);
+      if (!validation.valid) {
+        throw new Error(
+          `Planning LLM response missing required fields: ${validation.missing.join(', ')}`
+        );
       }
 
-      const planningData = JSON.parse(jsonMatch[0]);
+      if (!Array.isArray(planningData.todos) || planningData.todos.length === 0) {
+        throw new Error('Planning LLM returned empty or invalid todos array');
+      }
 
       // Create TodoItem array with proper status
       const todos: TodoItem[] = planningData.todos.map((todo: any, index: number) => ({

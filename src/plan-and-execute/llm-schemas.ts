@@ -5,6 +5,8 @@
  * in the Plan & Execute workflow.
  */
 
+import { extractJSON } from '../utils/json-parser.js';
+
 /**
  * Log entry from LLM execution
  */
@@ -174,11 +176,8 @@ export function parseLLMResponse(response: string): {
   error?: string;
 } {
   try {
-    // Try to extract JSON from markdown code blocks if present
-    const jsonMatch = response.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-    const jsonString = jsonMatch ? jsonMatch[1] : response;
-
-    const parsed = JSON.parse((jsonString || '').trim());
+    // Use robust JSON extraction
+    const parsed = extractJSON(response);
     const validation = validateLLMOutput(parsed);
 
     if (!validation.valid) {
@@ -245,12 +244,21 @@ You must respond with a JSON object following this exact schema:
   }
 }
 
-IMPORTANT GUIDELINES:
+CRITICAL RESPONSE FORMAT RULES:
+1. Respond with ONLY the JSON object - no markdown, no code blocks, no explanations
+2. Do NOT wrap the JSON in \`\`\`json or \`\`\` blocks
+3. Do NOT include any text before or after the JSON
+4. Do NOT include JavaScript comments (//) in the JSON
+5. Ensure all strings use double quotes ("), not single quotes (')
+6. All timestamps must be valid ISO 8601 format (e.g., "2025-01-13T12:00:00.000Z")
+
+EXECUTION GUIDELINES:
 1. Always include detailed log_entries to track your execution progress
 2. Use the previous_context to build upon completed work
 3. If error_log.is_debug is true, focus on fixing the error
-4. Provide clear, actionable results
+4. Provide clear, actionable results in the "result" field
 5. Include file operations in files_changed when applicable
-6. Generate proper ISO 8601 timestamps for log entries
-7. Your entire response must be valid JSON
+6. Generate proper ISO 8601 timestamps for all log entries
+
+Your ENTIRE response must be a valid, parseable JSON object and nothing else.
 `;
