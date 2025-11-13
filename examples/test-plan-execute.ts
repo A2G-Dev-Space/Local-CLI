@@ -1,14 +1,21 @@
 /**
- * Test Script for Plan & Execute Module
+ * Test Script for Plan & Execute Module - REAL LLM VERSION
  *
- * This script demonstrates how to use and test the Plan & Execute module
- * with various example scenarios.
+ * This script tests the Plan & Execute module with your actual LLM endpoint.
+ * It will make real API calls to test the complete workflow.
+ *
+ * Usage:
+ *   npm run test:plan-execute
+ *
+ * Options:
+ *   TEST_MODE=quick    - Run only 1 simple scenario
+ *   TEST_MODE=full     - Run all scenarios (default)
+ *   VERBOSE=true       - Enable detailed logging
  */
 
 import { PlanExecuteOrchestrator } from '../src/plan-and-execute/index.js';
 import { LLMClient } from '../src/core/llm-client.js';
 import { configManager } from '../src/core/config-manager.js';
-import { TodoItem } from '../src/types/index.js';
 
 // Colors for console output
 const colors = {
@@ -19,6 +26,7 @@ const colors = {
   blue: '\x1b[34m',
   red: '\x1b[31m',
   cyan: '\x1b[36m',
+  magenta: '\x1b[35m',
 };
 
 function log(color: string, message: string) {
@@ -26,253 +34,80 @@ function log(color: string, message: string) {
 }
 
 /**
- * Mock LLM Client for testing without real API calls
+ * Test configuration
  */
-class MockLLMClient extends LLMClient {
-  private callCount = 0;
-
-  async sendMessage(message: string, systemPrompt?: string): Promise<string> {
-    this.callCount++;
-
-    log(colors.cyan, `\n[Mock LLM Call #${this.callCount}]`);
-    log(colors.blue, `System: ${systemPrompt?.substring(0, 100)}...`);
-    log(colors.blue, `User: ${message.substring(0, 200)}...`);
-
-    // Parse the input to determine which task we're working on
-    const taskMatch = message.match(/"title":\s*"([^"]+)"/);
-    const taskTitle = taskMatch ? taskMatch[1] : 'Unknown Task';
-
-    const isDebug = message.includes('"is_debug": true');
-
-    if (isDebug) {
-      log(colors.yellow, `→ Debug mode detected for: ${taskTitle}`);
-    }
-
-    // Simulate different responses based on task
-    if (taskTitle.includes('Create')) {
-      return JSON.stringify({
-        status: 'success',
-        result: `Successfully created files for: ${taskTitle}`,
-        log_entries: [
-          {
-            level: 'info',
-            message: `Starting task: ${taskTitle}`,
-            timestamp: new Date().toISOString(),
-          },
-          {
-            level: 'debug',
-            message: 'Creating directory structure',
-            timestamp: new Date().toISOString(),
-          },
-          {
-            level: 'info',
-            message: 'Files created successfully',
-            timestamp: new Date().toISOString(),
-          },
-        ],
-        files_changed: [
-          { path: '/src/example.ts', action: 'created' as const },
-        ],
-      });
-    } else if (taskTitle.includes('Implement') || taskTitle.includes('Write')) {
-      // First time fails, second time (debug) succeeds
-      if (isDebug || this.callCount % 3 === 0) {
-        return JSON.stringify({
-          status: 'success',
-          result: `Implemented: ${taskTitle}`,
-          log_entries: [
-            {
-              level: 'info',
-              message: 'Debug successful - fixed implementation',
-              timestamp: new Date().toISOString(),
-            },
-          ],
-        });
-      } else {
-        return JSON.stringify({
-          status: 'failed',
-          result: '',
-          log_entries: [
-            {
-              level: 'error',
-              message: 'Type error in implementation',
-              timestamp: new Date().toISOString(),
-            },
-          ],
-          error: {
-            message: 'TypeScript compilation error',
-            details: 'Property "name" does not exist on type "User"',
-          },
-        });
-      }
-    } else if (taskTitle.includes('Test')) {
-      return JSON.stringify({
-        status: 'success',
-        result: `Tests written and passing for: ${taskTitle}`,
-        log_entries: [
-          {
-            level: 'info',
-            message: 'Writing test cases',
-            timestamp: new Date().toISOString(),
-          },
-          {
-            level: 'info',
-            message: 'All tests passing',
-            timestamp: new Date().toISOString(),
-          },
-        ],
-      });
-    } else {
-      return JSON.stringify({
-        status: 'success',
-        result: `Completed: ${taskTitle}`,
-        log_entries: [
-          {
-            level: 'info',
-            message: `Task completed: ${taskTitle}`,
-            timestamp: new Date().toISOString(),
-          },
-        ],
-      });
-    }
-  }
-}
+const TEST_CONFIG = {
+  mode: process.env.TEST_MODE || 'full', // 'quick' or 'full'
+  verbose: process.env.VERBOSE === 'true',
+  maxDebugAttempts: 3,
+  taskTimeout: 300000, // 5 minutes per task
+};
 
 /**
- * Test scenarios with example questions
+ * Test scenarios with real user requests
  */
 const TEST_SCENARIOS = [
   {
-    name: 'Simple 3-step task',
+    name: 'Simple Calculator',
     description: 'Tests basic sequential execution',
-    userRequest: 'Create a simple calculator with add, subtract, multiply, and divide functions',
-    expectedTasks: 3,
+    userRequest: 'Create a simple calculator module with add, subtract, multiply, and divide functions. Include basic error handling for division by zero.',
+    category: 'simple',
+    expectedMinTasks: 2,
+    expectedMaxTasks: 5,
   },
   {
-    name: 'Task with error and debug',
-    description: 'Tests error handling and debug workflow',
-    userRequest: 'Create a user authentication system with login and registration',
-    expectedTasks: 3,
+    name: 'Todo List Manager',
+    description: 'Tests CRUD operations and state management',
+    userRequest: 'Build a todo list manager with functions to add, remove, update, and list todo items. Store todos in memory.',
+    category: 'simple',
+    expectedMinTasks: 3,
+    expectedMaxTasks: 6,
   },
   {
-    name: 'Complex multi-step',
-    description: 'Tests complex dependencies',
-    userRequest: 'Build a REST API with Express, including routes, middleware, and database integration',
-    expectedTasks: 4,
+    name: 'User Authentication',
+    description: 'Tests complex flow with dependencies',
+    userRequest: 'Create a user authentication system with registration and login. Use JWT for tokens and bcrypt for password hashing.',
+    category: 'medium',
+    expectedMinTasks: 4,
+    expectedMaxTasks: 7,
+  },
+  {
+    name: 'REST API with Express',
+    description: 'Tests complex multi-step project',
+    userRequest: 'Build a simple REST API using Express with user CRUD endpoints, error handling middleware, and input validation.',
+    category: 'complex',
+    expectedMinTasks: 5,
+    expectedMaxTasks: 10,
   },
 ];
 
 /**
- * Manually create a test plan (since we're mocking)
+ * Get scenarios to run based on test mode
  */
-function createMockPlan(scenario: typeof TEST_SCENARIOS[0]): TodoItem[] {
-  const plans: Record<string, TodoItem[]> = {
-    'Create a simple calculator with add, subtract, multiply, and divide functions': [
-      {
-        id: 'task-1',
-        title: 'Create calculator module structure',
-        description: 'Set up the basic file structure and exports',
-        status: 'pending',
-        requiresDocsSearch: false,
-        dependencies: [],
-      },
-      {
-        id: 'task-2',
-        title: 'Implement arithmetic operations',
-        description: 'Write functions for add, subtract, multiply, divide',
-        status: 'pending',
-        requiresDocsSearch: false,
-        dependencies: ['task-1'],
-      },
-      {
-        id: 'task-3',
-        title: 'Write unit tests',
-        description: 'Create test cases for all operations',
-        status: 'pending',
-        requiresDocsSearch: false,
-        dependencies: ['task-2'],
-      },
-    ],
-    'Create a user authentication system with login and registration': [
-      {
-        id: 'task-1',
-        title: 'Create user model and schema',
-        description: 'Define user data structure',
-        status: 'pending',
-        requiresDocsSearch: false,
-        dependencies: [],
-      },
-      {
-        id: 'task-2',
-        title: 'Implement registration endpoint',
-        description: 'Create API endpoint for user registration',
-        status: 'pending',
-        requiresDocsSearch: false,
-        dependencies: ['task-1'],
-      },
-      {
-        id: 'task-3',
-        title: 'Implement login endpoint',
-        description: 'Create API endpoint for user login',
-        status: 'pending',
-        requiresDocsSearch: false,
-        dependencies: ['task-1'],
-      },
-    ],
-    'Build a REST API with Express, including routes, middleware, and database integration': [
-      {
-        id: 'task-1',
-        title: 'Create Express app structure',
-        description: 'Initialize Express application',
-        status: 'pending',
-        requiresDocsSearch: false,
-        dependencies: [],
-      },
-      {
-        id: 'task-2',
-        title: 'Implement middleware',
-        description: 'Add logging, error handling, and auth middleware',
-        status: 'pending',
-        requiresDocsSearch: false,
-        dependencies: ['task-1'],
-      },
-      {
-        id: 'task-3',
-        title: 'Create database models',
-        description: 'Define database schema and models',
-        status: 'pending',
-        requiresDocsSearch: false,
-        dependencies: ['task-1'],
-      },
-      {
-        id: 'task-4',
-        title: 'Implement CRUD routes',
-        description: 'Create REST endpoints for all operations',
-        status: 'pending',
-        requiresDocsSearch: false,
-        dependencies: ['task-2', 'task-3'],
-      },
-    ],
-  };
-
-  return plans[scenario.userRequest] || [];
+function getScenariosToRun(): typeof TEST_SCENARIOS {
+  if (TEST_CONFIG.mode === 'quick') {
+    log(colors.yellow, '⚡ Quick mode: Running only 1 simple scenario\n');
+    return TEST_SCENARIOS.filter((s) => s.category === 'simple').slice(0, 1);
+  }
+  return TEST_SCENARIOS;
 }
 
 /**
- * Run a single test scenario
+ * Run a single test scenario with REAL LLM
  */
-async function runScenario(scenario: typeof TEST_SCENARIOS[0]) {
+async function runScenario(scenario: typeof TEST_SCENARIOS[0], llmClient: LLMClient) {
   log(colors.bright, `\n${'='.repeat(80)}`);
   log(colors.bright, `TEST SCENARIO: ${scenario.name}`);
   log(colors.bright, '='.repeat(80));
+  log(colors.blue, `Category: ${scenario.category.toUpperCase()}`);
   log(colors.blue, `Description: ${scenario.description}`);
-  log(colors.blue, `User Request: "${scenario.userRequest}"`);
+  log(colors.cyan, `User Request: "${scenario.userRequest}"`);
   log(colors.reset, '');
 
-  const mockClient = new MockLLMClient();
-  const orchestrator = new PlanExecuteOrchestrator(mockClient, {
-    maxDebugAttempts: 2,
-    verbose: true,
+  const orchestrator = new PlanExecuteOrchestrator(llmClient, {
+    maxDebugAttempts: TEST_CONFIG.maxDebugAttempts,
+    taskTimeout: TEST_CONFIG.taskTimeout,
+    verbose: TEST_CONFIG.verbose,
     sessionId: `test-${Date.now()}`,
   });
 
@@ -318,47 +153,66 @@ async function runScenario(scenario: typeof TEST_SCENARIOS[0]) {
 
   orchestrator.on('executionCompleted', (summary) => {
     log(colors.green, '\n' + '='.repeat(80));
-    log(colors.green, 'EXECUTION COMPLETED');
+    log(colors.green, 'EXECUTION COMPLETED ✓');
     log(colors.green, '='.repeat(80));
     log(colors.reset, `Total Tasks: ${summary.totalTasks}`);
     log(colors.green, `Completed: ${summary.completedTasks}`);
-    log(colors.red, `Failed: ${summary.failedTasks}`);
+    if (summary.failedTasks > 0) {
+      log(colors.red, `Failed: ${summary.failedTasks}`);
+    }
     log(colors.reset, `Total Steps: ${summary.totalSteps}`);
-    log(colors.reset, `Duration: ${summary.duration}ms`);
-    log(colors.reset, `Success: ${summary.success ? '✓' : '✗'}`);
+    log(colors.reset, `Duration: ${(summary.duration / 1000).toFixed(2)}s`);
+    log(colors.reset, `Success: ${summary.success ? '✓ YES' : '✗ NO'}`);
   });
 
   orchestrator.on('executionFailed', (error) => {
     log(colors.red, `\n✗ Execution failed: ${error}`);
   });
 
-  try {
-    // Mock the planning phase by directly using our mock plan
-    const plan = createMockPlan(scenario);
-    orchestrator['stateManager'] = new (await import('../src/plan-and-execute/state-manager.js')).PlanExecuteStateManager(
-      `test-${Date.now()}`,
-      plan
-    );
-    orchestrator.emit('planCreated', plan);
+  const startTime = Date.now();
 
-    // Execute the plan
-    orchestrator['stateManager'].setPlan(plan);
-    const summary = await orchestrator['executePhase'](plan);
+  try {
+    // Execute with REAL LLM - this will call the planning LLM and execute tasks
+    log(colors.cyan, '🤖 Calling LLM to generate plan...\n');
+    const summary = await orchestrator.execute(scenario.userRequest);
+
+    // Validate results
+    const planSize = orchestrator.getState()?.plan.length || 0;
+    const inExpectedRange =
+      planSize >= scenario.expectedMinTasks && planSize <= scenario.expectedMaxTasks;
+
+    if (!inExpectedRange) {
+      log(
+        colors.yellow,
+        `⚠ Warning: Plan size ${planSize} outside expected range [${scenario.expectedMinTasks}-${scenario.expectedMaxTasks}]`
+      );
+    }
 
     // Display logs
     const logs = orchestrator.getAllLogs();
-    log(colors.cyan, `\n${'─'.repeat(80)}`);
-    log(colors.cyan, `LOG ENTRIES (${logs.length} total)`);
-    log(colors.cyan, '─'.repeat(80));
-    logs.forEach((entry) => {
-      const levelColor = {
-        debug: colors.blue,
-        info: colors.reset,
-        warning: colors.yellow,
-        error: colors.red,
-      }[entry.level];
-      log(levelColor, `[${entry.level.toUpperCase()}] ${entry.message}`);
-    });
+    if (logs.length > 0) {
+      log(colors.cyan, `\n${'─'.repeat(80)}`);
+      log(colors.cyan, `LOG ENTRIES (${logs.length} total)`);
+      log(colors.cyan, '─'.repeat(80));
+
+      // Show first 20 logs, or all if verbose
+      const logsToShow = TEST_CONFIG.verbose ? logs : logs.slice(0, 20);
+      logsToShow.forEach((entry) => {
+        const levelColor = {
+          debug: colors.blue,
+          info: colors.reset,
+          warning: colors.yellow,
+          error: colors.red,
+        }[entry.level];
+        log(levelColor, `[${entry.level.toUpperCase()}] ${entry.message}`);
+      });
+
+      if (!TEST_CONFIG.verbose && logs.length > 20) {
+        log(colors.cyan, `... and ${logs.length - 20} more (use VERBOSE=true to see all)`);
+      }
+    }
+
+    const totalTime = Date.now() - startTime;
 
     return {
       success: summary.success,
@@ -367,12 +221,24 @@ async function runScenario(scenario: typeof TEST_SCENARIOS[0]) {
       tasksFailed,
       debugAttempts,
       totalLogs: logs.length,
+      planSize,
+      totalTime,
+      inExpectedRange,
     };
   } catch (error) {
+    const totalTime = Date.now() - startTime;
     log(colors.red, `\n✗ Scenario failed with error: ${error}`);
+    if (error instanceof Error && error.stack) {
+      log(colors.red, error.stack);
+    }
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
+      tasksStarted,
+      tasksCompleted,
+      tasksFailed,
+      debugAttempts,
+      totalTime,
     };
   }
 }
@@ -382,20 +248,54 @@ async function runScenario(scenario: typeof TEST_SCENARIOS[0]) {
  */
 async function main() {
   log(colors.bright, '\n' + '█'.repeat(80));
-  log(colors.bright, '  PLAN & EXECUTE MODULE - TEST SUITE');
+  log(colors.bright, '  PLAN & EXECUTE MODULE - REAL LLM TEST SUITE');
   log(colors.bright, '█'.repeat(80) + '\n');
 
   // Initialize config manager (required for LLMClient)
+  log(colors.cyan, '🔧 Initializing configuration...');
   await configManager.initialize();
+
+  const endpoint = configManager.getCurrentEndpoint();
+  const model = configManager.getCurrentModel();
+
+  if (!endpoint || !model) {
+    log(colors.red, '\n✗ Error: No LLM endpoint or model configured!');
+    log(colors.yellow, '\nPlease configure your LLM endpoint first:');
+    log(colors.reset, '  1. Run the CLI and go to configuration');
+    log(colors.reset, '  2. Add your LLM endpoint (URL and API key)');
+    log(colors.reset, '  3. Select a model\n');
+    process.exit(1);
+  }
+
+  log(colors.green, `✓ Using endpoint: ${endpoint.name}`);
+  log(colors.green, `✓ Using model: ${model.name}`);
+  log(colors.cyan, `\nTest Configuration:`);
+  log(colors.reset, `  Mode: ${TEST_CONFIG.mode}`);
+  log(colors.reset, `  Max Debug Attempts: ${TEST_CONFIG.maxDebugAttempts}`);
+  log(colors.reset, `  Task Timeout: ${TEST_CONFIG.taskTimeout / 1000}s`);
+  log(colors.reset, `  Verbose: ${TEST_CONFIG.verbose}\n`);
+
+  // Create LLM client
+  const llmClient = new LLMClient();
+
+  // Get scenarios to run
+  const scenariosToRun = getScenariosToRun();
+  log(colors.bright, `Running ${scenariosToRun.length} test scenario(s)...\n`);
 
   const results = [];
 
-  for (const scenario of TEST_SCENARIOS) {
-    const result = await runScenario(scenario);
-    results.push({ scenario: scenario.name, ...result });
+  for (let i = 0; i < scenariosToRun.length; i++) {
+    const scenario = scenariosToRun[i]!;
+    log(colors.magenta, `\n[${ i + 1}/${scenariosToRun.length}] Starting scenario: ${scenario.name}`);
 
-    // Wait a bit between scenarios
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const result = await runScenario(scenario, llmClient);
+    results.push({ scenario: scenario.name, category: scenario.category, ...result });
+
+    // Wait a bit between scenarios to avoid rate limits
+    if (i < scenariosToRun.length - 1) {
+      log(colors.cyan, '\n⏳ Waiting 2 seconds before next scenario...');
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
   }
 
   // Summary
@@ -405,18 +305,56 @@ async function main() {
 
   results.forEach((result, i) => {
     const status = result.success ? colors.green + '✓ PASS' : colors.red + '✗ FAIL';
-    log(colors.reset, `${i + 1}. ${result.scenario}: ${status}${colors.reset}`);
+    log(colors.reset, `${i + 1}. [${result.category?.toUpperCase()}] ${result.scenario}`);
+    log(colors.reset, `   Status: ${status}${colors.reset}`);
+    if (result.planSize) {
+      log(colors.reset, `   Plan Size: ${result.planSize} tasks`);
+    }
+    if (result.tasksCompleted !== undefined) {
+      log(colors.reset, `   Completed: ${result.tasksCompleted}/${result.tasksStarted || 0}`);
+    }
+    if (result.debugAttempts && result.debugAttempts > 0) {
+      log(colors.yellow, `   Debug Attempts: ${result.debugAttempts}`);
+    }
+    if (result.totalLogs) {
+      log(colors.reset, `   Log Entries: ${result.totalLogs}`);
+    }
+    if (result.totalTime) {
+      log(colors.reset, `   Duration: ${(result.totalTime / 1000).toFixed(2)}s`);
+    }
     if (!result.success && result.error) {
       log(colors.red, `   Error: ${result.error}`);
     }
+    log(colors.reset, '');
   });
 
   const totalPassed = results.filter((r) => r.success).length;
   const totalFailed = results.length - totalPassed;
+  const totalTime = results.reduce((sum, r) => sum + (r.totalTime || 0), 0);
 
-  log(colors.reset, '\n' + '─'.repeat(80));
-  log(colors.bright, `Total: ${results.length} | Passed: ${totalPassed} | Failed: ${totalFailed}`);
+  log(colors.reset, '─'.repeat(80));
+  log(
+    colors.bright,
+    `Results: ${totalPassed}/${results.length} passed | Total Time: ${(totalTime / 1000).toFixed(2)}s`
+  );
   log(colors.reset, '─'.repeat(80) + '\n');
+
+  if (totalPassed === results.length) {
+    log(colors.green, '🎉 All tests passed!\n');
+  } else {
+    log(colors.yellow, `⚠ ${totalFailed} test(s) failed\n`);
+  }
+
+  // Tips
+  log(colors.cyan, '💡 Tips:');
+  if (TEST_CONFIG.mode === 'quick') {
+    log(colors.reset, '   • Run full suite: TEST_MODE=full npm run test:plan-execute');
+  }
+  if (!TEST_CONFIG.verbose) {
+    log(colors.reset, '   • See all logs: VERBOSE=true npm run test:plan-execute');
+  }
+  log(colors.reset, '   • Check unit tests: npm test -- test/plan-and-execute/');
+  log(colors.reset, '   • See more prompts: examples/TEST_PROMPTS.md\n');
 
   process.exit(totalFailed > 0 ? 1 : 0);
 }

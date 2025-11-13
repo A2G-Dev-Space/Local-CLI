@@ -47,20 +47,33 @@ npm run ts-node examples/simple-demo.ts
 ────────────────────────────────────────────────────────────
 ```
 
-### 2. Comprehensive Test Suite
+### 2. Real LLM Test Suite ⚡ (NEW!)
 
-Test all features including error handling and debug mode:
+Test with your **actual LLM endpoint** - makes real API calls:
 
 ```bash
+# Quick mode - runs 1 simple scenario
 npm run test:plan-execute
+
+# Full mode - runs all 4 scenarios
+TEST_MODE=full npm run test:plan-execute
+
+# Verbose mode - see all logs
+VERBOSE=true npm run test:plan-execute
 ```
 
-**What it tests**:
-- Simple sequential execution
-- Error detection and debug workflow
-- Complex task dependencies
-- Log entry capture
-- State management
+**What it tests** (with REAL LLM):
+- Simple sequential tasks (Calculator, Todo Manager)
+- Complex dependencies (User Auth, REST API)
+- Real planning and execution
+- Error handling and debug workflow
+- Log entry capture from actual LLM responses
+
+**Test scenarios**:
+1. **Simple Calculator** - Basic sequential execution
+2. **Todo List Manager** - CRUD operations
+3. **User Authentication** - Complex flow with JWT/bcrypt
+4. **REST API with Express** - Multi-step project
 
 ### 3. Unit Tests
 
@@ -81,12 +94,12 @@ npm test -- test/plan-and-execute/
 
 ### Demo Scripts
 
-| File | Purpose | Use When |
-|------|---------|----------|
-| `simple-demo.ts` | Minimal working example | Learning the basics |
-| `test-plan-execute.ts` | Comprehensive test scenarios | Testing all features |
-| `TEST_PROMPTS.md` | Example prompts and questions | Interactive testing |
-| `README.md` | This file | Getting started |
+| File | Purpose | LLM Type | Use When |
+|------|---------|----------|----------|
+| `simple-demo.ts` | Minimal working example | Mock | Learning the basics |
+| `test-plan-execute.ts` | **Real LLM test suite** | **Real** | **Testing with your LLM** |
+| `TEST_PROMPTS.md` | Example prompts and questions | N/A | Interactive testing |
+| `README.md` | This file | N/A | Getting started |
 
 ## Example Prompts
 
