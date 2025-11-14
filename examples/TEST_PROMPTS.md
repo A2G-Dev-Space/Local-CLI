@@ -58,11 +58,7 @@ Use the CLI in interactive mode and try the prompts below.
 
 4. **REST API with Database**
    ```
-   Build a REST API with Express that includes:
-   - Database connection
-   - User model
-   - CRUD endpoints
-   - Error handling middleware
+   Build a REST API with Express that includes: - Database connection - User model - CRUD endpoints - Error handling middleware
    ```
    **Expected**: 5-6 tasks with dependencies
    **Tests**: Dependency ordering, previous_context usage
