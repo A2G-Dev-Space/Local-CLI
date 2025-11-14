@@ -798,3 +798,65 @@ export function createLogger(prefix: string, options?: Partial<LoggerOptions>): 
 export function generateTraceId(): string {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
+
+/**
+ * Setup logging configuration based on CLI options
+ * - Configures log level (verbose/debug)
+ * - Initializes JSON stream logger
+ * - Sets up process exit handlers for cleanup
+ * 
+ * @param options - CLI options containing verbose and debug flags
+ * @returns Object containing cleanup function and JSON logger instance
+ */
+export async function setupLogging(options: {
+  verbose?: boolean;
+  debug?: boolean;
+  sessionId?: string;
+}): Promise<{
+  cleanup: () => Promise<void>;
+  jsonLogger: Awaited<ReturnType<typeof import('./json-stream-logger.js').initializeJsonStreamLogger>>;
+}> {
+  const { initializeJsonStreamLogger, closeJsonStreamLogger } = await import('./json-stream-logger.js');
+  const { sessionManager } = await import('../core/session-manager.js');
+
+  // Set log level based on CLI options
+  // Normal mode (no flags): INFO
+  // --verbose: DEBUG (상세 로깅)
+  // --debug: VERBOSE (최대 디버그 로깅 + 위치 정보)
+  if (options.debug) {
+    setLogLevel(LogLevel.VERBOSE);
+    logger.info('🔍 Debug mode enabled - maximum logging with location tracking');
+  } else if (options.verbose) {
+    setLogLevel(LogLevel.DEBUG);
+    logger.info('📝 Verbose mode enabled - detailed logging');
+  }
+  // else: 기본값 INFO (logger 초기화 시 설정됨)
+
+  // Initialize JSON stream logger (always enabled)
+  const sessionId = options.sessionId || (sessionManager.getCurrentSessionId() as string);
+  const jsonLogger = await initializeJsonStreamLogger(sessionId);
+
+  // Track cleanup state to prevent duplicate calls
+  let cleanupCalled = false;
+
+  // Cleanup function to close logger (idempotent - safe to call multiple times)
+  const cleanup = async () => {
+    if (cleanupCalled) {
+      return; // Already cleaned up, skip
+    }
+    cleanupCalled = true;
+    await closeJsonStreamLogger();
+  };
+
+  // Ensure cleanup on exit (prevent duplicate handlers with once flag)
+  const exitHandler = async (signal: string) => {
+    logger.debug(`Received ${signal}, cleaning up...`);
+    await cleanup();
+    process.exit(0);
+  };
+
+  process.once('SIGINT', () => exitHandler('SIGINT'));
+  process.once('SIGTERM', () => exitHandler('SIGTERM'));
+
+  return { cleanup, jsonLogger };
+}

@@ -442,13 +442,10 @@ let globalJsonStreamLogger: JsonStreamLogger | null = null;
  * Initialize global JSON stream logger
  * Automatically generates log paths based on current working directory and session ID
  */
-export async function initializeJsonStreamLogger(sessionId?: string, append = false): Promise<JsonStreamLogger> {
+export async function initializeJsonStreamLogger(sessionId: string, append = false): Promise<JsonStreamLogger> {
   if (globalJsonStreamLogger) {
     await globalJsonStreamLogger.close();
   }
-
-  // Use provided sessionId or generate new one
-  const actualSessionId = sessionId || Date.now().toString();
 
   // Get current working directory and sanitize it for use in path
   // Replace '/' with '-' and remove leading '-' if present (for absolute paths)
@@ -458,8 +455,8 @@ export async function initializeJsonStreamLogger(sessionId?: string, append = fa
   const projectLogDir = join(PROJECTS_DIR, cwd);
 
   // Create log file paths
-  const logFile = join(projectLogDir, `${actualSessionId}_log.json`);
-  const errorLogFile = join(projectLogDir, `${actualSessionId}_error.json`);
+  const logFile = join(projectLogDir, `${sessionId}_log.json`);
+  const errorLogFile = join(projectLogDir, `${sessionId}_error.json`);
 
   globalJsonStreamLogger = new JsonStreamLogger(logFile, errorLogFile);
   await globalJsonStreamLogger.initialize(append);
