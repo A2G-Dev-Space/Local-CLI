@@ -151,6 +151,24 @@ Line 3"
       expect(result.result).toBe('Done');
     });
 
+    test('handles truncated JSON with unclosed array and object', () => {
+      // More realistic: truncation happens at end of a field value
+      const truncatedJSON = '{"status": "success", "items": [{"id": 1, "name": "test"}';
+      const result = extractJSON(truncatedJSON);
+      expect(result.status).toBe('success');
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].id).toBe(1);
+      expect(result.items[0].name).toBe('test');
+    });
+
+    test('handles truncated JSON with array', () => {
+      // Truncation in the middle of string value
+      const truncatedJSON = '{"status": "success", "items": ["item1", "item2';
+      const result = extractJSON(truncatedJSON);
+      expect(result.status).toBe('success');
+      expect(result.items).toContain('item1');
+    });
+
     test('throws on completely invalid input', () => {
       expect(() => extractJSON('not json at all')).toThrow();
       expect(() => extractJSON('12345')).toThrow();

@@ -189,9 +189,11 @@ function fixCommonIssues(text: string): string {
 function repairTruncatedJSON(text: string): string {
   let repaired = text.trim();
 
-  // Count braces to see if JSON is incomplete
+  // Count braces and brackets to see if JSON is incomplete
   let openBraces = 0;
   let closeBraces = 0;
+  let openBrackets = 0;
+  let closeBrackets = 0;
   let inString = false;
   let escapeNext = false;
 
@@ -216,12 +218,20 @@ function repairTruncatedJSON(text: string): string {
     if (!inString) {
       if (char === '{') openBraces++;
       if (char === '}') closeBraces++;
+      if (char === '[') openBrackets++;
+      if (char === ']') closeBrackets++;
     }
   }
 
   // If we're still in a string, close it
   if (inString) {
     repaired += '"';
+  }
+
+  // Close arrays first, then objects (innermost to outermost)
+  while (closeBrackets < openBrackets) {
+    repaired += ']';
+    closeBrackets++;
   }
 
   // If braces don't match, close them
