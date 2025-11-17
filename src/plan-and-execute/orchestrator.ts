@@ -517,6 +517,13 @@ export class PlanExecuteOrchestrator extends EventEmitter {
   }
 
   /**
+   * Get the approval manager (for setting up UI callbacks)
+   */
+  getApprovalManager(): ApprovalManager {
+    return this.approvalManager;
+  }
+
+  /**
    * Type-safe event listeners
    */
   override on<K extends keyof OrchestratorEvents>(

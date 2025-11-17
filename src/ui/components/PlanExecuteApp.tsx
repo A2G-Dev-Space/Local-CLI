@@ -17,6 +17,7 @@ import { initializeDocsDirectory } from '../../core/docs-search-agent.js';
 import { performDocsSearchIfNeeded } from '../../core/agent-framework-handler.js';
 import { FileBrowser } from './FileBrowser.js';
 import { SessionBrowser } from './SessionBrowser.js';
+import { PlanApprovalPrompt, TaskApprovalPrompt, ApprovalAction } from './ApprovalPrompt.js';
 import { detectAtTrigger, insertFilePaths } from '../hooks/atFileProcessor.js';
 import { loadFileList, FileItem } from '../hooks/useFileList.js';
 import { BaseError } from '../../errors/base.js';
@@ -125,6 +126,20 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
 
   // Session browser state
   const [showSessionBrowser, setShowSessionBrowser] = useState(false);
+
+  // HITL approval state
+  const [planApprovalRequest, setPlanApprovalRequest] = useState<{
+    userRequest: string;
+    todos: TodoItem[];
+  } | null>(null);
+  const [taskApprovalRequest, setTaskApprovalRequest] = useState<{
+    taskDescription: string;
+    risk: any;
+    context?: string;
+  } | null>(null);
+  const [approvalResolver, setApprovalResolver] = useState<{
+    resolve: (action: string) => void;
+  } | null>(null);
 
   // Initialize docs directory on startup
   useEffect(() => {
@@ -334,6 +349,42 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
     }
   }, [currentTodoId]);
 
+  // Approval callbacks for HITL
+  const handlePlanApprovalRequest = useCallback(async (request: {
+    todos: TodoItem[];
+    userRequest: string;
+  }): Promise<ApprovalAction> => {
+    return new Promise((resolve) => {
+      setPlanApprovalRequest(request);
+      setApprovalResolver({ resolve: resolve as (action: string) => void });
+    });
+  }, []);
+
+  const handleTaskApprovalRequest = useCallback(async (request: {
+    taskId: string;
+    taskDescription: string;
+    risk: any;
+    context?: string;
+  }): Promise<ApprovalAction> => {
+    return new Promise((resolve) => {
+      setTaskApprovalRequest({
+        taskDescription: request.taskDescription,
+        risk: request.risk,
+        context: request.context,
+      });
+      setApprovalResolver({ resolve: resolve as (action: string) => void });
+    });
+  }, []);
+
+  const handleApprovalResponse = useCallback((action: ApprovalAction) => {
+    if (approvalResolver) {
+      approvalResolver.resolve(action);
+      setApprovalResolver(null);
+    }
+    setPlanApprovalRequest(null);
+    setTaskApprovalRequest(null);
+  }, [approvalResolver]);
+
   const handleDirectMode = async (userMessage: string) => {
     // Direct mode - same as original InteractiveApp
     try {
@@ -385,6 +436,11 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
           },
         },
       });
+
+      // Set up HITL approval callbacks to use Ink-based UI
+      const approvalManager = orchestrator.getApprovalManager();
+      approvalManager.setPlanApprovalCallback(handlePlanApprovalRequest);
+      approvalManager.setTaskApprovalCallback(handleTaskApprovalRequest);
 
       // Set up event listeners for UI updates
       orchestrator.on('planCreated', (todos: TodoItem[]) => {
@@ -633,6 +689,29 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
           <SessionBrowser
             onSelect={handleSessionSelect}
             onCancel={handleSessionBrowserCancel}
+          />
+        </Box>
+      )}
+
+      {/* HITL Plan Approval Prompt */}
+      {planApprovalRequest && (
+        <Box marginTop={1}>
+          <PlanApprovalPrompt
+            userRequest={planApprovalRequest.userRequest}
+            todos={planApprovalRequest.todos}
+            onResponse={handleApprovalResponse}
+          />
+        </Box>
+      )}
+
+      {/* HITL Task Approval Prompt */}
+      {taskApprovalRequest && (
+        <Box marginTop={1}>
+          <TaskApprovalPrompt
+            taskDescription={taskApprovalRequest.taskDescription}
+            risk={taskApprovalRequest.risk}
+            context={taskApprovalRequest.context}
+            onResponse={handleApprovalResponse}
           />
         </Box>
       )}
