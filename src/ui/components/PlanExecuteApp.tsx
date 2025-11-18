@@ -10,14 +10,14 @@ import TextInput from 'ink-text-input';
 import Spinner from 'ink-spinner';
 import { LLMClient } from '../../core/llm-client.js';
 import { Message, TodoItem } from '../../types/index.js';
-import { PlanningLLM } from '../../core/planning-llm.js';
-import { TodoExecutor } from '../../core/todo-executor.js';
+import { PlanExecuteOrchestrator } from '../../plan-and-execute/orchestrator.js';
 import { TodoPanel, TodoStatusBar } from '../TodoPanel.js';
 import { sessionManager } from '../../core/session-manager.js';
 import { initializeDocsDirectory } from '../../core/docs-search-agent.js';
 import { performDocsSearchIfNeeded } from '../../core/agent-framework-handler.js';
 import { FileBrowser } from './FileBrowser.js';
 import { SessionBrowser } from './SessionBrowser.js';
+import { PlanApprovalPrompt, TaskApprovalPrompt, ApprovalAction } from './ApprovalPrompt.js';
 import { detectAtTrigger, insertFilePaths } from '../hooks/atFileProcessor.js';
 import { loadFileList, FileItem } from '../hooks/useFileList.js';
 import { BaseError } from '../../errors/base.js';
@@ -126,6 +126,20 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
 
   // Session browser state
   const [showSessionBrowser, setShowSessionBrowser] = useState(false);
+
+  // HITL approval state
+  const [planApprovalRequest, setPlanApprovalRequest] = useState<{
+    userRequest: string;
+    todos: TodoItem[];
+  } | null>(null);
+  const [taskApprovalRequest, setTaskApprovalRequest] = useState<{
+    taskDescription: string;
+    risk: any;
+    context?: string;
+  } | null>(null);
+  const [approvalResolver, setApprovalResolver] = useState<{
+    resolve: (action: string) => void;
+  } | null>(null);
 
   // Initialize docs directory on startup
   useEffect(() => {
@@ -335,6 +349,42 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
     }
   }, [currentTodoId]);
 
+  // Approval callbacks for HITL
+  const handlePlanApprovalRequest = useCallback(async (request: {
+    todos: TodoItem[];
+    userRequest: string;
+  }): Promise<ApprovalAction> => {
+    return new Promise((resolve) => {
+      setPlanApprovalRequest(request);
+      setApprovalResolver({ resolve: resolve as (action: string) => void });
+    });
+  }, []);
+
+  const handleTaskApprovalRequest = useCallback(async (request: {
+    taskId: string;
+    taskDescription: string;
+    risk: any;
+    context?: string;
+  }): Promise<ApprovalAction> => {
+    return new Promise((resolve) => {
+      setTaskApprovalRequest({
+        taskDescription: request.taskDescription,
+        risk: request.risk,
+        context: request.context,
+      });
+      setApprovalResolver({ resolve: resolve as (action: string) => void });
+    });
+  }, []);
+
+  const handleApprovalResponse = useCallback((action: ApprovalAction) => {
+    if (approvalResolver) {
+      approvalResolver.resolve(action);
+      setApprovalResolver(null);
+    }
+    setPlanApprovalRequest(null);
+    setTaskApprovalRequest(null);
+  }, [approvalResolver]);
+
   const handleDirectMode = async (userMessage: string) => {
     // Direct mode - same as original InteractiveApp
     try {
@@ -370,51 +420,67 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
   };
 
   const handlePlanExecuteMode = async (userMessage: string) => {
-    // Plan & Execute mode
+    // Plan & Execute mode with HITL enabled
     setExecutionPhase('planning');
 
     try {
-      // 1. Generate TODO list
-      const planningLLM = new PlanningLLM(llmClient);
-      const planResult = await planningLLM.generateTODOList(userMessage);
+      // Create orchestrator with HITL enabled
+      const orchestrator = new PlanExecuteOrchestrator(llmClient, {
+        maxDebugAttempts: 2,
+        verbose: false,
+        hitl: {
+          enabled: true,           // HITL is enabled
+          approvePlan: true,       // Require plan approval
+          riskConfig: {
+            approvalThreshold: 'medium', // Approve medium+ risk tasks
+          },
+        },
+      });
 
-      // Validate and sort TODOs
-      if (planningLLM.validateDependencies(planResult.todos)) {
-        const sortedTodos = planningLLM.sortByDependencies(planResult.todos);
-        setTodos(sortedTodos);
-      } else {
-        setTodos(planResult.todos); // Use as-is if validation fails
-      }
+      // Set up HITL approval callbacks to use Ink-based UI
+      const approvalManager = orchestrator.getApprovalManager();
+      approvalManager.setPlanApprovalCallback(handlePlanApprovalRequest);
+      approvalManager.setTaskApprovalCallback(handleTaskApprovalRequest);
 
-      // Add planning message
-      const planningMessage = `📋 Created ${planResult.todos.length} tasks to complete your request\n` +
-        `Estimated time: ${planResult.estimatedTime}\n` +
-        `Complexity: ${planResult.complexity}`;
+      // Set up event listeners for UI updates
+      orchestrator.on('planCreated', (todos: TodoItem[]) => {
+        setTodos(todos);
+        const planningMessage = `📋 Created ${todos.length} tasks to complete your request`;
+        setMessages([
+          ...messages,
+          { role: 'user', content: userMessage },
+          { role: 'assistant', content: planningMessage }
+        ]);
+      });
 
-      setMessages([
-        ...messages,
-        { role: 'user', content: userMessage },
-        { role: 'assistant', content: planningMessage }
+      orchestrator.on('todoStarted', (todo: TodoItem) => {
+        handleTodoUpdate({ ...todo, status: 'in_progress' as const });
+        setExecutionPhase('executing');
+      });
+
+      orchestrator.on('todoCompleted', (todo: TodoItem) => {
+        handleTodoUpdate({ ...todo, status: 'completed' as const });
+      });
+
+      orchestrator.on('todoFailed', (todo: TodoItem) => {
+        handleTodoUpdate({ ...todo, status: 'failed' as const });
+      });
+
+      // Execute with orchestrator (includes HITL approval gates)
+      const summary = await orchestrator.execute(userMessage);
+
+      // Add completion message
+      const completionMessage = `✅ Execution completed\n` +
+        `Total: ${summary.totalTasks} | Completed: ${summary.completedTasks} | Failed: ${summary.failedTasks}\n` +
+        `Duration: ${(summary.duration / 1000).toFixed(2)}s`;
+
+      setMessages(prev => [
+        ...prev,
+        { role: 'assistant', content: completionMessage }
       ]);
 
-      // 2. Execute TODOs
-      setExecutionPhase('executing');
-
-      const executor = new TodoExecutor(llmClient, handleTodoUpdate);
-      const executionResult = await executor.executeAll(
-        planResult.todos,
-        [
-          ...messages,
-          { role: 'user', content: userMessage }
-        ]
-      );
-
-      // Update with final messages
-      setMessages(executionResult.messages);
-      setTodos(executionResult.todos);
-
       // Auto-save current session (fire-and-forget)
-      sessionManager.autoSaveCurrentSession(executionResult.messages);
+      sessionManager.autoSaveCurrentSession(messages);
 
     } catch (error) {
       const errorMessage = formatErrorMessage(error);
@@ -623,6 +689,29 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
           <SessionBrowser
             onSelect={handleSessionSelect}
             onCancel={handleSessionBrowserCancel}
+          />
+        </Box>
+      )}
+
+      {/* HITL Plan Approval Prompt */}
+      {planApprovalRequest && (
+        <Box marginTop={1}>
+          <PlanApprovalPrompt
+            userRequest={planApprovalRequest.userRequest}
+            todos={planApprovalRequest.todos}
+            onResponse={handleApprovalResponse}
+          />
+        </Box>
+      )}
+
+      {/* HITL Task Approval Prompt */}
+      {taskApprovalRequest && (
+        <Box marginTop={1}>
+          <TaskApprovalPrompt
+            taskDescription={taskApprovalRequest.taskDescription}
+            risk={taskApprovalRequest.risk}
+            context={taskApprovalRequest.context}
+            onResponse={handleApprovalResponse}
           />
         </Box>
       )}

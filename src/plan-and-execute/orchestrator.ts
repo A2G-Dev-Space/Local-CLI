@@ -22,6 +22,12 @@ import {
   ExecutionStep,
 } from './state-manager.js';
 import { EventEmitter } from 'events';
+import {
+  RiskAnalyzer,
+  RiskAnalyzerConfig,
+  DEFAULT_RISK_CONFIG,
+} from './risk-analyzer.js';
+import { ApprovalManager } from './approval-manager.js';
 
 /**
  * Orchestrator configuration
@@ -38,6 +44,18 @@ export interface OrchestratorConfig {
 
   /** Session ID for persistence */
   sessionId?: string;
+
+  /** Human-in-the-loop configuration */
+  hitl?: {
+    /** Enable HITL approval gates */
+    enabled?: boolean;
+
+    /** Request approval for the entire plan after planning */
+    approvePlan?: boolean;
+
+    /** Risk analyzer configuration */
+    riskConfig?: Partial<RiskAnalyzerConfig>;
+  };
 }
 
 /**
@@ -75,6 +93,8 @@ export class PlanExecuteOrchestrator extends EventEmitter {
   private planningLLM: PlanningLLM;
   private stateManager: PlanExecuteStateManager | null = null;
   private config: Required<OrchestratorConfig>;
+  private riskAnalyzer: RiskAnalyzer;
+  private approvalManager: ApprovalManager;
 
   constructor(llmClient: LLMClient, config: OrchestratorConfig = {}) {
     super();
@@ -87,7 +107,16 @@ export class PlanExecuteOrchestrator extends EventEmitter {
       taskTimeout: config.taskTimeout ?? 300000, // 5 minutes
       verbose: config.verbose ?? false,
       sessionId: config.sessionId ?? `pe-${Date.now()}`,
+      hitl: {
+        enabled: config.hitl?.enabled ?? true,
+        approvePlan: config.hitl?.approvePlan ?? true,
+        riskConfig: config.hitl?.riskConfig ?? DEFAULT_RISK_CONFIG,
+      },
     };
+
+    // Initialize HITL components
+    this.riskAnalyzer = new RiskAnalyzer(this.config.hitl.riskConfig);
+    this.approvalManager = new ApprovalManager();
 
     logger.enter('PlanExecuteOrchestrator.constructor', this.config);
   }
@@ -99,6 +128,9 @@ export class PlanExecuteOrchestrator extends EventEmitter {
     logger.enter('PlanExecuteOrchestrator.execute', { userRequest });
 
     try {
+      // Reset approval manager state for new execution
+      this.approvalManager.reset();
+
       // Phase 1: Planning
       const plan = await this.planPhase(userRequest);
 
@@ -119,6 +151,9 @@ export class PlanExecuteOrchestrator extends EventEmitter {
       logger.error('Orchestrator execution failed', error);
       this.emit('executionFailed', errorMessage);
       throw error;
+    } finally {
+      // Clean up approval manager resources
+      this.approvalManager.close();
     }
   }
 
@@ -140,6 +175,22 @@ export class PlanExecuteOrchestrator extends EventEmitter {
       logger.info(
         `Planning phase created ${planningResult.todos.length} tasks (${planningResult.complexity} complexity)`
       );
+
+      // HITL Gate 1: Plan Approval
+      if (this.config.hitl.enabled && this.config.hitl.approvePlan) {
+        const approval = await this.approvalManager.requestPlanApproval({
+          todos: planningResult.todos,
+          userRequest,
+        });
+
+        if (approval.action === 'reject' || approval.action === 'stop') {
+          throw new Error(
+            `Plan rejected by user: ${approval.reason || 'User rejected the plan'}`
+          );
+        }
+
+        logger.info('Plan approved by user');
+      }
 
       this.stateManager = new PlanExecuteStateManager(
         this.config.sessionId,
@@ -252,6 +303,41 @@ export class PlanExecuteOrchestrator extends EventEmitter {
 
     if (!this.stateManager) {
       throw new Error('State manager not initialized');
+    }
+
+    // HITL Gate 2: Task-level Risk Assessment & Approval
+    if (this.config.hitl.enabled) {
+      const riskAssessment = this.riskAnalyzer.analyzeTask(
+        task.title,
+        task.description
+      );
+
+      if (riskAssessment.requiresApproval) {
+        const approval = await this.approvalManager.requestTaskApproval({
+          taskId: task.id,
+          taskDescription: task.title,
+          risk: riskAssessment,
+          context: task.description,
+        });
+
+        if (approval.action === 'reject') {
+          logger.info(`Task ${task.id} rejected by user`);
+          this.stateManager.recordFailure(task.id, {
+            message: 'Task rejected by user',
+            details: approval.reason,
+          });
+          return false;
+        }
+
+        if (approval.action === 'reject_all' || approval.action === 'stop') {
+          logger.info(`Execution stopped by user at task ${task.id}`);
+          throw new Error(
+            `Execution stopped by user: ${approval.reason || 'User stopped execution'}`
+          );
+        }
+
+        logger.info(`Task ${task.id} approved by user`);
+      }
     }
 
     let debugAttempts = 0;
@@ -428,6 +514,13 @@ export class PlanExecuteOrchestrator extends EventEmitter {
    */
   getAllLogs() {
     return this.stateManager?.getAllLogEntries() || [];
+  }
+
+  /**
+   * Get the approval manager (for setting up UI callbacks)
+   */
+  getApprovalManager(): ApprovalManager {
+    return this.approvalManager;
   }
 
   /**
