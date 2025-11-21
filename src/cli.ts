@@ -81,7 +81,10 @@ program
     try {
       // Use PlanExecuteApp for enhanced functionality
       const AppComponent = PlanExecuteApp; // Always use PlanExecuteApp now
-      render(React.createElement(AppComponent, { llmClient, modelInfo }));
+      const { waitUntilExit } = render(React.createElement(AppComponent, { llmClient, modelInfo }));
+
+      // Wait until the UI exits before cleanup
+      await waitUntilExit();
     } catch (error) {
       console.log(chalk.yellow('\n⚠️  Ink UI를 시작할 수 없습니다.\n'));
       console.log(chalk.dim(`Error: ${error instanceof Error ? error.message : String(error)}\n`));

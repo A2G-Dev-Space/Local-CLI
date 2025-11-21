@@ -45,3 +45,5 @@ tmp/
 temp/
 *.tmp
 ui_temp/
+
+CLAUDE.md

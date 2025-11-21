@@ -424,6 +424,15 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
     setExecutionPhase('planning');
 
     try {
+      // Perform docs search if framework keywords detected (same as direct mode)
+      const { messages: messagesWithDocs, performed: docsSearchPerformed } =
+        await performDocsSearchIfNeeded(llmClient, userMessage, messages);
+
+      // Update messages if docs search was performed
+      if (docsSearchPerformed) {
+        setMessages(messagesWithDocs);
+      }
+
       // Create orchestrator with HITL enabled
       const orchestrator = new PlanExecuteOrchestrator(llmClient, {
         maxDebugAttempts: 2,
@@ -446,8 +455,9 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
       orchestrator.on('planCreated', (todos: TodoItem[]) => {
         setTodos(todos);
         const planningMessage = `📋 Created ${todos.length} tasks to complete your request`;
-        setMessages([
-          ...messages,
+        // Use functional update to include docs search results if performed
+        setMessages(prev => [
+          ...prev,
           { role: 'user', content: userMessage },
           { role: 'assistant', content: planningMessage }
         ]);
@@ -474,25 +484,41 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
         `Total: ${summary.totalTasks} | Completed: ${summary.completedTasks} | Failed: ${summary.failedTasks}\n` +
         `Duration: ${(summary.duration / 1000).toFixed(2)}s`;
 
-      setMessages(prev => [
-        ...prev,
-        { role: 'assistant', content: completionMessage }
-      ]);
-
-      // Auto-save current session (fire-and-forget)
-      sessionManager.autoSaveCurrentSession(messages);
+      // Update messages and auto-save with latest state
+      setMessages(prev => {
+        const updatedMessages: Message[] = [
+          ...prev,
+          { role: 'assistant' as const, content: completionMessage }
+        ];
+        // Auto-save current session with updated messages (fire-and-forget)
+        sessionManager.autoSaveCurrentSession(updatedMessages);
+        return updatedMessages;
+      });
 
     } catch (error) {
       const errorMessage = formatErrorMessage(error);
-      const updatedMessages: Message[] = [
-        ...messages,
-        { role: 'user', content: userMessage },
-        { role: 'assistant', content: `Plan & Execute 모드 실행 중 오류 발생:\n\n${errorMessage}` }
-      ];
-      setMessages(updatedMessages);
 
-      // Auto-save even on error (fire-and-forget)
-      sessionManager.autoSaveCurrentSession(updatedMessages);
+      // Update messages and auto-save with latest state (including docs search results)
+      setMessages(prev => {
+        // Check if user message already exists (from planCreated event)
+        const lastMessage = prev[prev.length - 1];
+        const hasUserMessage = lastMessage?.role === 'user' && lastMessage.content === userMessage;
+
+        const updatedMessages: Message[] = hasUserMessage
+          ? [
+              ...prev,
+              { role: 'assistant' as const, content: `Plan & Execute 모드 실행 중 오류 발생:\n\n${errorMessage}` }
+            ]
+          : [
+              ...prev,
+              { role: 'user' as const, content: userMessage },
+              { role: 'assistant' as const, content: `Plan & Execute 모드 실행 중 오류 발생:\n\n${errorMessage}` }
+            ];
+
+        // Auto-save even on error (fire-and-forget)
+        sessionManager.autoSaveCurrentSession(updatedMessages);
+        return updatedMessages;
+      });
     } finally {
       setExecutionPhase('idle');
     }
