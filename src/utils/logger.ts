@@ -819,6 +819,10 @@ export async function setupLogging(options: {
   const { initializeJsonStreamLogger, closeJsonStreamLogger } = await import('./json-stream-logger.js');
   const { sessionManager } = await import('../core/session-manager.js');
 
+  // Initialize JSON stream logger (always enabled)
+  const sessionId = options.sessionId || (sessionManager.getCurrentSessionId() as string);
+  const jsonLogger = await initializeJsonStreamLogger(sessionId);
+
   // Set log level based on CLI options
   // Normal mode (no flags): INFO
   // --verbose: DEBUG (상세 로깅)
@@ -830,11 +834,10 @@ export async function setupLogging(options: {
     setLogLevel(LogLevel.DEBUG);
     logger.info('📝 Verbose mode enabled - detailed logging');
   }
-  // else: 기본값 INFO (logger 초기화 시 설정됨)
-
-  // Initialize JSON stream logger (always enabled)
-  const sessionId = options.sessionId || (sessionManager.getCurrentSessionId() as string);
-  const jsonLogger = await initializeJsonStreamLogger(sessionId);
+  else {
+    // 기본값 INFO (logger 초기화 시 설정됨)
+    logger.info('ℹ️  Info mode enabled - standard logging (default)');
+  }
 
   // Track cleanup state to prevent duplicate calls
   let cleanupCalled = false;
