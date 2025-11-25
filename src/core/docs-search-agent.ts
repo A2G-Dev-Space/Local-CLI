@@ -327,6 +327,11 @@ export async function executeDocsSearchAgent(
             const result = await executeBashCommand(sanitized);
             logger.endTimer('bash-execution');
 
+            // Log formatted display if available
+            if (result.formattedDisplay) {
+              logger.bashExecution(result.formattedDisplay);
+            }
+
             // Add tool result to messages
             let toolResult: string;
             if (result.success) {

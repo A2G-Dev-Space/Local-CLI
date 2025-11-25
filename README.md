@@ -44,6 +44,9 @@ npm install
 # 빌드
 npm run build
 
+# Agno 프레임워크 문서 다운로드 (선택사항, 로컬 문서 지식베이스용)
+npx tsx scripts/download-agno-docs.ts
+
 # 글로벌 명령어 설정 (선택사항)
 npm link
 ```
@@ -386,6 +389,9 @@ npm install
 
 # Build
 npm run build
+
+# Download Agno framework documentation (optional, for local knowledge base)
+npx tsx scripts/download-agno-docs.ts
 
 # Global command setup (optional)
 npm link

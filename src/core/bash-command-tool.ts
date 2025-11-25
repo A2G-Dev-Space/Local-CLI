@@ -24,7 +24,7 @@ const BASH_COMMAND_MAX_BUFFER_BYTES = 2 * 1024 * 1024; // 2MB max buffer
 export async function executeBashCommand(
   command: string,
   cwd?: string
-): Promise<{ success: boolean; result?: string; error?: string }> {
+): Promise<{ success: boolean; result?: string; error?: string; formattedDisplay?: string }> {
   try {
     // Security validation: Block dangerous commands
     // Use word boundaries to prevent false positives (e.g., "nc" in "agency")
@@ -44,18 +44,22 @@ export async function executeBashCommand(
     // Check for dangerous patterns
     for (const pattern of dangerousPatterns) {
       if (pattern.test(command)) {
+        const errorMsg = `Command blocked for security reasons: matches dangerous pattern "${pattern}"`;
         return {
           success: false,
-          error: `Command blocked for security reasons: matches dangerous pattern "${pattern}"`,
+          error: errorMsg,
+          formattedDisplay: formatBashExecutionError(command, errorMsg),
         };
       }
     }
 
     // Check for output redirection (prevent file overwrites)
     if (command.match(/>\s*\/|>>\s*\//)) {
+      const errorMsg = 'Output redirection to absolute paths is not allowed';
       return {
         success: false,
-        error: 'Output redirection to absolute paths is not allowed',
+        error: errorMsg,
+        formattedDisplay: formatBashExecutionError(command, errorMsg),
       };
     }
 
@@ -79,26 +83,34 @@ export async function executeBashCommand(
       shell: '/bin/bash', // Use bash shell
     });
 
-    // Combine stdout and stderr
-    const output = stdout || stderr || 'Command executed successfully (no output)';
+    // Combine stdout and stderr (keep empty string if no output)
+    const output = stdout || stderr || '';
+
+    // Generate formatted display for terminal UI
+    const formattedDisplay = formatBashExecutionOutput(command, output.trim());
 
     return {
       success: true,
-      result: output.trim(),
+      result: output.trim() || 'Command executed successfully (no output)',
+      formattedDisplay,
     };
   } catch (error: any) {
     // Handle different error types
     if (error.killed && error.signal === 'SIGTERM') {
+      const errorMsg = `Command timeout: exceeded ${BASH_COMMAND_TIMEOUT_MS / 1000} second limit`;
       return {
         success: false,
-        error: `Command timeout: exceeded ${BASH_COMMAND_TIMEOUT_MS / 1000} second limit`,
+        error: errorMsg,
+        formattedDisplay: formatBashExecutionError(command, errorMsg),
       };
     }
 
     if (error.code === 'ENOENT') {
+      const errorMsg = 'Command not found';
       return {
         success: false,
-        error: 'Command not found',
+        error: errorMsg,
+        formattedDisplay: formatBashExecutionError(command, errorMsg),
       };
     }
 
@@ -108,6 +120,7 @@ export async function executeBashCommand(
     return {
       success: false,
       error: errorMessage,
+      formattedDisplay: formatBashExecutionError(command, errorMessage),
     };
   }
 }
@@ -184,6 +197,155 @@ export function sanitizeCommand(command: string): string {
   sanitized = sanitized.replace(/&/g, '');
 
   return sanitized.trim();
+}
+
+/**
+ * Format bash execution error for terminal display
+ */
+function formatBashExecutionError(command: string, error: string): string {
+  const lines: string[] = [];
+  lines.push(`● Bash(${command})`);
+  lines.push(`  ⎿  Error: ${error}`);
+  return lines.join('\n');
+}
+
+/**
+ * Check if command is a read command (should only show summary, not content)
+ * Uses word boundary regex to avoid false positives (e.g., "my-catalog.sh")
+ */
+function isReadCommand(command: string): boolean {
+  const readCommands = /\b(cat|head|tail|less|more)\b/;
+  return readCommands.test(command);
+}
+
+/**
+ * Format bash execution output for terminal display
+ */
+function formatBashExecutionOutput(command: string, output: string, maxLines: number = 20): string {
+  const lines: string[] = [];
+
+  // Add command header with ● indicator
+  lines.push(`● Bash(${command})`);
+
+  // Process output
+  if (output) {
+    const outputLines = output.split('\n').filter(line => line.trim());
+
+    if (outputLines.length === 0) {
+      lines.push('  ⎿  (no output)');
+    } else {
+      // Add summary line
+      const summary = getBashOutputSummary(command, outputLines);
+      if (summary) {
+        lines.push(`  ⎿  ${summary}`);
+      }
+
+      // For read commands (cat, head, tail), only show summary, not the content
+      const isRead = isReadCommand(command);
+
+      if (!isRead) {
+        // Add output lines (limited) for non-read commands
+        const displayLines = outputLines.slice(0, maxLines);
+        displayLines.forEach((line, idx) => {
+          // First line uses ⎿ if no summary, rest use spaces for indent
+          const prefix = idx === 0 && !summary ? '  ⎿  ' : '     ';
+          lines.push(`${prefix}${line}`);
+        });
+
+        // Show truncation message if needed
+        if (outputLines.length > maxLines) {
+          lines.push(`     ... (${outputLines.length - maxLines} more lines)`);
+        }
+      } else if (!summary) {
+        // If it's a read command but no summary was generated, show first line as summary
+        lines.push(`  ⎿  Read ${outputLines.length} line${outputLines.length === 1 ? '' : 's'}`);
+      }
+    }
+  } else {
+    lines.push('  ⎿  (no output)');
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * Generate a summary line based on command and output
+ * Uses word boundary regex to avoid false positives (e.g., "build-docs.sh" matching "build")
+ */
+function getBashOutputSummary(command: string, outputLines: string[]): string | null {
+  const lineCount = outputLines.length;
+
+  // Search commands (find, grep)
+  if (/\bfind\b/.test(command)) {
+    if (lineCount === 0) {
+      return 'Found 0 files';
+    } else if (lineCount === 1) {
+      return 'Found 1 file';
+    } else {
+      return `Found ${lineCount} files`;
+    }
+  }
+
+  if (/\bgrep\b/.test(command)) {
+    if (lineCount === 0) {
+      return 'Found 0 matches';
+    } else if (lineCount === 1) {
+      return 'Found 1 match';
+    } else {
+      return `Found ${lineCount} matches`;
+    }
+  }
+
+  // Read commands
+  if (/\b(cat|head|tail)\b/.test(command)) {
+    if (lineCount === 1) {
+      return 'Read 1 line';
+    } else {
+      return `Read ${lineCount} lines`;
+    }
+  }
+
+  // List commands
+  if (/\bls\b/.test(command)) {
+    if (lineCount === 0) {
+      return 'Directory is empty';
+    } else if (lineCount === 1) {
+      return 'Found 1 item';
+    } else {
+      return `Found ${lineCount} items`;
+    }
+  }
+
+  // Test/build commands
+  if (/\b(test|jest)\b/.test(command) || command.includes('npm test')) {
+    const hasPass = outputLines.some(line =>
+      line.includes('passed') || line.includes('PASS') || line.includes('✓')
+    );
+    const hasFail = outputLines.some(line =>
+      line.includes('failed') || line.includes('FAIL') || line.includes('✗')
+    );
+
+    if (hasPass && !hasFail) {
+      return 'All tests passed';
+    } else if (hasFail) {
+      return 'Some tests failed';
+    }
+  }
+
+  if (/\b(build|compile|tsc)\b/.test(command)) {
+    const hasError = outputLines.some(line =>
+      line.toLowerCase().includes('error')
+    );
+
+    if (hasError) {
+      return 'Build completed with errors';
+    } else {
+      return 'Build completed successfully';
+    }
+  }
+
+  // Default: no summary, just show output
+  return null;
 }
 
 export default executeBashCommand;

@@ -726,6 +726,31 @@ export class Logger {
       jsonLogger.logToolCall(toolName, args, result, error);
     }
   }
+
+  /**
+   * Log bash command execution with formatted display
+   */
+  bashExecution(formattedDisplay: string): void {
+    if (this.level < LogLevel.INFO) return;
+
+    // Split formatted display into lines and colorize
+    const lines = formattedDisplay.split('\n');
+    lines.forEach((line) => {
+      if (line.startsWith('●')) {
+        // Command header in cyan
+        console.log(chalk.cyan(line));
+      } else if (line.includes('Error:')) {
+        // Error lines in red
+        console.log(chalk.red(line));
+      } else {
+        // Output lines in default color
+        console.log(line);
+      }
+    });
+
+    // Add blank line after output for better readability
+    console.log();
+  }
 }
 
 /**
@@ -796,7 +821,7 @@ export function createLogger(prefix: string, options?: Partial<LoggerOptions>): 
  * Generate a unique trace ID
  */
 export function generateTraceId(): string {
-  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 }
 
 /**

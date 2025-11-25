@@ -14,6 +14,7 @@ import {
 } from '../types/index.js';
 import { FILE_TOOLS, executeFileTool } from '../tools/file-tools.js';
 import { executeBashCommand } from './bash-command-tool.js';
+import { logger } from '../utils/logger.js';
 
 export interface ActionValidation {
   safe: boolean;
@@ -281,6 +282,12 @@ Rules:
         const command = actionPlan.parameters?.['command'];
         if (command && typeof command === 'string') {
           const result = await executeBashCommand(command);
+
+          // Log formatted display if available
+          if (result.formattedDisplay) {
+            logger.bashExecution(result.formattedDisplay);
+          }
+
           if (result.success) {
             return result.result;
           } else {
