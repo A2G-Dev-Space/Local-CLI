@@ -36,6 +36,9 @@ yarn-error.log*
 coverage/
 .nyc_output/
 
+# Evaluation reports
+evaluation-reports/
+
 # A2G-CLI specific
 .a2g-cli/
 *.a2g-session.json

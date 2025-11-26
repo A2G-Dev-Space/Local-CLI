@@ -19,7 +19,9 @@
     "test:watch": "NODE_OPTIONS='--experimental-vm-modules' jest --config jest.config.mjs --watch",
     "test:coverage": "NODE_OPTIONS='--experimental-vm-modules' jest --config jest.config.mjs --coverage",
     "test:plan-execute": "npx tsx examples/test-plan-execute.ts",
-    "demo:plan-execute": "npx tsx examples/simple-demo.ts"
+    "demo:plan-execute": "npx tsx examples/simple-demo.ts",
+    "evaluate": "npx tsx src/evaluation/run-evaluation.ts",
+    "evaluate:quick": "npx tsx src/evaluation/run-evaluation.ts -- --test 1,2,3 --format both"
   },
   "keywords": [
     "cli",

@@ -15,7 +15,7 @@ import os from 'os';
 /**
  * Configuration constants
  */
-const DOCS_SEARCH_MAX_ITERATIONS = 10;
+const DOCS_SEARCH_MAX_ITERATIONS = 15;
 const DOCS_SEARCH_MAX_OUTPUT_LENGTH = 50000;
 const DOCS_SEARCH_LLM_TEMPERATURE = 0.3;
 const DOCS_SEARCH_LLM_MAX_TOKENS = 4000;
@@ -44,6 +44,106 @@ const RUN_BASH_TOOL: ToolDefinition = {
 const STOP_WORDS = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'were', 'been', 'be', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'should', 'could', 'may', 'might', 'must', 'can', 'how', 'what', 'when', 'where', 'why', 'which', 'who', 'whom', 'this', 'that', 'these', 'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they', 'me', 'him', 'her', 'us', 'them', 'my', 'your', 'his', 'its', 'our', 'their', 'use', 'using', 'create', 'make']);
 
 /**
+ * Normalize command for similarity comparison
+ * Extracts the command type and key patterns for comparison
+ */
+function normalizeCommandForComparison(command: string): string {
+  // Remove extra whitespace
+  let normalized = command.trim().replace(/\s+/g, ' ');
+  
+  // For find commands, extract the base pattern
+  if (normalized.startsWith('find ')) {
+    // Normalize path separators and extract key pattern
+    normalized = normalized.replace(/\\/g, '');
+    // Extract directory and name pattern
+    const dirMatch = normalized.match(/find\s+(\S+)/);
+    const nameMatch = normalized.match(/-name\s+"([^"]+)"/g);
+    if (dirMatch && nameMatch) {
+      return `find:${dirMatch[1]}:${nameMatch.sort().join(',')}`;
+    }
+  }
+  
+  // For grep commands, extract search term and path
+  if (normalized.includes('grep')) {
+    const searchTermMatch = normalized.match(/grep\s+(?:-\w+\s+)*"([^"]+)"/);
+    const pathMatch = normalized.match(/--include="[^"]+"\s+(.+)$/) || normalized.match(/grep\s+(?:-\w+\s+)*"[^"]+"\s+(\S+)/);
+    if (searchTermMatch && pathMatch) {
+      return `grep:${searchTermMatch[1]}:${pathMatch[1]}`;
+    }
+  }
+  
+  // For cat commands, extract file list
+  if (normalized.startsWith('cat ')) {
+    const files = normalized.substring(4).split(/\s+/).filter(f => f.endsWith('.md')).sort();
+    return `cat:${files.join(',')}`;
+  }
+  
+  // For head commands, extract file
+  if (normalized.includes('head ')) {
+    const fileMatch = normalized.match(/head\s+(?:-\w+\s+)*(\S+\.md)/);
+    if (fileMatch) {
+      return `head:${fileMatch[1]}`;
+    }
+  }
+  
+  return normalized;
+}
+
+/**
+ * Check if a command is similar to any previously executed command
+ */
+function isSimilarToExecutedCommands(command: string, executedCommands: Set<string>): boolean {
+  const normalizedNew = normalizeCommandForComparison(command);
+  
+  for (const executed of executedCommands) {
+    const normalizedExecuted = normalizeCommandForComparison(executed);
+    
+    // Exact match after normalization
+    if (normalizedNew === normalizedExecuted) {
+      return true;
+    }
+    
+    // For grep commands, check if searching same term in same or narrower directory
+    // Allow expansion: narrow path -> broad path (e.g., agno/agent -> agno)
+    // Block: same path or narrowing down (e.g., agno -> agno/agent)
+    if (normalizedNew.startsWith('grep:') && normalizedExecuted.startsWith('grep:')) {
+      const [, newTerm, newPath] = normalizedNew.split(':');
+      const [, execTerm, execPath] = normalizedExecuted.split(':');
+      
+      // Same search term AND new path is same or narrower than already searched
+      if (newTerm === execTerm && newPath && execPath) {
+        // Block if searching same path or narrower (subset of already searched)
+        // Use path separator to avoid false matches (e.g., agno vs agnos)
+        if (newPath === execPath || newPath.startsWith(execPath + '/')) {
+          return true;
+        }
+        // Allow if expanding to broader path (execPath starts with newPath)
+      }
+    }
+    
+    // For find commands, check if searching same pattern in same or narrower directory
+    // Allow expansion: narrow path -> broad path (e.g., agno/agent -> agno)
+    // Block: same path or narrowing down (e.g., agno -> agno/agent)
+    if (normalizedNew.startsWith('find:') && normalizedExecuted.startsWith('find:')) {
+      const [, newPath, newPattern] = normalizedNew.split(':');
+      const [, execPath, execPattern] = normalizedExecuted.split(':');
+      
+      // Same pattern AND new path is same or narrower than already searched
+      if (newPattern === execPattern && newPath && execPath) {
+        // Block if searching same path or narrower (subset of already searched)
+        // Use path separator to avoid false matches (e.g., agno vs agnos)
+        if (newPath === execPath || newPath.startsWith(execPath + '/')) {
+          return true;
+        }
+        // Allow if expanding to broader path (execPath starts with newPath)
+      }
+    }
+  }
+  
+  return false;
+}
+
+/**
  * Extract keywords from query for file filtering
  */
 function extractKeywords(query: string): string[] {
@@ -60,48 +160,17 @@ function extractKeywords(query: string): string[] {
  * Build 4-tier search strategy for all frameworks
  */
 function build4TierSearchStrategy(specificPath: string, broadPath: string, keywords: string[]): string {
-  const keywordExamples = keywords.length > 0
-    ? keywords.slice(0, 3).join(', ')
-    : 'streaming, agent, memory';
+  const keywordExamples = keywords.length > 0 ? keywords.slice(0, 3).join(', ') : 'streaming, agent';
 
   return `
+4-Tier Search (follow in order, stop when found):
+1. find ${specificPath} -name "*keyword*.md" (filename in specific dir)
+2. find ${broadPath} -name "*keyword*.md" (filename in broad dir)
+3. grep -ril "keyword" ${specificPath} --include="*.md" (content search)
+4. grep -ril "keyword" ${broadPath} --include="*.md" (broad content)
 
-**MANDATORY 4-TIER SEARCH STRATEGY**:
-You MUST follow this exact order:
-
-**KEYWORD EXTRACTION (Do this FIRST)**:
-Before searching, extract relevant ENGLISH keywords from the user query:
-- Translate Korean to English (e.g., "스트리밍" → "streaming", "에이전트" → "agent")
-- Use technical terms and core concepts (e.g., "예시" → "example", "지원" → "support")
-- Extract multiple keywords for better coverage
-- Suggested keywords for this query: ${keywordExamples}
-
-**TIER 1 - Filename search in specific directory (${specificPath})**:
-  find ${specificPath} -name "*keyword*.md" -type f
-  → Use ENGLISH keywords in filename search
-  → Try multiple keywords: find ${specificPath} -name "*stream*.md" -o -name "*response*.md"
-
-**TIER 2 - Filename search in broad directory (${broadPath})**:
-  find ${broadPath} -name "*keyword*.md" -type f
-  → Expand to entire framework directory if Tier 1 fails
-
-**TIER 3 - Content search in specific directory (${specificPath})**:
-  grep -ril "keyword" ${specificPath} --include="*.md"
-  → Use ENGLISH keywords in content search
-  → Try multiple keywords separately if needed
-
-**TIER 4 - Content search in broad directory (${broadPath})**:
-  grep -ril "keyword" ${broadPath} --include="*.md"
-  → Full content search across entire framework
-
-**IMPORTANT TIER RULES**:
-- ⚠️ ALWAYS extract and use ENGLISH keywords, never use the original Korean query directly
-- Follow tiers in ORDER: 1 → 2 → 3 → 4
-- Move to next tier ONLY if current tier finds no relevant results
-- Log each tier attempt with the command used
-- When documents are found, load and cite them immediately
-- Preview files with head -n 50 before full load to validate relevance
-- Maximum 15 files total in final load`;
+Tips: Translate Korean→English (스트리밍→streaming). Examples: ${keywordExamples}
+Multi-concept: find path \\( -name "*a*.md" -o -name "*b*.md" \\)`;
 }
 
 /**
@@ -144,69 +213,29 @@ function buildFrameworkHints(frameworkDetection: FrameworkDetection): {
  */
 function buildSystemPrompt(frameworkDetection: FrameworkDetection, keywords: string[]): string {
   const { searchHint, searchStrategy } = buildFrameworkHints(frameworkDetection);
+  const keywordHint = keywords.length > 0 ? ` Keywords: ${keywords.join(', ')}` : '';
+  const frameworkPaths = getFrameworkPathsForDocs().map(({ name, path }) => `${name}: ${path}`).join(', ');
 
-  const keywordHint = keywords.length > 0
-    ? `\n\n**EXTRACTED KEYWORDS**: ${keywords.join(', ')}\n→ Use these for filtering files in each tier`
-    : '';
+  return `Docs search expert for ~/.open-cli/docs.${searchHint}${keywordHint}
 
-  return `You are a documentation search expert for the ~/.open-cli/docs folder.
-
-**Your Mission**:
-Find information requested by the user in the ~/.open-cli/docs folder.${searchHint}${keywordHint}
-
-**Available Tools**:
-- run_bash: Execute bash commands in the docs directory
-
-**Useful Commands**:
-- ls: List files and directories (e.g., ls -la agent_framework/agno)
-- find: Search for files by name (e.g., find agent_framework/agno/agent -name "*keyword*.md" -type f)
-- grep: Search file contents (e.g., grep -ril "keyword" agent_framework/agno/agent --include="*.md")
-- head: Preview file content (e.g., head -n 50 file.md)
-- cat: Read FULL file contents (e.g., cat file1.md file2.md file3.md)
-
-**Documentation Structure**:
-- Documents are organized by functionality: each document covers ONE Class or ONE Function
-- Directory structure: agent_framework/{framework}/{category}/
+Tools: run_bash (find/grep/cat/head/ls)
+Structure: agent_framework/{framework}/{category}/ - each file covers ONE class/function
 ${searchStrategy}
+Paths: ${frameworkPaths}
 
-**CITATION FORMAT** (MANDATORY when documents found):
-When you find and present information, you MUST include citations:
----
-**Sources:**
-- [filename.md] agent_framework/agno/agent/filename.md
-- [another.md] agent_framework/agno/another.md
----
+Search Strategy:
+1. Extract concepts from query (Agent, Tool, etc.)
+2. find {path} -name "*keyword*.md" for each concept
+3. head -n 50 to preview, then cat to load (max 15 files)
 
-**FAILURE REPORTING** (MANDATORY if no documents found):
-If search fails, you MUST report:
----
-**Search Failed - Attempted Commands:**
-1. Command attempted → Result
-2. Command attempted → Result
-...
+Rules:
+- Search each concept separately, combine results
+- STOP after cat loads relevant content - provide answer immediately
+- Cite sources: [file.md] path/to/file.md
+- Max ${DOCS_SEARCH_MAX_ITERATIONS} tool calls
+- If not found after Tier 4: report "Information not found"
 
-**Documents Found but Not Relevant:**
-- [list any documents found but deemed not relevant]
----
-
-**CRITICAL RULES**:
-- ⚠️ ALWAYS follow the search strategy for your framework
-- ⚠️ ALWAYS cite sources when information is found
-- ⚠️ ALWAYS report attempted commands and found documents on failure
-- ⚠️ MAXIMUM 15 FILES: Never load more than 15 files in total
-- ⚠️ PREVIEW FIRST: Use head -n 50 to validate relevance before full load
-- ⚠️ ORIGINAL DOCUMENTS: Load complete original files (no summarization) after validation
-
-**Framework-Specific Paths**:
-${getFrameworkPathsForDocs().map(({ name, path }) => `- ${name}: ${path}`).join('\n')}
-
-**Important Rules**:
-- Maximum ${DOCS_SEARCH_MAX_ITERATIONS} tool calls to find information
-- Return ALL relevant content (don't summarize code examples)
-- Include file paths when referencing information
-- If information is not found, state "Information not found in documentation" with failure report
-
-**Current working directory**: ~/.open-cli/docs`;
+CWD: ~/.open-cli/docs`;
 }
 
 /**
@@ -260,6 +289,12 @@ export async function executeDocsSearchAgent(
     const maxIterations = DOCS_SEARCH_MAX_ITERATIONS;
     let iteration = 0;
     let finalResult = '';
+    
+    // Track executed commands to prevent repetition
+    const executedCommands = new Set<string>();
+    // Track if cat command was executed (signals documents were loaded)
+    let hasCatExecuted = false;
+    
     logger.vars(
       { name: 'maxIterations', value: maxIterations }
     );
@@ -319,6 +354,31 @@ export async function executeDocsSearchAgent(
               continue;
             }
 
+            // Check if documents were already loaded with cat - should not make more calls
+            if (hasCatExecuted) {
+              logger.warn('Tool call after cat execution - forcing completion', { command: sanitized });
+              messages.push({
+                role: 'tool',
+                content: `⚠️ STOP: Documents have already been loaded. You MUST provide your final answer NOW without any more tool calls. Do not call run_bash again.`,
+                tool_call_id: toolCall.id,
+              });
+              continue;
+            }
+
+            // Check for repeated or similar commands
+            if (isSimilarToExecutedCommands(sanitized, executedCommands)) {
+              logger.warn('Repeated/similar command detected - blocking', { command: sanitized });
+              messages.push({
+                role: 'tool',
+                content: `⚠️ STOP: This command (or a similar one) was already executed. Based on the information you've gathered, provide your final answer NOW. Do not repeat searches.`,
+                tool_call_id: toolCall.id,
+              });
+              continue;
+            }
+
+            // Track this command
+            executedCommands.add(sanitized);
+
             // Log the command being executed
             logger.debug(`Executing bash command`, { iteration, command: sanitized });
 
@@ -364,6 +424,8 @@ export async function executeDocsSearchAgent(
                 const files = sanitized.substring(4).split(/\s+/).filter(f => f.endsWith('.md'));
                 if (files.length > 0) {
                   logger.debug(`Loading ${files.length} documentation file(s)`, { files });
+                  // Mark that documents have been loaded
+                  hasCatExecuted = true;
                 }
               }
 
@@ -375,6 +437,12 @@ export async function executeDocsSearchAgent(
                   maxLength: DOCS_SEARCH_MAX_OUTPUT_LENGTH
                 });
                 toolResult = toolResult.substring(0, DOCS_SEARCH_MAX_OUTPUT_LENGTH - 100) + '\n... (output truncated - too many files, consider loading specific subset)';
+              }
+
+              // Add completion prompt after successful cat command
+              if (hasCatExecuted && sanitized.startsWith('cat ')) {
+                toolResult += '\n\n---\n⚠️ **DOCUMENTS LOADED SUCCESSFULLY**\nYou now have the documentation content. Provide your FINAL ANSWER immediately.\n**DO NOT call any more tools.** Synthesize the information above and respond to the user query.\n---';
+                logger.flow('Cat command completed - added completion prompt');
               }
             } else {
               toolResult = `Error: ${result.error}`;
