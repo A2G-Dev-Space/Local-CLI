@@ -6,8 +6,8 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { Box, Text, useInput, useApp } from 'ink';
-import TextInput from 'ink-text-input';
 import Spinner from 'ink-spinner';
+import { CustomTextInput } from './CustomTextInput.js';
 import { LLMClient } from '../../core/llm-client.js';
 import { Message, TodoItem } from '../../types/index.js';
 import { PlanExecuteOrchestrator } from '../../plan-and-execute/orchestrator.js';
@@ -113,7 +113,6 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
   const [showFileBrowser, setShowFileBrowser] = useState(false);
   const [atPosition, setAtPosition] = useState(-1);
   const [filterText, setFilterText] = useState('');
-  const [inputKey, setInputKey] = useState(0); // Force TextInput re-render for cursor position
 
   // Pre-loaded file list cache (loaded once at startup)
   const [cachedFileList, setCachedFileList] = useState<FileItem[]>([]);
@@ -202,8 +201,13 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
       return; // Don't trigger while processing
     }
 
-    // Don't process empty input (happens after submit)
+    // If input is empty and command browser is open, close it
     if (!input) {
+      if (showCommandBrowser) {
+        setShowCommandBrowser(false);
+        setPartialCommand('');
+        setCommandArgs('');
+      }
       return;
     }
 
@@ -257,9 +261,6 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
     const newInput = insertFilePaths(input, atPosition, filterText.length, filePaths);
     setInput(newInput);
 
-    // Force TextInput to re-render with new value and reset cursor to end
-    setInputKey((prev) => prev + 1);
-
     // Close file browser
     setShowFileBrowser(false);
     setAtPosition(-1);
@@ -288,7 +289,6 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
       // Tab key: Insert command into input for further editing (e.g., adding arguments)
       const newInput = insertSlashCommand(input, command);
       setInput(newInput);
-      setInputKey((prev) => prev + 1);
     }
   };
 
@@ -545,7 +545,6 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
     }
 
     setInput('');
-    setInputKey((prev) => prev + 1);
 
     if (isSlashCommand(userMessage)) {
       const commandContext: CommandHandlerContext = {
@@ -656,8 +655,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
         <Box>
           <Text color="green" bold>You: </Text>
           <Box flexGrow={1}>
-            <TextInput
-              key={inputKey}
+            <CustomTextInput
               value={input}
               onChange={(value) => {
                 // Block input while SessionBrowser is open
@@ -668,12 +666,13 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
               }}
               onSubmit={handleSubmit}
               placeholder={
-                isProcessing 
-                  ? "Processing..." 
-                  : showSessionBrowser 
+                isProcessing
+                  ? "Processing..."
+                  : showSessionBrowser
                   ? "Select a session or press ESC to cancel..."
                   : "Type your message..."
               }
+              focus={!showSessionBrowser && !planApprovalRequest && !taskApprovalRequest}
             />
           </Box>
         </Box>
