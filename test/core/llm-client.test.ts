@@ -1,26 +1,22 @@
 /**
  * LLM Client Tests - Model Compatibility Layer
+ *
+ * 이 테스트는 ConfigManager를 모킹하여 실제 설정 파일을 변경하지 않습니다.
  */
 
-import { LLMClient } from '../../src/core/llm-client.js';
+import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 import { Message } from '../../src/types/index.js';
-import { configManager } from '../../src/core/config-manager.js';
 
-describe('LLMClient - Model Compatibility Layer', () => {
-  let client: LLMClient;
-
-  beforeAll(async () => {
-    // Initialize ConfigManager with test config
-    await configManager.initialize();
-
-    // Check if test endpoint already exists
-    try {
-      const config = configManager.getConfig();
-      const existingEndpoint = config.endpoints.find(ep => ep.id === 'test-endpoint');
-
-      if (!existingEndpoint) {
-        // Add test endpoint only if it doesn't exist
-        await configManager.addEndpoint({
+// Mock configManager to avoid modifying real config files
+jest.unstable_mockModule('../../src/core/config-manager.js', () => ({
+  configManager: {
+    initialize: jest.fn().mockResolvedValue(undefined),
+    getConfig: jest.fn().mockReturnValue({
+      version: '0.1.0',
+      currentEndpoint: 'test-endpoint',
+      currentModel: 'gpt-oss-120b',
+      endpoints: [
+        {
           id: 'test-endpoint',
           name: 'Test Endpoint',
           baseUrl: 'http://localhost:3000/v1',
@@ -35,38 +31,48 @@ describe('LLMClient - Model Compatibility Layer', () => {
           ],
           createdAt: new Date(),
           updatedAt: new Date()
-        });
+        }
+      ],
+      settings: {
+        autoApprove: false,
+        debugMode: false,
+        streamResponse: true,
+        autoSave: true
       }
+    }),
+    getCurrentEndpoint: jest.fn().mockReturnValue({
+      id: 'test-endpoint',
+      name: 'Test Endpoint',
+      baseUrl: 'http://localhost:3000/v1',
+      apiKey: 'test-key',
+      models: [
+        {
+          id: 'gpt-oss-120b',
+          name: 'GPT-OSS 120B',
+          maxTokens: 4096,
+          enabled: true
+        }
+      ],
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }),
+    getCurrentModel: jest.fn().mockReturnValue({
+      id: 'gpt-oss-120b',
+      name: 'GPT-OSS 120B',
+      maxTokens: 4096,
+      enabled: true
+    }),
+  }
+}));
 
-      // Set as current endpoint
-      await configManager.setCurrentEndpoint('test-endpoint');
-      await configManager.setCurrentModel('gpt-oss-120b');
-    } catch (error) {
-      // If config doesn't exist, create it
-      await configManager.addEndpoint({
-        id: 'test-endpoint',
-        name: 'Test Endpoint',
-        baseUrl: 'http://localhost:3000/v1',
-        apiKey: 'test-key',
-        models: [
-          {
-            id: 'gpt-oss-120b',
-            name: 'GPT-OSS 120B',
-            maxTokens: 4096,
-            enabled: true
-          }
-        ],
-        createdAt: new Date(),
-        updatedAt: new Date()
-      });
+// Dynamic import after mock setup
+const { LLMClient } = await import('../../src/core/llm-client.js');
 
-      await configManager.setCurrentEndpoint('test-endpoint');
-      await configManager.setCurrentModel('gpt-oss-120b');
-    }
-  });
+describe('LLMClient - Model Compatibility Layer', () => {
+  let client: LLMClient;
 
   beforeEach(() => {
-    // Create client (will use ConfigManager settings)
+    // Create client (will use mocked ConfigManager settings)
     client = new LLMClient();
   });
 
