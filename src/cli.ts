@@ -18,7 +18,6 @@ import { createLLMClient, LLMClient } from './core/llm-client.js';
 import { sessionManager } from './core/session-manager.js';
 import { documentManager } from './core/document-manager.js';
 import { EndpointConfig } from './types/index.js';
-// import { InteractiveApp } from './ui/components/InteractiveApp.js';
 import { PlanExecuteApp } from './ui/components/PlanExecuteApp.js';
 import { GitAutoUpdater } from './core/git-auto-updater.js';
 import { logger, setupLogging } from './utils/logger.js';
