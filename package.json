@@ -28,8 +28,8 @@
     "demo:hitl": "npx tsx test/demos/demo-hitl.ts",
     "demo:logger": "npx tsx test/demos/logger-demo.ts",
     "test:real-llm": "npx tsx test/demos/test-plan-execute.ts",
-    "evaluate": "npx tsx test/evaluation/run-evaluation.ts",
-    "evaluate:quick": "npx tsx test/evaluation/run-evaluation.ts -- --test 1,2,3 --format both"
+    "evaluate": "npx tsx evaluation/run-evaluation.ts",
+    "evaluate:quick": "npx tsx evaluation/run-evaluation.ts -- --test 1,2,3 --format both"
   },
   "keywords": [
     "cli",
