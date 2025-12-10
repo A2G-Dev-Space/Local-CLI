@@ -186,6 +186,14 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({ onSelect, onCancel
         <Text color="red">✗ offline (cannot select)</Text>
       </Box>
 
+      {/* Hint for adding new models */}
+      <Box paddingX={1}>
+        <Text color="gray" dimColor>💡 신규 모델 추가: </Text>
+        <Text color="yellow">/settings</Text>
+        <Text color="gray" dimColor> → </Text>
+        <Text color="yellow">LLMs</Text>
+      </Box>
+
       {/* Footer */}
       <Box marginTop={1}>
         <Text dimColor>↑↓: move | Enter: select | ESC: cancel</Text>
