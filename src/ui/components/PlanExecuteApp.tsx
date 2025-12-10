@@ -170,15 +170,17 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
     if (key.ctrl && inputChar === 'c') {
       handleExit().catch(console.error);
     }
-    // Tab key to cycle through planning modes
-    if ((key.tab || inputChar === '\t') && !isProcessing) {
+    // Tab key to cycle through planning modes (works anytime except when processing or in special UI modes)
+    const isInSpecialUI = showSessionBrowser || showSettings || showSetupWizard || showModelSelector ||
+                          planExecutionState.planApprovalRequest || planExecutionState.taskApprovalRequest;
+    if ((key.tab || inputChar === '\t') && !isProcessing && !isInSpecialUI) {
       const modes: PlanningMode[] = ['auto', 'no-planning', 'planning'];
       const currentIndex = modes.indexOf(planningMode);
       const nextIndex = (currentIndex + 1) % modes.length;
       logger.state('Planning mode', planningMode, modes[nextIndex]!);
       setPlanningMode(modes[nextIndex]!);
     }
-  });
+  }, { isActive: !fileBrowserState.showFileBrowser && !commandBrowserState.showCommandBrowser });
 
   // Handle file selection from browser
   const handleFileSelect = useCallback((filePaths: string[]) => {
@@ -650,15 +652,28 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
         </Box>
       )}
 
-      {/* Status Bar */}
+      {/* Status Bar - Always visible with model/mode info */}
       <Box justifyContent="space-between" paddingX={1}>
         <Box>
+          {/* Model and Mode info - always visible */}
+          <Text color="gray">{getHealthIndicator()} </Text>
+          <Text color="cyan">{currentModelInfo.model}</Text>
+          <Text color="gray"> │ </Text>
+          <Text color={planningMode === 'planning' ? 'yellow' : planningMode === 'no-planning' ? 'green' : 'magenta'}>
+            {planningMode === 'planning' ? '📋' : planningMode === 'no-planning' ? '⚡' : '🤖'}
+          </Text>
+          <Text color={planningMode === 'planning' ? 'yellow' : planningMode === 'no-planning' ? 'green' : 'magenta'}>
+            {' '}{planningMode}
+          </Text>
           {planExecutionState.todos.length > 0 && (
-            <TodoStatusBar todos={planExecutionState.todos} />
+            <>
+              <Text color="gray"> │ </Text>
+              <TodoStatusBar todos={planExecutionState.todos} />
+            </>
           )}
         </Box>
         <Text color="gray" dimColor>
-          Tab: mode | /help
+          Tab: mode({planningMode === 'auto' ? 'a' : planningMode === 'no-planning' ? 'n' : 'p'}→{planningMode === 'auto' ? 'n' : planningMode === 'no-planning' ? 'p' : 'a'}) | /help
         </Text>
       </Box>
     </Box>
