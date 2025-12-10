@@ -2,12 +2,12 @@
  * Logger 사용 데모
  *
  * 실행 방법:
- * LOG_LEVEL=3 npx ts-node examples/logger-demo.ts
+ * LOG_LEVEL=3 npx ts-node test/demos/logger-demo.ts
  * 또는
- * VERBOSE=true npx ts-node examples/logger-demo.ts
+ * VERBOSE=true npx ts-node test/demos/logger-demo.ts
  */
 
-import { logger, generateTraceId, createLogger, LogLevel } from '../src/utils/logger.js';
+import { logger, generateTraceId, createLogger, LogLevel } from '../../src/utils/logger.js';
 
 // ============================================
 // 예제 1: 기본 로깅

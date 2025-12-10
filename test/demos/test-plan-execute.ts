@@ -13,9 +13,9 @@
  *   VERBOSE=true       - Enable detailed logging
  */
 
-import { PlanExecuteOrchestrator } from '../src/plan-and-execute/index.js';
-import { LLMClient } from '../src/core/llm-client.js';
-import { configManager } from '../src/core/config-manager.js';
+import { PlanExecuteOrchestrator } from '../../src/plan-and-execute/index.js';
+import { LLMClient } from '../../src/core/llm-client.js';
+import { configManager } from '../../src/core/config-manager.js';
 
 // Colors for console output
 const colors = {

@@ -20,7 +20,7 @@ import {
 
 // Constants
 const DEFAULT_PROMPTS_FILE_NAME = 'agno_prompts.md';
-const DEFAULT_PROMPTS_DIR = 'src/evaluation';
+const DEFAULT_PROMPTS_DIR = 'test/fixtures/prompts';
 const SEPARATOR_LENGTH = 120;
 
 export interface EvaluatorOptions {

@@ -5,9 +5,9 @@
  * Perfect for quick testing and understanding the basics.
  */
 
-import { PlanExecuteOrchestrator } from '../src/plan-and-execute/index.js';
-import { LLMClient } from '../src/core/llm-client.js';
-import { configManager } from '../src/core/config-manager.js';
+import { PlanExecuteOrchestrator } from '../../src/plan-and-execute/index.js';
+import { LLMClient } from '../../src/core/llm-client.js';
+import { configManager } from '../../src/core/config-manager.js';
 
 // Simple mock that always succeeds
 class SimpleMockLLM extends LLMClient {
@@ -80,7 +80,7 @@ async function main() {
   });
 
   // Manually create a simple test plan
-  const { PlanExecuteStateManager } = await import('../src/plan-and-execute/state-manager.js');
+  const { PlanExecuteStateManager } = await import('../../src/plan-and-execute/state-manager.js');
   const testPlan = [
     {
       id: 'task-1',

@@ -7,9 +7,9 @@
  * 2. Individual risky tasks (like file writes, installs, etc.)
  */
 
-import { LLMClient } from '../src/core/llm-client.js';
-import { configManager } from '../src/core/config-manager.js';
-import { PlanExecuteOrchestrator } from '../src/plan-and-execute/orchestrator.js';
+import { LLMClient } from '../../src/core/llm-client.js';
+import { configManager } from '../../src/core/config-manager.js';
+import { PlanExecuteOrchestrator } from '../../src/plan-and-execute/orchestrator.js';
 
 async function main() {
   console.log('\n' + '='.repeat(80));
