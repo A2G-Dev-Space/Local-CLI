@@ -33,6 +33,7 @@ export class JsonStreamLogger {
   private isEnabled = false;
   private errorStreamInitialized = false;
   private appendMode = false;
+  private verbose = false;
 
   constructor(filePath: string, errorFilePath: string) {
     this.filePath = filePath;
@@ -41,8 +42,11 @@ export class JsonStreamLogger {
 
   /**
    * Initialize the JSON stream logger
+   * @param append - Whether to append to existing file
+   * @param verbose - Whether to show initialization messages
    */
-  async initialize(append = false): Promise<void> {
+  async initialize(append = false, verbose = false): Promise<void> {
+    this.verbose = verbose;
     try {
       // Store append mode for error stream initialization
       this.appendMode = append;
@@ -64,13 +68,17 @@ export class JsonStreamLogger {
         await this.prepareFileForAppend(this.filePath);
         this.writeStream = createWriteStream(this.filePath, { flags: 'a' });
         this.isFirstEntry = false; // Not first entry since file has content
-        console.log(chalk.dim(`📝 JSON stream logging resumed (append mode)`));
+        if (this.verbose) {
+          console.log(chalk.dim(`📝 JSON stream logging resumed (append mode)`));
+        }
       } else {
         // New file mode: create fresh file
         this.writeStream = createWriteStream(this.filePath, { flags: 'w' });
         this.writeStream.write('[\n');
         this.isFirstEntry = true;
-        console.log(chalk.dim(`📝 JSON stream logging enabled`));
+        if (this.verbose) {
+          console.log(chalk.dim(`📝 JSON stream logging enabled`));
+        }
       }
 
       this.isEnabled = true;
@@ -81,7 +89,9 @@ export class JsonStreamLogger {
         this.flushErrors();
       }, FLUSH_INTERVAL_MS);
 
-      console.log(chalk.dim(`   Log: ${this.filePath}`));
+      if (this.verbose) {
+        console.log(chalk.dim(`   Log: ${this.filePath}`));
+      }
     } catch (error) {
       console.error(chalk.red('Failed to initialize JSON stream logger:'), error);
       this.isEnabled = false;
@@ -385,12 +395,14 @@ export class JsonStreamLogger {
             console.error(chalk.red('Failed to close JSON stream:'), error);
             reject(error);
           } else {
-            console.log(chalk.dim(`✅ Log saved: ${this.filePath}`));
+            if (this.verbose) {
+              console.log(chalk.dim(`✅ Log saved: ${this.filePath}`));
+            }
             resolve();
           }
         });
       }));
-    } else {
+    } else if (this.verbose) {
       console.log(chalk.dim(`⚠️  Log stream already closed: ${this.filePath}`));
     }
 
@@ -441,8 +453,11 @@ let globalJsonStreamLogger: JsonStreamLogger | null = null;
 /**
  * Initialize global JSON stream logger
  * Automatically generates log paths based on current working directory and session ID
+ * @param sessionId - Session ID for the log file
+ * @param append - Whether to append to existing file
+ * @param verbose - Whether to show initialization messages
  */
-export async function initializeJsonStreamLogger(sessionId: string, append = false): Promise<JsonStreamLogger> {
+export async function initializeJsonStreamLogger(sessionId: string, append = false, verbose = false): Promise<JsonStreamLogger> {
   if (globalJsonStreamLogger) {
     await globalJsonStreamLogger.close();
   }
@@ -459,7 +474,7 @@ export async function initializeJsonStreamLogger(sessionId: string, append = fal
   const errorLogFile = join(projectLogDir, `${sessionId}_error.json`);
 
   globalJsonStreamLogger = new JsonStreamLogger(logFile, errorLogFile);
-  await globalJsonStreamLogger.initialize(append);
+  await globalJsonStreamLogger.initialize(append, verbose);
 
   return globalJsonStreamLogger;
 }

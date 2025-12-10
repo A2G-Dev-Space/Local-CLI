@@ -55,8 +55,10 @@ program
         }
       }
 
-      // Ink UI 시작
-      console.log(chalk.cyan('🚀 Starting OPEN-CLI...\n'));
+      // Ink UI 시작 (verbose/debug 모드에서만 시작 메시지 표시)
+      if (options.verbose || options.debug) {
+        console.log(chalk.cyan('🚀 Starting OPEN-CLI...\n'));
+      }
 
       // Ink UI를 같은 프로세스에서 직접 렌더링 (stdin raw mode 유지)
       try {
