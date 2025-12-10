@@ -139,7 +139,7 @@ Python의 `curses` 라이브러리와 비슷하지만, 선언적이고 컴포넌
 
 ```
 src/
-├── cli.ts                          # 진입점 (main 함수) - config 명령만 제공
+├── cli.ts                          # 진입점 (main 함수) - open 명령 제공
 ├── index.ts                        # 라이브러리 진입점
 ├── constants.ts                    # 상수 정의
 │
@@ -215,7 +215,9 @@ src/
 │   │   ├── StatusBar.tsx          # 상태바
 │   │   ├── ProgressBar.tsx        # 진행 상태바
 │   │   ├── SessionBrowser.tsx     # 세션 브라우저
-│   │   ├── SettingsBrowser.tsx    # 설정 브라우저
+│   │   ├── SettingsBrowser.tsx    # 설정 브라우저 (LLMs 관리 포함)
+│   │   ├── LLMSetupWizard.tsx     # 첫 실행 LLM 설정 마법사
+│   │   ├── ModelSelector.tsx      # /model 명령어용 모델 선택기
 │   │   └── index.ts               # 컴포넌트 내보내기
 │   │
 │   └── hooks/                     # React 커스텀 훅 (Phase 0 리팩토링)
@@ -587,6 +589,7 @@ interface SessionData {
 ```json
 {
   "activeEndpoint": "my-llm-server",
+  "activeModel": "gpt-4",
   "ui": {
     "theme": "dark",
     "showTimestamps": true
@@ -612,7 +615,9 @@ interface SessionData {
         {
           "id": "gpt-4",
           "name": "GPT-4",
-          "maxTokens": 8192
+          "maxTokens": 8192,
+          "enabled": true,
+          "healthStatus": "healthy"
         }
       ]
     }
@@ -627,23 +632,40 @@ interface SessionData {
 │                    Config Flow                              │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
-│  1. 앱 시작                                                 │
-│     └─→ ConfigManager.load()                                │
-│     └─→ 설정 파일 없으면 → config init 안내                 │
+│  1. 앱 시작 (open)                                          │
+│     └─→ ConfigManager.initialize()                          │
+│     └─→ LLM 미등록 시 → LLMSetupWizard 자동 실행            │
+│     └─→ Health Check 실행 (모든 엔드포인트)                 │
 │                                                             │
-│  2. config init                                             │
-│     └─→ 대화형 설정 (엔드포인트, API Key, 모델)             │
+│  2. /settings → LLMs (UI에서 설정)                          │
+│     └─→ 엔드포인트 추가/수정/삭제                           │
 │     └─→ 연결 테스트                                         │
-│     └─→ 설정 파일 저장                                      │
+│     └─→ Health Check 새로고침                               │
 │                                                             │
-│  3. config show                                             │
-│     └─→ 현재 설정 출력                                      │
-│                                                             │
-│  4. config endpoint switch <id>                             │
-│     └─→ CLI에서 다른 엔드포인트로 전환                      │
+│  3. /model (모델 전환)                                      │
+│     └─→ Healthy 모델 목록 표시                              │
+│     └─→ 방향키로 선택, Enter로 전환                         │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+#### 주요 ConfigManager 메서드
+
+| 메서드 | 설명 |
+|--------|------|
+| `initialize()` | 설정 파일 로드 및 초기화 |
+| `hasEndpoints()` | LLM 엔드포인트 등록 여부 확인 |
+| `getCurrentEndpoint()` | 현재 활성 엔드포인트 조회 |
+| `getCurrentModel()` | 현재 활성 모델 조회 |
+| `setCurrentEndpoint(id)` | 활성 엔드포인트 변경 |
+| `setCurrentModel(id)` | 활성 모델 변경 |
+| `getAllEndpoints()` | 모든 엔드포인트 목록 |
+| `getAllModels()` | 모든 모델 목록 (엔드포인트별) |
+| `getHealthyModels()` | Healthy 상태인 모델만 조회 |
+| `updateEndpoint(id, updates)` | 엔드포인트 업데이트 |
+| `deleteEndpoint(id)` | 엔드포인트 삭제 |
+| `updateModelHealth(...)` | 모델 Health 상태 업데이트 |
+| `updateAllHealthStatus(...)` | 전체 Health 상태 일괄 업데이트 |
 
 ---
 

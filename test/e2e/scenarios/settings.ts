@@ -131,13 +131,47 @@ export const settingsScenarios: TestScenario[] = [
           },
         },
       },
+      {
+        name: '/model 명령어 처리 확인',
+        action: {
+          type: 'custom',
+          fn: async () => {
+            const { executeSlashCommand } = await import('../../../src/core/slash-command-handler.js');
+
+            let modelSelectorShown = false;
+            const mockContext = {
+              planningMode: 'auto' as const,
+              messages: [],
+              todos: [],
+              setPlanningMode: () => {},
+              setMessages: () => {},
+              setTodos: () => {},
+              exit: () => {},
+              onShowModelSelector: () => { modelSelectorShown = true; },
+            };
+
+            const result = await executeSlashCommand('/model', mockContext);
+
+            return {
+              handled: result.handled,
+              modelSelectorCallbackTriggered: modelSelectorShown,
+            };
+          },
+        },
+        validation: {
+          type: 'custom',
+          fn: async (result: any) => {
+            return result.handled === true && result.modelSelectorCallbackTriggered === true;
+          },
+        },
+      },
     ],
   },
 
   {
     id: 'settings-slash-commands-list',
     name: 'SLASH_COMMANDS 목록 검증',
-    description: '슬래시 명령어 목록에서 /status가 제거되고 /settings가 있는지 확인합니다.',
+    description: '슬래시 명령어 목록에서 /status가 제거되고 /settings, /model이 있는지 확인합니다.',
     category: 'settings',
     enabled: true,
     timeout: 30000,
@@ -153,12 +187,12 @@ export const settingsScenarios: TestScenario[] = [
 
             return {
               hasSettings: commandNames.includes('/settings'),
+              hasModel: commandNames.includes('/model'),
               hasHelp: commandNames.includes('/help'),
               hasExit: commandNames.includes('/exit'),
               hasClear: commandNames.includes('/clear'),
               hasLoad: commandNames.includes('/load'),
               hasNoStatus: !commandNames.includes('/status'),
-              hasNoMode: !commandNames.includes('/mode'),
               totalCommands: commandNames.length,
             };
           },
@@ -168,13 +202,13 @@ export const settingsScenarios: TestScenario[] = [
           fn: async (result: any) => {
             return (
               result.hasSettings === true &&
+              result.hasModel === true &&
               result.hasHelp === true &&
               result.hasExit === true &&
               result.hasClear === true &&
               result.hasLoad === true &&
               result.hasNoStatus === true &&
-              result.hasNoMode === true &&
-              result.totalCommands === 5
+              result.totalCommands === 6
             );
           },
         },

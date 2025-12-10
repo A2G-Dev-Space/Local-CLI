@@ -442,44 +442,63 @@ type ExecutionMode =
 - [ ] 테이블 렌더링
 - [ ] 이미지 미리보기 (터미널 지원 시)
 
-### 4.5 LLM 다중 등록
+### 4.5 LLM 다중 등록 ✅ 완료
 
-#### 4.5.1 Endpoint Manager 구현
+#### 4.5.1 Endpoint Manager 구현 ✅
 
-**신규 파일**: `core/config/endpoint-manager.ts`
+**파일**: `core/config/config-manager.ts` (ConfigManager에 통합)
 
-**기능 요구사항**:
+**구현된 기능**:
 ```typescript
-interface EndpointManager {
-  addEndpoint(endpoint: EndpointConfig): void;
-  removeEndpoint(id: string): void;
-  setDefaultEndpoint(id: string): void;
-  getEndpointForTask(taskType: string): EndpointConfig;
-  healthCheck(id: string): Promise<HealthStatus>;
-}
+// ConfigManager 메서드
+getAllEndpoints(): EndpointConfig[]
+updateEndpoint(id: string, updates: Partial<EndpointConfig>): Promise<void>
+deleteEndpoint(id: string): Promise<void>
+setCurrentEndpoint(id: string): Promise<void>
+setCurrentModel(id: string): Promise<void>
+updateModelHealth(endpointId: string, modelId: string, status: HealthStatus): Promise<void>
+updateAllHealthStatus(healthResults: Map<...>): Promise<void>
+getHealthyModels(): { endpoint: EndpointConfig; model: ModelInfo }[]
+getAllModels(): { endpoint: EndpointConfig; model: ModelInfo; isCurrent: boolean }[]
 ```
 
-**TODO**:
-- [ ] `EndpointManager` 클래스 구현
-- [ ] 엔드포인트 CRUD 기능
-- [ ] 헬스 체크 로직
-- [ ] 자동 장애 복구 (failover)
+**완료된 TODO**:
+- [x] 엔드포인트 CRUD 기능 (ConfigManager에 통합)
+- [x] 헬스 체크 로직 (LLMClient.healthCheckAll())
+- [x] Health 상태 저장 및 관리
 
 #### 4.5.2 모델 라우팅
 
-**TODO**:
+**TODO** (미래 작업):
 - [ ] 작업 유형별 모델 매핑
 - [ ] 비용 기반 라우팅
 - [ ] 속도 기반 라우팅
 - [ ] 로드 밸런싱
+- [ ] 자동 장애 복구 (failover)
 
-#### 4.5.3 Settings UI 확장
+#### 4.5.3 Settings UI 확장 ✅
 
-**TODO**:
-- [ ] `/settings > 2. LLM Endpoints` 메뉴 추가
-- [ ] 엔드포인트 추가/수정/삭제 UI
-- [ ] 연결 테스트 기능
-- [ ] 기본 엔드포인트 설정
+**완료된 TODO**:
+- [x] `/settings > 2. LLMs` 메뉴 추가
+- [x] 엔드포인트 추가/수정/삭제 UI (방향키 + Enter 네비게이션)
+- [x] 연결 테스트 기능
+- [x] Health Check 표시 (✓ healthy, ⚠ degraded, ✗ unhealthy)
+- [x] 기본 엔드포인트/모델 설정
+
+#### 4.5.4 추가 구현 사항 ✅
+
+**LLMSetupWizard** (`src/ui/components/LLMSetupWizard.tsx`):
+- [x] 첫 실행 시 LLM 미등록 감지 → 자동 설정 마법사
+- [x] 엔드포인트 정보 입력 폼
+- [x] 연결 테스트 후 저장
+
+**ModelSelector** (`src/ui/components/ModelSelector.tsx`):
+- [x] `/model` 슬래시 명령어
+- [x] Healthy 모델만 선택 가능
+- [x] 현재 모델 표시
+
+**CLI 정리**:
+- [x] `config` CLI 명령어 제거 (UI로 이전)
 
 ### 4.6 Agent Tool 추가
 

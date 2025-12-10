@@ -140,9 +140,10 @@ npm run test:e2e -- -t llm-basic-chat -v
 
 ### config (설정 관리)
 - 설정 읽기
-- 엔드포인트 확인
-- 모델 정보 확인
+- 엔드포인트 확인 (다중 엔드포인트 지원)
+- 모델 정보 확인 (Health 상태 포함)
 - LLM Client 생성
+- Health Check 기능
 
 ### local-rag (로컬 RAG)
 - 단순 문서 검색
@@ -730,11 +731,14 @@ export function getAllScenarios(): TestScenario[] {
 **A:** 설정을 확인하세요.
 
 ```bash
-# 설정 확인
-open config show
+# OPEN-CLI 실행
+open
 
-# 재설정
-open config init
+# UI에서 설정 확인
+/settings → LLMs
+
+# 또는 모델 전환
+/model
 ```
 
 ### Q: 특정 테스트만 실행하고 싶습니다
