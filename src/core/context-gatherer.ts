@@ -1,12 +1,10 @@
 /**
  * Context Gatherer for Agent Loop
  *
- * Gathers comprehensive context through active file system exploration,
- * project configuration loading, and failure analysis
+ * Gathers context for agent loop execution.
+ * File system exploration is DISABLED to prevent memory issues.
  */
 
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import fs from 'fs/promises';
 import path from 'path';
 import {
@@ -19,7 +17,12 @@ import {
   VerificationFeedback,
 } from '../types/index.js';
 
-const execAsync = promisify(exec);
+/**
+ * Cleanup function - no-op since we don't spawn processes anymore
+ */
+export function cleanupActiveProcesses(): void {
+  // No-op: file system exploration is disabled
+}
 
 export interface ContextRequest {
   todo: TodoItem;
@@ -56,82 +59,18 @@ export class ContextGatherer {
   }
 
   /**
-   * Explore file system using grep, find, ls commands
+   * Explore file system - DISABLED to prevent memory issues
+   * Returns minimal context without any shell commands
    */
-  private async exploreFileSystem(request: ContextRequest): Promise<FileSystemContext> {
-    const fsContext: FileSystemContext = {};
-
-    try {
-      // 1. Get directory structure
-      const structureCmd = `find . -type f -name "*.ts" -o -name "*.js" -o -name "*.json" | head -20`;
-      const { stdout: structure } = await execAsync(structureCmd, {
-        cwd: process.cwd(),
-        timeout: 5000,
-      });
-      fsContext.structure = structure.trim();
-    } catch (error) {
-      console.debug('Failed to get directory structure:', error);
-    }
-
-    try {
-      // 2. Search for relevant mentions in documentation
-      const keywords = request.todo.title.split(' ').slice(0, 3).join('|');
-      const searchCmd = `grep -r "${keywords}" --include="*.md" --include="*.txt" 2>/dev/null | head -10`;
-      const { stdout: mentions } = await execAsync(searchCmd, {
-        cwd: process.cwd(),
-        timeout: 5000,
-      });
-      fsContext.relevantMentions = mentions.trim();
-    } catch (error) {
-      console.debug('No relevant mentions found');
-    }
-
-    try {
-      // 3. Get current directory listing
-      const { stdout: dirListing } = await execAsync('ls -la', {
-        cwd: process.cwd(),
-        timeout: 2000,
-      });
-      fsContext.currentDirectory = dirListing.trim();
-    } catch (error) {
-      console.debug('Failed to get directory listing:', error);
-    }
-
-    // 4. Find relevant files based on TODO description
-    if (request.todo.requiresDocsSearch) {
-      fsContext.relevantFiles = await this.searchRelevantFiles(request.todo);
-    }
-
-    return fsContext;
-  }
-
-  /**
-   * Search for relevant files based on TODO content
-   */
-  private async searchRelevantFiles(todo: TodoItem): Promise<string[]> {
-    const relevantFiles: string[] = [];
-
-    try {
-      // Extract key terms from TODO
-      const keywords = this.extractKeywords(todo.title + ' ' + todo.description);
-
-      for (const keyword of keywords) {
-        const searchCmd = `find . -type f \\( -name "*${keyword}*" -o -exec grep -l "${keyword}" {} \\; \\) 2>/dev/null | head -5`;
-        const { stdout } = await execAsync(searchCmd, {
-          cwd: process.cwd(),
-          timeout: 5000,
-        });
-
-        const files = stdout.trim().split('\n').filter(f => f);
-        relevantFiles.push(...files);
-      }
-
-      // Remove duplicates
-      return [...new Set(relevantFiles)];
-    } catch (error) {
-      console.debug('Error searching relevant files:', error);
-      return [];
-    }
+  private async exploreFileSystem(_request: ContextRequest): Promise<FileSystemContext> {
+    // Return empty context - no file system exploration
+    // This prevents memory issues from find/grep commands
+    return {
+      structure: '',
+      currentDirectory: process.cwd(),
+      relevantMentions: '',
+      relevantFiles: [],
+    };
   }
 
   /**
@@ -240,22 +179,6 @@ export class ContextGatherer {
     }
 
     return analysis;
-  }
-
-  /**
-   * Extract keywords from text for searching
-   */
-  private extractKeywords(text: string): string[] {
-    // Remove common words and extract meaningful terms
-    const stopWords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'were']);
-
-    const words = text.toLowerCase()
-      .replace(/[^a-z0-9\s]/g, ' ')
-      .split(/\s+/)
-      .filter(word => word.length > 2 && !stopWords.has(word));
-
-    // Return unique keywords
-    return [...new Set(words)].slice(0, 5);
   }
 }
 

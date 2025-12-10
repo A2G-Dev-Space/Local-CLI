@@ -5,7 +5,7 @@
  */
 
 import { LLMClient } from './llm-client.js';
-import { ContextGatherer } from './context-gatherer.js';
+import { ContextGatherer, cleanupActiveProcesses } from './context-gatherer.js';
 import { ActionExecutor } from './action-executor.js';
 import { WorkVerifier } from './work-verifier.js';
 import {
@@ -24,6 +24,8 @@ export interface AgentLoopConfig {
   enableLLMJudge?: boolean;
   timeout?: number; // milliseconds
   contextGatherer?: ContextGatherer; // Allow injecting custom ContextGatherer for testing
+  /** Delay between LLM calls in milliseconds (default: 1000ms for local LLM) */
+  llmCallDelay?: number;
 }
 
 export class AgentLoopController {
@@ -33,6 +35,7 @@ export class AgentLoopController {
   private maxIterations: number;
   private verbose: boolean;
   private timeout?: number;
+  private llmCallDelay: number;
 
   constructor(
     llmClient: LLMClient,
@@ -42,10 +45,21 @@ export class AgentLoopController {
     this.maxIterations = config.maxIterations || 10;
     this.verbose = config.verbose || false;
     this.timeout = config.timeout;
+    // Default 2 second delay between LLM calls to prevent overwhelming local LLM
+    this.llmCallDelay = config.llmCallDelay ?? 2000;
 
     this.contextGatherer = config.contextGatherer || new ContextGatherer();
     this.actionExecutor = new ActionExecutor(llmClient, availableTools);
     this.workVerifier = new WorkVerifier(config.enableLLMJudge ? llmClient : undefined);
+  }
+
+  /**
+   * Delay to prevent overwhelming local LLM
+   */
+  private async throttle(): Promise<void> {
+    if (this.llmCallDelay > 0) {
+      await new Promise(resolve => setTimeout(resolve, this.llmCallDelay));
+    }
   }
 
   /**
@@ -98,8 +112,9 @@ export class AgentLoopController {
           this.logContext(context);
         }
 
-        // 2. Take Action
+        // 2. Take Action (with throttle to prevent overwhelming local LLM)
         this.log('🎯 Taking action...');
+        await this.throttle();
         const action = await this.actionExecutor.execute(context, messages);
         executionResults.push(action);
 
@@ -113,8 +128,9 @@ export class AgentLoopController {
           this.log(`  ✅ Success`);
         }
 
-        // 3. Verify Work
+        // 3. Verify Work (with throttle)
         this.log('🔍 Verifying work...');
+        await this.throttle();
         const verification = await this.workVerifier.verify(action, todo, context);
 
         this.log(`  ${verification.summary}`);
@@ -172,6 +188,9 @@ export class AgentLoopController {
         error: error instanceof Error ? error.message : 'Unknown error',
         iterations: currentIteration,
       };
+    } finally {
+      // Always cleanup child processes to prevent memory leaks and core dumps
+      cleanupActiveProcesses();
     }
   }
 

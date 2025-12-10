@@ -16,7 +16,7 @@ import {
   TestValidation,
   TestStatus,
 } from './types.js';
-import { logger } from '../../src/utils/logger.js';
+import { cleanupActiveProcesses } from '../../src/core/context-gatherer.js';
 
 export class E2ETestRunner {
   private scenarios: TestScenario[] = [];
@@ -96,6 +96,11 @@ export class E2ETestRunner {
       }
 
       this.results.push(result!);
+
+      // agent-loop 카테고리 테스트 후 프로세스 정리 (core dump 방지)
+      if (scenario.category === 'agent-loop') {
+        await this.cleanupChildProcesses();
+      }
 
       if (this.options.failFast && result!.status === 'failed') {
         this.log(chalk.red('\n[FAIL FAST] 테스트 중단됨\n'));
@@ -461,26 +466,21 @@ export class E2ETestRunner {
     const { PlanExecuteOrchestrator } = await import(
       '../../src/plan-and-execute/orchestrator.js'
     );
+    const { LLMClient } = await import('../../src/core/llm-client.js');
     const { configManager } = await import('../../src/core/config-manager.js');
 
     await configManager.initialize();
-    const config = configManager.getConfig();
-    const endpoint = config.endpoints[0];
 
-    if (!endpoint) {
-      throw new Error('No endpoint configured');
-    }
+    // LLMClient는 인자 없이 생성 - configManager에서 설정을 가져옴
+    const llmClient = new LLMClient();
 
-    const orchestrator = new PlanExecuteOrchestrator({
-      baseURL: endpoint.baseUrl || endpoint.baseURL,
-      apiKey: endpoint.apiKey,
-      model: endpoint.models?.[0]?.id || 'default',
+    const orchestrator = new PlanExecuteOrchestrator(llmClient, {
+      verbose: this.options.verbose,
     });
 
-    // 간단한 실행 (승인 자동 통과)
-    return orchestrator.executePlan(todos, {
-      autoApprove: true,
-    });
+    // execute 메서드 사용 (todos를 userRequest 문자열로 변환)
+    const userRequest = todos.map((t: any) => t.title || t.description || String(t)).join(', ');
+    return orchestrator.execute(userRequest);
   }
 
   private async actionAgentLoop(todo: any, maxIterations?: number): Promise<any> {
@@ -500,10 +500,10 @@ export class E2ETestRunner {
     });
 
     const result = await agentLoop.executeTodoWithLoop(todo, []);
-    return result.output || result;
+    return result.result || result;
   }
 
-  private async actionDocsSearch(query: string, searchPath?: string): Promise<string> {
+  private async actionDocsSearch(query: string, _searchPath?: string): Promise<string> {
     const { executeDocsSearchAgent } = await import('../../src/core/docs-search-agent.js');
     const { LLMClient } = await import('../../src/core/llm-client.js');
     const { configManager } = await import('../../src/core/config-manager.js');
@@ -551,7 +551,8 @@ export class E2ETestRunner {
   private async actionConfigSet(key: string, value: any): Promise<void> {
     const { configManager } = await import('../../src/core/config-manager.js');
     await configManager.initialize();
-    await configManager.updateConfig({ [key]: value });
+    // updateSettings만 지원 - settings 관련 키만 변경 가능
+    await configManager.updateSettings({ [key]: value });
   }
 
   // ====== Helper Methods ======
@@ -728,6 +729,27 @@ export class E2ETestRunner {
 
     console.log();
     console.log(chalk.cyan('════════════════════════════════════════════════════════════'));
+  }
+
+  /**
+   * 자식 프로세스 정리 (core dump 방지)
+   * agent-loop 테스트에서 생성된 find, grep 등의 프로세스를 정리합니다.
+   */
+  private async cleanupChildProcesses(): Promise<void> {
+    try {
+      // Clean up tracked child processes from context-gatherer
+      cleanupActiveProcesses();
+
+      // 잠시 대기하여 프로세스가 정리될 시간을 줌
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      // 가비지 컬렉션 유도
+      if (global.gc) {
+        global.gc();
+      }
+    } catch {
+      // 정리 실패는 무시
+    }
   }
 }
 

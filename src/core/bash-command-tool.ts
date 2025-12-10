@@ -14,8 +14,8 @@ const execAsync = promisify(exec);
 /**
  * Configuration constants
  */
-const BASH_COMMAND_TIMEOUT_MS = 10000; // 10 second timeout
-const BASH_COMMAND_MAX_BUFFER_BYTES = 2 * 1024 * 1024; // 2MB max buffer
+const BASH_COMMAND_TIMEOUT_MS = 5000; // 5 second timeout (reduced for safety)
+const BASH_COMMAND_MAX_BUFFER_BYTES = 256 * 1024; // 256KB max buffer (reduced to prevent memory issues)
 
 /**
  * Execute bash command
@@ -51,6 +51,28 @@ export async function executeBashCommand(
           formattedDisplay: formatBashExecutionError(command, errorMsg),
         };
       }
+    }
+
+    // Safety: Prevent resource-intensive find/grep commands that could crash the system
+    // Block recursive searches without depth limits or exclusions
+    if (/\bfind\s+\.(?!\s+-maxdepth)/.test(command)) {
+      // Allow "find . -maxdepth" but block bare "find ."
+      const errorMsg = 'find command requires -maxdepth to prevent resource exhaustion';
+      return {
+        success: false,
+        error: errorMsg,
+        formattedDisplay: formatBashExecutionError(command, errorMsg),
+      };
+    }
+
+    if (/\bgrep\s+-r\b/.test(command) && !command.includes('--include')) {
+      // Block recursive grep without file type filter
+      const errorMsg = 'grep -r requires --include pattern to prevent resource exhaustion';
+      return {
+        success: false,
+        error: errorMsg,
+        formattedDisplay: formatBashExecutionError(command, errorMsg),
+      };
     }
 
     // Check for output redirection (prevent file overwrites)

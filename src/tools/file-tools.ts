@@ -246,27 +246,57 @@ export async function executeListFiles(
 
 /**
  * 재귀적으로 파일 목록 가져오기
+ * Safety: node_modules, .git 등 무거운 디렉토리 제외
+ * Safety: 최대 깊이 및 파일 수 제한
  */
 async function getFilesRecursively(
   dirPath: string,
-  baseDir: string = dirPath
+  baseDir: string = dirPath,
+  depth: number = 0,
+  fileCount: { count: number } = { count: 0 }
 ): Promise<Array<{ name: string; type: string; path: string }>> {
-  const entries = await fs.readdir(dirPath, { withFileTypes: true });
+  // Safety: 깊이 제한
+  if (depth > MAX_DEPTH) {
+    return [];
+  }
+
+  // Safety: 파일 수 제한
+  if (fileCount.count >= MAX_FILES) {
+    return [];
+  }
+
+  let entries;
+  try {
+    entries = await fs.readdir(dirPath, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+
   const files: Array<{ name: string; type: string; path: string }> = [];
 
   for (const entry of entries) {
+    if (fileCount.count >= MAX_FILES) {
+      break;
+    }
+
     const fullPath = path.join(dirPath, entry.name);
     const relativePath = path.relative(baseDir, fullPath);
 
     if (entry.isDirectory()) {
+      // Safety: 무거운 디렉토리 제외
+      if (EXCLUDED_DIRS.has(entry.name)) {
+        continue;
+      }
+
       files.push({
         name: entry.name,
         type: 'directory',
         path: relativePath,
       });
+      fileCount.count++;
 
-      // 재귀 호출
-      const subFiles = await getFilesRecursively(fullPath, baseDir);
+      // 재귀 호출 (깊이 증가)
+      const subFiles = await getFilesRecursively(fullPath, baseDir, depth + 1, fileCount);
       files.push(...subFiles);
     } else {
       files.push({
@@ -274,6 +304,7 @@ async function getFilesRecursively(
         type: 'file',
         path: relativePath,
       });
+      fileCount.count++;
     }
   }
 
@@ -321,21 +352,55 @@ export async function executeFindFiles(
 
 /**
  * 재귀적으로 파일 검색
+ * Safety: node_modules, .git, dist 등 무거운 디렉토리 제외
+ * Safety: 최대 깊이 제한, 최대 파일 수 제한
  */
+const EXCLUDED_DIRS = new Set(['node_modules', '.git', 'dist', '.next', 'coverage', '.cache', 'build', '__pycache__']);
+const MAX_DEPTH = 5;
+const MAX_FILES = 100;
+
 async function findFilesRecursively(
   dirPath: string,
   regex: RegExp,
-  baseDir: string
+  baseDir: string,
+  depth: number = 0,
+  fileCount: { count: number } = { count: 0 }
 ): Promise<Array<{ name: string; path: string }>> {
-  const entries = await fs.readdir(dirPath, { withFileTypes: true });
+  // Safety: 깊이 제한
+  if (depth > MAX_DEPTH) {
+    return [];
+  }
+
+  // Safety: 파일 수 제한
+  if (fileCount.count >= MAX_FILES) {
+    return [];
+  }
+
+  let entries;
+  try {
+    entries = await fs.readdir(dirPath, { withFileTypes: true });
+  } catch {
+    // 권한 오류 등 무시
+    return [];
+  }
+
   const matchedFiles: Array<{ name: string; path: string }> = [];
 
   for (const entry of entries) {
+    // Safety: 파일 수 제한 체크
+    if (fileCount.count >= MAX_FILES) {
+      break;
+    }
+
     const fullPath = path.join(dirPath, entry.name);
 
     if (entry.isDirectory()) {
-      // 재귀 호출
-      const subFiles = await findFilesRecursively(fullPath, regex, baseDir);
+      // Safety: 무거운 디렉토리 제외
+      if (EXCLUDED_DIRS.has(entry.name)) {
+        continue;
+      }
+      // 재귀 호출 (깊이 증가)
+      const subFiles = await findFilesRecursively(fullPath, regex, baseDir, depth + 1, fileCount);
       matchedFiles.push(...subFiles);
     } else if (regex.test(entry.name)) {
       const relativePath = path.relative(baseDir, fullPath);
@@ -343,6 +408,7 @@ async function findFilesRecursively(
         name: entry.name,
         path: relativePath,
       });
+      fileCount.count++;
     }
   }
 
