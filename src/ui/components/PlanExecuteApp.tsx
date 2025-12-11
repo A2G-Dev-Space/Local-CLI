@@ -156,6 +156,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
   // Static log entries for scrollable history
   const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
   const logIdCounter = React.useRef(0);
+  const lastToolArgsRef = React.useRef<Record<string, unknown> | null>(null);
 
   // Helper: add log entry
   const addLog = useCallback((entry: Omit<LogEntry, 'id'>) => {
@@ -193,6 +194,8 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
   // Setup tool execution callback - adds to Static log
   useEffect(() => {
     setToolExecutionCallback((toolName, reason, args) => {
+      // Save args for tool_result to use (for create_file content display)
+      lastToolArgsRef.current = args;
       addLog({
         type: 'tool_start',
         content: toolName,
@@ -221,12 +224,17 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         // not JSON, use as-is
       }
 
+      // Get saved args for create_file content display
+      const savedArgs = lastToolArgsRef.current;
+      lastToolArgsRef.current = null;
+
       addLog({
         type: 'tool_result',
         content: toolName,
         details: result,  // 전체 내용 보존
         success,
         diff,
+        toolArgs: savedArgs || undefined,  // Pass args for create_file
       });
       logger.debug('Tool execution completed', { toolName, success, result });
     });
@@ -780,6 +788,26 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         );
 
       case 'tool_start': {
+        // Tool별 아이콘 매핑
+        const getToolIcon = (toolName: string): string => {
+          switch (toolName) {
+            case 'read_file':
+              return '📖';  // 읽기
+            case 'create_file':
+              return '📝';  // 새 파일 생성
+            case 'edit_file':
+              return '✏️';   // 편집
+            case 'list_files':
+              return '📂';  // 폴더 목록
+            case 'find_files':
+              return '🔍';  // 검색
+            case 'tell_to_user':
+              return '💬';  // 메시지
+            default:
+              return '🔧';  // 기본 도구
+          }
+        };
+
         // Tool별 핵심 파라미터 추출
         const getToolParams = (toolName: string, args: Record<string, unknown> | undefined): string => {
           if (!args) return '';
@@ -810,12 +838,13 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
           }
         };
 
+        const icon = getToolIcon(entry.content);
         const params = getToolParams(entry.content, entry.toolArgs);
 
         return (
           <Box key={entry.id} flexDirection="column" marginTop={1}>
             <Box>
-              <Text color="cyan" bold>● {entry.content}</Text>
+              <Text color="cyan" bold>{icon} {entry.content}</Text>
               {params && <Text color="gray">({params})</Text>}
             </Box>
             {entry.details && (
@@ -882,15 +911,26 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
           }
         }
 
-        // create_file: JSON 요약만 표시
-        if (entry.content === 'create_file') {
-          try {
-            const parsed = JSON.parse(displayText);
-            if (parsed.message) {
-              displayText = parsed.message;
-            }
-          } catch {
-            // JSON 파싱 실패시 그대로
+        // create_file: diff 형식으로 전체 내용 표시 (+ 로)
+        if (entry.content === 'create_file' && entry.toolArgs) {
+          const content = entry.toolArgs['content'] as string;
+          const filePath = entry.toolArgs['file_path'] as string;
+          if (content) {
+            const contentLines = content.split('\n');
+            return (
+              <Box key={entry.id} flexDirection="column" marginLeft={2}>
+                <Box>
+                  <Text color="gray">⎿  </Text>
+                  <Text color={entry.success ? 'green' : 'red'}>{entry.success ? '✓' : '✗'} </Text>
+                  <Text color="gray">Created {filePath} ({contentLines.length} lines)</Text>
+                </Box>
+                {contentLines.map((line, idx) => (
+                  <Box key={idx} marginLeft={3}>
+                    <Text color="green">+ {line}</Text>
+                  </Box>
+                ))}
+              </Box>
+            );
           }
         }
 
