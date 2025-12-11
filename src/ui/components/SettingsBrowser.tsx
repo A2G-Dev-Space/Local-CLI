@@ -46,6 +46,7 @@ interface LLMFormData {
   baseUrl: string;
   apiKey: string;
   modelId: string;
+  modelName: string;
 }
 
 type SettingsView =
@@ -58,7 +59,7 @@ type SettingsView =
   | 'llm-edit'
   | 'llm-delete-confirm';
 
-type FormField = 'name' | 'baseUrl' | 'apiKey' | 'modelId' | 'buttons';
+type FormField = 'name' | 'baseUrl' | 'apiKey' | 'modelId' | 'modelName' | 'buttons';
 
 export const SettingsBrowser: React.FC<SettingsBrowserProps> = ({
   currentPlanningMode,
@@ -80,6 +81,7 @@ export const SettingsBrowser: React.FC<SettingsBrowserProps> = ({
     baseUrl: '',
     apiKey: '',
     modelId: '',
+    modelName: '',
   });
   const [formField, setFormField] = useState<FormField>('name');
   const [formButtonIndex, setFormButtonIndex] = useState(0);
@@ -209,13 +211,14 @@ export const SettingsBrowser: React.FC<SettingsBrowserProps> = ({
     }
   };
 
-  // Handle form field navigation with Tab
+  // Handle form field navigation with Tab, Arrow keys, and Enter
   const handleFormNavigation = useCallback(
     (key: { tab?: boolean; shift?: boolean; return?: boolean; upArrow?: boolean; downArrow?: boolean }) => {
-      const fields: FormField[] = ['name', 'baseUrl', 'apiKey', 'modelId', 'buttons'];
+      const fields: FormField[] = ['name', 'baseUrl', 'apiKey', 'modelId', 'modelName', 'buttons'];
       const currentIndex = fields.indexOf(formField);
 
-      if (key.tab) {
+      // Tab or Enter to move to next field (except on buttons where Enter submits)
+      if (key.tab || (key.return && formField !== 'buttons')) {
         if (key.shift) {
           // Previous field
           const prevIndex = currentIndex > 0 ? currentIndex - 1 : fields.length - 1;
@@ -225,14 +228,33 @@ export const SettingsBrowser: React.FC<SettingsBrowserProps> = ({
           const nextIndex = currentIndex < fields.length - 1 ? currentIndex + 1 : 0;
           setFormField(fields[nextIndex]!);
         }
+        return true; // Handled
       }
 
-      // Arrow keys for button selection when on buttons
-      if (formField === 'buttons') {
-        if (key.upArrow || key.downArrow) {
+      // Arrow keys for navigation
+      if (key.upArrow) {
+        const prevIndex = currentIndex > 0 ? currentIndex - 1 : fields.length - 1;
+        if (formField === 'buttons') {
+          // In buttons, up/down toggles between buttons
           setFormButtonIndex((prev) => (prev === 0 ? 1 : 0));
+        } else {
+          setFormField(fields[prevIndex]!);
         }
+        return true;
       }
+
+      if (key.downArrow) {
+        const nextIndex = currentIndex < fields.length - 1 ? currentIndex + 1 : 0;
+        if (formField === 'buttons') {
+          // In buttons, up/down toggles between buttons
+          setFormButtonIndex((prev) => (prev === 0 ? 1 : 0));
+        } else {
+          setFormField(fields[nextIndex]!);
+        }
+        return true;
+      }
+
+      return false;
     },
     [formField]
   );
@@ -259,6 +281,21 @@ export const SettingsBrowser: React.FC<SettingsBrowserProps> = ({
       return;
     }
 
+    // Check for duplicate: same provider name AND same model ID
+    const isDuplicate = endpoints.some((ep) => {
+      // Skip the current endpoint when editing
+      if (view === 'llm-edit' && selectedEndpoint && ep.id === selectedEndpoint.id) {
+        return false;
+      }
+      // Check if provider name AND model ID both match
+      return ep.name === formData.name.trim() && ep.models.some((m) => m.id === formData.modelId.trim());
+    });
+
+    if (isDuplicate) {
+      setFormError(`Duplicate: Provider "${formData.name}" with Model ID "${formData.modelId}" already exists`);
+      return;
+    }
+
     // Test connection
     setIsTesting(true);
     setFormError(null);
@@ -277,6 +314,7 @@ export const SettingsBrowser: React.FC<SettingsBrowserProps> = ({
       }
 
       // Save endpoint
+      const modelDisplayName = formData.modelName.trim() || formData.modelId;
       const newEndpoint: EndpointConfig = {
         id: `ep-${Date.now()}`,
         name: formData.name,
@@ -285,7 +323,7 @@ export const SettingsBrowser: React.FC<SettingsBrowserProps> = ({
         models: [
           {
             id: formData.modelId,
-            name: formData.modelId,
+            name: modelDisplayName,
             maxTokens: 128000,
             enabled: true,
             healthStatus: 'healthy',
@@ -305,7 +343,7 @@ export const SettingsBrowser: React.FC<SettingsBrowserProps> = ({
           models: [
             {
               id: formData.modelId,
-              name: formData.modelId,
+              name: modelDisplayName,
               maxTokens: 128000,
               enabled: true,
               healthStatus: 'healthy',
@@ -348,16 +386,29 @@ export const SettingsBrowser: React.FC<SettingsBrowserProps> = ({
       return;
     }
 
-    // Form navigation
+    // Form navigation for add/edit views
     if (view === 'llm-add' || view === 'llm-edit') {
-      if (key.tab) {
-        handleFormNavigation({ tab: true, shift: key.shift });
-      } else if (formField === 'buttons') {
-        if (key.upArrow || key.downArrow) {
-          handleFormNavigation({ upArrow: key.upArrow, downArrow: key.downArrow });
-        } else if (key.return) {
+      // Handle Tab, Arrow keys, and Enter for navigation
+      if (key.tab || key.upArrow || key.downArrow) {
+        handleFormNavigation({
+          tab: key.tab,
+          shift: key.shift,
+          upArrow: key.upArrow,
+          downArrow: key.downArrow
+        });
+        return;
+      }
+
+      // Enter key handling
+      if (key.return) {
+        if (formField === 'buttons') {
+          // Submit form when on buttons
           handleFormSubmit();
+        } else {
+          // Move to next field when on text inputs
+          handleFormNavigation({ return: true });
         }
+        return;
       }
     }
   });
@@ -445,7 +496,7 @@ export const SettingsBrowser: React.FC<SettingsBrowserProps> = ({
   // Handle LLMs menu selection
   const handleLLMsSelect = (item: SelectItem) => {
     if (item.value === 'add') {
-      setFormData({ name: '', baseUrl: '', apiKey: '', modelId: '' });
+      setFormData({ name: '', baseUrl: '', apiKey: '', modelId: '', modelName: '' });
       setFormField('name');
       setFormButtonIndex(0);
       setFormError(null);
@@ -470,6 +521,7 @@ export const SettingsBrowser: React.FC<SettingsBrowserProps> = ({
           baseUrl: selectedEndpoint.baseUrl,
           apiKey: selectedEndpoint.apiKey || '',
           modelId: selectedEndpoint.models[0]?.id || '',
+          modelName: selectedEndpoint.models[0]?.name || '',
         });
         setFormField('name');
         setFormButtonIndex(0);
@@ -816,6 +868,22 @@ export const SettingsBrowser: React.FC<SettingsBrowserProps> = ({
               <Text>{formData.modelId || '(empty)'}</Text>
             )}
           </Box>
+
+          {/* Model Name Field (Display Name) */}
+          <Box>
+            <Text color={formField === 'modelName' ? 'cyan' : 'yellow'}>
+              {formField === 'modelName' ? '> ' : '  '}Model Name:
+            </Text>
+            {formField === 'modelName' ? (
+              <TextInput
+                value={formData.modelName}
+                onChange={(value) => setFormData({ ...formData, modelName: value })}
+                placeholder="(optional, defaults to Model ID)"
+              />
+            ) : (
+              <Text>{formData.modelName || '(uses Model ID)'}</Text>
+            )}
+          </Box>
         </Box>
 
         {/* Error Message */}
@@ -849,7 +917,7 @@ export const SettingsBrowser: React.FC<SettingsBrowserProps> = ({
 
         {/* Footer */}
         <Box marginTop={1}>
-          <Text dimColor>Tab: next field | Shift+Tab: prev | ↑↓: buttons | Enter: select | ESC: cancel</Text>
+          <Text dimColor>↑↓/Tab: move | Enter: next/submit | ESC: cancel</Text>
         </Box>
       </Box>
     );
