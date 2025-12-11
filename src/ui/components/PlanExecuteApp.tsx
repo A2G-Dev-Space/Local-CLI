@@ -854,8 +854,18 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
           return null;
         }
 
-        // list_files, find_files 결과 축약
+        // Tool별 결과 축약
         let displayText = entry.details || '';
+
+        // read_file: 5줄 넘으면 축약
+        if (entry.content === 'read_file') {
+          const lines = displayText.split('\n');
+          if (lines.length > 5) {
+            displayText = lines.slice(0, 5).join('\n') + `\n... (${lines.length - 5} more lines)`;
+          }
+        }
+
+        // list_files, find_files: 개수와 미리보기
         if (entry.content === 'list_files' || entry.content === 'find_files') {
           try {
             const parsed = JSON.parse(displayText);
@@ -869,6 +879,18 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
             if (displayText.length > 100) {
               displayText = displayText.substring(0, 100) + '...';
             }
+          }
+        }
+
+        // create_file: JSON 요약만 표시
+        if (entry.content === 'create_file') {
+          try {
+            const parsed = JSON.parse(displayText);
+            if (parsed.message) {
+              displayText = parsed.message;
+            }
+          } catch {
+            // JSON 파싱 실패시 그대로
           }
         }
 
