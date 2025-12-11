@@ -9,17 +9,16 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { Box, Text, useInput, useApp } from 'ink';
 import Spinner from 'ink-spinner';
 import { CustomTextInput } from './CustomTextInput.js';
-import { LLMClient, createLLMClient } from '../../core/llm-client.js';
+import { LLMClient, createLLMClient } from '../../core/llm/llm-client.js';
 import { Message } from '../../types/index.js';
 import { TodoPanel, TodoStatusBar } from '../TodoPanel.js';
-import { sessionManager } from '../../core/session-manager.js';
-import { initializeDocsDirectory } from '../../core/docs-search-agent.js';
+import { sessionManager } from '../../core/session/session-manager.js';
+import { initializeDocsDirectory } from '../../core/knowledge/docs-search-agent.js';
 import { FileBrowser } from './FileBrowser.js';
 import { SessionBrowser } from './panels/SessionPanel.js';
 import { SettingsBrowser } from './dialogs/SettingsDialog.js';
 import { LLMSetupWizard } from './LLMSetupWizard.js';
 import { ModelSelector } from './ModelSelector.js';
-import { PlanApprovalPrompt, TaskApprovalPrompt } from './dialogs/ApprovalDialog.js';
 import { AskUserDialog } from './dialogs/AskUserDialog.js';
 import { CommandBrowser } from './CommandBrowser.js';
 import { ChatView } from './views/ChatView.js';
@@ -36,7 +35,7 @@ import {
   type PlanningMode,
 } from '../../core/slash-command-handler.js';
 import { closeJsonStreamLogger } from '../../utils/json-stream-logger.js';
-import { configManager } from '../../core/config-manager.js';
+import { configManager } from '../../core/config/config-manager.js';
 import { logger } from '../../utils/logger.js';
 import { usageTracker } from '../../core/usage-tracker.js';
 
@@ -154,7 +153,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         setInitStep('config');
         logger.flow('Checking configuration');
         if (!configManager.hasEndpoints()) {
-          logger.info('No endpoints configured, showing setup wizard');
+          logger.debug('No endpoints configured, showing setup wizard');
           setShowSetupWizard(true);
           setIsInitializing(false);
           setHealthStatus('unknown');
@@ -254,7 +253,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         return;
       }
 
-      logger.info('Session loaded', { sessionId, messageCount: sessionData.messages.length });
+      logger.debug('Session loaded', { sessionId, messageCount: sessionData.messages.length });
       setMessages(sessionData.messages);
     } catch (error) {
       const errorMessage = `세션 로드 실패: ${error instanceof Error ? error.message : 'Unknown error'}`;
@@ -282,7 +281,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
 
   // Handle setup wizard completion
   const handleSetupComplete = useCallback(() => {
-    logger.info('Setup wizard completed');
+    logger.debug('Setup wizard completed');
     setShowSetupWizard(false);
     // Exit and let user restart
     exit();
@@ -290,7 +289,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
 
   // Handle setup wizard skip
   const handleSetupSkip = useCallback(() => {
-    logger.info('Setup wizard skipped');
+    logger.debug('Setup wizard skipped');
     setShowSetupWizard(false);
   }, []);
 
@@ -312,7 +311,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         try {
           const newClient = createLLMClient();
           setLlmClient(newClient);
-          logger.info('LLMClient recreated with new model', { modelId, modelName: model.name });
+          logger.debug('LLMClient recreated with new model', { modelId, modelName: model.name });
         } catch (error) {
           logger.error('Failed to create new LLMClient', error as Error);
         }
@@ -589,7 +588,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
                   ? "Press ESC to close settings..."
                   : "Type your message... (@ for files, / for commands)"
               }
-              focus={!showSessionBrowser && !showSettings && !planExecutionState.planApprovalRequest && !planExecutionState.taskApprovalRequest}
+              focus={!showSessionBrowser && !showSettings}
             />
           </Box>
           {/* Character counter */}
@@ -663,30 +662,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         </Box>
       )}
 
-      {/* HITL Plan Approval Prompt */}
-      {planExecutionState.planApprovalRequest && (
-        <Box marginTop={1}>
-          <PlanApprovalPrompt
-            userRequest={planExecutionState.planApprovalRequest.userRequest}
-            todos={planExecutionState.planApprovalRequest.todos}
-            onResponse={planExecutionState.handleApprovalResponse}
-          />
-        </Box>
-      )}
-
-      {/* HITL Task Approval Prompt */}
-      {planExecutionState.taskApprovalRequest && (
-        <Box marginTop={1}>
-          <TaskApprovalPrompt
-            taskDescription={planExecutionState.taskApprovalRequest.taskDescription}
-            risk={planExecutionState.taskApprovalRequest.risk}
-            context={planExecutionState.taskApprovalRequest.context}
-            onResponse={planExecutionState.handleApprovalResponse}
-          />
-        </Box>
-      )}
-
-      {/* Ask User Dialog (Phase 2) */}
+      {/* Ask User Dialog */}
       {planExecutionState.askUserRequest && (
         <Box marginTop={1}>
           <AskUserDialog

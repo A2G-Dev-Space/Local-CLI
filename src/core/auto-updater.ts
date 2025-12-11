@@ -138,7 +138,7 @@ export class AutoUpdater {
       // Check if this version should be skipped
       if (this.config.skipVersion === latestVersion) {
         logger.flow('버전 스킵 설정됨');
-        logger.info('Update skipped by user configuration', { version: latestVersion });
+        logger.debug('Update skipped by user configuration', { version: latestVersion });
         spinner?.succeed('Update check complete (version skipped)');
 
         logger.exit('checkForUpdates', { hasUpdate: false, reason: 'version-skipped', latestVersion });
@@ -154,7 +154,7 @@ export class AutoUpdater {
         logger.flow('새 버전 발견');
         logger.state('버전 상태', this.currentVersion, latestVersion);
 
-        logger.info('New version available', {
+        logger.debug('New version available', {
           currentVersion: this.currentVersion,
           latestVersion,
         });
@@ -192,7 +192,7 @@ export class AutoUpdater {
       }
 
       logger.flow('이미 최신 버전 사용 중');
-      logger.info('Already using the latest version', { version: this.currentVersion });
+      logger.debug('Already using the latest version', { version: this.currentVersion });
       spinner?.succeed('You are using the latest version');
 
       logger.exit('checkForUpdates', {
@@ -345,7 +345,7 @@ export class AutoUpdater {
   private async performGitUpdate(): Promise<{ success: boolean; error?: string }> {
     const spinner = ora('Updating via Git...').start();
 
-    logger.info('Starting Git-based update');
+    logger.debug('Starting Git-based update');
 
     try {
       // Check for uncommitted changes
@@ -379,7 +379,7 @@ export class AutoUpdater {
       const buildOutput = execSync('npm run build', { encoding: 'utf-8', stdio: 'pipe' });
       logger.debug('npm build output', { output: buildOutput.substring(0, 200) });
 
-      logger.info('Git-based update completed successfully');
+      logger.debug('Git-based update completed successfully');
       spinner.succeed('Update completed successfully!');
       return { success: true };
     } catch (error: any) {
@@ -408,7 +408,7 @@ export class AutoUpdater {
     const currentDir = process.cwd();
     const backupDir = path.join(currentDir, '..', `open-cli-backup-${Date.now()}`);
 
-    logger.info('Starting tarball-based update', {
+    logger.debug('Starting tarball-based update', {
       version: releaseInfo.version,
       downloadUrl: releaseInfo.downloadUrl,
       tempDir,
@@ -516,7 +516,7 @@ export class AutoUpdater {
       logger.debug('Cleaning up temp files', { tempDir });
       fs.rmSync(tempDir, { recursive: true, force: true });
 
-      logger.info('Tarball-based update completed successfully');
+      logger.debug('Tarball-based update completed successfully');
       spinner.succeed('Update completed successfully!');
       console.log(chalk.dim(`  Backup saved at: ${backupDir}`));
 
@@ -535,7 +535,7 @@ export class AutoUpdater {
       // Attempt rollback
       if (fs.existsSync(backupDir)) {
         try {
-          logger.info('Attempting rollback', { backupDir });
+          logger.debug('Attempting rollback', { backupDir });
           spinner.start('Rolling back to previous version...');
 
           // Restore from backup
@@ -554,7 +554,7 @@ export class AutoUpdater {
           }
 
           execSync('npm install', { cwd: currentDir, stdio: 'pipe' });
-          logger.info('Rollback completed successfully');
+          logger.debug('Rollback completed successfully');
           spinner.succeed('Rollback completed');
         } catch (rollbackError) {
           logger.error('Rollback failed', rollbackError);

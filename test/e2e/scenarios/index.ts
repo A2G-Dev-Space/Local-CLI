@@ -13,6 +13,7 @@ export { settingsScenarios } from './settings.js';
 export { demoScenarios } from './demos.js';
 export { agnoEvaluationScenarios } from './agno-evaluation.js';
 export { toolRegistryScenarios } from './tool-registry.js';
+export { phase1_4Scenarios } from './phase1-4.js';
 
 import { fileToolsScenarios } from './file-tools.js';
 import { llmClientScenarios } from './llm-client.js';
@@ -25,6 +26,7 @@ import { settingsScenarios } from './settings.js';
 import { demoScenarios } from './demos.js';
 import { agnoEvaluationScenarios } from './agno-evaluation.js';
 import { toolRegistryScenarios } from './tool-registry.js';
+import { phase1_4Scenarios } from './phase1-4.js';
 import { TestScenario } from '../types.js';
 
 /**
@@ -43,6 +45,7 @@ export function getAllScenarios(): TestScenario[] {
     ...demoScenarios,
     ...agnoEvaluationScenarios,
     ...toolRegistryScenarios,
+    ...phase1_4Scenarios,
   ];
 }
 
@@ -62,5 +65,6 @@ export function getScenarioStats(): Record<string, number> {
     demos: demoScenarios.length,
     'agno-eval': agnoEvaluationScenarios.length,
     'tool-registry': toolRegistryScenarios.length,
+    'phase1-4': phase1_4Scenarios.length,
   };
 }

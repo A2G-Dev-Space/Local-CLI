@@ -36,7 +36,7 @@ export const sessionScenarios: TestScenario[] = [
         action: {
           type: 'custom',
           fn: async () => {
-            const { sessionManager } = await import('../../../src/core/session-manager.js');
+            const { sessionManager } = await import('../../../src/core/session/session-manager.js');
             const sessionId = await sessionManager.saveSession(`${TEST_SESSION_PREFIX}-save`, [
               { role: 'user', content: '안녕하세요. 저는 E2E 테스트를 실행 중입니다.' },
               { role: 'assistant', content: 'E2E 테스트 응답입니다.' },
@@ -59,7 +59,7 @@ export const sessionScenarios: TestScenario[] = [
     retryCount: 2,
     setup: async () => {
       // 테스트용 세션 미리 생성
-      const { sessionManager } = await import('../../../src/core/session-manager.js');
+      const { sessionManager } = await import('../../../src/core/session/session-manager.js');
       await sessionManager.saveSession(`${TEST_SESSION_PREFIX}-load`, [
         { role: 'user', content: '이전 대화: 프로젝트 이름은 OPEN-CLI입니다.' },
         { role: 'assistant', content: '네, OPEN-CLI 프로젝트에 대해 알겠습니다.' },
@@ -71,7 +71,7 @@ export const sessionScenarios: TestScenario[] = [
         action: {
           type: 'custom',
           fn: async () => {
-            const { sessionManager } = await import('../../../src/core/session-manager.js');
+            const { sessionManager } = await import('../../../src/core/session/session-manager.js');
             const sessions = await sessionManager.listSessions();
             const testSession = sessions.find((s) => s.name === `${TEST_SESSION_PREFIX}-load`);
             if (!testSession) return null;
@@ -111,7 +111,7 @@ export const sessionScenarios: TestScenario[] = [
     timeout: 300000,
     setup: async () => {
       // 테스트용 세션 생성
-      const { sessionManager } = await import('../../../src/core/session-manager.js');
+      const { sessionManager } = await import('../../../src/core/session/session-manager.js');
       await sessionManager.saveSession(`${TEST_SESSION_PREFIX}-list-test`, [
         { role: 'user', content: 'Test message for list' },
       ]);
@@ -131,7 +131,7 @@ export const sessionScenarios: TestScenario[] = [
         action: {
           type: 'custom',
           fn: async () => {
-            const { sessionManager } = await import('../../../src/core/session-manager.js');
+            const { sessionManager } = await import('../../../src/core/session/session-manager.js');
             const sessions = await sessionManager.listSessions();
             return sessions;
           },
@@ -173,7 +173,7 @@ export const sessionScenarios: TestScenario[] = [
         action: {
           type: 'custom',
           fn: async () => {
-            const { sessionManager } = await import('../../../src/core/session-manager.js');
+            const { sessionManager } = await import('../../../src/core/session/session-manager.js');
             const sessionId = await sessionManager.saveSession(
               `${TEST_SESSION_PREFIX}-persistence`,
               [
@@ -194,7 +194,7 @@ export const sessionScenarios: TestScenario[] = [
         action: {
           type: 'custom',
           fn: async () => {
-            const { sessionManager } = await import('../../../src/core/session-manager.js');
+            const { sessionManager } = await import('../../../src/core/session/session-manager.js');
             const sessions = await sessionManager.listSessions();
             const persistSession = sessions.find(
               (s) => s.name === `${TEST_SESSION_PREFIX}-persistence`

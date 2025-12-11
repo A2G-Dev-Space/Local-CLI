@@ -8,8 +8,8 @@
 import React from 'react';
 import { render } from 'ink';
 import { PlanExecuteApp } from './components/PlanExecuteApp.js';
-import { createLLMClient } from '../core/llm-client.js';
-import { configManager } from '../core/config-manager.js';
+import { createLLMClient } from '../core/llm/llm-client.js';
+import { configManager } from '../core/config/config-manager.js';
 
 // Async 초기화
 (async () => {

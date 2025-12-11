@@ -102,7 +102,7 @@ export const TokenProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, []);
 
   const resetSession = useCallback(() => {
-    logger.info('Token stats reset');
+    logger.debug('Token stats reset');
     setStats(initialStats);
   }, []);
 

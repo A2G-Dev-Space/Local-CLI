@@ -7,7 +7,7 @@
 import React, { useState, useCallback } from 'react';
 import { Box, Text, useInput } from 'ink';
 import TextInput from 'ink-text-input';
-import { configManager } from '../../core/config-manager.js';
+import { configManager } from '../../core/config/config-manager.js';
 import { LLMClient } from '../../core/llm/llm-client.js';
 import { EndpointConfig } from '../../types/index.js';
 

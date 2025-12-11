@@ -166,7 +166,7 @@ CLASS_VERSION: 3.0.0
         name: 'LLM에게 여러 파일 정보 요청',
         action: {
           type: 'llm_chat',
-          prompt: `${TEST_DOCS_DIR} 디렉토리의 파일들을 확인하고, project-info.json의 프로젝트 이름을 알려주세요.`,
+          prompt: `${TEST_DOCS_DIR}/project-info.json 파일을 읽고 프로젝트 이름(name 필드)을 정확히 알려주세요.`,
           useTools: true,
         },
         validation: { type: 'contains', value: 'MULTI-DOC-TEST' },

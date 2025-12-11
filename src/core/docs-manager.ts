@@ -264,7 +264,7 @@ export async function downloadDocsFromSource(sourceId: string): Promise<Download
       };
     }
 
-    logger.info('Downloading docs', { source: source.name, url: source.repoUrl });
+    logger.debug('Downloading docs', { source: source.name, url: source.repoUrl });
 
     // Ensure parent directory exists
     const parentDir = path.dirname(targetPath);

@@ -6,15 +6,14 @@
  * state management and error handling.
  */
 
-import { LLMClient } from '../core/llm-client.js';
-import { PlanningLLM } from '../core/planning-llm.js';
-import { TodoItem, Message } from '../types/index.js';
+import { LLMClient } from '../core/llm/llm-client.js';
+import { PlanningLLM } from '../core/llm/planning-llm.js';
+import { TodoItem } from '../types/index.js';
 import { logger } from '../utils/logger.js';
 import {
   PlanExecuteLLMInput,
   PlanExecuteLLMOutput,
   parseLLMResponse,
-  formatLLMInput,
   PLAN_EXECUTE_SYSTEM_PROMPT,
 } from './llm-schemas.js';
 import {
@@ -22,12 +21,6 @@ import {
   ExecutionStep,
 } from './state-manager.js';
 import { EventEmitter } from 'events';
-import {
-  RiskAnalyzer,
-  RiskAnalyzerConfig,
-  DEFAULT_RISK_CONFIG,
-} from './risk-analyzer.js';
-import { ApprovalManager } from './approval-manager.js';
 
 /**
  * Orchestrator configuration
@@ -44,18 +37,6 @@ export interface OrchestratorConfig {
 
   /** Session ID for persistence */
   sessionId?: string;
-
-  /** Human-in-the-loop configuration */
-  hitl?: {
-    /** Enable HITL approval gates */
-    enabled?: boolean;
-
-    /** Request approval for the entire plan after planning */
-    approvePlan?: boolean;
-
-    /** Risk analyzer configuration */
-    riskConfig?: Partial<RiskAnalyzerConfig>;
-  };
 }
 
 /**
@@ -93,8 +74,6 @@ export class PlanExecuteOrchestrator extends EventEmitter {
   private planningLLM: PlanningLLM;
   private stateManager: PlanExecuteStateManager | null = null;
   private config: Required<OrchestratorConfig>;
-  private riskAnalyzer: RiskAnalyzer;
-  private approvalManager: ApprovalManager;
 
   constructor(llmClient: LLMClient, config: OrchestratorConfig = {}) {
     super();
@@ -107,16 +86,7 @@ export class PlanExecuteOrchestrator extends EventEmitter {
       taskTimeout: config.taskTimeout ?? 300000, // 5 minutes
       verbose: config.verbose ?? false,
       sessionId: config.sessionId ?? `pe-${Date.now()}`,
-      hitl: {
-        enabled: config.hitl?.enabled ?? true,
-        approvePlan: config.hitl?.approvePlan ?? true,
-        riskConfig: config.hitl?.riskConfig ?? DEFAULT_RISK_CONFIG,
-      },
     };
-
-    // Initialize HITL components
-    this.riskAnalyzer = new RiskAnalyzer(this.config.hitl.riskConfig);
-    this.approvalManager = new ApprovalManager();
 
     logger.enter('PlanExecuteOrchestrator.constructor', this.config);
   }
@@ -128,9 +98,6 @@ export class PlanExecuteOrchestrator extends EventEmitter {
     logger.enter('PlanExecuteOrchestrator.execute', { userRequest });
 
     try {
-      // Reset approval manager state for new execution
-      this.approvalManager.reset();
-
       // Phase 1: Planning
       const plan = await this.planPhase(userRequest);
 
@@ -151,9 +118,6 @@ export class PlanExecuteOrchestrator extends EventEmitter {
       logger.error('Orchestrator execution failed', error);
       this.emit('executionFailed', errorMessage);
       throw error;
-    } finally {
-      // Clean up approval manager resources
-      this.approvalManager.close();
     }
   }
 
@@ -172,26 +136,9 @@ export class PlanExecuteOrchestrator extends EventEmitter {
         throw new Error('Planning LLM returned no tasks');
       }
 
-      logger.info(
+      logger.debug(
         `Planning phase created ${planningResult.todos.length} tasks (${planningResult.complexity} complexity)`
       );
-
-      // HITL Gate 1: Plan Approval
-      if (this.config.hitl.enabled && this.config.hitl.approvePlan) {
-        const approval = await this.approvalManager.requestPlanApproval({
-          todos: planningResult.todos,
-          userRequest,
-        });
-
-        if (approval.action === 'reject_with_comment' || approval.action === 'stop') {
-          const rejectMessage = approval.comment
-            ? `Plan rejected by user: ${approval.comment}`
-            : `Plan rejected by user: ${approval.reason || 'User rejected the plan'}`;
-          throw new Error(rejectMessage);
-        }
-
-        logger.info('Plan approved by user');
-      }
 
       this.stateManager = new PlanExecuteStateManager(
         this.config.sessionId,
@@ -306,48 +253,13 @@ export class PlanExecuteOrchestrator extends EventEmitter {
       throw new Error('State manager not initialized');
     }
 
-    // HITL Gate 2: Task-level Risk Assessment & Approval
-    if (this.config.hitl.enabled) {
-      const riskAssessment = this.riskAnalyzer.analyzeTask(
-        task.title,
-        task.description
-      );
-
-      if (riskAssessment.requiresApproval) {
-        const approval = await this.approvalManager.requestTaskApproval({
-          taskId: task.id,
-          taskDescription: task.title,
-          risk: riskAssessment,
-          context: task.description,
-        });
-
-        if (approval.action === 'reject_with_comment') {
-          const rejectReason = approval.comment || approval.reason || 'Task rejected by user';
-          logger.info(`Task ${task.id} rejected by user: ${rejectReason}`);
-          this.stateManager.recordFailure(task.id, {
-            message: 'Task rejected by user',
-            details: rejectReason,
-          });
-          return false;
-        }
-
-        if (approval.action === 'stop') {
-          logger.info(`Execution stopped by user at task ${task.id}`);
-          throw new Error(
-            `Execution stopped by user: ${approval.reason || 'User stopped execution'}`
-          );
-        }
-
-        logger.info(`Task ${task.id} approved by user`);
-      }
-    }
-
     let debugAttempts = 0;
+    let lastError: { message: string; details?: string } | undefined;
 
     while (debugAttempts <= this.config.maxDebugAttempts) {
       try {
         // Build LLM input
-        const input = this.buildLLMInput(task, debugAttempts > 0);
+        const input = this.buildLLMInput(task, debugAttempts > 0, lastError);
 
         // Call LLM with structured input
         const output = await this.callLLMForTask(input);
@@ -356,11 +268,12 @@ export class PlanExecuteOrchestrator extends EventEmitter {
         if (output.status === 'success') {
           // Success - record and move on
           this.stateManager.recordSuccess(task.id, output);
-          logger.info(`Task ${task.id} completed successfully`);
+          logger.debug(`Task ${task.id} completed successfully`);
           return true;
         } else if (output.status === 'needs_debug' || output.status === 'failed') {
           // Need to debug
           debugAttempts++;
+          lastError = output.error;
 
           if (debugAttempts > this.config.maxDebugAttempts) {
             // Max debug attempts reached
@@ -376,83 +289,71 @@ export class PlanExecuteOrchestrator extends EventEmitter {
 
           // Enter debug mode
           this.emit('debugStarted', task, debugAttempts);
+          this.stateManager.enterDebugMode();
           logger.flow(
-            `Entering debug mode for task ${task.id} (attempt ${debugAttempts})`
+            `Task ${task.id} needs debugging (attempt ${debugAttempts}/${this.config.maxDebugAttempts})`
           );
 
-          this.stateManager.enterDebugMode();
-          this.stateManager.recordFailure(task.id, {
-            message: output.error?.message || 'Task needs debugging',
-            details: output.error?.details,
-          });
-
-          // Continue loop to retry
-          continue;
-        }
-      } catch (error) {
-        debugAttempts++;
-
-        if (debugAttempts > this.config.maxDebugAttempts) {
-          const errorMessage =
-            error instanceof Error ? error.message : 'Unknown error';
-          this.stateManager.recordFailure(task.id, {
-            message: errorMessage,
-          });
-          logger.error(`Task ${task.id} failed with exception`, error);
+          // Continue to next debug iteration
+        } else {
+          // Unknown status
+          logger.warn(`Unknown task status: ${output.status}`);
           return false;
         }
+      } catch (error) {
+        logger.error(`Error executing task ${task.id}`, error);
+        debugAttempts++;
+        lastError = {
+          message: error instanceof Error ? error.message : String(error),
+        };
 
-        // Record error and try debugging
-        this.emit('debugStarted', task, debugAttempts);
-        this.stateManager.enterDebugMode();
-        this.stateManager.recordFailure(task.id, {
-          message: error instanceof Error ? error.message : 'Unknown error',
-          details: error instanceof Error ? error.stack : undefined,
-        });
-
-        logger.warn(`Retrying task ${task.id} after error (attempt ${debugAttempts})`);
-        continue;
+        if (debugAttempts > this.config.maxDebugAttempts) {
+          this.stateManager.recordFailure(task.id, {
+            message: `Exception during execution`,
+            details: error instanceof Error ? error.message : String(error),
+          });
+          return false;
+        }
       }
     }
 
-    logger.exit('PlanExecuteOrchestrator.executeTask', { success: false });
     return false;
   }
 
   /**
-   * Build LLM input from current state
+   * Build LLM input for a task
    */
   private buildLLMInput(
     task: TodoItem,
-    isDebug: boolean
+    isDebug: boolean,
+    lastError?: { message: string; details?: string }
   ): PlanExecuteLLMInput {
     if (!this.stateManager) {
       throw new Error('State manager not initialized');
     }
 
-    const state = this.stateManager.getState();
+    const completedTasks = this.stateManager.getCompletedTasks();
+    const lastResult = this.stateManager.getLastStepResult();
+    const history = this.stateManager.getHistoryForLLM();
 
-    const input: PlanExecuteLLMInput = {
+    return {
       current_task: {
         id: task.id,
         title: task.title,
         description: task.description,
-        dependencies: task.dependencies,
+        dependencies: task.dependencies || [],
       },
       previous_context: {
-        last_step_result: this.stateManager.getLastStepResult(),
-        completed_tasks: this.stateManager.getCompletedTasks(),
+        last_step_result: lastResult,
+        completed_tasks: completedTasks,
       },
       error_log: {
         is_debug: isDebug,
-        error_message: state.lastError?.message,
-        error_details: state.lastError?.details,
-        stderr: state.lastError?.stderr,
+        error_message: lastError?.message,
+        error_details: lastError?.details,
       },
-      history: this.stateManager.getHistoryForLLM(),
+      history,
     };
-
-    return input;
   }
 
   /**
@@ -465,32 +366,25 @@ export class PlanExecuteOrchestrator extends EventEmitter {
       taskId: input.current_task.id,
     });
 
-    // Build messages
-    const messages: Message[] = [
-      {
-        role: 'system',
-        content: PLAN_EXECUTE_SYSTEM_PROMPT,
-      },
-      {
-        role: 'user',
-        content: `Execute the following task:\n\n${formatLLMInput(input)}`,
-      },
-    ];
-
     try {
-      // Call LLM
+      const userMessage = JSON.stringify(input, null, 2);
       const response = await this.llmClient.sendMessage(
-        messages[1]!.content,
-        messages[0]!.content
+        userMessage,
+        PLAN_EXECUTE_SYSTEM_PROMPT
       );
 
-      // Parse response
       const parseResult = parseLLMResponse(response);
 
       if (!parseResult.success || !parseResult.data) {
-        throw new Error(
-          parseResult.error || 'Failed to parse LLM response'
-        );
+        logger.warn('Failed to parse LLM response', { error: parseResult.error });
+        return {
+          status: 'failed',
+          result: '',
+          log_entries: [],
+          error: {
+            message: parseResult.error || 'Failed to parse LLM response',
+          },
+        };
       }
 
       logger.exit('PlanExecuteOrchestrator.callLLMForTask', {
@@ -500,45 +394,36 @@ export class PlanExecuteOrchestrator extends EventEmitter {
       return parseResult.data;
     } catch (error) {
       logger.error('LLM call failed', error);
-      throw error;
+      return {
+        status: 'failed',
+        result: '',
+        log_entries: [],
+        error: {
+          message: error instanceof Error ? error.message : 'LLM call failed',
+        },
+      };
     }
   }
 
   /**
-   * Get the current execution state
+   * Get all execution logs
+   */
+  getAllLogs(): ExecutionStep[] {
+    return this.stateManager?.getHistoryForLLM().map(h => ({
+      step: h.step,
+      task_id: h.task_id,
+      task_title: h.task_title,
+      status: h.status,
+      summary: h.summary,
+      timestamp: h.timestamp,
+      log_entries: [],
+    })) || [];
+  }
+
+  /**
+   * Get current state
    */
   getState() {
-    return this.stateManager?.getState();
-  }
-
-  /**
-   * Get all log entries
-   */
-  getAllLogs() {
-    return this.stateManager?.getAllLogEntries() || [];
-  }
-
-  /**
-   * Get the approval manager (for setting up UI callbacks)
-   */
-  getApprovalManager(): ApprovalManager {
-    return this.approvalManager;
-  }
-
-  /**
-   * Type-safe event listeners
-   */
-  override on<K extends keyof OrchestratorEvents>(
-    event: K,
-    listener: OrchestratorEvents[K]
-  ): this {
-    return super.on(event, listener);
-  }
-
-  override emit<K extends keyof OrchestratorEvents>(
-    event: K,
-    ...args: Parameters<OrchestratorEvents[K]>
-  ): boolean {
-    return super.emit(event, ...args);
+    return this.stateManager?.getState() || null;
   }
 }

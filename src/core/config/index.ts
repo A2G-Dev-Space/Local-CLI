@@ -3,4 +3,3 @@
  */
 
 export * from './config-manager.js';
-export * from './project-config.js';

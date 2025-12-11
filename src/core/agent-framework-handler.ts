@@ -7,9 +7,9 @@
  * - Integration with docs search agent
  */
 
-import { LLMClient } from './llm-client.js';
+import { LLMClient } from './llm/llm-client.js';
 import { Message } from '../types/index.js';
-import { executeDocsSearchAgent } from './docs-search-agent.js';
+import { executeDocsSearchAgent } from './knowledge/docs-search-agent.js';
 import { logger } from '../utils/logger.js';
 
 /**
@@ -270,7 +270,7 @@ export async function performDocsSearchIfNeeded(
     { name: 'basePath', value: detection.basePath },
   );
 
-  logger.info('📚 DocsSearch triggered', {
+  logger.debug('📚 DocsSearch triggered', {
     query: query.substring(0, 100),
     framework: detection.framework,
     category: detection.category

@@ -358,8 +358,8 @@ export class E2ETestRunner {
   // ====== Action Implementations ======
 
   private async actionLLMChat(prompt: string, useTools?: boolean): Promise<string> {
-    const { LLMClient } = await import('../../src/core/llm-client.js');
-    const { configManager } = await import('../../src/core/config-manager.js');
+    const { LLMClient } = await import('../../src/core/llm/llm-client.js');
+    const { configManager } = await import('../../src/core/config/config-manager.js');
 
     await configManager.initialize();
 
@@ -367,7 +367,7 @@ export class E2ETestRunner {
     const client = new LLMClient();
 
     if (useTools) {
-      const { FILE_TOOLS } = await import('../../src/tools/file-tools.js');
+      const { FILE_TOOLS } = await import('../../src/tools/llm/simple/file-tools.js');
       // sendMessageWithTools는 { response, toolCalls } 객체를 반환
       const result = await client.sendMessageWithTools(prompt, FILE_TOOLS);
       return result.response;
@@ -377,8 +377,8 @@ export class E2ETestRunner {
   }
 
   private async actionLLMStream(prompt: string): Promise<string> {
-    const { LLMClient } = await import('../../src/core/llm-client.js');
-    const { configManager } = await import('../../src/core/config-manager.js');
+    const { LLMClient } = await import('../../src/core/llm/llm-client.js');
+    const { configManager } = await import('../../src/core/config/config-manager.js');
 
     await configManager.initialize();
 
@@ -405,7 +405,7 @@ export class E2ETestRunner {
   }
 
   private async actionFileRead(filePath: string): Promise<string> {
-    const { executeReadFile } = await import('../../src/tools/file-tools.js');
+    const { executeReadFile } = await import('../../src/tools/llm/simple/file-tools.js');
     const result = await executeReadFile(filePath);
     if (!result.success) {
       throw new Error(result.error || 'File read failed');
@@ -414,7 +414,7 @@ export class E2ETestRunner {
   }
 
   private async actionFileWrite(filePath: string, content: string): Promise<string> {
-    const { executeWriteFile } = await import('../../src/tools/file-tools.js');
+    const { executeWriteFile } = await import('../../src/tools/llm/simple/file-tools.js');
     const result = await executeWriteFile(filePath, content);
     if (!result.success) {
       throw new Error(result.error || 'File write failed');
@@ -423,7 +423,7 @@ export class E2ETestRunner {
   }
 
   private async actionFileList(directory: string): Promise<any[]> {
-    const { executeListFiles } = await import('../../src/tools/file-tools.js');
+    const { executeListFiles } = await import('../../src/tools/llm/simple/file-tools.js');
     const result = await executeListFiles(directory || '.', false);
     if (!result.success) {
       throw new Error(result.error || 'File list failed');
@@ -437,7 +437,7 @@ export class E2ETestRunner {
   }
 
   private async actionFileFind(pattern: string, directory?: string): Promise<any[]> {
-    const { executeFindFiles } = await import('../../src/tools/file-tools.js');
+    const { executeFindFiles } = await import('../../src/tools/llm/simple/file-tools.js');
     const result = await executeFindFiles(pattern, directory || '.');
     if (!result.success) {
       throw new Error(result.error || 'File find failed');
@@ -452,9 +452,9 @@ export class E2ETestRunner {
   }
 
   private async actionPlanGenerate(userRequest: string): Promise<any[]> {
-    const { PlanningLLM } = await import('../../src/core/planning-llm.js');
-    const { LLMClient } = await import('../../src/core/llm-client.js');
-    const { configManager } = await import('../../src/core/config-manager.js');
+    const { PlanningLLM } = await import('../../src/core/llm/planning-llm.js');
+    const { LLMClient } = await import('../../src/core/llm/llm-client.js');
+    const { configManager } = await import('../../src/core/config/config-manager.js');
 
     await configManager.initialize();
 
@@ -469,10 +469,10 @@ export class E2ETestRunner {
   private async actionPlanExecute(todos: any[]): Promise<any> {
     // Plan Execute는 복잡하므로 Orchestrator를 직접 사용
     const { PlanExecuteOrchestrator } = await import(
-      '../../src/plan-and-execute/orchestrator.js'
+      '../../src/orchestration/orchestrator.js'
     );
-    const { LLMClient } = await import('../../src/core/llm-client.js');
-    const { configManager } = await import('../../src/core/config-manager.js');
+    const { LLMClient } = await import('../../src/core/llm/llm-client.js');
+    const { configManager } = await import('../../src/core/config/config-manager.js');
 
     await configManager.initialize();
 
@@ -489,9 +489,9 @@ export class E2ETestRunner {
   }
 
   private async actionDocsSearch(query: string, _searchPath?: string): Promise<string> {
-    const { executeDocsSearchAgent } = await import('../../src/core/docs-search-agent.js');
-    const { LLMClient } = await import('../../src/core/llm-client.js');
-    const { configManager } = await import('../../src/core/config-manager.js');
+    const { executeDocsSearchAgent } = await import('../../src/core/knowledge/docs-search-agent.js');
+    const { LLMClient } = await import('../../src/core/llm/llm-client.js');
+    const { configManager } = await import('../../src/core/config/config-manager.js');
 
     await configManager.initialize();
 
@@ -506,7 +506,7 @@ export class E2ETestRunner {
   }
 
   private async actionSessionSave(sessionName?: string): Promise<string> {
-    const { sessionManager } = await import('../../src/core/session-manager.js');
+    const { sessionManager } = await import('../../src/core/session/session-manager.js');
     const name = sessionName || `test-session-${Date.now()}`;
     const messages = [{ role: 'user' as const, content: 'Test message' }];
     const sessionId = await sessionManager.saveSession(name, messages);
@@ -514,17 +514,17 @@ export class E2ETestRunner {
   }
 
   private async actionSessionLoad(sessionId: string): Promise<any> {
-    const { sessionManager } = await import('../../src/core/session-manager.js');
+    const { sessionManager } = await import('../../src/core/session/session-manager.js');
     return sessionManager.loadSession(sessionId);
   }
 
   private async actionSessionList(): Promise<any[]> {
-    const { sessionManager } = await import('../../src/core/session-manager.js');
+    const { sessionManager } = await import('../../src/core/session/session-manager.js');
     return sessionManager.listSessions();
   }
 
   private async actionConfigGet(key?: string): Promise<any> {
-    const { configManager } = await import('../../src/core/config-manager.js');
+    const { configManager } = await import('../../src/core/config/config-manager.js');
     await configManager.initialize();
     const config = configManager.getConfig();
     if (key) {
@@ -534,7 +534,7 @@ export class E2ETestRunner {
   }
 
   private async actionConfigSet(key: string, value: any): Promise<void> {
-    const { configManager } = await import('../../src/core/config-manager.js');
+    const { configManager } = await import('../../src/core/config/config-manager.js');
     await configManager.initialize();
     // updateSettings만 지원 - settings 관련 키만 변경 가능
     await configManager.updateSettings({ [key]: value });

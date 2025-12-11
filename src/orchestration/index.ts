@@ -14,7 +14,7 @@
  * @example
  * ```typescript
  * import { PlanExecuteOrchestrator } from './orchestration';
- * import { LLMClient } from './core/llm-client';
+ * import { LLMClient } from './core/llm/llm-client';
  *
  * const llmClient = new LLMClient();
  * const orchestrator = new PlanExecuteOrchestrator(llmClient, {

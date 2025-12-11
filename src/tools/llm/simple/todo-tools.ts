@@ -135,7 +135,7 @@ async function executeUpdateTodoList(args: Record<string, unknown>): Promise<Too
     const success = await todoUpdateCallback(todoId, status, note);
 
     if (success) {
-      logger.info(`TODO ${todoId} updated to ${status}`);
+      logger.debug(`TODO ${todoId} updated to ${status}`);
       logger.exit('executeUpdateTodoList', { success: true });
       return {
         success: true,

@@ -6,7 +6,7 @@
  */
 
 import { Message, TodoItem } from '../types/index.js';
-import { sessionManager } from './session-manager.js';
+import { sessionManager } from './session/session-manager.js';
 import { usageTracker } from './usage-tracker.js';
 import {
   getDocsInfo,

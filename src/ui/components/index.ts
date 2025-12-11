@@ -19,12 +19,8 @@ export { SessionBrowser, SessionPanel } from './panels/index.js';
 
 // Re-export from dialogs/
 export {
-  PlanApprovalPrompt,
-  TaskApprovalPrompt,
-  ApprovalPrompt,
   SettingsBrowser,
   SettingsDialog,
-  type ApprovalAction
 } from './dialogs/index.js';
 
 // Re-export from views/

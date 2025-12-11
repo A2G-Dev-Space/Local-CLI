@@ -167,7 +167,7 @@ async function executeAskToUser(args: Record<string, unknown>): Promise<ToolResu
       options,
     });
 
-    logger.info('User responded', { selectedOption: response.selectedOption, isOther: response.isOther });
+    logger.debug('User responded', { selectedOption: response.selectedOption, isOther: response.isOther });
 
     const resultText = response.isOther && response.customText
       ? `User provided custom response: "${response.customText}"`

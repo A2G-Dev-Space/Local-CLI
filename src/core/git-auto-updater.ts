@@ -90,7 +90,7 @@ export class GitAutoUpdater {
 
     try {
       logger.flow('초기 설정 시작');
-      logger.info('Initial setup started', { repoDir: this.repoDir, repoUrl: this.repoUrl });
+      logger.debug('Initial setup started', { repoDir: this.repoDir, repoUrl: this.repoUrl });
 
       // Create parent directory
       logger.flow('상위 디렉토리 생성');
@@ -117,7 +117,7 @@ export class GitAutoUpdater {
       });
       const cloneTime = logger.endTimer('git-clone');
 
-      logger.info('Repository cloned successfully');
+      logger.debug('Repository cloned successfully');
       logger.vars({ name: 'cloneTime', value: cloneTime });
       spinner.succeed(chalk.green('Step 1/4: Repository cloned successfully'));
 
@@ -157,7 +157,7 @@ export class GitAutoUpdater {
       });
 
       spinner.succeed(chalk.green('Step 4/4: Global link created'));
-      logger.info('Initial setup completed successfully');
+      logger.debug('Initial setup completed successfully');
 
       console.log();
       console.log(chalk.green.bold('✨ Setup Complete!'));
@@ -222,7 +222,7 @@ export class GitAutoUpdater {
       }
 
       // Changes detected - rebuild
-      logger.info('Changes detected, rebuilding...', { pullOutput });
+      logger.debug('Changes detected, rebuilding...', { pullOutput });
 
       console.log();
       console.log(chalk.cyan('📦 Update Available'));
@@ -269,7 +269,7 @@ export class GitAutoUpdater {
         });
 
         spinner.succeed(chalk.green('Step 3/3: Global link updated'));
-        logger.info('Auto-update completed successfully');
+        logger.debug('Auto-update completed successfully');
 
         console.log();
         console.log(chalk.green.bold('✨ Update Complete!'));
@@ -281,7 +281,7 @@ export class GitAutoUpdater {
 
         // Try to rollback
         try {
-          logger.info('Attempting to rollback');
+          logger.debug('Attempting to rollback');
           console.log();
           console.log(chalk.yellow('🔄 Rolling back to previous version...'));
 
@@ -290,7 +290,7 @@ export class GitAutoUpdater {
             stdio: 'pipe',
           });
 
-          logger.info('Rollback successful');
+          logger.debug('Rollback successful');
           console.log(chalk.green('✓ Rollback successful'));
           console.log(chalk.yellow('⚠️  Update failed, continuing with previous version'));
           console.log();

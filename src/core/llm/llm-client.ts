@@ -509,7 +509,7 @@ export class LLMClient {
 
           // Tool 실행 (외부에서 주입받아야 함 - 여기서는 import)
           logger.flow('Tool 모듈 로드');
-          const { executeFileTool } = await import('../../tools/file-tools.js');
+          const { executeFileTool } = await import('../../tools/llm/simple/file-tools.js');
 
           logger.debug(`Executing tool: ${toolName}`, toolArgs);
 
@@ -653,7 +653,7 @@ export class LLMClient {
           }
 
           // Tool 실행
-          const { executeFileTool } = await import('../../tools/file-tools.js');
+          const { executeFileTool } = await import('../../tools/llm/simple/file-tools.js');
 
           logger.debug(`Executing tool: ${toolName}`, toolArgs);
 

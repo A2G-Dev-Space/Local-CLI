@@ -756,13 +756,14 @@ export class Logger {
 /**
  * Global logger instance
  *
- * 기본값은 INFO 레벨. CLI argument로 레벨 조정:
- * - Normal mode (open): INFO
+ * 기본값은 WARN 레벨 (Normal 모드에서 로그 출력 없음)
+ * CLI argument로 레벨 조정:
+ * - Normal mode (open): WARN (로그 출력 없음, UI로만 피드백)
  * - Verbose mode (open --verbose): DEBUG
  * - Debug mode (open --debug): VERBOSE
  */
 export const logger = new Logger({
-  level: LogLevel.INFO, // CLI에서 setLogLevel()로 변경됨
+  level: LogLevel.WARN, // Normal 모드: 로그 출력 없음
   prefix: 'OPEN-CLI',
   timestamp: true,
   showLocation: false, // setLogLevel()에서 동적으로 변경
@@ -842,7 +843,7 @@ export async function setupLogging(options: {
   jsonLogger: Awaited<ReturnType<typeof import('./json-stream-logger.js').initializeJsonStreamLogger>>;
 }> {
   const { initializeJsonStreamLogger, closeJsonStreamLogger } = await import('./json-stream-logger.js');
-  const { sessionManager } = await import('../core/session-manager.js');
+  const { sessionManager } = await import('../core/session/session-manager.js');
 
   // Determine if verbose/debug mode is enabled
   const isVerboseMode = options.verbose || options.debug;
@@ -857,10 +858,10 @@ export async function setupLogging(options: {
   // --debug: VERBOSE (최대 디버그 로깅 + 위치 정보)
   if (options.debug) {
     setLogLevel(LogLevel.VERBOSE);
-    logger.info('🔍 Debug mode enabled - maximum logging with location tracking');
+    logger.debug('🔍 Debug mode enabled - maximum logging with location tracking');
   } else if (options.verbose) {
     setLogLevel(LogLevel.DEBUG);
-    logger.info('📝 Verbose mode enabled - detailed logging');
+    logger.debug('📝 Verbose mode enabled - detailed logging');
   }
   // Normal mode: no startup message
 

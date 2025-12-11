@@ -138,8 +138,8 @@ export const agnoEvaluationScenarios: TestScenario[] = [
           type: 'custom',
           fn: async () => {
             // LLMClient 생성
-            const { createLLMClient } = await import('../../../src/core/llm-client.js');
-            const { configManager } = await import('../../../src/core/config-manager.js');
+            const { createLLMClient } = await import('../../../src/core/llm/llm-client.js');
+            const { configManager } = await import('../../../src/core/config/config-manager.js');
 
             await configManager.initialize();
             const llmClient = createLLMClient();

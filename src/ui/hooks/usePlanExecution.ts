@@ -7,11 +7,10 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { Message, TodoItem } from '../../types/index.js';
-import { LLMClient } from '../../core/llm-client.js';
+import { LLMClient } from '../../core/llm/llm-client.js';
 import { RequestClassifier } from '../../core/llm/request-classifier.js';
 import { PlanExecuteOrchestrator } from '../../orchestration/orchestrator.js';
-import { ApprovalAction } from '../../orchestration/approval-manager.js';
-import { sessionManager } from '../../core/session-manager.js';
+import { sessionManager } from '../../core/session/session-manager.js';
 import { performDocsSearchIfNeeded } from '../../core/agent-framework-handler.js';
 import { BaseError } from '../../errors/base.js';
 import { logger } from '../../utils/logger.js';
@@ -37,23 +36,13 @@ export interface PlanExecutionState {
   currentActivity: string;  // LLM이 업데이트하는 현재 활동 (Claude Code style)
 }
 
-export interface ApprovalState {
-  planApprovalRequest: {
-    userRequest: string;
-    todos: TodoItem[];
-  } | null;
-  taskApprovalRequest: {
-    taskDescription: string;
-    risk: any;
-    context?: string;
-  } | null;
+export interface AskUserState {
   askUserRequest: AskUserRequest | null;
 }
 
 export interface PlanExecutionActions {
   setTodos: React.Dispatch<React.SetStateAction<TodoItem[]>>;
   handleTodoUpdate: (todo: TodoItem) => void;
-  handleApprovalResponse: (action: ApprovalAction, comment?: string) => void;
   handleAskUserResponse: (response: AskUserResponse) => void;
   handleInterrupt: () => void;
   executeAutoMode: (
@@ -120,7 +109,7 @@ function formatErrorMessage(error: unknown): string {
   return `❌ Unknown Error: ${String(error)}`;
 }
 
-export function usePlanExecution(): PlanExecutionState & ApprovalState & PlanExecutionActions {
+export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExecutionActions {
   logger.enter('usePlanExecution');
 
   const [todos, setTodos] = useState<TodoItem[]>([]);
@@ -129,21 +118,7 @@ export function usePlanExecution(): PlanExecutionState & ApprovalState & PlanExe
   const [isInterrupted, setIsInterrupted] = useState(false);
   const [currentActivity, setCurrentActivity] = useState<string>('대기 중');
 
-  // Approval state (kept for Phase 2 - approval mode)
-  const [planApprovalRequest, setPlanApprovalRequest] = useState<{
-    userRequest: string;
-    todos: TodoItem[];
-  } | null>(null);
-  const [taskApprovalRequest, setTaskApprovalRequest] = useState<{
-    taskDescription: string;
-    risk: any;
-    context?: string;
-  } | null>(null);
-  const [approvalResolver, setApprovalResolver] = useState<{
-    resolve: (action: string) => void;
-  } | null>(null);
-
-  // Ask-user state (Phase 2)
+  // Ask-user state
   const [askUserRequest, setAskUserRequest] = useState<AskUserRequest | null>(null);
   const [askUserResolver, setAskUserResolver] = useState<{
     resolve: (response: AskUserResponse) => void;
@@ -214,7 +189,7 @@ export function usePlanExecution(): PlanExecutionState & ApprovalState & PlanExe
     };
   }, [todos]);
 
-  // Setup ask-user callback (Phase 2)
+  // Setup ask-user callback
   useEffect(() => {
     logger.flow('Setting up ask-user callback');
 
@@ -248,55 +223,8 @@ export function usePlanExecution(): PlanExecutionState & ApprovalState & PlanExe
     logger.exit('handleTodoUpdate');
   }, []);
 
-  // Plan approval handler (kept for Phase 2 - approval mode)
-  const handlePlanApprovalRequest = useCallback(async (request: {
-    todos: TodoItem[];
-    userRequest: string;
-  }): Promise<ApprovalAction> => {
-    logger.enter('handlePlanApprovalRequest', { todoCount: request.todos.length });
-
-    return new Promise((resolve) => {
-      setPlanApprovalRequest(request);
-      setApprovalResolver({ resolve: resolve as (action: string) => void });
-    });
-  }, []);
-
-  // Task approval handler (kept for Phase 2 - approval mode)
-  const handleTaskApprovalRequest = useCallback(async (request: {
-    taskId: string;
-    taskDescription: string;
-    risk: any;
-    context?: string;
-  }): Promise<ApprovalAction> => {
-    logger.enter('handleTaskApprovalRequest', { taskId: request.taskId });
-
-    return new Promise((resolve) => {
-      setTaskApprovalRequest({
-        taskDescription: request.taskDescription,
-        risk: request.risk,
-        context: request.context,
-      });
-      setApprovalResolver({ resolve: resolve as (action: string) => void });
-    });
-  }, []);
-
-  const handleApprovalResponse = useCallback((action: ApprovalAction, comment?: string) => {
-    logger.enter('handleApprovalResponse', { action, hasComment: !!comment });
-
-    if (approvalResolver) {
-      // For reject_with_comment, include the comment in the action
-      const resolveValue = comment ? `${action}:${comment}` : action;
-      approvalResolver.resolve(resolveValue);
-      setApprovalResolver(null);
-    }
-    setPlanApprovalRequest(null);
-    setTaskApprovalRequest(null);
-
-    logger.exit('handleApprovalResponse');
-  }, [approvalResolver]);
-
   /**
-   * Handle ask-user response (Phase 2)
+   * Handle ask-user response
    */
   const handleAskUserResponse = useCallback((response: AskUserResponse) => {
     logger.enter('handleAskUserResponse', { selectedOption: response.selectedOption, isOther: response.isOther });
@@ -319,7 +247,7 @@ export function usePlanExecution(): PlanExecutionState & ApprovalState & PlanExe
     if (executionPhase !== 'idle') {
       logger.flow('Interrupting execution');
       setIsInterrupted(true);
-      logger.info('Execution interrupted by user');
+      logger.debug('Execution interrupted by user');
     }
 
     logger.exit('handleInterrupt');
@@ -343,7 +271,7 @@ export function usePlanExecution(): PlanExecutionState & ApprovalState & PlanExe
         await performDocsSearchIfNeeded(llmClient, userMessage, messages);
       setCurrentActivity('응답 생성 중');
 
-      const { FILE_TOOLS } = await import('../../tools/file-tools.js');
+      const { FILE_TOOLS } = await import('../../tools/llm/simple/file-tools.js');
 
       const result = await llmClient.chatCompletionWithTools(
         messagesWithDocs.concat({ role: 'user', content: userMessage }),
@@ -371,7 +299,6 @@ export function usePlanExecution(): PlanExecutionState & ApprovalState & PlanExe
 
   /**
    * Execute plan mode (TODO-based execution)
-   * Phase 1: Removed plan approval, auto-execution
    */
   const executePlanMode = useCallback(async (
     userMessage: string,
@@ -393,28 +320,14 @@ export function usePlanExecution(): PlanExecutionState & ApprovalState & PlanExe
         setMessages(messagesWithDocs);
       }
 
-      // Phase 1: HITL disabled, auto-execution
       const orchestrator = new PlanExecuteOrchestrator(llmClient, {
         maxDebugAttempts: 2,
         verbose: false,
-        hitl: {
-          enabled: false,  // Phase 1: Disabled approval
-          approvePlan: false,  // Phase 1: Auto-proceed without approval
-          riskConfig: {
-            approvalThreshold: 'high',  // Only high-risk tasks need approval
-          },
-        },
       });
-
-      // Keep approval handlers for Phase 2
-      const approvalManager = orchestrator.getApprovalManager();
-      approvalManager.setPlanApprovalCallback(handlePlanApprovalRequest);
-      approvalManager.setTaskApprovalCallback(handleTaskApprovalRequest);
 
       orchestrator.on('planCreated', (newTodos: TodoItem[]) => {
         logger.flow('Plan created', { todoCount: newTodos.length });
         setTodos(newTodos);
-        // Phase 1: Show plan without waiting for approval
         const planningMessage = `📋 ${newTodos.length}개의 작업을 생성했습니다. 자동으로 실행합니다...`;
         setMessages(prev => [
           ...prev,
@@ -427,7 +340,7 @@ export function usePlanExecution(): PlanExecutionState & ApprovalState & PlanExe
         logger.flow('TODO started', { todoId: todo.id });
         handleTodoUpdate({ ...todo, status: 'in_progress' as const });
         setExecutionPhase('executing');
-        setCurrentActivity(todo.title);  // Update activity to current TODO title
+        setCurrentActivity(todo.title);
       });
 
       orchestrator.on('todoCompleted', (todo: TodoItem) => {
@@ -482,11 +395,10 @@ export function usePlanExecution(): PlanExecutionState & ApprovalState & PlanExe
     } finally {
       setExecutionPhase('idle');
     }
-  }, [handleTodoUpdate, handlePlanApprovalRequest, handleTaskApprovalRequest]);
+  }, [handleTodoUpdate]);
 
   /**
    * Auto mode: Classify request and execute appropriately
-   * Phase 1: LLM-based request classification
    */
   const executeAutoMode = useCallback(async (
     userMessage: string,
@@ -499,7 +411,6 @@ export function usePlanExecution(): PlanExecutionState & ApprovalState & PlanExe
     setCurrentActivity('요청 분류 중');
 
     try {
-      // Phase 1: Use RequestClassifier for intelligent classification
       const classifier = new RequestClassifier(llmClient);
       const classification = await classifier.classify(userMessage);
 
@@ -543,12 +454,9 @@ export function usePlanExecution(): PlanExecutionState & ApprovalState & PlanExe
     executionPhase,
     isInterrupted,
     currentActivity,
-    planApprovalRequest,
-    taskApprovalRequest,
     askUserRequest,
     setTodos,
     handleTodoUpdate,
-    handleApprovalResponse,
     handleAskUserResponse,
     handleInterrupt,
     executeAutoMode,

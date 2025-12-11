@@ -265,8 +265,8 @@ export const settingsScenarios: TestScenario[] = [
         action: {
           type: 'custom',
           fn: async () => {
-            const { configManager } = await import('../../../src/core/config-manager.js');
-            const { sessionManager } = await import('../../../src/core/session-manager.js');
+            const { configManager } = await import('../../../src/core/config/config-manager.js');
+            const { sessionManager } = await import('../../../src/core/session/session-manager.js');
 
             await configManager.initialize();
 

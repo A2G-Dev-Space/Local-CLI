@@ -5,10 +5,10 @@
  */
 
 import { TestScenario } from '../types.js';
-import { PlanExecuteOrchestrator } from '../../../src/plan-and-execute/index.js';
-import { LLMClient } from '../../../src/core/llm-client.js';
-import { configManager } from '../../../src/core/config-manager.js';
-import { PlanExecuteStateManager } from '../../../src/plan-and-execute/state-manager.js';
+import { PlanExecuteOrchestrator } from '../../../src/orchestration/index.js';
+import { LLMClient } from '../../../src/core/llm/llm-client.js';
+import { configManager } from '../../../src/core/config/config-manager.js';
+import { PlanExecuteStateManager } from '../../../src/orchestration/state-manager.js';
 import { logger } from '../../../src/utils/logger.js';
 
 /**
@@ -129,79 +129,6 @@ export const demoScenarios: TestScenario[] = [
   },
 
   // ============================================================
-  // HITL Demo - 자동 승인 콜백으로 테스트
-  // ============================================================
-  {
-    id: 'demo-hitl',
-    name: 'HITL Demo (Auto-approve)',
-    description: 'Human-in-the-Loop 승인 흐름을 자동 승인으로 테스트',
-    category: 'demos',
-    enabled: true,
-    timeout: 120000,
-    steps: [
-      {
-        name: 'HITL 자동 승인으로 Plan & Execute 실행',
-        action: {
-          type: 'custom',
-          fn: async () => {
-            await configManager.initialize();
-
-            const endpoint = configManager.getCurrentEndpoint();
-            const model = configManager.getCurrentModel();
-
-            if (!endpoint || !model) {
-              throw new Error('LLM endpoint and model must be configured');
-            }
-
-            const llmClient = new LLMClient();
-            const orchestrator = new PlanExecuteOrchestrator(llmClient, {
-              maxDebugAttempts: 2,
-              hitl: {
-                enabled: true,
-                approvePlan: true,
-                riskConfig: {
-                  approvalThreshold: 'medium',
-                },
-              },
-            });
-
-            // Auto-approve callbacks
-            const approvalManager = (orchestrator as any).approvalManager;
-            approvalManager.setPlanApprovalCallback(async () => 'approve');
-            approvalManager.setTaskApprovalCallback(async () => 'approve');
-
-            const simpleRequest = 'Create a simple hello.txt file with "Hello World" content';
-
-            try {
-              const summary = await orchestrator.execute(simpleRequest);
-              return {
-                success: summary.success,
-                totalTasks: summary.totalTasks,
-                completedTasks: summary.completedTasks,
-                hitlEnabled: true,
-              };
-            } catch (error) {
-              // Plan rejection is also valid in HITL
-              return {
-                success: false,
-                error: error instanceof Error ? error.message : 'Unknown error',
-                hitlEnabled: true,
-              };
-            }
-          },
-        },
-        validation: {
-          type: 'custom',
-          fn: async (result) => {
-            // HITL이 활성화되었고, 실행이 완료되거나 적절히 처리됨
-            return result.hitlEnabled === true;
-          },
-        },
-      },
-    ],
-  },
-
-  // ============================================================
   // Logger Demo - 로깅 시스템 기능 테스트
   // ============================================================
   {
@@ -219,10 +146,7 @@ export const demoScenarios: TestScenario[] = [
           fn: async () => {
             const results: string[] = [];
 
-            // Basic logging
-            logger.info('Test info message');
-            results.push('info');
-
+            // Basic logging (debug/verbose only in non-normal mode)
             logger.debug('Test debug message', { version: '1.0.0' });
             results.push('debug');
 
@@ -262,7 +186,8 @@ export const demoScenarios: TestScenario[] = [
         validation: {
           type: 'custom',
           fn: async (result) => {
-            const expectedFunctions = ['info', 'debug', 'warn', 'enter', 'flow', 'exit', 'vars', 'state', 'timer'];
+            // info는 더 이상 사용하지 않음 - debug, warn, enter, flow, exit, vars, state, timer
+            const expectedFunctions = ['debug', 'warn', 'enter', 'flow', 'exit', 'vars', 'state', 'timer'];
             const allPresent = expectedFunctions.every(f => result.functionsUsed.includes(f));
             return allPresent && result.timerWorked;
           },
@@ -280,7 +205,7 @@ export const demoScenarios: TestScenario[] = [
     description: '실제 LLM 엔드포인트를 사용한 Plan & Execute 테스트',
     category: 'demos',
     enabled: true,
-    timeout: 180000, // 3분
+    timeout: 300000, // 5분 (LLM Plan & Execute는 시간이 오래 걸릴 수 있음)
     steps: [
       {
         name: 'Simple Calculator 시나리오',
@@ -301,16 +226,7 @@ export const demoScenarios: TestScenario[] = [
               maxDebugAttempts: 3,
               taskTimeout: 60000,
               verbose: false,
-              hitl: {
-                enabled: true,
-                approvePlan: true,
-              },
             });
-
-            // Auto-approve callbacks for automated testing
-            const approvalManager = (orchestrator as any).approvalManager;
-            approvalManager.setPlanApprovalCallback(async () => 'approve');
-            approvalManager.setTaskApprovalCallback(async () => 'approve');
 
             let planCreated = false;
             let tasksCompleted = 0;

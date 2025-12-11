@@ -9,8 +9,8 @@ import { Box, Text, useInput } from 'ink';
 import TextInput from 'ink-text-input';
 import SelectInput from 'ink-select-input';
 import { PlanningMode } from '../../../core/slash-command-handler.js';
-import { configManager } from '../../../core/config-manager.js';
-import { sessionManager } from '../../../core/session-manager.js';
+import { configManager } from '../../../core/config/config-manager.js';
+import { sessionManager } from '../../../core/session/session-manager.js';
 import { LLMClient } from '../../../core/llm/llm-client.js';
 import { EndpointConfig } from '../../../types/index.js';
 

@@ -43,7 +43,7 @@ export const configScenarios: TestScenario[] = [
         action: {
           type: 'custom',
           fn: async () => {
-            const { configManager } = await import('../../../src/core/config-manager.js');
+            const { configManager } = await import('../../../src/core/config/config-manager.js');
             await configManager.initialize();
             const config = configManager.getConfig();
             const endpoint = configManager.getCurrentEndpoint();

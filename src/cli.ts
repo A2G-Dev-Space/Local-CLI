@@ -11,8 +11,8 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import React from 'react';
 import { render } from 'ink';
-import { configManager } from './core/config-manager.js';
-import { createLLMClient } from './core/llm-client.js';
+import { configManager } from './core/config/config-manager.js';
+import { createLLMClient } from './core/llm/llm-client.js';
 import { PlanExecuteApp } from './ui/components/PlanExecuteApp.js';
 import { setupLogging } from './utils/logger.js';
 

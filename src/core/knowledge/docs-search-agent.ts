@@ -191,8 +191,8 @@ export async function executeDocsSearchAgent(
     logger.flow('Extracting keywords from query');
     const keywords = extractKeywords(query);
 
-    // Log search initialization
-    logger.info('Documentation Search Agent Started');
+    // Log search initialization (debug only)
+    logger.debug('Documentation Search Agent Started');
     logger.vars(
       { name: 'query', value: query },
       { name: 'framework', value: frameworkDetection.framework || 'none' },
@@ -402,9 +402,9 @@ export async function executeDocsSearchAgent(
                    `Search completed but exceeded maximum iterations (${maxIterations}).`;
     }
 
-    // Log search completion
+    // Log search completion (debug only)
     const totalElapsed = logger.endTimer('docs-search-total');
-    logger.info('Documentation Search Completed', {
+    logger.debug('Documentation Search Completed', {
       iterations: iteration,
       maxIterations,
       totalTime: `${totalElapsed}ms`
@@ -497,7 +497,7 @@ Simply place your markdown (.md) files in this directory. The AI will be able to
 `;
 
       await fs.writeFile(readmePath, sampleReadme, 'utf-8');
-      logger.info('Created sample README.md', { path: readmePath });
+      logger.debug('Created sample README.md', { path: readmePath });
     }
 
     logger.exit('initializeDocsDirectory', { success: true });
@@ -537,7 +537,7 @@ export async function addDocumentationFile(
     // Write file
     logger.flow('Writing documentation file');
     await fs.writeFile(filePath, content, 'utf-8');
-    logger.info('Documentation file added successfully', { path: filePath, size: content.length });
+    logger.debug('Documentation file added successfully', { path: filePath, size: content.length });
 
     logger.exit('addDocumentationFile', { success: true, path: filePath });
 

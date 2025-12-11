@@ -23,15 +23,19 @@
 
 OPEN-CLI는 3가지 로깅 모드를 지원합니다.
 
+**중요**: Normal 모드(`open`)에서는 **로그가 전혀 출력되지 않습니다**.
+모든 사용자 피드백은 UI 컴포넌트로 처리됩니다.
+
 ### 1.1 모드 비교표
 
 | 기능 | Normal | Verbose | Debug |
 |------|--------|---------|-------|
 | 명령어 | `open` | `open --verbose` | `open --debug` |
-| 로그 레벨 | INFO | DEBUG | VERBOSE |
-| ERROR | O | O | O |
-| WARN | O | O | O |
-| INFO | O | O | O |
+| 로그 레벨 | WARN | DEBUG | VERBOSE |
+| 터미널 로그 출력 | **X** | O | O |
+| ERROR | X (UI로 표시) | O | O |
+| WARN | X (UI로 표시) | O | O |
+| INFO | X | X | X |
 | DEBUG | X | O | O |
 | VERBOSE | X | X | O |
 | 위치 정보 | X | O | O |
@@ -40,12 +44,14 @@ OPEN-CLI는 3가지 로깅 모드를 지원합니다.
 | HTTP 상세 | X | X | O |
 | Tool 상세 | X | X | O |
 
+> **참고**: INFO 레벨은 더 이상 사용하지 않습니다.
+> 기존 INFO → DEBUG 또는 VERBOSE로 마이그레이션하세요.
+
 ### 1.2 모드별 출력 예시
 
 **Normal Mode** (`open`)
 ```
-[2025-11-12T06:50:04.348Z] [OPEN-CLI] ℹ️  INFO: 애플리케이션 시작
-[2025-11-12T06:50:04.350Z] [OPEN-CLI] ⚠️  WARN: 설정 파일 없음
+(로그 출력 없음 - 모든 피드백은 UI로 표시)
 ```
 
 **Verbose Mode** (`open --verbose`)
@@ -98,32 +104,35 @@ import { logger } from '@/utils/logger';
 ### 2.2 기본 로깅
 
 ```typescript
-// 정보 메시지
-logger.info('서버가 시작되었습니다');
+// 디버그 메시지 (--verbose 모드에서 표시)
+logger.debug('서버가 시작되었습니다');
 
 // 데이터와 함께 로그
-logger.info('사용자 로그인', { userId: '123', email: 'user@example.com' });
+logger.debug('사용자 로그인', { userId: '123', email: 'user@example.com' });
 
-// 경고
-logger.warn('디스크 용량 부족', { available: '10%' });
+// 상세 메시지 (--debug 모드에서 표시)
+logger.verbose('상세 HTTP 응답', { headers, body });
 
-// 에러
+// 에러 (개발자 디버깅용, UI에서는 별도 처리)
 logger.error('데이터베이스 연결 실패', error);
 ```
+
+> **주의**: `logger.info()`는 더 이상 사용하지 않습니다.
+> Normal 모드에서 로그가 보이면 안 되므로, `logger.debug()` 또는 `logger.verbose()`를 사용하세요.
 
 ---
 
 ## 3. 로그 레벨 이해하기
 
-### 로그 레벨 5단계
+### 로그 레벨 (실제 사용하는 레벨)
 
 ```typescript
 enum LogLevel {
-  ERROR = 0,      // 시스템 작동 불가 문제
-  WARN = 1,       // 주의 필요 상황
-  INFO = 2,       // 중요한 정보 (기본값)
-  DEBUG = 3,      // 개발자용 디버그 정보
-  VERBOSE = 4,    // 매우 상세한 정보
+  ERROR = 0,      // 시스템 작동 불가 문제 (디버깅용)
+  WARN = 1,       // 주의 필요 상황 (Normal 모드 기본값 - 출력 안함)
+  // INFO = 2,    // ❌ 사용하지 않음 (deprecated)
+  DEBUG = 3,      // 개발자용 디버그 정보 (--verbose)
+  VERBOSE = 4,    // 매우 상세한 정보 (--debug)
 }
 ```
 
@@ -133,9 +142,12 @@ enum LogLevel {
 |------|--------|----------|------|
 | ERROR | ❌ | 시스템이 작동할 수 없는 문제 | `logger.error('DB 연결 실패', error)` |
 | WARN | ⚠️ | 문제는 아니지만 주의 필요 | `logger.warn('응답 시간 5초 초과')` |
-| INFO | ℹ️ | 사용자가 알아야 할 정보 | `logger.info('서버 시작됨')` |
+| ~~INFO~~ | ~~ℹ️~~ | ~~사용하지 않음~~ | ~~deprecated~~ |
 | DEBUG | 🐛 | 개발자용 디버그 정보 | `logger.debug('캐시 조회')` |
 | VERBOSE | 🔍 | 매우 상세한 추적 정보 | `logger.verbose('HTTP 헤더 상세')` |
+
+> **중요**: Normal 모드에서는 어떤 로그도 터미널에 출력되지 않습니다.
+> 사용자에게 보여줄 정보는 반드시 UI 컴포넌트로 처리하세요.
 
 ---
 
@@ -386,8 +398,8 @@ async function registerUser(email: string, password: string) {
     const user = await database.createUser({ email, password: hashedPassword });
     logger.endTimer('db-insert');
 
-    // 9. 정보 로깅
-    logger.info('사용자 등록 완료', { userId: user.id, email: user.email });
+    // 9. 디버그 로깅 (개발자용)
+    logger.debug('사용자 등록 완료', { userId: user.id, email: user.email });
 
     // 10. 함수 종료 (필수)
     logger.exit('registerUser', { userId: user.id });
@@ -454,7 +466,7 @@ async function processOrder(orderId: string) {
     order.status = 'completed';
     await saveOrder(order);
 
-    logger.info('주문 처리 완료', {
+    logger.debug('주문 처리 완료', {
       orderId,
       amount: order.amount,
       paymentId: payment.id
@@ -476,9 +488,9 @@ async function processOrder(orderId: string) {
 ### 기본 로깅
 
 ```typescript
-logger.error('에러 메시지', error);           // ❌ 에러
-logger.warn('경고 메시지', data);              // ⚠️ 경고
-logger.info('정보 메시지', data);              // ℹ️ 정보
+logger.error('에러 메시지', error);           // ❌ 에러 (디버깅용)
+logger.warn('경고 메시지', data);              // ⚠️ 경고 (디버깅용)
+// logger.info() - ❌ 사용하지 않음 (deprecated)
 logger.debug('디버그 메시지', data);           // 🐛 디버그 (--verbose)
 logger.verbose('상세 메시지', data);           // 🔍 Verbose (--debug)
 ```

@@ -13,7 +13,7 @@
  */
 
 import { ToolDefinition } from '../types/index.js';
-import { LLMClient } from '../core/llm-client.js';
+import { LLMClient } from '../core/llm/llm-client.js';
 
 /**
  * Tool categories for classification and registration

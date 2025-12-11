@@ -7,7 +7,7 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
 import SelectInput from 'ink-select-input';
-import { sessionManager, SessionSummary } from '../../../core/session-manager.js';
+import { sessionManager, SessionSummary } from '../../../core/session/session-manager.js';
 
 interface SessionBrowserProps {
   onSelect: (sessionId: string) => void;

@@ -4,10 +4,10 @@
  * Executes TODO items sequentially with documentation search and LLM tools
  */
 
-import { LLMClient } from './llm-client.js';
+import { LLMClient } from './llm/llm-client.js';
 import { TodoItem, Message } from '../types/index.js';
-import { executeDocsSearchAgent } from './docs-search-agent.js';
-import { FILE_TOOLS } from '../tools/file-tools.js';
+import { executeDocsSearchAgent } from './knowledge/docs-search-agent.js';
+import { FILE_TOOLS } from '../tools/llm/simple/file-tools.js';
 import { logger } from '../utils/logger.js';
 
 /**
@@ -197,7 +197,7 @@ export class TodoExecutor {
     const completedTodos = todos.filter(t => t.status === 'completed');
 
     if (pendingTodos.length === 0) {
-      logger.info('ℹ️ All TODOs are already completed');
+      logger.debug('ℹ️ All TODOs are already completed');
       return { messages, todos };
     }
 
