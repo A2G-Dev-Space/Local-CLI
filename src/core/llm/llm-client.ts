@@ -205,12 +205,15 @@ export class LLMClient {
         { name: 'responseTime', value: elapsed }
       );
 
-      // Track token usage (Phase 3)
+      // Track token usage (Phase 3) + context tracking for auto-compact
       if (response.data.usage) {
+        const promptTokens = response.data.usage.prompt_tokens || 0;
         usageTracker.recordUsage(
           this.model,
-          response.data.usage.prompt_tokens || 0,
-          response.data.usage.completion_tokens || 0
+          promptTokens,
+          response.data.usage.completion_tokens || 0,
+          undefined,  // sessionId
+          promptTokens  // lastPromptTokens for context tracking
         );
       }
 

@@ -380,6 +380,9 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         onShowSessionBrowser: () => setShowSessionBrowser(true),
         onShowSettings: () => setShowSettings(true),
         onShowModelSelector: () => setShowModelSelector(true),
+        onCompact: llmClient
+          ? () => planExecutionState.performCompact(llmClient, messages, setMessages)
+          : undefined,
       };
 
       const result = await executeSlashCommand(userMessage, commandContext);
@@ -406,6 +409,23 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
     logger.startTimer('message-processing');
 
     try {
+      // Check for auto-compact before processing (80% threshold)
+      if (planExecutionState.shouldAutoCompact()) {
+        logger.flow('Auto-compact triggered');
+        setActivityType('thinking');
+        setActivityDetail('Compacting conversation...');
+
+        const compactResult = await planExecutionState.performCompact(llmClient, messages, setMessages);
+        if (compactResult.success) {
+          logger.debug('Auto-compact completed', {
+            originalCount: compactResult.originalMessageCount,
+            newCount: compactResult.newMessageCount,
+          });
+        } else {
+          logger.warn('Auto-compact failed, continuing without compact', { error: compactResult.error });
+        }
+      }
+
       // Phase 1: Use auto mode with LLM-based request classification
       setActivityType('thinking');
       setActivityDetail('Analyzing request...');
@@ -693,6 +713,17 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
           // Default status bar
           <>
             <Box>
+              {/* Context remaining indicator */}
+              {(() => {
+                const ctxPercent = planExecutionState.getContextRemainingPercent();
+                const ctxColor = ctxPercent > 50 ? 'green' : ctxPercent > 20 ? 'yellow' : 'red';
+                return (
+                  <>
+                    <Text color={ctxColor}>CTX {ctxPercent}%</Text>
+                    <Text color="gray"> │ </Text>
+                  </>
+                );
+              })()}
               {/* Model info - always visible */}
               <Text color="gray">{getHealthIndicator()} </Text>
               <Text color="cyan">{currentModelInfo.model}</Text>

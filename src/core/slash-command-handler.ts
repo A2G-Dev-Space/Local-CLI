@@ -17,6 +17,13 @@ import {
 // Planning mode is always 'auto' - other modes have been removed
 export type PlanningMode = 'auto';
 
+export interface CompactResult {
+  success: boolean;
+  originalMessageCount: number;
+  newMessageCount: number;
+  error?: string;
+}
+
 export interface CommandHandlerContext {
   planningMode: PlanningMode;
   messages: Message[];
@@ -29,6 +36,7 @@ export interface CommandHandlerContext {
   onShowSessionBrowser?: () => void;
   onShowSettings?: () => void;
   onShowModelSelector?: () => void;
+  onCompact?: () => Promise<CompactResult>;
 }
 
 export interface CommandExecutionResult {
@@ -64,6 +72,42 @@ export async function executeSlashCommand(
       updatedContext: {
         messages: [],
         todos: [],
+      },
+    };
+  }
+
+  // Compact command - compress conversation history
+  if (trimmedCommand === '/compact') {
+    if (context.onCompact) {
+      const result = await context.onCompact();
+      const compactMessage = result.success
+        ? `✅ 대화가 압축되었습니다. (${result.originalMessageCount}개 → ${result.newMessageCount}개 메시지)`
+        : `❌ 압축 실패: ${result.error}`;
+      const updatedMessages = [
+        ...context.messages,
+        { role: 'assistant' as const, content: compactMessage },
+      ];
+      context.setMessages(updatedMessages);
+      return {
+        handled: true,
+        shouldContinue: false,
+        updatedContext: {
+          messages: updatedMessages,
+        },
+      };
+    }
+    // Fallback if no compact callback
+    const fallbackMessage = '/compact는 interactive mode에서만 사용할 수 있습니다.';
+    const updatedMessages = [
+      ...context.messages,
+      { role: 'assistant' as const, content: fallbackMessage },
+    ];
+    context.setMessages(updatedMessages);
+    return {
+      handled: true,
+      shouldContinue: false,
+      updatedContext: {
+        messages: updatedMessages,
       },
     };
   }
@@ -260,6 +304,7 @@ export async function executeSlashCommand(
 Available commands:
   /exit, /quit    - Exit the application
   /clear          - Clear conversation and TODOs
+  /compact        - Compact conversation to free up context
   /settings       - Open settings menu
   /model          - Switch between LLM models
   /load           - Load a saved session

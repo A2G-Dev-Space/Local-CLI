@@ -26,8 +26,15 @@ import {
   type AskUserResponse,
 } from '../../tools/llm/simple/ask-user-tool.js';
 import { DEFAULT_SYSTEM_PROMPT } from '../../orchestration/llm-schemas.js';
+import {
+  CompactManager,
+  CompactResult,
+  contextTracker,
+  buildCompactedMessages,
+} from '../../core/compact/index.js';
+import { configManager } from '../../core/config/config-manager.js';
 
-export type ExecutionPhase = 'idle' | 'classifying' | 'planning' | 'executing';
+export type ExecutionPhase = 'idle' | 'classifying' | 'planning' | 'executing' | 'compacting';
 
 export interface PlanExecutionState {
   todos: TodoItem[];
@@ -64,6 +71,13 @@ export interface PlanExecutionActions {
     messages: Message[],
     setMessages: React.Dispatch<React.SetStateAction<Message[]>>
   ) => Promise<void>;
+  performCompact: (
+    llmClient: LLMClient,
+    messages: Message[],
+    setMessages: React.Dispatch<React.SetStateAction<Message[]>>
+  ) => Promise<CompactResult>;
+  shouldAutoCompact: () => boolean;
+  getContextRemainingPercent: () => number;
 }
 
 /**
@@ -453,6 +467,74 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
     }
   }, [executionPhase, isInterrupted]);
 
+  /**
+   * Perform conversation compaction
+   */
+  const performCompact = useCallback(async (
+    llmClient: LLMClient,
+    messages: Message[],
+    setMessages: React.Dispatch<React.SetStateAction<Message[]>>
+  ): Promise<CompactResult> => {
+    logger.enter('performCompact', { messageCount: messages.length });
+    setExecutionPhase('compacting');
+    setCurrentActivity('대화 압축 중');
+
+    try {
+      const compactManager = new CompactManager(llmClient);
+
+      const result = await compactManager.compact(messages, {
+        todos,
+        workingDirectory: process.cwd(),
+        currentModel: configManager.getCurrentModel()?.name,
+        recentFiles: contextTracker.getRecentFiles(),
+      });
+
+      if (result.success && result.compactedSummary) {
+        const compactedMessages = buildCompactedMessages(result.compactedSummary, {
+          workingDirectory: process.cwd(),
+        });
+        setMessages(compactedMessages);
+        contextTracker.reset();
+        sessionManager.autoSaveCurrentSession(compactedMessages);
+        logger.flow('Compact completed successfully');
+      }
+
+      logger.exit('performCompact', { success: result.success });
+      return result;
+
+    } catch (error) {
+      logger.error('Compact failed', error as Error);
+      return {
+        success: false,
+        originalMessageCount: messages.length,
+        newMessageCount: messages.length,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    } finally {
+      setExecutionPhase('idle');
+      setCurrentActivity('대기 중');
+    }
+  }, [todos]);
+
+  /**
+   * Check if auto-compact should trigger
+   */
+  const shouldAutoCompact = useCallback((): boolean => {
+    const model = configManager.getCurrentModel();
+    const maxTokens = model?.maxTokens || 128000;
+    return contextTracker.shouldTriggerAutoCompact(maxTokens);
+  }, []);
+
+  /**
+   * Get context remaining percentage
+   */
+  const getContextRemainingPercent = useCallback((): number => {
+    const model = configManager.getCurrentModel();
+    const maxTokens = model?.maxTokens || 128000;
+    const usage = contextTracker.getContextUsage(maxTokens);
+    return usage.remainingPercentage;
+  }, []);
+
   logger.exit('usePlanExecution');
 
   return {
@@ -469,5 +551,8 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
     executeAutoMode,
     executePlanMode,
     executeDirectMode,
+    performCompact,
+    shouldAutoCompact,
+    getContextRemainingPercent,
   };
 }

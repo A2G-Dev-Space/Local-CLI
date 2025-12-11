@@ -27,6 +27,8 @@ export interface StatusBarProps {
     current: number;
     max: number;
   };
+  // Context remaining percentage for auto-compact indicator
+  contextRemainingPercent?: number;
   // TODO status
   todoCount?: number;
   todoCompleted?: number;
@@ -135,6 +137,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({
   messageCount = 0,
   sessionTokens = 0,
   contextUsage,
+  contextRemainingPercent,
   todoCount,
   todoCompleted,
   healthStatus,
@@ -204,11 +207,28 @@ export const StatusBar: React.FC<StatusBarProps> = ({
     );
   }
 
+  // Context remaining indicator color
+  const getContextColor = (percent: number): string => {
+    if (percent > 50) return 'green';
+    if (percent > 20) return 'yellow';
+    return 'red';
+  };
+
   // 기본 상태바 (idle, error 등)
   return (
     <Box justifyContent="space-between" paddingX={1}>
-      {/* Left section: Health, Status, Model */}
+      {/* Left section: Context remaining, Health, Status, Model */}
       <Box>
+        {/* Context remaining indicator (for auto-compact) */}
+        {contextRemainingPercent !== undefined && (
+          <>
+            <Text color={getContextColor(contextRemainingPercent)}>
+              CTX {contextRemainingPercent}%
+            </Text>
+            <Text color="gray"> | </Text>
+          </>
+        )}
+
         {getHealthIcon()}
         <Text> </Text>
         {getStatusIndicator()}

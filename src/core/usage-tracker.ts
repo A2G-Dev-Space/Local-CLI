@@ -78,6 +78,8 @@ export interface SessionUsage {
   requestCount: number;
   startTime: number;
   models: Record<string, number>;
+  /** Last prompt_tokens for context usage tracking */
+  lastPromptTokens: number;
 }
 
 const DATA_DIR = path.join(process.env['HOME'] || '.', '.open-code-cli');
@@ -98,6 +100,7 @@ class UsageTrackerClass {
     requestCount: 0,
     startTime: Date.now(),
     models: {},
+    lastPromptTokens: 0,
   };
 
   constructor() {
@@ -164,12 +167,14 @@ class UsageTrackerClass {
    * Record token usage (개별 LLM 호출마다)
    * - 현재 세션 사용량 업데이트
    * - 전체 통계 업데이트
+   * @param promptTokens - Optional: last prompt_tokens for context tracking
    */
   recordUsage(
     model: string,
     inputTokens: number,
     outputTokens: number,
-    sessionId?: string
+    sessionId?: string,
+    promptTokens?: number
   ): void {
     logger.enter('UsageTracker.recordUsage', { model, inputTokens, outputTokens });
 
@@ -183,6 +188,11 @@ class UsageTrackerClass {
     this.currentSession.totalTokens += totalTokens;
     this.currentSession.requestCount += 1;
     this.currentSession.models[model] = (this.currentSession.models[model] || 0) + totalTokens;
+
+    // Update lastPromptTokens for context tracking
+    if (promptTokens !== undefined) {
+      this.currentSession.lastPromptTokens = promptTokens;
+    }
 
     // Add record
     const record: UsageRecord = {
@@ -319,6 +329,7 @@ class UsageTrackerClass {
       requestCount: 0,
       startTime: Date.now(),
       models: {},
+      lastPromptTokens: 0,
     };
   }
 
