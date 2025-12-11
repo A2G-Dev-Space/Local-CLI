@@ -20,6 +20,8 @@ interface TodoPanelProps {
   currentTodoId?: string;
   showDetails?: boolean;
   tokenUsage?: Map<string, number>;
+  modelName?: string;
+  isProcessing?: boolean;
 }
 
 // Status configuration
@@ -105,32 +107,6 @@ function formatTokens(count: number): string {
   return `${(count / 1000).toFixed(1)}k`;
 }
 
-/**
- * Estimate remaining time based on completed tasks
- */
-function estimateRemaining(todos: TodoItem[]): string {
-  const completed = todos.filter(t => t.status === 'completed' && t.startedAt && t.completedAt);
-  if (completed.length === 0) return '';
-
-  // Calculate average duration
-  let totalDuration = 0;
-  completed.forEach(todo => {
-    const start = new Date(todo.startedAt!).getTime();
-    const end = new Date(todo.completedAt!).getTime();
-    totalDuration += (end - start);
-  });
-  const avgDuration = totalDuration / completed.length;
-
-  // Remaining tasks
-  const remaining = todos.filter(t => t.status === 'pending' || t.status === 'in_progress').length;
-  const estimatedMs = remaining * avgDuration;
-
-  const seconds = Math.floor(estimatedMs / 1000);
-  if (seconds < 60) return `~${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `~${minutes}m`;
-  return `~${Math.floor(minutes / 60)}h`;
-}
 
 /**
  * TODO Panel Component
@@ -140,9 +116,11 @@ export const TodoPanel: React.FC<TodoPanelProps> = ({
   currentTodoId,
   showDetails = false,
   tokenUsage,
+  modelName,
+  isProcessing = false,
 }) => {
-  const [_elapsedTime, setElapsedTime] = useState(0);
-  // elapsedTime reserved for future use (display in UI)
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [startTime] = useState(Date.now());
 
   // Log component lifecycle
   useEffect(() => {
@@ -156,13 +134,14 @@ export const TodoPanel: React.FC<TodoPanelProps> = ({
     };
   }, []);
 
-  // Update elapsed time for current task
+  // Update elapsed time
   useEffect(() => {
+    if (!isProcessing) return;
     const interval = setInterval(() => {
-      setElapsedTime(prev => prev + 1);
+      setElapsedTime(Math.floor((Date.now() - startTime) / 1000));
     }, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [isProcessing, startTime]);
 
   // Log when todos change
   useEffect(() => {
@@ -185,13 +164,23 @@ export const TodoPanel: React.FC<TodoPanelProps> = ({
   const completedCount = todos.filter(t => t.status === 'completed').length;
   const failedCount = todos.filter(t => t.status === 'failed').length;
   const inProgressCount = todos.filter(t => t.status === 'in_progress').length;
-  const remaining = estimateRemaining(todos);
 
   // Calculate total tokens used
   let totalTokens = 0;
   if (tokenUsage) {
     tokenUsage.forEach(count => totalTokens += count);
   }
+
+  // Format elapsed time as mm:ss or hh:mm:ss
+  const formatElapsedTime = (seconds: number): string => {
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    if (hrs > 0) {
+      return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   return (
     <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={1}>
@@ -207,14 +196,18 @@ export const TodoPanel: React.FC<TodoPanelProps> = ({
               {completedCount}/{todos.length}
             </Text>
             {failedCount > 0 && <Text color="red"> ({failedCount} failed)</Text>}
-            {remaining && <Text color="yellow"> {remaining} left</Text>}
           </Box>
         </Box>
-        <Box marginTop={0}>
+        <Box marginTop={0} justifyContent="space-between">
           <ProgressBar completed={completedCount} total={todos.length} width={30} />
-          {totalTokens > 0 && (
-            <Text color="gray" dimColor> | {formatTokens(totalTokens)} tokens</Text>
-          )}
+          <Box>
+            {isProcessing && (
+              <Text color="yellow">({formatElapsedTime(elapsedTime)}) </Text>
+            )}
+            {modelName && (
+              <Text color="magenta">{modelName}</Text>
+            )}
+          </Box>
         </Box>
       </Box>
 

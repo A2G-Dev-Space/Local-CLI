@@ -357,13 +357,17 @@ export class PlanExecuteOrchestrator extends EventEmitter {
   }
 
   /**
-   * Call LLM for task execution
+   * Call LLM for task execution with retry logic
    */
   private async callLLMForTask(
-    input: PlanExecuteLLMInput
+    input: PlanExecuteLLMInput,
+    retryCount: number = 0
   ): Promise<PlanExecuteLLMOutput> {
+    const MAX_RETRIES = 2;
+
     logger.enter('PlanExecuteOrchestrator.callLLMForTask', {
       taskId: input.current_task.id,
+      retryCount,
     });
 
     try {
@@ -376,14 +380,43 @@ export class PlanExecuteOrchestrator extends EventEmitter {
       const parseResult = parseLLMResponse(response);
 
       if (!parseResult.success || !parseResult.data) {
-        logger.warn('Failed to parse LLM response', { error: parseResult.error });
+        // Retry with stronger JSON enforcement prompt
+        if (retryCount < MAX_RETRIES) {
+          logger.debug('LLM response not in JSON format, retrying with enforcement', {
+            retryCount: retryCount + 1,
+            responsePreview: response.substring(0, 100)
+          });
+
+          // Add retry prompt to enforce JSON format
+          const retryInput = {
+            ...input,
+            error_log: {
+              ...input.error_log,
+              is_debug: true,
+              error_message: 'Previous response was not valid JSON. You MUST respond with a valid JSON object only.',
+              error_details: `Your response must be a JSON object with this exact structure:
+{
+  "status": "success" | "failed" | "needs_debug",
+  "result": "your result here",
+  "log_entries": []
+}
+Do NOT include any text, code, or explanations outside the JSON object.`,
+            },
+          };
+
+          return this.callLLMForTask(retryInput, retryCount + 1);
+        }
+
+        // After max retries, use the raw response as result (fallback)
+        logger.debug('Max retries reached, using raw response as fallback');
         return {
-          status: 'failed',
-          result: '',
-          log_entries: [],
-          error: {
-            message: parseResult.error || 'Failed to parse LLM response',
-          },
+          status: 'success',
+          result: response,
+          log_entries: [{
+            level: 'info',
+            message: 'LLM returned non-JSON response, using raw output',
+            timestamp: new Date().toISOString(),
+          }],
         };
       }
 

@@ -756,14 +756,14 @@ export class Logger {
 /**
  * Global logger instance
  *
- * 기본값은 WARN 레벨 (Normal 모드에서 로그 출력 없음)
+ * 기본값은 ERROR 레벨 (Normal 모드에서 로그 출력 없음)
  * CLI argument로 레벨 조정:
- * - Normal mode (open): WARN (로그 출력 없음, UI로만 피드백)
- * - Verbose mode (open --verbose): DEBUG
+ * - Normal mode (open): ERROR (로그 출력 없음, UI로만 피드백)
+ * - Verbose mode (open --verbose): WARN
  * - Debug mode (open --debug): VERBOSE
  */
 export const logger = new Logger({
-  level: LogLevel.WARN, // Normal 모드: 로그 출력 없음
+  level: LogLevel.ERROR, // Normal 모드: 로그 출력 없음 (ERROR만 표시)
   prefix: 'OPEN-CLI',
   timestamp: true,
   showLocation: false, // setLogLevel()에서 동적으로 변경

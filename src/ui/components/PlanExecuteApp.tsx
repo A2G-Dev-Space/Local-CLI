@@ -611,8 +611,8 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         currentResponse={currentResponse}
       />
 
-      {/* Activity Indicator (shown when processing) */}
-      {isProcessing && (
+      {/* Activity Indicator (shown when processing, but NOT when TODO panel is visible) */}
+      {isProcessing && planExecutionState.todos.length === 0 && (
         <Box marginY={0}>
           <ActivityIndicator
             activity={getCurrentActivityType()}
@@ -620,12 +620,6 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
             detail={activityDetail}
             subActivities={subActivities}
             modelName={currentModelInfo.model}
-            currentStep={planExecutionState.todos.filter(t => t.status === 'completed').length}
-            totalSteps={planExecutionState.todos.length || undefined}
-            stepName={planExecutionState.currentTodoId ?
-              planExecutionState.todos.find(t => t.id === planExecutionState.currentTodoId)?.title
-              : undefined
-            }
           />
         </Box>
       )}
@@ -637,6 +631,8 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
             todos={planExecutionState.todos}
             currentTodoId={planExecutionState.currentTodoId}
             showDetails={showTodoDetails}
+            modelName={currentModelInfo.model}
+            isProcessing={isProcessing}
           />
         </Box>
       )}
