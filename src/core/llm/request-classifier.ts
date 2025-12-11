@@ -51,7 +51,7 @@ export class RequestClassifier {
    - Concept explanations
    - Short code snippets or examples
    - Conversations or greetings
-   - Requests that can be answered in one response
+   - Requests that can be answered in ONE response with 3 or fewer tool calls
 
 2. **requires_todo** - Use when:
    - Create, build, implement, develop, make something
@@ -61,6 +61,12 @@ export class RequestClassifier {
    - Code refactoring or optimization
    - Bug fixing that requires multiple changes
    - Tasks that need planning and execution
+   - **IMPORTANT: If the task likely requires MORE than 3 tool calls or responses, use requires_todo**
+
+**Quick Decision Guide**:
+- Can this be done in ≤3 tool calls? → simple_response
+- Will this need 4+ tool calls or multiple steps? → requires_todo
+- When in doubt, prefer requires_todo for better task tracking
 
 **Response Format** (JSON only):
 {
