@@ -806,7 +806,7 @@ export const FILE_TOOLS: ToolDefinition[] = FILE_SIMPLE_TOOLS.map((tool) => tool
 /**
  * Callback for tool execution events (reason display to user)
  */
-type ToolExecutionCallback = (toolName: string, reason: string, filePath?: string) => void;
+type ToolExecutionCallback = (toolName: string, reason: string, args: Record<string, unknown>) => void;
 let toolExecutionCallback: ToolExecutionCallback | null = null;
 
 /**
@@ -962,13 +962,12 @@ export async function executeFileTool(
     };
   }
 
-  // Extract reason and file path from args
+  // Extract reason from args
   const reason = args['reason'] as string | undefined;
-  const filePath = (args['file_path'] || args['directory_path']) as string | undefined;
 
-  // Call the callback to notify UI about tool execution
+  // Call the callback to notify UI about tool execution (pass all args)
   if (toolExecutionCallback && reason) {
-    toolExecutionCallback(toolName, reason, filePath);
+    toolExecutionCallback(toolName, reason, args);
   }
 
   // Execute the tool

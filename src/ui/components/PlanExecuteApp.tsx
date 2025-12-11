@@ -30,7 +30,7 @@ export interface LogEntry {
   type: LogEntryType;
   content: string;
   details?: string;
-  filePath?: string;
+  toolArgs?: Record<string, unknown>;  // For tool_start (all args)
   success?: boolean;
   items?: string[];  // For plan_created (todo list)
   diff?: string[];   // For tool_result with diff
@@ -192,14 +192,14 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
 
   // Setup tool execution callback - adds to Static log
   useEffect(() => {
-    setToolExecutionCallback((toolName, reason, filePath) => {
+    setToolExecutionCallback((toolName, reason, args) => {
       addLog({
         type: 'tool_start',
         content: toolName,
         details: reason,  // reason은 축약하지 않음
-        filePath,
+        toolArgs: args,
       });
-      logger.debug('Tool execution started', { toolName, reason, filePath });
+      logger.debug('Tool execution started', { toolName, reason, args });
     });
 
     return () => {
@@ -779,12 +779,44 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
           </Box>
         );
 
-      case 'tool_start':
+      case 'tool_start': {
+        // Tool별 핵심 파라미터 추출
+        const getToolParams = (toolName: string, args: Record<string, unknown> | undefined): string => {
+          if (!args) return '';
+          switch (toolName) {
+            case 'read_file':
+              return args['file_path'] as string || '';
+            case 'create_file':
+              return args['file_path'] as string || '';
+            case 'edit_file': {
+              const filePath = args['file_path'] as string || '';
+              const edits = args['edits'] as Array<unknown> || [];
+              return `${filePath}, ${edits.length} edits`;
+            }
+            case 'list_files': {
+              const dir = args['directory_path'] as string || '.';
+              const recursive = args['recursive'] ? ', recursive' : '';
+              return `${dir}${recursive}`;
+            }
+            case 'find_files': {
+              const pattern = args['pattern'] as string || '';
+              const dir = args['directory_path'] as string;
+              return dir ? `${pattern} in ${dir}` : pattern;
+            }
+            case 'tell_to_user':
+              return '';  // tell_to_user는 파라미터 표시 안함
+            default:
+              return '';
+          }
+        };
+
+        const params = getToolParams(entry.content, entry.toolArgs);
+
         return (
           <Box key={entry.id} flexDirection="column" marginTop={1}>
             <Box>
               <Text color="cyan" bold>● {entry.content}</Text>
-              {entry.filePath && <Text color="gray"> ({entry.filePath})</Text>}
+              {params && <Text color="gray">({params})</Text>}
             </Box>
             {entry.details && (
               <Box marginLeft={2}>
@@ -794,6 +826,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
             )}
           </Box>
         );
+      }
 
       case 'tool_result': {
         // diff가 있으면 전체 diff 표시
