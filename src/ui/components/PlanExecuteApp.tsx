@@ -750,6 +750,9 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
       case 'logo':
         return (
           <Box key={entry.id} flexDirection="column" marginBottom={1}>
+            <Text>{' '}</Text>
+            <Text>{' '}</Text>
+            <Text>{' '}</Text>
             <Text color="cyan" bold>   ____  _____  ______ _   _        _____ _      _____ </Text>
             <Text color="cyan" bold>  / __ \|  __ \|  ____| \ | |      / ____| |    |_   _|</Text>
             <Text color="cyan" bold> | |  | | |__) | |__  |  \| |_____| |    | |      | |  </Text>
