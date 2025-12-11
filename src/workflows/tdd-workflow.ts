@@ -19,7 +19,6 @@ import {
   ImplementationContext,
 } from '../types/index.js';
 import { LLMClient } from '../core/llm-client.js';
-import { WorkVerifier } from '../core/work-verifier.js';
 
 const execAsync = promisify(exec);
 
@@ -297,16 +296,10 @@ Provide the complete implementation.`;
 export class TDDWorkflow {
   private testRunner: TestRunner;
   private codeGenerator: CodeGenerator;
-  // @ts-expect-error - Reserved for future verification features
-  private _verifier: WorkVerifier;
 
-  constructor(
-    llmClient: LLMClient,
-    verifier?: WorkVerifier
-  ) {
+  constructor(llmClient: LLMClient) {
     this.testRunner = new TestRunner();
     this.codeGenerator = new CodeGenerator(llmClient);
-    this._verifier = verifier || new WorkVerifier(llmClient);
   }
 
   /**

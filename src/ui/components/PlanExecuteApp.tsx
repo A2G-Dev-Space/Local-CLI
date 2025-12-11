@@ -2,582 +2,375 @@
  * Plan & Execute Interactive App
  *
  * Enhanced interactive mode with Plan-and-Execute Architecture
+ * Refactored to use modular hooks and components
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { Box, Text, useInput, useApp } from 'ink';
 import Spinner from 'ink-spinner';
 import { CustomTextInput } from './CustomTextInput.js';
-import { LLMClient } from '../../core/llm-client.js';
-import { Message, TodoItem } from '../../types/index.js';
-import { PlanExecuteOrchestrator } from '../../plan-and-execute/orchestrator.js';
+import { LLMClient, createLLMClient } from '../../core/llm-client.js';
+import { Message } from '../../types/index.js';
 import { TodoPanel, TodoStatusBar } from '../TodoPanel.js';
 import { sessionManager } from '../../core/session-manager.js';
 import { initializeDocsDirectory } from '../../core/docs-search-agent.js';
-import { performDocsSearchIfNeeded } from '../../core/agent-framework-handler.js';
 import { FileBrowser } from './FileBrowser.js';
 import { SessionBrowser } from './SessionBrowser.js';
-import { PlanApprovalPrompt, TaskApprovalPrompt, ApprovalAction } from './ApprovalPrompt.js';
-import { detectAtTrigger, insertFilePaths } from '../hooks/atFileProcessor.js';
-import { loadFileList, FileItem } from '../hooks/useFileList.js';
-import { BaseError } from '../../errors/base.js';
+import { SettingsBrowser } from './SettingsBrowser.js';
+import { LLMSetupWizard } from './LLMSetupWizard.js';
+import { ModelSelector } from './ModelSelector.js';
+import { PlanApprovalPrompt, TaskApprovalPrompt } from './ApprovalPrompt.js';
 import { CommandBrowser } from './CommandBrowser.js';
-import {
-  detectSlashTrigger,
-  insertSlashCommand,
-  isValidCommand,
-} from '../hooks/slashCommandProcessor.js';
+import { ChatView } from './views/ChatView.js';
+import { Logo } from './Logo.js';
+import { ActivityIndicator, type ActivityType, type SubActivity } from './ActivityIndicator.js';
+import { useFileBrowserState } from '../hooks/useFileBrowserState.js';
+import { useCommandBrowserState } from '../hooks/useCommandBrowserState.js';
+import { usePlanExecution } from '../hooks/usePlanExecution.js';
+import { isValidCommand } from '../hooks/slashCommandProcessor.js';
 import {
   executeSlashCommand,
   isSlashCommand,
   type CommandHandlerContext,
-  type AppMode,
+  type PlanningMode,
 } from '../../core/slash-command-handler.js';
-  import { closeJsonStreamLogger } from '../../utils/json-stream-logger.js';
+import { closeJsonStreamLogger } from '../../utils/json-stream-logger.js';
+import { configManager } from '../../core/config-manager.js';
+import { logger } from '../../utils/logger.js';
+
+// Initialization steps for detailed progress display
+type InitStep = 'docs' | 'config' | 'health' | 'done';
 
 interface PlanExecuteAppProps {
-  llmClient: LLMClient;
+  llmClient: LLMClient | null;
   modelInfo: {
     model: string;
     endpoint: string;
   };
 }
 
-/**
- * Format error for display with all available details
- */
-function formatErrorMessage(error: unknown): string {
-  if (error instanceof BaseError) {
-    // Use custom error's userMessage which is designed for end users
-    let message = `❌ ${error.getUserMessage()}\n`;
-
-    // Add error code
-    message += `\n📋 Error Code: ${error.code}`;
-
-    // Add details if available and not empty
-    if (error.details && Object.keys(error.details).length > 0) {
-      message += `\n\n🔍 Details:`;
-      for (const [key, value] of Object.entries(error.details)) {
-        // Skip fullError as it's too verbose
-        if (key === 'fullError') continue;
-
-        if (typeof value === 'object') {
-          message += `\n  • ${key}: ${JSON.stringify(value, null, 2)}`;
-        } else {
-          message += `\n  • ${key}: ${value}`;
-        }
-      }
-    }
-
-    // Add recovery hint
-    if (error.isRecoverable) {
-      message += `\n\n💡 이 오류는 복구 가능합니다. 다시 시도해보세요.`;
-    }
-
-    // Add timestamp
-    message += `\n\n🕐 시간: ${error.timestamp.toLocaleString('ko-KR')}`;
-
-    return message;
-  }
-
-  // Regular Error
-  if (error instanceof Error) {
-    let message = `❌ Error: ${error.message}\n`;
-
-    if (error.stack) {
-      message += `\n📚 Stack Trace:\n${error.stack}`;
-    }
-
-    return message;
-  }
-
-  // Unknown error type
-  return `❌ Unknown Error: ${String(error)}`;
-}
-
-export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, modelInfo }) => {
+export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initialLlmClient, modelInfo }) => {
   const { exit } = useApp();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentResponse, setCurrentResponse] = useState('');
-  const [mode, setMode] = useState<AppMode>('auto');
+  const [planningMode, setPlanningMode] = useState<PlanningMode>('auto');
 
-  // Plan & Execute specific state
-  const [todos, setTodos] = useState<TodoItem[]>([]);
-  const [currentTodoId, setCurrentTodoId] = useState<string | undefined>();
-  const [showTodoPanel, setShowTodoPanel] = useState(true);
-  const [executionPhase, setExecutionPhase] = useState<'idle' | 'planning' | 'executing'>('idle');
+  // LLM Client state - 모델 변경 시 새로운 클라이언트로 교체
+  const [llmClient, setLlmClient] = useState<LLMClient | null>(initialLlmClient);
 
-  // File browser state
-  const [showFileBrowser, setShowFileBrowser] = useState(false);
-  const [atPosition, setAtPosition] = useState(-1);
-  const [filterText, setFilterText] = useState('');
+  // Pending user message (shown immediately after Enter)
+  const [pendingUserMessage, setPendingUserMessage] = useState<string | null>(null);
 
-  // Pre-loaded file list cache (loaded once at startup)
-  const [cachedFileList, setCachedFileList] = useState<FileItem[]>([]);
-  const [isLoadingFiles, setIsLoadingFiles] = useState(true);
-
-  // Command browser state
-  const [showCommandBrowser, setShowCommandBrowser] = useState(false);
-  const [partialCommand, setPartialCommand] = useState('');
-  const [commandArgs, setCommandArgs] = useState('');
+  // Activity tracking for detailed status display
+  const [activityType, setActivityType] = useState<ActivityType>('thinking');
+  const [activityStartTime, setActivityStartTime] = useState<number>(Date.now());
+  const [activityDetail, setActivityDetail] = useState<string>('');
+  const [subActivities, setSubActivities] = useState<SubActivity[]>([]);
 
   // Session browser state
   const [showSessionBrowser, setShowSessionBrowser] = useState(false);
 
-  // HITL approval state
-  const [planApprovalRequest, setPlanApprovalRequest] = useState<{
-    userRequest: string;
-    todos: TodoItem[];
-  } | null>(null);
-  const [taskApprovalRequest, setTaskApprovalRequest] = useState<{
-    taskDescription: string;
-    risk: any;
-    context?: string;
-  } | null>(null);
-  const [approvalResolver, setApprovalResolver] = useState<{
-    resolve: (action: string) => void;
-  } | null>(null);
+  // Settings browser state
+  const [showSettings, setShowSettings] = useState(false);
 
-  // Initialize docs directory on startup
+  // LLM Setup Wizard state
+  const [showSetupWizard, setShowSetupWizard] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [initStep, setInitStep] = useState<InitStep>('docs');
+  const [healthStatus, setHealthStatus] = useState<'checking' | 'healthy' | 'unhealthy' | 'unknown'>('checking');
+
+  // Model Selector state
+  const [showModelSelector, setShowModelSelector] = useState(false);
+  const [currentModelInfo, setCurrentModelInfo] = useState(modelInfo);
+
+  // Use modular hooks
+  const fileBrowserState = useFileBrowserState(input, isProcessing);
+  const commandBrowserState = useCommandBrowserState(input, isProcessing);
+  const planExecutionState = usePlanExecution();
+
+  // Log component mount
   useEffect(() => {
-    initializeDocsDirectory().catch(console.warn);
-  }, []);
-
-  // Load file list once on mount (background loading)
-  useEffect(() => {
-    let mounted = true;
-
-    const preloadFiles = async () => {
-      try {
-        const files = await loadFileList();
-        if (mounted) {
-          setCachedFileList(files);
-          setIsLoadingFiles(false);
-        }
-      } catch (error) {
-        if (mounted) {
-          console.error('Failed to preload file list:', error);
-          setIsLoadingFiles(false);
-        }
-      }
-    };
-
-    preloadFiles();
-
+    logger.enter('PlanExecuteApp', { modelInfo });
     return () => {
-      mounted = false;
+      logger.exit('PlanExecuteApp', { messageCount: messages.length });
     };
   }, []);
 
-  // Monitor input for '@' trigger
+  // Initialize on startup: check LLM configuration and run health check
   useEffect(() => {
-    if (isProcessing) {
-      return; // Don't trigger while processing
-    }
+    const initialize = async () => {
+      logger.flow('Starting initialization');
+      logger.startTimer('app-init');
 
-    const triggerInfo = detectAtTrigger(input);
+      try {
+        // Step 1: Initialize docs directory
+        setInitStep('docs');
+        logger.flow('Initializing docs directory');
+        await initializeDocsDirectory().catch((err) => {
+          logger.warn('Docs directory initialization warning', { error: err });
+        });
 
-    if (triggerInfo.detected && !showFileBrowser) {
-      // '@' detected, show file browser
-      setShowFileBrowser(true);
-      setAtPosition(triggerInfo.position);
-      setFilterText(triggerInfo.filter);
-    } else if (triggerInfo.detected && showFileBrowser) {
-      // Update filter as user types
-      setFilterText(triggerInfo.filter);
-    } else if (!triggerInfo.detected && showFileBrowser) {
-      // '@' removed, hide file browser
-      setShowFileBrowser(false);
-      setAtPosition(-1);
-      setFilterText('');
-    }
-  }, [input, isProcessing, showFileBrowser]);
+        // Step 2: Check config
+        setInitStep('config');
+        logger.flow('Checking configuration');
+        if (!configManager.hasEndpoints()) {
+          logger.info('No endpoints configured, showing setup wizard');
+          setShowSetupWizard(true);
+          setIsInitializing(false);
+          setHealthStatus('unknown');
+          logger.endTimer('app-init');
+          return;
+        }
 
-  // Monitor input for '/' slash command trigger
-  useEffect(() => {
-    if (isProcessing) {
-      return; // Don't trigger while processing
-    }
+        // Step 3: Run health check
+        setInitStep('health');
+        logger.flow('Running health check');
+        setHealthStatus('checking');
+        const healthResults = await LLMClient.healthCheckAll();
 
-    // If input is empty and command browser is open, close it
-    if (!input) {
-      if (showCommandBrowser) {
-        setShowCommandBrowser(false);
-        setPartialCommand('');
-        setCommandArgs('');
+        // Check if any model is healthy
+        let hasHealthy = false;
+        for (const [endpointId, modelResults] of healthResults) {
+          logger.vars(
+            { name: 'endpointId', value: endpointId },
+            { name: 'healthyModels', value: modelResults.filter(r => r.healthy).length }
+          );
+          if (modelResults.some((r) => r.healthy)) {
+            hasHealthy = true;
+          }
+        }
+
+        logger.state('Health status', 'checking', hasHealthy ? 'healthy' : 'unhealthy');
+        setHealthStatus(hasHealthy ? 'healthy' : 'unhealthy');
+
+        // Update health status in config
+        await configManager.updateAllHealthStatus(healthResults);
+
+        setInitStep('done');
+      } catch (error) {
+        logger.error('Initialization failed', error as Error);
+        setHealthStatus('unknown');
+      } finally {
+        setIsInitializing(false);
+        logger.endTimer('app-init');
       }
-      return;
-    }
+    };
 
-    const slashInfo = detectSlashTrigger(input);
-
-    if (slashInfo.detected && !showCommandBrowser) {
-      // '/' detected at start, show command browser
-      setShowCommandBrowser(true);
-      setPartialCommand(slashInfo.partialCommand);
-      setCommandArgs(slashInfo.args);
-    } else if (slashInfo.detected && showCommandBrowser) {
-      // Update partial command as user types
-      setPartialCommand(slashInfo.partialCommand);
-      setCommandArgs(slashInfo.args);
-    } else if (!slashInfo.detected && showCommandBrowser) {
-      // '/' removed or input doesn't match pattern, hide command browser
-      setShowCommandBrowser(false);
-      setPartialCommand('');
-      setCommandArgs('');
-    }
-  }, [input, isProcessing, showCommandBrowser]);
+    initialize();
+  }, []);
 
   // Wrapped exit function to ensure cleanup
   const handleExit = useCallback(async () => {
-    // Close JSON stream logger before exit
+    logger.flow('Exiting application');
     await closeJsonStreamLogger();
     exit();
   }, [exit]);
 
   // Keyboard shortcuts
-  useInput((inputChar: string, key: { ctrl: boolean; shift: boolean; meta: boolean; escape: boolean }) => {
+  useInput((inputChar: string, key: { ctrl: boolean; shift: boolean; meta: boolean; escape: boolean; tab?: boolean }) => {
     if (key.ctrl && inputChar === 'c') {
       handleExit().catch(console.error);
     }
-    // Toggle TODO panel with Ctrl+T
-    if (key.ctrl && inputChar === 't') {
-      setShowTodoPanel(!showTodoPanel);
-    }
-    // Switch modes with Tab
-    if (inputChar === '\t' && !isProcessing) {
-      const modes: AppMode[] = ['auto', 'direct', 'plan-execute'];
-      const currentIndex = modes.indexOf(mode);
+    // Tab key to cycle through planning modes (works anytime except when processing or in special UI modes)
+    const isInSpecialUI = showSessionBrowser || showSettings || showSetupWizard || showModelSelector ||
+                          planExecutionState.planApprovalRequest || planExecutionState.taskApprovalRequest;
+    if ((key.tab || inputChar === '\t') && !isProcessing && !isInSpecialUI) {
+      const modes: PlanningMode[] = ['auto', 'no-planning', 'planning'];
+      const currentIndex = modes.indexOf(planningMode);
       const nextIndex = (currentIndex + 1) % modes.length;
-      setMode(modes[nextIndex]!);
+      logger.state('Planning mode', planningMode, modes[nextIndex]!);
+      setPlanningMode(modes[nextIndex]!);
     }
-  });
+  }, { isActive: !fileBrowserState.showFileBrowser && !commandBrowserState.showCommandBrowser });
 
   // Handle file selection from browser
-  const handleFileSelect = (filePaths: string[]) => {
-    // Insert file paths into input at @ position
-    const newInput = insertFilePaths(input, atPosition, filterText.length, filePaths);
+  const handleFileSelect = useCallback((filePaths: string[]) => {
+    logger.debug('File selected', { filePaths });
+    const newInput = fileBrowserState.handleFileSelect(filePaths, input);
     setInput(newInput);
-
-    // Close file browser
-    setShowFileBrowser(false);
-    setAtPosition(-1);
-    setFilterText('');
-  };
-
-  // Handle file browser cancellation
-  const handleFileBrowserCancel = () => {
-    // Close file browser but keep '@' in input
-    setShowFileBrowser(false);
-    setAtPosition(-1);
-    setFilterText('');
-  };
+  }, [fileBrowserState, input]);
 
   // Handle command selection from browser
-  const handleCommandSelect = (command: string, shouldSubmit: boolean) => {
-    // Close command browser
-    setShowCommandBrowser(false);
-    setPartialCommand('');
-    setCommandArgs('');
-
-    if (shouldSubmit) {
-      // Enter key: Submit the command directly
-      handleSubmit(command);
-    } else {
-      // Tab key: Insert command into input for further editing (e.g., adding arguments)
-      const newInput = insertSlashCommand(input, command);
-      setInput(newInput);
+  const handleCommandSelect = useCallback((command: string, shouldSubmit: boolean) => {
+    logger.debug('Command selected', { command, shouldSubmit });
+    const result = commandBrowserState.handleCommandSelect(command, shouldSubmit, input, handleSubmit);
+    if (result !== null) {
+      setInput(result);
     }
-  };
-
-  // Handle command browser cancellation
-  const handleCommandBrowserCancel = () => {
-    // Close command browser
-    setShowCommandBrowser(false);
-    setPartialCommand('');
-    setCommandArgs('');
-  };
+  }, [commandBrowserState, input]);
 
   // Handle session selection from browser
-  const handleSessionSelect = async (sessionId: string) => {
-    // Close session browser
+  const handleSessionSelect = useCallback(async (sessionId: string) => {
+    logger.enter('handleSessionSelect', { sessionId });
     setShowSessionBrowser(false);
 
     try {
-      // Load session
       const sessionData = await sessionManager.loadSession(sessionId);
-      
+
       if (!sessionData) {
         const errorMessage = `세션을 찾을 수 없습니다: ${sessionId}`;
-        const updatedMessages = [
-          ...messages,
+        logger.warn('Session not found', { sessionId });
+        setMessages(prev => [
+          ...prev,
           { role: 'assistant' as const, content: errorMessage },
-        ];
-        setMessages(updatedMessages);
+        ]);
         return;
       }
 
-      const loadedMessages = sessionData.messages;
-      setMessages(loadedMessages);
+      logger.info('Session loaded', { sessionId, messageCount: sessionData.messages.length });
+      setMessages(sessionData.messages);
     } catch (error) {
       const errorMessage = `세션 로드 실패: ${error instanceof Error ? error.message : 'Unknown error'}`;
-      const updatedMessages = [
-        ...messages,
+      logger.error(`Session load failed (sessionId: ${sessionId})`, error as Error);
+      setMessages(prev => [
+        ...prev,
         { role: 'assistant' as const, content: errorMessage },
-      ];
-      setMessages(updatedMessages);
+      ]);
     }
-  };
-
-  // Handle session browser cancellation
-  const handleSessionBrowserCancel = () => {
-    // Close session browser
-    setShowSessionBrowser(false);
-  };
-
-  // TODO update callback
-  const handleTodoUpdate = useCallback((todo: TodoItem) => {
-    setTodos(prev => prev.map(t => t.id === todo.id ? todo : t));
-    if (todo.status === 'in_progress') {
-      setCurrentTodoId(todo.id);
-    } else if (todo.status === 'completed' || todo.status === 'failed') {
-      if (currentTodoId === todo.id) {
-        setCurrentTodoId(undefined);
-      }
-    }
-  }, [currentTodoId]);
-
-  // Approval callbacks for HITL
-  const handlePlanApprovalRequest = useCallback(async (request: {
-    todos: TodoItem[];
-    userRequest: string;
-  }): Promise<ApprovalAction> => {
-    return new Promise((resolve) => {
-      setPlanApprovalRequest(request);
-      setApprovalResolver({ resolve: resolve as (action: string) => void });
-    });
+    logger.exit('handleSessionSelect', { sessionId });
   }, []);
 
-  const handleTaskApprovalRequest = useCallback(async (request: {
-    taskId: string;
-    taskDescription: string;
-    risk: any;
-    context?: string;
-  }): Promise<ApprovalAction> => {
-    return new Promise((resolve) => {
-      setTaskApprovalRequest({
-        taskDescription: request.taskDescription,
-        risk: request.risk,
-        context: request.context,
-      });
-      setApprovalResolver({ resolve: resolve as (action: string) => void });
-    });
+  // Handle settings planning mode change
+  const handleSettingsPlanningModeChange = useCallback((mode: PlanningMode) => {
+    logger.state('Planning mode (settings)', planningMode, mode);
+    setPlanningMode(mode);
+  }, [planningMode]);
+
+  // Handle settings close
+  const handleSettingsClose = useCallback(() => {
+    logger.debug('Settings closed');
+    setShowSettings(false);
   }, []);
 
-  const handleApprovalResponse = useCallback((action: ApprovalAction) => {
-    if (approvalResolver) {
-      approvalResolver.resolve(action);
-      setApprovalResolver(null);
-    }
-    setPlanApprovalRequest(null);
-    setTaskApprovalRequest(null);
-  }, [approvalResolver]);
+  // Handle setup wizard completion
+  const handleSetupComplete = useCallback(() => {
+    logger.info('Setup wizard completed');
+    setShowSetupWizard(false);
+    // Exit and let user restart
+    exit();
+  }, [exit]);
 
-  const handleDirectMode = async (userMessage: string) => {
-    // Direct mode - same as original InteractiveApp
-    try {
-      // Perform docs search if framework keywords detected
-      const { messages: messagesWithDocs } =
-        await performDocsSearchIfNeeded(llmClient, userMessage, messages);
+  // Handle setup wizard skip
+  const handleSetupSkip = useCallback(() => {
+    logger.info('Setup wizard skipped');
+    setShowSetupWizard(false);
+  }, []);
 
-      const { FILE_TOOLS } = await import('../../tools/file-tools.js');
+  // Handle model selection
+  const handleModelSelect = useCallback(
+    (endpointId: string, modelId: string) => {
+      logger.enter('handleModelSelect', { endpointId, modelId });
+      const endpoint = configManager.getAllEndpoints().find((ep) => ep.id === endpointId);
+      const model = endpoint?.models.find((m) => m.id === modelId);
 
-      const result = await llmClient.chatCompletionWithTools(
-        messagesWithDocs.concat({ role: 'user', content: userMessage }),
-        FILE_TOOLS,
-        5
-      );
+      if (endpoint && model) {
+        logger.state('Current model', currentModelInfo.model, model.name);
+        setCurrentModelInfo({
+          model: model.name,
+          endpoint: endpoint.baseUrl,
+        });
 
-      setMessages(result.allMessages);
-      setCurrentResponse('');
-
-      // Auto-save current session (fire-and-forget)
-      sessionManager.autoSaveCurrentSession(result.allMessages);
-    } catch (error) {
-      const errorMessage = formatErrorMessage(error);
-      const updatedMessages: Message[] = [
-        ...messages,
-        { role: 'user', content: userMessage },
-        { role: 'assistant', content: errorMessage }
-      ];
-      setMessages(updatedMessages);
-
-      // Auto-save even on error (fire-and-forget)
-      sessionManager.autoSaveCurrentSession(updatedMessages);
-    }
-  };
-
-  const handlePlanExecuteMode = async (userMessage: string) => {
-    // Plan & Execute mode with HITL enabled
-    setExecutionPhase('planning');
-
-    try {
-      // Perform docs search if framework keywords detected (same as direct mode)
-      const { messages: messagesWithDocs, performed: docsSearchPerformed } =
-        await performDocsSearchIfNeeded(llmClient, userMessage, messages);
-
-      // Update messages if docs search was performed
-      if (docsSearchPerformed) {
-        setMessages(messagesWithDocs);
+        // 새로운 LLMClient 생성 (configManager에 이미 저장되어 있으므로 새로 생성하면 됨)
+        try {
+          const newClient = createLLMClient();
+          setLlmClient(newClient);
+          logger.info('LLMClient recreated with new model', { modelId, modelName: model.name });
+        } catch (error) {
+          logger.error('Failed to create new LLMClient', error as Error);
+        }
       }
 
-      // Create orchestrator with HITL enabled
-      const orchestrator = new PlanExecuteOrchestrator(llmClient, {
-        maxDebugAttempts: 2,
-        verbose: false,
-        hitl: {
-          enabled: true,           // HITL is enabled
-          approvePlan: true,       // Require plan approval
-          riskConfig: {
-            approvalThreshold: 'medium', // Approve medium+ risk tasks
-          },
+      setShowModelSelector(false);
+
+      // Add confirmation message
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant' as const,
+          content: `모델이 변경되었습니다: ${model?.name || modelId} (${endpoint?.name || endpointId})`,
         },
-      });
+      ]);
+      logger.exit('handleModelSelect', { model: model?.name });
+    },
+    [currentModelInfo.model]
+  );
 
-      // Set up HITL approval callbacks to use Ink-based UI
-      const approvalManager = orchestrator.getApprovalManager();
-      approvalManager.setPlanApprovalCallback(handlePlanApprovalRequest);
-      approvalManager.setTaskApprovalCallback(handleTaskApprovalRequest);
+  // Handle model selector cancel
+  const handleModelSelectorCancel = useCallback(() => {
+    logger.debug('Model selector cancelled');
+    setShowModelSelector(false);
+  }, []);
 
-      // Set up event listeners for UI updates
-      orchestrator.on('planCreated', (todos: TodoItem[]) => {
-        setTodos(todos);
-        const planningMessage = `📋 Created ${todos.length} tasks to complete your request`;
-        // Use functional update to include docs search results if performed
-        setMessages(prev => [
-          ...prev,
-          { role: 'user', content: userMessage },
-          { role: 'assistant', content: planningMessage }
-        ]);
-      });
-
-      orchestrator.on('todoStarted', (todo: TodoItem) => {
-        handleTodoUpdate({ ...todo, status: 'in_progress' as const });
-        setExecutionPhase('executing');
-      });
-
-      orchestrator.on('todoCompleted', (todo: TodoItem) => {
-        handleTodoUpdate({ ...todo, status: 'completed' as const });
-      });
-
-      orchestrator.on('todoFailed', (todo: TodoItem) => {
-        handleTodoUpdate({ ...todo, status: 'failed' as const });
-      });
-
-      // Execute with orchestrator (includes HITL approval gates)
-      const summary = await orchestrator.execute(userMessage);
-
-      // Add completion message
-      const completionMessage = `✅ Execution completed\n` +
-        `Total: ${summary.totalTasks} | Completed: ${summary.completedTasks} | Failed: ${summary.failedTasks}\n` +
-        `Duration: ${(summary.duration / 1000).toFixed(2)}s`;
-
-      // Update messages and auto-save with latest state
-      setMessages(prev => {
-        const updatedMessages: Message[] = [
-          ...prev,
-          { role: 'assistant' as const, content: completionMessage }
-        ];
-        // Auto-save current session with updated messages (fire-and-forget)
-        sessionManager.autoSaveCurrentSession(updatedMessages);
-        return updatedMessages;
-      });
-
-    } catch (error) {
-      const errorMessage = formatErrorMessage(error);
-
-      // Update messages and auto-save with latest state (including docs search results)
-      setMessages(prev => {
-        // Check if user message already exists (from planCreated event)
-        const lastMessage = prev[prev.length - 1];
-        const hasUserMessage = lastMessage?.role === 'user' && lastMessage.content === userMessage;
-
-        const updatedMessages: Message[] = hasUserMessage
-          ? [
-              ...prev,
-              { role: 'assistant' as const, content: `Plan & Execute 모드 실행 중 오류 발생:\n\n${errorMessage}` }
-            ]
-          : [
-              ...prev,
-              { role: 'user' as const, content: userMessage },
-              { role: 'assistant' as const, content: `Plan & Execute 모드 실행 중 오류 발생:\n\n${errorMessage}` }
-            ];
-
-        // Auto-save even on error (fire-and-forget)
-        sessionManager.autoSaveCurrentSession(updatedMessages);
-        return updatedMessages;
-      });
-    } finally {
-      setExecutionPhase('idle');
-    }
-  };
-
-  const handleSubmit = async (value: string) => {
-    // Prevent message submission while file browser or session browser is open
-    if (!value.trim() || isProcessing || showFileBrowser || showSessionBrowser) {
+  const handleSubmit = useCallback(async (value: string) => {
+    if (!value.trim() || isProcessing || fileBrowserState.showFileBrowser || showSessionBrowser || showSettings || showSetupWizard) {
       return;
     }
 
-    // Allow submission if command browser is open but command is valid
-    if (showCommandBrowser && !isValidCommand(value.trim())) {
+    logger.enter('handleSubmit', { valueLength: value.length });
+
+    if (!llmClient) {
+      logger.warn('LLM client not configured');
+      setMessages((prev) => [
+        ...prev,
+        { role: 'assistant' as const, content: 'LLM이 설정되지 않았습니다. /settings → LLMs에서 설정해주세요.' },
+      ]);
+      return;
+    }
+
+    if (commandBrowserState.showCommandBrowser && !isValidCommand(value.trim())) {
       return;
     }
 
     const userMessage = value.trim();
 
-    // Close command browser if open (before clearing input)
-    if (showCommandBrowser) {
-      setShowCommandBrowser(false);
-      setPartialCommand('');
-      setCommandArgs('');
+    if (commandBrowserState.showCommandBrowser) {
+      commandBrowserState.resetCommandBrowser();
     }
 
     setInput('');
 
+    // Handle slash commands
     if (isSlashCommand(userMessage)) {
+      logger.flow('Executing slash command');
       const commandContext: CommandHandlerContext = {
-        mode,
+        planningMode,
         messages,
-        todos,
-        setMode,
+        todos: planExecutionState.todos,
+        setPlanningMode,
         setMessages,
-        setTodos,
+        setTodos: planExecutionState.setTodos,
         exit: handleExit,
-        // Provide UI control callback for SessionBrowser
-        onShowSessionBrowser: () => {
-          setShowSessionBrowser(true);
-        },
+        onShowSessionBrowser: () => setShowSessionBrowser(true),
+        onShowSettings: () => setShowSettings(true),
+        onShowModelSelector: () => setShowModelSelector(true),
       };
 
       const result = await executeSlashCommand(userMessage, commandContext);
 
       if (result.handled) {
+        logger.exit('handleSubmit', { handled: true });
         return;
       }
     }
 
+    // Show pending user message immediately
+    setPendingUserMessage(userMessage);
+
     setIsProcessing(true);
+    setCurrentResponse('');
+    setActivityStartTime(Date.now());
+    setSubActivities([]);
+
+    logger.startTimer('message-processing');
 
     try {
-      // Determine whether to use Plan & Execute based on mode and request complexity
-      let usePlanExecute = false;
+      let usePlanning = false;
 
-      if (mode === 'plan-execute') {
-        usePlanExecute = true;
-      } else if (mode === 'auto') {
-        // Auto-detect based on keywords or complexity
+      if (planningMode === 'planning') {
+        usePlanning = true;
+      } else if (planningMode === 'auto') {
         const complexKeywords = [
           'create', 'build', 'implement', 'develop', 'make',
           'setup', 'configure', 'install', 'deploy', 'design',
@@ -586,18 +379,117 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
         ];
 
         const lowerMessage = userMessage.toLowerCase();
-        usePlanExecute = complexKeywords.some(keyword => lowerMessage.includes(keyword));
+        usePlanning = complexKeywords.some(keyword => lowerMessage.includes(keyword));
       }
 
-      if (usePlanExecute) {
-        await handlePlanExecuteMode(userMessage);
+      logger.vars(
+        { name: 'usePlanning', value: usePlanning },
+        { name: 'planningMode', value: planningMode }
+      );
+
+      if (usePlanning) {
+        setActivityType('planning');
+        setActivityDetail('Analyzing request and creating plan...');
+        await planExecutionState.executePlanMode(userMessage, llmClient, messages, setMessages);
       } else {
-        await handleDirectMode(userMessage);
+        setActivityType('thinking');
+        setActivityDetail('Processing your request...');
+        await planExecutionState.executeDirectMode(userMessage, llmClient, messages, setMessages);
       }
 
+    } catch (error) {
+      logger.error('Message processing failed', error as Error);
     } finally {
       setIsProcessing(false);
+      setCurrentResponse('');
+      setPendingUserMessage(null);
+      logger.endTimer('message-processing');
+      logger.exit('handleSubmit', { success: true });
     }
+  }, [
+    isProcessing,
+    fileBrowserState.showFileBrowser,
+    showSessionBrowser,
+    showSettings,
+    showSetupWizard,
+    commandBrowserState,
+    planningMode,
+    messages,
+    planExecutionState,
+    llmClient,
+    handleExit,
+  ]);
+
+  // Show loading screen with logo during initialization
+  if (isInitializing) {
+    const getInitStepInfo = () => {
+      switch (initStep) {
+        case 'docs':
+          return { icon: '📚', text: 'Initializing docs directory...', progress: 1 };
+        case 'config':
+          return { icon: '⚙️', text: 'Checking configuration...', progress: 2 };
+        case 'health':
+          return { icon: '🏥', text: 'Running health check...', progress: 3 };
+        default:
+          return { icon: '✓', text: 'Ready!', progress: 4 };
+      }
+    };
+
+    const stepInfo = getInitStepInfo();
+
+    return (
+      <Box flexDirection="column" alignItems="center" paddingY={2}>
+        <Logo showVersion={true} showTagline={true} />
+
+        <Box marginTop={2} flexDirection="column" alignItems="center">
+          <Box>
+            <Spinner type="dots" />
+            <Text color="yellow"> {stepInfo.icon} {stepInfo.text}</Text>
+          </Box>
+
+          {/* Progress indicator */}
+          <Box marginTop={1}>
+            <Text color={stepInfo.progress >= 1 ? 'green' : 'gray'}>●</Text>
+            <Text color="gray"> → </Text>
+            <Text color={stepInfo.progress >= 2 ? 'green' : 'gray'}>●</Text>
+            <Text color="gray"> → </Text>
+            <Text color={stepInfo.progress >= 3 ? 'green' : 'gray'}>●</Text>
+            <Text color="gray"> → </Text>
+            <Text color={stepInfo.progress >= 4 ? 'green' : 'gray'}>●</Text>
+          </Box>
+        </Box>
+      </Box>
+    );
+  }
+
+  // Show setup wizard if no endpoints configured
+  if (showSetupWizard) {
+    return (
+      <Box flexDirection="column" padding={1}>
+        <LLMSetupWizard onComplete={handleSetupComplete} onSkip={handleSetupSkip} />
+      </Box>
+    );
+  }
+
+  // Get health status indicator
+  const getHealthIndicator = () => {
+    switch (healthStatus) {
+      case 'checking':
+        return <Text color="yellow">⋯</Text>;
+      case 'healthy':
+        return <Text color="green">●</Text>;
+      case 'unhealthy':
+        return <Text color="red">●</Text>;
+      default:
+        return <Text color="gray">○</Text>;
+    }
+  };
+
+  // Get activity type based on execution phase
+  const getCurrentActivityType = (): ActivityType => {
+    if (planExecutionState.executionPhase === 'planning') return 'planning';
+    if (planExecutionState.executionPhase === 'executing') return 'executing';
+    return activityType;
   };
 
   return (
@@ -605,61 +497,62 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
       {/* Header */}
       <Box borderStyle="round" borderColor="cyan" paddingX={1}>
         <Box justifyContent="space-between" width="100%">
-          <Text bold color="cyan">
-            OPEN-CLI Interactive Mode
-          </Text>
+          <Box>
+            <Text bold color="cyan">OPEN-CLI </Text>
+            {getHealthIndicator()}
+          </Box>
           <Text color="gray">
-            Model: {modelInfo.model} | Mode: {mode}
+            {currentModelInfo.model} | {planningMode}
           </Text>
         </Box>
       </Box>
 
       {/* Messages Area */}
-      <Box flexDirection="column" flexGrow={1} paddingX={1} paddingY={1}>
-        {messages.slice(-10).map((msg, idx) => (
-          <Box key={idx} marginBottom={1}>
-            {msg.role === 'user' ? (
-              <Text color="green">
-                <Text bold>You: </Text>{msg.content}
-              </Text>
-            ) : msg.role === 'assistant' ? (
-              <Text color="cyan">
-                <Text bold>AI: </Text>{msg.content}
-              </Text>
-            ) : null}
-          </Box>
-        ))}
+      <ChatView
+        messages={messages}
+        currentResponse={currentResponse}
+        pendingUserMessage={pendingUserMessage || undefined}
+      />
 
-        {currentResponse && (
-          <Box>
-            <Text color="cyan">
-              <Text bold>AI: </Text>{currentResponse}
-            </Text>
-          </Box>
-        )}
-      </Box>
+      {/* Activity Indicator (shown when processing) */}
+      {isProcessing && (
+        <Box marginY={0}>
+          <ActivityIndicator
+            activity={getCurrentActivityType()}
+            startTime={activityStartTime}
+            detail={activityDetail}
+            subActivities={subActivities}
+            modelName={currentModelInfo.model}
+            currentStep={planExecutionState.todos.filter(t => t.status === 'completed').length}
+            totalSteps={planExecutionState.todos.length || undefined}
+            stepName={planExecutionState.currentTodoId ?
+              planExecutionState.todos.find(t => t.id === planExecutionState.currentTodoId)?.title
+              : undefined
+            }
+          />
+        </Box>
+      )}
 
-      {/* TODO Panel (if in Plan & Execute mode) */}
-      {showTodoPanel && todos.length > 0 && (
+      {/* TODO Panel (always visible when there are todos) */}
+      {planExecutionState.todos.length > 0 && (
         <Box marginY={1}>
           <TodoPanel
-            todos={todos}
-            currentTodoId={currentTodoId}
-            showDetails={executionPhase === 'executing'}
+            todos={planExecutionState.todos}
+            currentTodoId={planExecutionState.currentTodoId}
+            showDetails={true}
           />
         </Box>
       )}
 
       {/* Input Area */}
-      <Box borderStyle="single" borderColor="gray" paddingX={1}>
+      <Box borderStyle="single" borderColor="gray" paddingX={1} flexDirection="column">
         <Box>
-          <Text color="green" bold>You: </Text>
+          <Text color="green">👤 </Text>
           <Box flexGrow={1}>
             <CustomTextInput
               value={input}
               onChange={(value) => {
-                // Block input while SessionBrowser is open
-                if (showSessionBrowser) {
+                if (showSessionBrowser || showSettings) {
                   return;
                 }
                 setInput(value);
@@ -667,43 +560,52 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
               onSubmit={handleSubmit}
               placeholder={
                 isProcessing
-                  ? "Processing..."
+                  ? "AI is working..."
                   : showSessionBrowser
-                  ? "Select a session or press ESC to cancel..."
-                  : "Type your message..."
+                  ? "Select a session or press ESC..."
+                  : showSettings
+                  ? "Press ESC to close settings..."
+                  : "Type your message... (@ for files, / for commands)"
               }
-              focus={!showSessionBrowser && !planApprovalRequest && !taskApprovalRequest}
+              focus={!showSessionBrowser && !showSettings && !planExecutionState.planApprovalRequest && !planExecutionState.taskApprovalRequest}
             />
           </Box>
+          {/* Character counter */}
+          {input.length > 0 && (
+            <Text color={input.length > 4000 ? 'red' : input.length > 2000 ? 'yellow' : 'gray'} dimColor>
+              {input.length.toLocaleString()}
+            </Text>
+          )}
         </Box>
       </Box>
 
       {/* File Browser (shown when '@' is typed) */}
-      {showFileBrowser && !isProcessing && (
+      {fileBrowserState.showFileBrowser && !isProcessing && (
         <Box marginTop={0}>
-          {isLoadingFiles ? (
+          {fileBrowserState.isLoadingFiles ? (
             <Box borderStyle="single" borderColor="yellow" paddingX={1}>
-              <Text color="yellow">Loading file list...</Text>
+              <Spinner type="dots" />
+              <Text color="yellow"> Loading files...</Text>
             </Box>
           ) : (
             <FileBrowser
-              filter={filterText}
+              filter={fileBrowserState.filterText}
               onSelect={handleFileSelect}
-              onCancel={handleFileBrowserCancel}
-              cachedFiles={cachedFileList}
+              onCancel={fileBrowserState.handleFileBrowserCancel}
+              cachedFiles={fileBrowserState.cachedFileList}
             />
           )}
         </Box>
       )}
 
       {/* Command Browser (shown when '/' is typed at start) */}
-      {showCommandBrowser && !isProcessing && !showFileBrowser && (
+      {commandBrowserState.showCommandBrowser && !isProcessing && !fileBrowserState.showFileBrowser && (
         <Box marginTop={0}>
           <CommandBrowser
-            partialCommand={partialCommand}
-            args={commandArgs}
+            partialCommand={commandBrowserState.partialCommand}
+            args={commandBrowserState.commandArgs}
             onSelect={handleCommandSelect}
-            onCancel={handleCommandBrowserCancel}
+            onCancel={commandBrowserState.handleCommandBrowserCancel}
           />
         </Box>
       )}
@@ -713,52 +615,77 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
         <Box marginTop={0}>
           <SessionBrowser
             onSelect={handleSessionSelect}
-            onCancel={handleSessionBrowserCancel}
+            onCancel={() => setShowSessionBrowser(false)}
+          />
+        </Box>
+      )}
+
+      {/* Settings Browser (shown when /settings command is submitted) */}
+      {showSettings && !isProcessing && (
+        <Box marginTop={0}>
+          <SettingsBrowser
+            currentPlanningMode={planningMode}
+            onPlanningModeChange={handleSettingsPlanningModeChange}
+            onClose={handleSettingsClose}
+          />
+        </Box>
+      )}
+
+      {/* Model Selector (shown when /model command is submitted) */}
+      {showModelSelector && !isProcessing && (
+        <Box marginTop={0}>
+          <ModelSelector
+            onSelect={handleModelSelect}
+            onCancel={handleModelSelectorCancel}
           />
         </Box>
       )}
 
       {/* HITL Plan Approval Prompt */}
-      {planApprovalRequest && (
+      {planExecutionState.planApprovalRequest && (
         <Box marginTop={1}>
           <PlanApprovalPrompt
-            userRequest={planApprovalRequest.userRequest}
-            todos={planApprovalRequest.todos}
-            onResponse={handleApprovalResponse}
+            userRequest={planExecutionState.planApprovalRequest.userRequest}
+            todos={planExecutionState.planApprovalRequest.todos}
+            onResponse={planExecutionState.handleApprovalResponse}
           />
         </Box>
       )}
 
       {/* HITL Task Approval Prompt */}
-      {taskApprovalRequest && (
+      {planExecutionState.taskApprovalRequest && (
         <Box marginTop={1}>
           <TaskApprovalPrompt
-            taskDescription={taskApprovalRequest.taskDescription}
-            risk={taskApprovalRequest.risk}
-            context={taskApprovalRequest.context}
-            onResponse={handleApprovalResponse}
+            taskDescription={planExecutionState.taskApprovalRequest.taskDescription}
+            risk={planExecutionState.taskApprovalRequest.risk}
+            context={planExecutionState.taskApprovalRequest.context}
+            onResponse={planExecutionState.handleApprovalResponse}
           />
         </Box>
       )}
 
-      {/* Status Bar */}
+      {/* Status Bar - Always visible with model/mode info */}
       <Box justifyContent="space-between" paddingX={1}>
         <Box>
-          {isProcessing && (
-            <Text color="yellow">
-              <Spinner type="dots" />
-              {executionPhase === 'planning' ? ' Planning...' :
-               executionPhase === 'executing' ? ' Executing...' : ' Processing...'}
-            </Text>
-          )}
-        </Box>
-        <Box>
-          {todos.length > 0 && (
-            <TodoStatusBar todos={todos} />
+          {/* Model and Mode info - always visible */}
+          <Text color="gray">{getHealthIndicator()} </Text>
+          <Text color="cyan">{currentModelInfo.model}</Text>
+          <Text color="gray"> │ </Text>
+          <Text color={planningMode === 'planning' ? 'yellow' : planningMode === 'no-planning' ? 'green' : 'magenta'}>
+            {planningMode === 'planning' ? '📋' : planningMode === 'no-planning' ? '⚡' : '🤖'}
+          </Text>
+          <Text color={planningMode === 'planning' ? 'yellow' : planningMode === 'no-planning' ? 'green' : 'magenta'}>
+            {' '}{planningMode}
+          </Text>
+          {planExecutionState.todos.length > 0 && (
+            <>
+              <Text color="gray"> │ </Text>
+              <TodoStatusBar todos={planExecutionState.todos} />
+            </>
           )}
         </Box>
         <Text color="gray" dimColor>
-          Tab: switch mode | Ctrl+T: toggle TODOs | /help: commands
+          Tab: mode({planningMode === 'auto' ? 'a' : planningMode === 'no-planning' ? 'n' : 'p'}→{planningMode === 'auto' ? 'n' : planningMode === 'no-planning' ? 'p' : 'a'}) | /help
         </Text>
       </Box>
     </Box>

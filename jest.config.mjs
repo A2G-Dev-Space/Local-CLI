@@ -18,7 +18,7 @@ export default {
       },
     ],
   },
-  roots: ['<rootDir>/test', '<rootDir>/tests'],
+  roots: ['<rootDir>/test'],
   testMatch: ['**/*.test.ts'],
   moduleFileExtensions: ['ts', 'js', 'json'],
   collectCoverageFrom: [

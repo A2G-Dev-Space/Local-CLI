@@ -17,6 +17,7 @@ import {
   LoopContext,
 } from '../types/index.js';
 import { LLMClient } from './llm-client.js';
+import { logger } from '../utils/logger.js';
 
 export interface ThinkingContext {
   task: string;
@@ -107,7 +108,7 @@ export class InternalMonologue {
 
       return session;
     } catch (error) {
-      console.error('Error in thinking process:', error);
+      logger.error('Error in thinking process:', error as Error);
       session.duration = Date.now() - startTime;
       return session;
     }

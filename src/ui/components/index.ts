@@ -11,9 +11,6 @@ export type { TodoListViewProps } from './TodoListView.js';
 export { StatusBar } from './StatusBar.js';
 export type { StatusBarProps } from './StatusBar.js';
 
-export { AgentLoopProgress } from './AgentLoopProgress.js';
-export type { AgentLoopProgressProps } from './AgentLoopProgress.js';
-
 export { SessionBrowser } from './SessionBrowser.js';
 
 export { FileBrowser } from './FileBrowser.js';

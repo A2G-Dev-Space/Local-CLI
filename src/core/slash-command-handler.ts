@@ -6,21 +6,22 @@
  */
 
 import { Message, TodoItem } from '../types/index.js';
-import { configManager } from './config-manager.js';
 import { sessionManager } from './session-manager.js';
 
-export type AppMode = 'direct' | 'plan-execute' | 'auto';
+export type PlanningMode = 'planning' | 'no-planning' | 'auto';
 
 export interface CommandHandlerContext {
-  mode: AppMode;
+  planningMode: PlanningMode;
   messages: Message[];
   todos: TodoItem[];
-  setMode: (mode: AppMode) => void;
+  setPlanningMode: (mode: PlanningMode) => void;
   setMessages: (messages: Message[]) => void;
   setTodos: (todos: TodoItem[]) => void;
   exit: () => void;
   // Optional UI control callbacks
   onShowSessionBrowser?: () => void;
+  onShowSettings?: () => void;
+  onShowModelSelector?: () => void;
 }
 
 export interface CommandExecutionResult {
@@ -60,12 +61,20 @@ export async function executeSlashCommand(
     };
   }
 
-  // Mode command (show current mode)
-  if (trimmedCommand === '/mode') {
-    const modeMessage = `Current mode: ${context.mode}`;
+  // Settings command - show settings UI
+  if (trimmedCommand === '/settings') {
+    if (context.onShowSettings) {
+      context.onShowSettings();
+      return {
+        handled: true,
+        shouldContinue: false,
+      };
+    }
+    // Fallback if no UI callback
+    const settingsMessage = `Current Settings:\n  Planning Mode: ${context.planningMode}\n\nUse /settings in interactive mode to change settings.`;
     const updatedMessages = [
       ...context.messages,
-      { role: 'assistant' as const, content: modeMessage },
+      { role: 'assistant' as const, content: settingsMessage },
     ];
     context.setMessages(updatedMessages);
     return {
@@ -77,31 +86,20 @@ export async function executeSlashCommand(
     };
   }
 
-  // Mode command (set mode)
-  if (trimmedCommand.startsWith('/mode ')) {
-    const newMode = trimmedCommand.split(' ')[1] as AppMode;
-    if (['direct', 'plan-execute', 'auto'].includes(newMode)) {
-      context.setMode(newMode);
-      const modeMessage = `Mode switched to: ${newMode}`;
-      const updatedMessages = [
-        ...context.messages,
-        { role: 'assistant' as const, content: modeMessage },
-      ];
-      context.setMessages(updatedMessages);
+  // Model command - show model selector
+  if (trimmedCommand === '/model') {
+    if (context.onShowModelSelector) {
+      context.onShowModelSelector();
       return {
         handled: true,
         shouldContinue: false,
-        updatedContext: {
-          mode: newMode,
-          messages: updatedMessages,
-        },
       };
     }
-    // Invalid mode
-    const errorMessage = `Invalid mode: ${newMode}. Available modes: direct, plan-execute, auto`;
+    // Fallback if no UI callback
+    const modelMessage = `Use /model in interactive mode to switch between LLM models.`;
     const updatedMessages = [
       ...context.messages,
-      { role: 'assistant' as const, content: errorMessage },
+      { role: 'assistant' as const, content: modelMessage },
     ];
     context.setMessages(updatedMessages);
     return {
@@ -119,12 +117,12 @@ export async function executeSlashCommand(
 Available commands:
   /exit, /quit    - Exit the application
   /clear          - Clear conversation and TODOs
-  /mode [type]    - Switch mode (direct/plan-execute/auto)
+  /settings       - Open settings menu
+  /model          - Switch between LLM models
   /load           - Load a saved session
-  /status         - Show system status
 
 Keyboard shortcuts:
-  Tab             - Cycle through modes
+  Tab             - Cycle through planning modes
   Ctrl+T          - Toggle TODO panel
   Ctrl+C          - Exit
 
@@ -254,52 +252,6 @@ Note: All conversations are automatically saved.
         },
       };
     }
-  }
-
-  // Status command - show system information
-  if (trimmedCommand === '/status') {
-    const endpoint = configManager.getCurrentEndpoint();
-    const model = configManager.getCurrentModel();
-    const cwd = process.cwd();
-
-    // Read package.json for version
-    let version = 'unknown';
-    try {
-      // Get package.json from the module root
-      const { readFile } = await import('fs/promises');
-      const { fileURLToPath } = await import('url');
-      const { dirname, join } = await import('path');
-      const __filename = fileURLToPath(import.meta.url);
-      const __dirname = dirname(__filename);
-      const packageJsonPath = join(__dirname, '../../package.json');
-      const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf-8'));
-      version = packageJson.version;
-    } catch {
-      // If we can't read package.json, use the default version
-      version = '0.1.0';
-    }
-
-    const statusMessage = `
-System Status:
-  Version:      ${version}
-  Session ID:   ${sessionManager.getCurrentSessionId() || 'No active session'}
-  Working Dir:  ${cwd}
-  Endpoint URL: ${endpoint?.baseUrl || 'Not configured'}
-  LLM Model:    ${model?.name || 'Not configured'} (${model?.id || 'N/A'})
-    `;
-
-    const updatedMessages = [
-      ...context.messages,
-      { role: 'assistant' as const, content: statusMessage },
-    ];
-    context.setMessages(updatedMessages);
-    return {
-      handled: true,
-      shouldContinue: false,
-      updatedContext: {
-        messages: updatedMessages,
-      },
-    };
   }
 
   // Unknown command

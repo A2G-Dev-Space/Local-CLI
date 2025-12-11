@@ -1,90 +1,209 @@
 /**
- * Status Bar Component
+ * StatusBar Component
  *
- * Displays status information at the bottom of the screen
+ * Bottom status bar showing:
+ * - Session info (message count, token total)
+ * - Context usage bar
+ * - Current time
+ * - Keyboard shortcuts
  */
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Text } from 'ink';
-import chalk from 'chalk';
+import { logger } from '../../utils/logger.js';
 
 export interface StatusBarProps {
+  // Model and endpoint
   model?: string;
   endpoint?: string;
+  // Status
+  status?: 'idle' | 'thinking' | 'executing' | 'error';
+  message?: string;
+  // Session info
+  messageCount?: number;
+  sessionTokens?: number;
+  // Context usage
   contextUsage?: {
     current: number;
     max: number;
   };
-  status?: 'idle' | 'thinking' | 'executing' | 'error';
-  message?: string;
+  // TODO status
+  todoCount?: number;
+  todoCompleted?: number;
+  // Planning mode
+  planningMode?: string;
+  // Health status
+  healthStatus?: 'healthy' | 'unhealthy' | 'checking' | 'unknown';
 }
 
-const getStatusIndicator = (status: StatusBarProps['status']): string => {
-  switch (status) {
-    case 'thinking':
-      return chalk.yellow('● THINKING');
-    case 'executing':
-      return chalk.green('● EXECUTING');
-    case 'error':
-      return chalk.red('● ERROR');
-    case 'idle':
-    default:
-      return chalk.gray('○ IDLE');
-  }
+/**
+ * Format token count
+ */
+function formatTokens(count: number): string {
+  if (count < 1000) return count.toString();
+  if (count < 1000000) return `${(count / 1000).toFixed(1)}k`;
+  return `${(count / 1000000).toFixed(2)}M`;
+}
+
+/**
+ * Clock component with live time
+ */
+const Clock: React.FC = () => {
+  const [time, setTime] = useState(new Date());
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTime(new Date());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <Text color="gray">
+      {time.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+    </Text>
+  );
+};
+
+/**
+ * Context usage mini bar
+ */
+const ContextMiniBar: React.FC<{ current: number; max: number }> = ({ current, max }) => {
+  const percentage = Math.min(Math.round((current / max) * 100), 100);
+  const barWidth = 8;
+  const filled = Math.round((percentage / 100) * barWidth);
+  const empty = barWidth - filled;
+
+  // Color based on usage
+  let color: string;
+  if (percentage < 50) color = 'green';
+  else if (percentage < 75) color = 'yellow';
+  else if (percentage < 90) color = 'red';
+  else color = 'redBright';
+
+  return (
+    <Box>
+      <Text color={color}>{'█'.repeat(filled)}</Text>
+      <Text color="gray">{'░'.repeat(empty)}</Text>
+      <Text color={color}> {percentage}%</Text>
+    </Box>
+  );
 };
 
 export const StatusBar: React.FC<StatusBarProps> = ({
   model,
-  endpoint,
-  contextUsage,
+  endpoint: _endpoint,
   status = 'idle',
-  message,
+  message: _message,
+  messageCount = 0,
+  sessionTokens = 0,
+  contextUsage,
+  todoCount,
+  todoCompleted,
+  planningMode,
+  healthStatus,
 }) => {
-  const contextPercent = contextUsage
-    ? Math.round((contextUsage.current / contextUsage.max) * 100)
-    : 0;
+  // endpoint and message reserved for future enhanced display
+  void _endpoint;
+  void _message;
+  useEffect(() => {
+    logger.debug('StatusBar rendered', {
+      status,
+      messageCount,
+      sessionTokens,
+    });
+  }, [status, messageCount, sessionTokens]);
 
-  const getContextColor = (percent: number) => {
-    if (percent >= 90) return chalk.red;
-    if (percent >= 70) return chalk.yellow;
-    return chalk.green;
+  // Health indicator
+  const getHealthIcon = () => {
+    switch (healthStatus) {
+      case 'healthy': return <Text color="green">●</Text>;
+      case 'unhealthy': return <Text color="red">●</Text>;
+      case 'checking': return <Text color="yellow">◐</Text>;
+      default: return <Text color="gray">○</Text>;
+    }
+  };
+
+  // Status indicator
+  const getStatusIndicator = () => {
+    switch (status) {
+      case 'thinking':
+        return <Text color="yellow">● THINK</Text>;
+      case 'executing':
+        return <Text color="green">● EXEC</Text>;
+      case 'error':
+        return <Text color="red">● ERR</Text>;
+      default:
+        return <Text color="gray">○ IDLE</Text>;
+    }
   };
 
   return (
-    <Box
-      borderStyle="single"
-      borderColor="gray"
-      paddingX={1}
-      flexDirection="row"
-      justifyContent="space-between"
-    >
-      {/* Left side - Status */}
-      <Box gap={1}>
-        <Text>{getStatusIndicator(status)}</Text>
-        {message && (
-          <Text dimColor>| {message}</Text>
+    <Box justifyContent="space-between" paddingX={1}>
+      {/* Left section: Health, Status, Model */}
+      <Box>
+        {getHealthIcon()}
+        <Text> </Text>
+        {getStatusIndicator()}
+
+        {/* Model name */}
+        {model && (
+          <>
+            <Text color="gray"> | </Text>
+            <Text color="cyan">{model.slice(0, 15)}</Text>
+          </>
+        )}
+
+        {/* Planning mode */}
+        {planningMode && (
+          <Text color="gray" dimColor> [{planningMode}]</Text>
         )}
       </Box>
 
-      {/* Right side - Info */}
-      <Box gap={1}>
-        {endpoint && (
-          <Text dimColor>
-            {chalk.cyan('Endpoint:')} {endpoint}
-          </Text>
+      {/* Center section: Stats */}
+      <Box>
+        {/* Message count */}
+        {messageCount > 0 && (
+          <Box marginRight={2}>
+            <Text color="gray">💬 {messageCount}</Text>
+          </Box>
         )}
-        {model && (
-          <Text dimColor>
-            {chalk.magenta('Model:')} {model}
-          </Text>
+
+        {/* Session tokens */}
+        {sessionTokens > 0 && (
+          <Box marginRight={2}>
+            <Text color="cyan">⚡ {formatTokens(sessionTokens)}</Text>
+          </Box>
         )}
-        {contextUsage && (
-          <Text>
-            {chalk.blue('Context:')} {getContextColor(contextPercent)(`${contextPercent}%`)}
-            <Text dimColor> ({contextUsage.current}/{contextUsage.max})</Text>
-          </Text>
+
+        {/* Context usage */}
+        {contextUsage && contextUsage.current > 0 && (
+          <Box marginRight={2}>
+            <Text color="gray">CTX </Text>
+            <ContextMiniBar current={contextUsage.current} max={contextUsage.max} />
+          </Box>
         )}
+
+        {/* TODO mini status */}
+        {todoCount !== undefined && todoCount > 0 && (
+          <Box>
+            <Text color="gray">TODO </Text>
+            <Text color="green">{todoCompleted || 0}</Text>
+            <Text color="gray">/{todoCount}</Text>
+          </Box>
+        )}
+      </Box>
+
+      {/* Right section: Shortcuts and time */}
+      <Box>
+        <Text color="gray" dimColor>
+          Tab: mode | /help
+        </Text>
+        <Text color="gray"> | </Text>
+        <Clock />
       </Box>
     </Box>
   );
 };
+
+export default StatusBar;

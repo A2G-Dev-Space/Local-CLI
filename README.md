@@ -326,10 +326,11 @@ You: /docs search typescript
 
 ---
 
-## 📚 추가 문서
+## 📚 문서
 
-- [PROGRESS.md](./PROGRESS.md) - 개발 진행 상황 (상세)
-- [PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md) - 프로젝트 전체 문서
+- [01. 개발자 종합 가이드](docs/01_DEVELOPMENT.md) - **필독!** 아키텍처, 폴더 구조, 핵심 기능, 코딩 규칙
+- [02. 로깅 시스템 가이드](docs/02_LOGGING.md) - CLI 실행 모드 및 상세 로깅 사용법 (필수!)
+- [03. 테스트 가이드](docs/03_TESTING.md) - E2E 테스트 실행 및 시나리오 작성 가이드 (PR 전 필수!)
 
 ---
 
@@ -614,10 +615,11 @@ Planned features for next phase:
 
 ---
 
-## 📚 Additional Documentation
+## 📚 Documentation
 
-- [PROGRESS.md](./PROGRESS.md) - Development Progress (Detailed)
-- [PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md) - Complete Project Documentation
+- [01. Development Guide](docs/01_DEVELOPMENT.md) - **Start Here!** Architecture, folder structure, core features, coding rules.
+- [02. Logging System Guide](docs/02_LOGGING.md) - CLI execution modes and detailed logging usage (Required!).
+- [03. Testing Guide](docs/03_TESTING.md) - E2E test execution and scenario creation guide (Required before PR!).
 
 ---
 

@@ -38,7 +38,7 @@ export interface ModelInfo {
  * LLM 메시지
  */
 export interface Message {
-  role: 'system' | 'user' | 'assistant' | 'tool';
+  role: 'system' | 'user' | 'assistant' | 'tool' | 'error';
   content: string;
   name?: string;
   tool_calls?: ToolCall[];

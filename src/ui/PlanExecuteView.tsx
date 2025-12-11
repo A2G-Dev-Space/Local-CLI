@@ -4,12 +4,11 @@
  * Main UI for Plan-and-Execute workflow with real-time progress
  */
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Box, Text } from 'ink';
-import { TodoItem, ProgressUpdate } from '../types/index.js';
+import { TodoItem } from '../types/index.js';
 import {
   TodoListView,
-  AgentLoopProgress,
   StatusBar,
   ProgressBar,
 } from './components/index.js';
@@ -17,7 +16,6 @@ import {
 export interface PlanExecuteViewProps {
   todos: TodoItem[];
   currentTodo?: TodoItem;
-  update?: ProgressUpdate;
   model?: string;
   endpoint?: string;
   onExit?: () => void;
@@ -26,49 +24,18 @@ export interface PlanExecuteViewProps {
 export const PlanExecuteView: React.FC<PlanExecuteViewProps> = ({
   todos,
   currentTodo,
-  update,
   model,
   endpoint,
 }) => {
-  const [recentActions, setRecentActions] = useState<string[]>([]);
-
-  // Update recent actions when new update arrives
-  useEffect(() => {
-    if (update?.action) {
-      setRecentActions(prev => [...prev, update.action].slice(-10));
-    }
-  }, [update]);
-
   const completedTodos = todos.filter(t => t.status === 'completed').length;
   const totalTodos = todos.length;
-
-  const getAgentStatus = (): 'gathering' | 'acting' | 'verifying' | 'completed' | 'failed' => {
-    if (!currentTodo) return 'completed';
-    if (currentTodo.status === 'failed') return 'failed';
-    if (currentTodo.status === 'completed') return 'completed';
-
-    // Infer current phase from update
-    if (update?.action.toLowerCase().includes('gather')) return 'gathering';
-    if (update?.action.toLowerCase().includes('verify')) return 'verifying';
-    return 'acting';
-  };
 
   return (
     <Box flexDirection="column" padding={1}>
       {/* Title */}
       <Box marginBottom={1} justifyContent="center">
         <Text bold color="cyan">
-          ╔════════════════════════════════════════╗
-        </Text>
-      </Box>
-      <Box marginBottom={1} justifyContent="center">
-        <Text bold color="cyan">
-          ║   OPEN-CLI Plan-and-Execute Mode      ║
-        </Text>
-      </Box>
-      <Box marginBottom={1} justifyContent="center">
-        <Text bold color="cyan">
-          ╚════════════════════════════════════════╝
+          ====== OPEN-CLI Plan-and-Execute Mode ======
         </Text>
       </Box>
 
@@ -94,18 +61,24 @@ export const PlanExecuteView: React.FC<PlanExecuteViewProps> = ({
           />
         </Box>
 
-        {/* Right Column - Agent Loop Progress */}
+        {/* Right Column - Current Task Status */}
         <Box width="50%">
           {currentTodo ? (
-            <AgentLoopProgress
-              currentTodo={currentTodo.title}
-              iteration={update?.iteration || 1}
-              maxIterations={10}
-              currentAction={update?.action}
-              recentActions={recentActions}
-              status={getAgentStatus()}
-              update={update}
-            />
+            <Box
+              borderStyle="round"
+              borderColor="yellow"
+              padding={1}
+              flexDirection="column"
+            >
+              <Text bold color="yellow">Current Task:</Text>
+              <Text>{currentTodo.title}</Text>
+              <Box marginTop={1}>
+                <Text color="gray">Status: </Text>
+                <Text color={currentTodo.status === 'in_progress' ? 'yellow' : 'green'}>
+                  {currentTodo.status}
+                </Text>
+              </Box>
+            </Box>
           ) : (
             <Box
               borderStyle="round"
@@ -115,7 +88,7 @@ export const PlanExecuteView: React.FC<PlanExecuteViewProps> = ({
               alignItems="center"
             >
               <Text bold color="green">
-                ✓ All tasks completed!
+                All tasks completed!
               </Text>
             </Box>
           )}

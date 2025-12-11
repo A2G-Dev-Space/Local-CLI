@@ -14,7 +14,6 @@ import {
   WorkOutput,
 } from '../types/index.js';
 import { LLMClient } from '../core/llm-client.js';
-import { RuleEngine, LLMJudge } from '../core/work-verifier.js';
 
 const execAsync = promisify(exec);
 
@@ -23,6 +22,168 @@ export interface VerificationResult {
   outcomes: VerificationOutcome[];
   summary: string;
   score: number; // 0-100
+}
+
+/**
+ * Rule Engine for deterministic verification
+ */
+export class RuleEngine {
+  async verifyRule(rule: VerificationRule, work: WorkOutput): Promise<VerificationOutcome> {
+    let passed = false;
+    let output: any;
+
+    try {
+      switch (rule.type) {
+        case 'lint':
+          output = await this.runCommand('npm run lint');
+          passed = output.exitCode === 0;
+          break;
+
+        case 'test':
+          output = await this.runCommand(rule.command || 'npm test');
+          passed = output.exitCode === 0;
+          break;
+
+        case 'build':
+          output = await this.runCommand('npm run build');
+          passed = output.exitCode === 0;
+          break;
+
+        case 'custom':
+          if (rule.validator) {
+            passed = rule.validator(work);
+          } else if (rule.command) {
+            output = await this.runCommand(rule.command);
+            if (rule.expectedOutput) {
+              passed = this.matchesExpected(output.stdout, rule.expectedOutput);
+            } else {
+              passed = output.exitCode === 0;
+            }
+          }
+          break;
+      }
+
+      return {
+        rule: rule.name,
+        passed,
+        output,
+        message: passed ? `${rule.name} passed` : rule.failureMessage,
+        suggestions: passed ? [] : rule.suggestions,
+        severity: passed ? 'info' : 'error'
+      };
+    } catch (error: any) {
+      return {
+        rule: rule.name,
+        passed: false,
+        message: `${rule.name} failed: ${error.message}`,
+        suggestions: rule.suggestions,
+        severity: 'error',
+        output: { error: error.message }
+      };
+    }
+  }
+
+  private async runCommand(command: string): Promise<{
+    exitCode: number;
+    stdout: string;
+    stderr: string;
+  }> {
+    try {
+      const { stdout, stderr } = await execAsync(command, {
+        cwd: process.cwd(),
+        timeout: 30000
+      });
+
+      return {
+        exitCode: 0,
+        stdout,
+        stderr
+      };
+    } catch (error: any) {
+      return {
+        exitCode: error.code || 1,
+        stdout: error.stdout || '',
+        stderr: error.stderr || error.message
+      };
+    }
+  }
+
+  private matchesExpected(actual: string, expected: string | RegExp): boolean {
+    if (expected instanceof RegExp) {
+      return expected.test(actual);
+    }
+    return actual.includes(expected);
+  }
+}
+
+/**
+ * LLM Judge for fuzzy evaluation
+ */
+export class LLMJudge {
+  constructor(private llmClient: LLMClient) {}
+
+  async evaluateCriterion(work: WorkOutput, criterion: string): Promise<{
+    passed: boolean;
+    message: string;
+    suggestions?: string[];
+  }> {
+    if (!this.llmClient) {
+      return {
+        passed: true,
+        message: 'LLM Judge not available',
+        suggestions: []
+      };
+    }
+
+    const prompt = `Evaluate if this work meets the following criterion:
+
+Criterion: ${criterion}
+
+Work:
+${work.code ? `Code:\n${work.code.substring(0, 1000)}` : ''}
+${work.files ? `Files: ${work.files.map(f => f.path).join(', ')}` : ''}
+
+Provide evaluation in JSON format:
+{
+  "passed": true/false,
+  "message": "Brief explanation",
+  "suggestions": ["suggestion1", "suggestion2"]
+}`;
+
+    try {
+      const response = await this.llmClient.chatCompletion({
+        messages: [
+          {
+            role: 'system',
+            content: 'You are evaluating work quality against specific criteria. Be objective and constructive.'
+          },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.3,
+        max_tokens: 500
+      });
+
+      const content = response.choices[0]?.message.content || '';
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        return {
+          passed: parsed.passed || false,
+          message: parsed.message || 'No message provided',
+          suggestions: parsed.suggestions || []
+        };
+      }
+    } catch (error) {
+      console.debug('Failed to parse LLM evaluation:', error);
+    }
+
+    return {
+      passed: true,
+      message: 'Unable to evaluate',
+      suggestions: []
+    };
+  }
 }
 
 export class VisualVerifier {
@@ -150,13 +311,12 @@ export class VisualVerifier {
 }
 
 export class VerificationSystem {
-  // @ts-expect-error - Reserved for future use
-  private _ruleEngine: RuleEngine;
+  private ruleEngine: RuleEngine;
   private visualVerifier: VisualVerifier;
   private llmJudge: LLMJudge;
 
   constructor(llmClient?: LLMClient) {
-    this._ruleEngine = new RuleEngine();
+    this.ruleEngine = new RuleEngine();
     this.visualVerifier = new VisualVerifier();
     this.llmJudge = llmClient ? new LLMJudge(llmClient) : new LLMJudge(null as any);
   }
@@ -170,11 +330,11 @@ export class VerificationSystem {
   ): Promise<VerificationResult> {
     const outcomes: VerificationOutcome[] = [];
 
-    console.log('\n🔍 Starting verification...\n');
+    console.log('\n Verification starting...\n');
 
     // 1. Rule-based verification (strongest, deterministic)
     if (criteria.rules && criteria.rules.length > 0) {
-      console.log('📋 Rule-based verification...');
+      console.log('Rule-based verification...');
       const ruleResults = await this.verifyRules(work, criteria.rules);
       outcomes.push(...ruleResults);
       console.log(`  ${ruleResults.filter(r => r.passed).length}/${ruleResults.length} rules passed\n`);
@@ -182,7 +342,7 @@ export class VerificationSystem {
 
     // 2. Visual verification (for UI work)
     if (criteria.visual) {
-      console.log('👁️  Visual verification...');
+      console.log('Visual verification...');
       const visualResults = await this.visualVerifier.verify(work, criteria.visual);
       outcomes.push(...visualResults);
       console.log(`  ${visualResults.filter(r => r.passed).length}/${visualResults.length} visual checks passed\n`);
@@ -190,7 +350,7 @@ export class VerificationSystem {
 
     // 3. LLM-as-Judge (for fuzzy criteria)
     if (criteria.fuzzy && criteria.fuzzy.length > 0) {
-      console.log('🤖 LLM-as-Judge evaluation...');
+      console.log('LLM-as-Judge evaluation...');
       const llmResults = await this.verifyWithLLM(work, criteria.fuzzy);
       outcomes.push(...llmResults);
       console.log(`  ${llmResults.filter(r => r.passed).length}/${llmResults.length} LLM checks passed\n`);
@@ -209,99 +369,11 @@ export class VerificationSystem {
     const outcomes: VerificationOutcome[] = [];
 
     for (const rule of rules) {
-      let passed = false;
-      let output: any;
-
-      try {
-        switch (rule.type) {
-          case 'lint':
-            output = await this.runCommand('npm run lint');
-            passed = output.exitCode === 0;
-            break;
-
-          case 'test':
-            output = await this.runCommand(rule.command || 'npm test');
-            passed = output.exitCode === 0;
-            break;
-
-          case 'build':
-            output = await this.runCommand('npm run build');
-            passed = output.exitCode === 0;
-            break;
-
-          case 'custom':
-            if (rule.validator) {
-              passed = rule.validator(work);
-            } else if (rule.command) {
-              output = await this.runCommand(rule.command);
-              if (rule.expectedOutput) {
-                passed = this.matchesExpected(output.stdout, rule.expectedOutput);
-              } else {
-                passed = output.exitCode === 0;
-              }
-            }
-            break;
-        }
-
-        outcomes.push({
-          rule: rule.name,
-          passed,
-          output,
-          message: passed ? `${rule.name} passed` : rule.failureMessage,
-          suggestions: passed ? [] : rule.suggestions,
-          severity: passed ? 'info' : 'error'
-        });
-      } catch (error: any) {
-        outcomes.push({
-          rule: rule.name,
-          passed: false,
-          message: `${rule.name} failed: ${error.message}`,
-          suggestions: rule.suggestions,
-          severity: 'error',
-          output: { error: error.message }
-        });
-      }
+      const outcome = await this.ruleEngine.verifyRule(rule, work);
+      outcomes.push(outcome);
     }
 
     return outcomes;
-  }
-
-  /**
-   * Run shell command
-   */
-  private async runCommand(command: string): Promise<{
-    exitCode: number;
-    stdout: string;
-    stderr: string;
-  }> {
-    try {
-      const { stdout, stderr } = await execAsync(command, {
-        cwd: process.cwd(),
-        timeout: 30000
-      });
-
-      return {
-        exitCode: 0,
-        stdout,
-        stderr
-      };
-    } catch (error: any) {
-      return {
-        exitCode: error.code || 1,
-        stdout: error.stdout || '',
-        stderr: error.stderr || error.message
-      };
-    }
-  }
-
-  /**
-   * Check if output matches expected
-   */
-  private matchesExpected(actual: string, expected: string | RegExp): boolean {
-    if (expected instanceof RegExp) {
-      return expected.test(actual);
-    }
-    return actual.includes(expected);
   }
 
   /**
@@ -354,15 +426,15 @@ export class VerificationSystem {
     let summary = `Verification: ${passedCount}/${totalCount} checks passed (${score}%)`;
 
     if (errors.length > 0) {
-      summary += `\n❌ ${errors.length} error(s): ${errors.map(e => e.rule).join(', ')}`;
+      summary += `\n ${errors.length} error(s): ${errors.map(e => e.rule).join(', ')}`;
     }
 
     if (warnings.length > 0) {
-      summary += `\n⚠️  ${warnings.length} warning(s): ${warnings.map(w => w.rule).join(', ')}`;
+      summary += `\n ${warnings.length} warning(s): ${warnings.map(w => w.rule).join(', ')}`;
     }
 
     if (passed) {
-      summary += '\n✅ All critical checks passed!';
+      summary += '\n All critical checks passed!';
     }
 
     return {
@@ -373,75 +445,5 @@ export class VerificationSystem {
     };
   }
 }
-
-// Extend LLMJudge to add criterion evaluation
-declare module '../core/work-verifier.js' {
-  interface LLMJudge {
-    evaluateCriterion(work: WorkOutput, criterion: string): Promise<{
-      passed: boolean;
-      message: string;
-      suggestions?: string[];
-    }>;
-  }
-}
-
-// Add the method to LLMJudge prototype
-LLMJudge.prototype.evaluateCriterion = async function(
-  work: WorkOutput,
-  criterion: string
-): Promise<{
-  passed: boolean;
-  message: string;
-  suggestions?: string[];
-}> {
-  const prompt = `Evaluate if this work meets the following criterion:
-
-Criterion: ${criterion}
-
-Work:
-${work.code ? `Code:\n${work.code.substring(0, 1000)}` : ''}
-${work.files ? `Files: ${work.files.map(f => f.path).join(', ')}` : ''}
-
-Provide evaluation in JSON format:
-{
-  "passed": true/false,
-  "message": "Brief explanation",
-  "suggestions": ["suggestion1", "suggestion2"]
-}`;
-
-  const response = await this['llmClient'].chatCompletion({
-    messages: [
-      {
-        role: 'system',
-        content: 'You are evaluating work quality against specific criteria. Be objective and constructive.'
-      },
-      { role: 'user', content: prompt }
-    ],
-    temperature: 0.3,
-    max_tokens: 500
-  });
-
-  try {
-    const content = response.choices[0]?.message.content || '';
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      return {
-        passed: parsed.passed || false,
-        message: parsed.message || 'No message provided',
-        suggestions: parsed.suggestions || []
-      };
-    }
-  } catch (error) {
-    console.debug('Failed to parse LLM evaluation:', error);
-  }
-
-  return {
-    passed: true,
-    message: 'Unable to evaluate',
-    suggestions: []
-  };
-};
 
 export default VerificationSystem;
