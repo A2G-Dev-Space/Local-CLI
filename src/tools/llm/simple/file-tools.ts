@@ -947,6 +947,28 @@ export function emitCompact(originalCount: number, newCount: number): void {
 }
 
 /**
+ * Callback for assistant response events (final LLM response)
+ */
+type AssistantResponseCallback = (content: string) => void;
+let assistantResponseCallback: AssistantResponseCallback | null = null;
+
+/**
+ * Set callback for assistant response events
+ */
+export function setAssistantResponseCallback(callback: AssistantResponseCallback | null): void {
+  assistantResponseCallback = callback;
+}
+
+/**
+ * Emit assistant response event
+ */
+export function emitAssistantResponse(content: string): void {
+  if (assistantResponseCallback) {
+    assistantResponseCallback(content);
+  }
+}
+
+/**
  * Execute file tool by name (backward compatible)
  */
 export async function executeFileTool(

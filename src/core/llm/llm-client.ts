@@ -727,6 +727,12 @@ export class LLMClient {
         continue;
       } else {
         // Tool call 없음 - 최종 응답
+        // Emit assistant response event for UI
+        if (assistantMessage.content) {
+          const { emitAssistantResponse } = await import('../../tools/llm/simple/file-tools.js');
+          emitAssistantResponse(assistantMessage.content);
+        }
+
         return {
           message: assistantMessage,
           toolCalls: toolCallHistory,
@@ -742,6 +748,10 @@ export class LLMClient {
     };
 
     workingMessages.push(finalMessage);
+
+    // Emit assistant response event for UI
+    const { emitAssistantResponse } = await import('../../tools/llm/simple/file-tools.js');
+    emitAssistantResponse(finalMessage.content || '');
 
     return {
       message: finalMessage,

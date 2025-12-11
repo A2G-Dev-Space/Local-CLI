@@ -75,6 +75,7 @@ import {
   setTodoCompleteCallback,
   setTodoFailCallback,
   setCompactCallback,
+  setAssistantResponseCallback,
 } from '../../tools/llm/simple/file-tools.js';
 import { createRequire } from 'module';
 
@@ -256,6 +257,21 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
 
     return () => {
       setTellToUserCallback(null);
+    };
+  }, [addLog]);
+
+  // Setup assistant response callback - adds to Static log
+  useEffect(() => {
+    setAssistantResponseCallback((content) => {
+      addLog({
+        type: 'assistant_message',
+        content,
+      });
+      logger.debug('Assistant response received', { contentLength: content.length });
+    });
+
+    return () => {
+      setAssistantResponseCallback(null);
     };
   }, [addLog]);
 
