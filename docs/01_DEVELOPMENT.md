@@ -1,6 +1,6 @@
 # 개발자 종합 가이드 (Development Guide)
 
-> **문서 버전**: 4.0.0 (v1.0.0)
+> **문서 버전**: 5.0.0 (v1.0.0)
 > **최종 수정일**: 2025-12-11
 
 이 문서는 **OPEN-CLI** 프로젝트의 전체 구조, 아키텍처, 핵심 기능, 개발 규칙을 설명합니다.
@@ -37,10 +37,10 @@
 |------|------|
 | Plan & Execute | 복잡한 작업을 자동으로 분해하여 순차 실행 |
 | 요청 분류 | simple_response vs requires_todo 자동 분류 |
-| 승인 모드 | 승인/승인(항상허용)/거부+코멘트 |
 | ask-to-user Tool | LLM이 사용자에게 질문 (2-4 선택지 + Other) |
 | 사용량 추적 | 세션/일별/월별 토큰 통계 |
 | 문서 다운로드 | /docs download agno, adk |
+| Auto-Compact | Context 80% 도달 시 자동 대화 압축 |
 | Claude Code 스타일 상태바 | `✶ ~하는 중… (esc to interrupt · 2m 7s · ↑ 3.6k tokens)` |
 
 ---
@@ -72,12 +72,11 @@ src/
 │   ├── llm/                        # LLM 관련 모듈
 │   │   ├── llm-client.ts           # LLM API 통신 클라이언트
 │   │   ├── planning-llm.ts         # TODO 리스트 생성 LLM
-│   │   ├── request-classifier.ts   # 요청 분류기 (Phase 1) ✅ NEW
+│   │   ├── request-classifier.ts   # 요청 분류기 (simple/todo)
 │   │   └── index.ts
 │   │
 │   ├── config/                     # 설정 관리
 │   │   ├── config-manager.ts       # 설정 파일 관리
-│   │   ├── project-config.ts       # 프로젝트별 설정
 │   │   └── index.ts
 │   │
 │   ├── session/                    # 세션 관리
@@ -89,41 +88,30 @@ src/
 │   │   ├── document-manager.ts     # 문서 인덱싱 관리
 │   │   └── index.ts
 │   │
-│   ├── docs-manager.ts             # 문서 다운로드 관리 (Phase 4) ✅ NEW
-│   ├── usage-tracker.ts            # 사용량 추적 (Phase 3) ✅ NEW
+│   ├── compact/                    # 대화 압축 (Auto-Compact)
+│   │   ├── context-tracker.ts      # Context 사용량 추적
+│   │   ├── compact-prompts.ts      # 압축 프롬프트 템플릿
+│   │   ├── compact-manager.ts      # 압축 실행 로직
+│   │   └── index.ts
+│   │
+│   ├── __tests__/                  # 테스트 파일
+│   │   └── auto-updater.test.ts
+│   │
+│   ├── docs-manager.ts             # 문서 다운로드 관리 (/docs)
+│   ├── usage-tracker.ts            # 사용량 추적 (/usage)
 │   ├── slash-command-handler.ts    # 슬래시 명령 처리
 │   ├── bash-command-tool.ts        # Bash 명령 실행 (보안 검증)
 │   ├── todo-executor.ts            # TODO 실행기
 │   ├── agent-framework-handler.ts  # 에이전트 프레임워크 핸들러
-│   ├── internal-monologue.ts       # Extended Thinking
-│   ├── scratchpad.ts               # 외부 TODO 파일 관리
 │   ├── auto-updater.ts             # GitHub 자동 업데이트
-│   ├── git-auto-updater.ts         # Git 기반 자동 업데이트
-│   │
-│   └── (re-export files)           # 하위 호환성 re-export
-│       ├── llm-client.ts           # → llm/llm-client.ts
-│       ├── config-manager.ts       # → config/config-manager.ts
-│       ├── session-manager.ts      # → session/session-manager.ts
-│       ├── planning-llm.ts         # → llm/planning-llm.ts
-│       ├── docs-search-agent.ts    # → knowledge/docs-search-agent.ts
-│       ├── document-manager.ts     # → knowledge/document-manager.ts
-│       └── project-config.ts       # → config/project-config.ts
+│   └── git-auto-updater.ts         # Git 기반 자동 업데이트
 │
-├── orchestration/                  # Plan & Execute 오케스트레이션 ✅ RENAMED
+├── orchestration/                  # Plan & Execute 오케스트레이션
 │   ├── orchestrator.ts             # 메인 오케스트레이터
 │   ├── state-manager.ts            # 실행 상태 관리
-│   ├── approval-manager.ts         # 사용자 승인 관리 (HITL) ✅ UPDATED
-│   ├── risk-analyzer.ts            # 위험도 분석
 │   ├── llm-schemas.ts              # LLM 입출력 스키마
 │   ├── types.ts                    # 타입 정의
 │   └── index.ts
-│
-├── execution/                      # 다계층 실행 시스템
-│   ├── layer-manager.ts            # 계층 선택 및 관리
-│   ├── standard-tools.ts           # 표준 도구 계층
-│   ├── sdk-layer.ts                # 동적 코드 생성 계층
-│   ├── subagent-layer.ts           # 서브 에이전트 계층
-│   └── skills-layer.ts             # 스킬 계층
 │
 ├── tools/                          # AI 도구 (6가지 분류 시스템)
 │   ├── types.ts                    # 도구 타입 인터페이스
@@ -132,8 +120,8 @@ src/
 │   ├── llm/                        # LLM이 tool_call로 호출하는 도구
 │   │   ├── simple/                 # Sub-LLM 없는 단순 도구
 │   │   │   ├── file-tools.ts       # 파일 도구 (read, write, list, find)
-│   │   │   ├── todo-tools.ts       # TODO 관리 도구 (Phase 1) ✅ NEW
-│   │   │   ├── ask-user-tool.ts    # ask-to-user 도구 (Phase 2) ✅ NEW
+│   │   │   ├── todo-tools.ts       # TODO 관리 도구
+│   │   │   ├── ask-user-tool.ts    # ask-to-user 도구
 │   │   │   └── index.ts
 │   │   ├── agents/                 # Sub-LLM 사용 에이전트 도구
 │   │   │   └── index.ts
@@ -153,11 +141,6 @@ src/
 │   ├── mcp/                        # MCP (Model Context Protocol)
 │   │   └── index.ts
 │   │
-│   ├── native/                     # (하위 호환성)
-│   │   ├── file-tools.ts
-│   │   └── index.ts
-│   │
-│   ├── file-tools.ts               # (하위 호환성)
 │   └── index.ts
 │
 ├── ui/                             # UI 컴포넌트 (React/Ink)
@@ -165,9 +148,9 @@ src/
 │   ├── index.ts
 │   │
 │   ├── components/
-│   │   ├── PlanExecuteApp.tsx      # 메인 앱 (가장 중요!) ✅ UPDATED
-│   │   ├── StatusBar.tsx           # 상태바 (Claude Code 스타일) ✅ UPDATED
-│   │   ├── Logo.tsx                # 시작 화면 로고 (버전 표시) ✅ UPDATED
+│   │   ├── PlanExecuteApp.tsx      # 메인 앱 (가장 중요!)
+│   │   ├── StatusBar.tsx           # 상태바 (Claude Code 스타일, Context %)
+│   │   ├── Logo.tsx                # 시작 화면 로고 (버전 표시)
 │   │   ├── CustomTextInput.tsx     # 텍스트 입력 (한글 지원)
 │   │   ├── FileBrowser.tsx         # @ 파일 선택기
 │   │   ├── CommandBrowser.tsx      # / 명령어 선택기
@@ -181,8 +164,7 @@ src/
 │   │   ├── index.ts
 │   │   │
 │   │   ├── dialogs/                # 다이얼로그 컴포넌트
-│   │   │   ├── ApprovalDialog.tsx  # 승인 다이얼로그 (Phase 2) ✅ UPDATED
-│   │   │   ├── AskUserDialog.tsx   # ask-to-user 다이얼로그 (Phase 2) ✅ NEW
+│   │   │   ├── AskUserDialog.tsx   # ask-to-user 다이얼로그
 │   │   │   ├── SettingsDialog.tsx  # 설정 다이얼로그
 │   │   │   └── index.ts
 │   │   │
@@ -198,7 +180,7 @@ src/
 │   │   └── TokenContext.tsx        # 토큰 사용량 추적
 │   │
 │   ├── hooks/                      # React 커스텀 훅
-│   │   ├── usePlanExecution.ts     # Plan 실행 상태 관리 ✅ UPDATED
+│   │   ├── usePlanExecution.ts     # Plan 실행 상태 관리
 │   │   ├── useFileBrowserState.ts  # 파일 브라우저 상태
 │   │   ├── useCommandBrowserState.ts # 명령 브라우저 상태
 │   │   ├── useFileList.ts          # 파일 목록 로드
@@ -220,20 +202,14 @@ src/
 │   ├── file-system.ts              # 파일 시스템 헬퍼
 │   └── retry.ts                    # 재시도 로직
 │
-├── errors/                         # 에러 클래스
-│   ├── base.ts                     # 기본 에러
-│   ├── llm.ts                      # LLM 관련 에러
-│   ├── network.ts                  # 네트워크 에러
-│   ├── file.ts                     # 파일 에러
-│   ├── config.ts                   # 설정 에러
-│   ├── validation.ts               # 검증 에러
-│   └── index.ts
-│
-├── verification/                   # 검증 시스템
-│   └── verification-system.ts      # Rule/Visual/LLM-Judge
-│
-└── workflows/                      # 워크플로우
-    └── tdd-workflow.ts             # TDD 자동화
+└── errors/                         # 에러 클래스
+    ├── base.ts                     # 기본 에러
+    ├── llm.ts                      # LLM 관련 에러
+    ├── network.ts                  # 네트워크 에러
+    ├── file.ts                     # 파일 에러
+    ├── config.ts                   # 설정 에러
+    ├── validation.ts               # 검증 에러
+    └── index.ts
 ```
 
 ### 3.2 데이터 저장 위치
@@ -242,9 +218,9 @@ src/
 ~/.open-cli/                        # 설정 및 데이터 디렉토리
 ├── config.json                     # 메인 설정
 ├── endpoints.json                  # LLM 엔드포인트 목록
-├── usage.json                      # 사용량 통계 (Phase 3) ✅ NEW
+├── usage.json                      # 사용량 통계
 ├── docs/                           # 로컬 문서 (RAG용)
-│   └── agent_framework/            # 다운로드된 문서 (Phase 4) ✅ NEW
+│   └── agent_framework/            # 다운로드된 문서
 │       ├── agno/                   # Agno Framework 문서
 │       └── adk/                    # Google ADK 문서
 ├── backups/                        # 자동 백업
@@ -258,7 +234,7 @@ src/
 
 ## 4. 핵심 기능 상세
 
-### 4.1 요청 분류 시스템 (Phase 1)
+### 4.1 요청 분류 시스템
 
 **위치**: `src/core/llm/request-classifier.ts`
 
@@ -279,7 +255,7 @@ simple_response      requires_todo
 (바로 응답)          (TODO 생성 후 실행)
 ```
 
-### 4.2 TODO 관리 LLM Tools (Phase 1)
+### 4.2 TODO 관리 LLM Tools
 
 **위치**: `src/tools/llm/simple/todo-tools.ts`
 
@@ -288,7 +264,7 @@ simple_response      requires_todo
 | `update-todo-list` | TODO 상태 업데이트 (in_progress, completed, failed) |
 | `get-todo-list` | 현재 TODO 목록 조회 |
 
-### 4.3 ask-to-user Tool (Phase 2)
+### 4.3 ask-to-user Tool
 
 **위치**: `src/tools/llm/simple/ask-user-tool.ts`
 
@@ -307,22 +283,28 @@ interface AskUserRequest {
 - 숫자 키(1-4)로 빠른 선택
 - "Other" 선택 시 텍스트 입력
 
-### 4.4 승인 모드 (Phase 2)
+### 4.4 Auto-Compact (대화 압축)
 
-**위치**: `src/orchestration/approval-manager.ts`, `src/ui/components/dialogs/ApprovalDialog.tsx`
+**위치**: `src/core/compact/`
 
-위험한 작업 실행 전 사용자 승인을 요청합니다.
+Context window가 80%에 도달하면 자동으로 대화를 압축합니다.
+
+| 파일 | 역할 |
+|------|------|
+| `context-tracker.ts` | prompt_tokens 추적, 80% 감지 |
+| `compact-prompts.ts` | 압축 프롬프트 템플릿, 동적 컨텍스트 주입 |
+| `compact-manager.ts` | LLM 호출로 압축 실행 |
 
 ```typescript
-type ApprovalAction = 'approve' | 'approve_always' | 'reject_with_comment' | 'stop';
+// 수동 압축
+/compact
 
-// UI 옵션
-[1] ✅ 승인 - 이 계획 실행
-[2] ✅ 승인 (항상 허용) - 이 유형 항상 허용
-[3] ❌ 거부 + 코멘트 - 피드백과 함께 거부
+// 자동 압축
+- Context 80% 도달 시 메시지 전송 전 자동 실행
+- StatusBar에 "Context XX%" 표시 (초록/노랑/빨강)
 ```
 
-### 4.5 사용량 추적 (Phase 3)
+### 4.5 사용량 추적
 
 **위치**: `src/core/usage-tracker.ts`
 
@@ -334,6 +316,7 @@ interface SessionUsage {
   requestCount: number;
   startTime: number;
   models: Record<string, number>;
+  lastPromptTokens: number;  // Context 추적용
 }
 
 // 주요 메서드
@@ -346,7 +329,7 @@ usageTracker.formatSessionStatus(activity);  // Claude Code 스타일
 
 **슬래시 명령어**: `/usage`
 
-### 4.6 문서 다운로드 (Phase 4)
+### 4.6 문서 다운로드
 
 **위치**: `src/core/docs-manager.ts`
 
@@ -394,8 +377,6 @@ AVAILABLE_SOURCES = [
 |------|------|
 | `orchestrator.ts` | 전체 워크플로우 조율 |
 | `state-manager.ts` | 실행 상태 관리 |
-| `approval-manager.ts` | HITL 사용자 승인 |
-| `risk-analyzer.ts` | 작업 위험도 분석 |
 | `llm-schemas.ts` | LLM 입출력 형식 |
 | `types.ts` | 타입 정의 |
 
@@ -414,7 +395,12 @@ User Input (터미널 메시지)
 └──────────────────────────┬──────────────────────────────────────┘
                            ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│                   Request Classifier (Phase 1)                   │
+│                   Auto-Compact Check                             │
+│              Context 80% 이상이면 압축 먼저 실행                   │
+└──────────────────────────┬──────────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────────────┐
+│                   Request Classifier                             │
 │              src/core/llm/request-classifier.ts                  │
 │                                                                  │
 │              simple_response  ←→  requires_todo                  │
@@ -424,12 +410,12 @@ User Input (터미널 메시지)
 │                   Plan-Execute (Orchestration)                   │
 │                     src/orchestration/                           │
 │                                                                  │
-│  Planning → Approval (HITL) → Execution → Debugging              │
+│              Planning → Execution → Debugging                    │
 └──────────────────────────┬──────────────────────────────────────┘
                            ↓
 ┌─────────────────────────────────────────────────────────────────┐
 │                   Tool Execution Layer                           │
-│                     src/tools/, src/execution/                   │
+│                     src/tools/                                   │
 │                                                                  │
 │  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌────────────┐   │
 │  │ LLM Tools  │ │ System     │ │ User       │ │ MCP        │   │
@@ -494,7 +480,19 @@ export const myTool: LLMSimpleTool = {
 
 ### 6.2 새 슬래시 명령어 추가
 
-**위치**: `src/core/slash-command-handler.ts`
+**1단계**: `src/ui/hooks/slashCommandProcessor.ts`에 명령어 등록
+
+```typescript
+export const SLASH_COMMANDS: CommandMetadata[] = [
+  // ... 기존 명령어
+  {
+    name: '/mycommand',
+    description: 'My command description',
+  },
+];
+```
+
+**2단계**: `src/core/slash-command-handler.ts`에 핸들러 추가
 
 ```typescript
 // /mycommand 명령어 추가
@@ -514,7 +512,7 @@ if (trimmedCommand === '/mycommand') {
 }
 ```
 
-### 6.3 새 문서 소스 추가 (Phase 4)
+### 6.3 새 문서 소스 추가
 
 **위치**: `src/core/docs-manager.ts`의 `AVAILABLE_SOURCES` 배열에 추가
 
@@ -547,6 +545,8 @@ export const AVAILABLE_SOURCES: DocsSource[] = [
 
 ### 7.2 로깅 규칙 (필수!)
 
+자세한 내용은 `docs/02_LOGGING.md` 참조.
+
 ```typescript
 import { logger } from '../utils/logger.js';
 
@@ -566,6 +566,8 @@ async function myFunction(input: string) {
   }
 }
 ```
+
+**주의**: `logger.info()`는 deprecated. `logger.debug()` 또는 `logger.flow()` 사용.
 
 ### 7.3 Index Signature 접근
 
