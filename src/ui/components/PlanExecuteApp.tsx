@@ -795,7 +795,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
           </Box>
         );
 
-      case 'tool_result':
+      case 'tool_result': {
         // diff가 있으면 전체 diff 표시
         if (entry.diff && entry.diff.length > 0) {
           return (
@@ -815,14 +815,39 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
             </Box>
           );
         }
+
+        // tell_to_user 결과는 표시하지 않음 (tell_user 로그에서 이미 표시)
+        if (entry.content === 'tell_to_user') {
+          return null;
+        }
+
+        // list_files, find_files 결과 축약
+        let displayText = entry.details || '';
+        if (entry.content === 'list_files' || entry.content === 'find_files') {
+          try {
+            const parsed = JSON.parse(displayText);
+            if (Array.isArray(parsed)) {
+              const count = parsed.length;
+              const preview = parsed.slice(0, 3).map((f: { name?: string; path?: string }) => f.name || f.path || '').join(', ');
+              displayText = `${count}개 항목${count > 3 ? ` (${preview}, ...)` : count > 0 ? ` (${preview})` : ''}`;
+            }
+          } catch {
+            // JSON 파싱 실패시 원본 텍스트 축약
+            if (displayText.length > 100) {
+              displayText = displayText.substring(0, 100) + '...';
+            }
+          }
+        }
+
         // 일반 결과
         return (
           <Box key={entry.id} marginLeft={2}>
             <Text color="gray">⎿  </Text>
             <Text color={entry.success ? 'green' : 'red'}>{entry.success ? '✓' : '✗'} </Text>
-            <Text color={entry.success ? 'gray' : 'red'}>{entry.details}</Text>
+            <Text color={entry.success ? 'gray' : 'red'}>{displayText}</Text>
           </Box>
         );
+      }
 
       case 'tell_user':
         return (
