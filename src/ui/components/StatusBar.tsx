@@ -67,6 +67,30 @@ const Clock: React.FC = () => {
 };
 
 /**
+ * Animated star component - pulses between large and small
+ */
+const AnimatedStar: React.FC = () => {
+  const [phase, setPhase] = useState(0);
+
+  // Animation phases: ✶ (large) → ✷ (medium) → ✸ (small) → ✷ → ✶
+  const stars = ['✶', '✷', '✸', '✷'];
+  const colors = ['magentaBright', 'magenta', 'gray', 'magenta'] as const;
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setPhase(p => (p + 1) % stars.length);
+    }, 300); // 300ms per phase = ~1.2s full cycle
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <Text color={colors[phase]} bold>
+      {stars[phase]}{' '}
+    </Text>
+  );
+};
+
+/**
  * Context usage mini bar
  */
 const ContextMiniBar: React.FC<{ current: number; max: number }> = ({ current, max }) => {
@@ -160,7 +184,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({
     return (
       <Box justifyContent="space-between" paddingX={1}>
         <Box>
-          <Text color="magenta" bold>✶ </Text>
+          <AnimatedStar />
           <Text color="white">{currentActivity}… </Text>
           <Text color="gray">(esc to interrupt</Text>
           {sessionElapsedSeconds !== undefined && (
