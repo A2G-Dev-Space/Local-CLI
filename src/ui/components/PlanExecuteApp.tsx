@@ -871,7 +871,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
                 <Box key={idx} marginLeft={3}>
                   <Text
                     color={line.includes(' + ') ? 'white' : line.includes(' - ') ? 'white' : 'gray'}
-                    backgroundColor={line.includes(' + ') ? 'blue' : line.includes(' - ') ? 'red' : undefined}
+                    backgroundColor={line.includes(' + ') ? '#1e40af' : line.includes(' - ') ? '#b91c1c' : undefined}
                   >
                     {line}
                   </Text>
@@ -929,7 +929,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
                 </Box>
                 {contentLines.map((line, idx) => (
                   <Box key={idx} marginLeft={3}>
-                    <Text color="white" backgroundColor="blue">+ {line}</Text>
+                    <Text color="white" backgroundColor="#1e40af">+ {line}</Text>
                   </Box>
                 ))}
               </Box>
