@@ -275,7 +275,6 @@ export async function performDocsSearchIfNeeded(
     framework: detection.framework,
     category: detection.category
   });
-  console.log(`📚 Searching documentation for: ${query.substring(0, 50)}...`);
 
   logger.flow('Executing docs search agent');
   logger.startTimer('docs-search');

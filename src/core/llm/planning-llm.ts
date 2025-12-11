@@ -6,6 +6,7 @@
 
 import { LLMClient } from './llm-client.js';
 import { Message, TodoItem, PlanningResult, TodoStatus } from '../../types/index.js';
+import { logger } from '../../utils/logger.js';
 
 /**
  * Planning LLM
@@ -109,7 +110,7 @@ User: "Create a REST API with TypeScript"
         complexity: planningData.complexity || 'moderate',
       };
     } catch (error) {
-      console.error('Planning LLM error:', error);
+      logger.error('Planning LLM error:', error as Error);
 
       // Fallback: Create single TODO for the entire request
       return {
@@ -137,7 +138,7 @@ User: "Create a REST API with TypeScript"
     for (const todo of todos) {
       for (const depId of todo.dependencies) {
         if (!todoIds.has(depId)) {
-          console.warn(`Invalid dependency: TODO ${todo.id} depends on non-existent TODO ${depId}`);
+          logger.warn(`Invalid dependency: TODO ${todo.id} depends on non-existent TODO ${depId}`);
           return false;
         }
       }
@@ -168,7 +169,7 @@ User: "Create a REST API with TypeScript"
 
     for (const todo of todos) {
       if (!visited.has(todo.id) && hasCycle(todo.id)) {
-        console.warn('Circular dependency detected in TODOs');
+        logger.warn('Circular dependency detected in TODOs');
         return false;
       }
     }

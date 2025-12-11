@@ -10,6 +10,7 @@ import { Message } from '../../types/index.js';
 import { configManager } from '../config/config-manager.js';
 import { PROJECTS_DIR } from '../../constants.js';
 import { initializeJsonStreamLogger } from '../../utils/json-stream-logger.js';
+import { logger } from '../../utils/logger.js';
 
 /**
  * 세션 메타데이터 인터페이스
@@ -190,7 +191,7 @@ export class SessionManager {
           });
         } catch (parseError) {
           // Skip invalid session files
-          console.error(`Failed to parse session file ${file}:`, parseError);
+          logger.warn(`Failed to parse session file ${file}:`, parseError);
         }
       }
 
@@ -270,7 +271,7 @@ export class SessionManager {
     this.performAutoSave(messages).catch((err: unknown) => {
       // Silently log errors without blocking
       const error = err as Error;
-      console.error('Auto-save failed:', error.message || 'Unknown error');
+      logger.warn('Auto-save failed:', { error: error.message || 'Unknown error' });
     });
   }
 

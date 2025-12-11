@@ -15,6 +15,7 @@ import { StandardToolLayer } from './standard-tools.js';
 import { SDKLayer } from './sdk-layer.js';
 import { SubAgentLayer } from './subagent-layer.js';
 import { SkillsLayer } from './skills-layer.js';
+import { logger } from '../utils/logger.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -64,11 +65,7 @@ export class ExecutionLayerManager {
     // 1. Analyze task complexity
     const analysis = await this.analyzeTask(task);
 
-    console.log(`📊 Task Analysis:
-    - Complexity: ${analysis.complexity}/10
-    - Estimated Time: ${analysis.estimatedTime}ms
-    - Required Capabilities: ${analysis.requiredCapabilities.join(', ')}
-    - Recommended Layer: ${analysis.recommendedLayer}`);
+    logger.debug(`📊 Task Analysis: Complexity=${analysis.complexity}/10, Time=${analysis.estimatedTime}ms, Layer=${analysis.recommendedLayer}`);
 
     // 2. Try to find suitable layer
     let result: LayerExecutionResult | null = null;
@@ -96,7 +93,7 @@ export class ExecutionLayerManager {
         executionTime: Date.now() - startTime
       };
     } else {
-      console.log(`🎯 Executing task with ${selectedLayer.name} layer`);
+      logger.debug(`🎯 Executing task with ${selectedLayer.name} layer`);
 
       // 3. Execute with monitoring
       result = await this.executeWithMonitoring(selectedLayer, task);
@@ -114,14 +111,7 @@ export class ExecutionLayerManager {
     });
 
     // 5. Log execution summary
-    console.log(`\n📈 Execution Summary:
-    - Layer: ${result.layer}
-    - Success: ${result.success}
-    - Execution Time: ${result.executionTime}ms
-    ${result.error ? `- Error: ${result.error}` : ''}
-    ${result.subtasks ? `- Subtasks: ${result.subtasks}` : ''}
-    ${result.parallelism ? `- Parallelism: ${result.parallelism}` : ''}
-    ${result.skillUsed ? `- Skill Used: ${result.skillUsed}` : ''}`);
+    logger.debug(`📈 Execution Summary: Layer=${result.layer}, Success=${result.success}, Time=${result.executionTime}ms${result.error ? `, Error=${result.error}` : ''}`);
 
     return result;
   }
@@ -302,7 +292,7 @@ export class ExecutionLayerManager {
         JSON.stringify(this.metrics, null, 2)
       );
     } catch (error) {
-      console.warn('Failed to save metrics:', error);
+      logger.warn('Failed to save metrics:', error);
     }
   }
 

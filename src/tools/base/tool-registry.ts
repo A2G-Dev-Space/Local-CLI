@@ -7,6 +7,7 @@
 
 import { BaseTool, ToolResult, ToolCategory, RiskLevel } from './base-tool.js';
 import { ToolDefinition } from '../../types/index.js';
+import { logger } from '../../utils/logger.js';
 
 /**
  * Tool registry singleton
@@ -20,7 +21,7 @@ class ToolRegistryClass {
   register(tool: BaseTool): void {
     const name = tool.getName();
     if (this.tools.has(name)) {
-      console.warn(`Tool "${name}" is already registered. Overwriting.`);
+      logger.warn(`Tool "${name}" is already registered. Overwriting.`);
     }
     this.tools.set(name, tool);
   }

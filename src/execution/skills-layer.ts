@@ -13,6 +13,7 @@ import {
   Message,
 } from '../types/index.js';
 import { LLMClient } from '../core/llm-client.js';
+import { logger } from '../utils/logger.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -423,7 +424,7 @@ Respond with just the skill name, or "none" if no skill matches.`;
       const skillPath = path.join(skillsDir, `${skill.name}.json`);
       await fs.writeFile(skillPath, JSON.stringify(skill, null, 2));
     } catch (error) {
-      console.warn(`Failed to save skill ${skill.name}:`, error);
+      logger.warn(`Failed to save skill ${skill.name}:`, error);
     }
   }
 

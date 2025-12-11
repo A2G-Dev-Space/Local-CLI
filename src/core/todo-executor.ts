@@ -8,6 +8,7 @@ import { LLMClient } from './llm-client.js';
 import { TodoItem, Message } from '../types/index.js';
 import { executeDocsSearchAgent } from './docs-search-agent.js';
 import { FILE_TOOLS } from '../tools/file-tools.js';
+import { logger } from '../utils/logger.js';
 
 /**
  * Callback type for TODO updates
@@ -47,7 +48,7 @@ export class TodoExecutor {
       // 1. Docs Search pre-execution (if requiresDocsSearch)
       let docsContext = '';
       if (todo.requiresDocsSearch) {
-        console.log(`📚 Searching documentation for: ${todo.title}`);
+        logger.debug(`📚 Searching documentation for: ${todo.title}`);
         const searchResult = await executeDocsSearchAgent(
           this.llmClient,
           todo.description
@@ -87,7 +88,7 @@ export class TodoExecutor {
       }];
 
       // 3. Execute Main LLM (with Tools)
-      console.log(`🔧 Executing: ${todo.title}`);
+      logger.debug(`🔧 Executing: ${todo.title}`);
       const result = await this.llmClient.chatCompletionWithTools(
         updatedMessages,
         FILE_TOOLS,
@@ -103,7 +104,7 @@ export class TodoExecutor {
       todo.completedAt = new Date().toISOString();
       this.onTodoUpdate?.(todo);
 
-      console.log(`✅ Completed: ${todo.title}`);
+      logger.debug(`✅ Completed: ${todo.title}`);
 
       return {
         messages: result.allMessages,
@@ -116,7 +117,7 @@ export class TodoExecutor {
       todo.completedAt = new Date().toISOString();
       this.onTodoUpdate?.(todo);
 
-      console.error(`❌ Failed: ${todo.title} - ${todo.error}`);
+      logger.error(`❌ Failed: ${todo.title} - ${todo.error}`);
 
       throw error;
     }
@@ -133,13 +134,13 @@ export class TodoExecutor {
     const completedTodos: TodoItem[] = [];
     const updatedTodos = [...todos];
 
-    console.log(`\n📋 Executing ${todos.length} TODO(s)...\n`);
+    logger.debug(`📋 Executing ${todos.length} TODO(s)...`);
 
     for (let i = 0; i < updatedTodos.length; i++) {
       const todo = updatedTodos[i];
       if (!todo) continue; // Safety check
 
-      console.log(`\n[${i + 1}/${updatedTodos.length}] Starting: ${todo.title}`);
+      logger.debug(`[${i + 1}/${updatedTodos.length}] Starting: ${todo.title}`);
 
       // Check dependencies
       if (todo.dependencies.length > 0) {
@@ -150,7 +151,7 @@ export class TodoExecutor {
         if (!allDepsCompleted) {
           todo.status = 'failed';
           todo.error = 'Dependency TODOs not completed';
-          console.warn(`⚠️ Skipping "${todo.title}": Dependencies not met`);
+          logger.warn(`⚠️ Skipping "${todo.title}": Dependencies not met`);
           continue;
         }
       }
@@ -162,7 +163,7 @@ export class TodoExecutor {
         completedTodos.push(result.todo);
       } catch (error) {
         // Continue with next TODO even if one fails
-        console.warn(`⚠️ TODO "${todo.title}" failed, continuing with next...`);
+        logger.warn(`⚠️ TODO "${todo.title}" failed, continuing with next...`);
 
         // Add error message to conversation
         messages.push({
@@ -176,11 +177,7 @@ export class TodoExecutor {
     const completedCount = updatedTodos.filter(t => t.status === 'completed').length;
     const failedCount = updatedTodos.filter(t => t.status === 'failed').length;
 
-    console.log(`\n📊 Execution Summary:`);
-    console.log(`   ✅ Completed: ${completedCount}/${updatedTodos.length}`);
-    if (failedCount > 0) {
-      console.log(`   ❌ Failed: ${failedCount}/${updatedTodos.length}`);
-    }
+    logger.debug(`📊 Execution Summary: ✅ Completed: ${completedCount}/${updatedTodos.length}${failedCount > 0 ? `, ❌ Failed: ${failedCount}/${updatedTodos.length}` : ''}`);
 
     return {
       messages,
@@ -200,7 +197,7 @@ export class TodoExecutor {
     const completedTodos = todos.filter(t => t.status === 'completed');
 
     if (pendingTodos.length === 0) {
-      console.log('ℹ️ All TODOs are already completed');
+      logger.info('ℹ️ All TODOs are already completed');
       return { messages, todos };
     }
 
@@ -212,7 +209,7 @@ export class TodoExecutor {
       }
     });
 
-    console.log(`\n🔄 Resuming execution with ${pendingTodos.length} pending TODO(s)...\n`);
+    logger.debug(`🔄 Resuming execution with ${pendingTodos.length} pending TODO(s)...`);
 
     // Continue execution with pending TODOs
     const result = await this.executeAll(pendingTodos, messages);
