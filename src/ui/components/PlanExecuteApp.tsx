@@ -753,12 +753,12 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
             <Text>{' '}</Text>
             <Text>{' '}</Text>
             <Text>{' '}</Text>
-            <Text color="cyan" bold>   ____  _____  ______ _   _        _____ _      _____ </Text>
-            <Text color="cyan" bold>  / __ \|  __ \|  ____| \ | |      / ____| |    |_   _|</Text>
-            <Text color="cyan" bold> | |  | | |__) | |__  |  \| |_____| |    | |      | |  </Text>
-            <Text color="cyan" bold> | |  | |  ___/|  __| | . ` |_____| |    | |      | |  </Text>
-            <Text color="blue" bold> | |__| | |    | |____| |\  |     | |____| |____ _| |_ </Text>
-            <Text color="blue" bold>  \____/|_|    |______|_| \_|      \_____|______|_____|</Text>
+            <Text bold><Text color="cyanBright">   ____  </Text><Text color="cyan">_____  </Text><Text color="cyanBright">______ </Text><Text color="cyan">_   _   </Text><Text color="greenBright">     _____ </Text><Text color="green">_      </Text><Text color="greenBright">_____ </Text></Text>
+            <Text bold><Text color="cyanBright">  / __ \ </Text><Text color="cyan">|  __ \</Text><Text color="cyanBright">|  ____</Text><Text color="cyan">| \ | |  </Text><Text color="greenBright">    / ____</Text><Text color="green">| |    </Text><Text color="greenBright">|_   _|</Text></Text>
+            <Text bold><Text color="cyanBright"> | |  | |</Text><Text color="cyan"> |__) </Text><Text color="cyanBright">| |__  </Text><Text color="cyan">|  \| |</Text><Text color="yellow">_____</Text><Text color="greenBright">| |    </Text><Text color="green">| |      </Text><Text color="greenBright">| |  </Text></Text>
+            <Text bold><Text color="cyan"> | |  | |</Text><Text color="blue"> ___/ </Text><Text color="cyan">|  __| </Text><Text color="blue">| . ` |</Text><Text color="yellow">_____</Text><Text color="green">| |    </Text><Text color="greenBright">| |      </Text><Text color="green">| |  </Text></Text>
+            <Text bold><Text color="blue"> | |__| |</Text><Text color="blueBright"> |    </Text><Text color="blue">| |____</Text><Text color="blueBright">| |\  |  </Text><Text color="green">   | |____</Text><Text color="greenBright">| |____ </Text><Text color="green">_| |_ </Text></Text>
+            <Text bold><Text color="blueBright">  \____/</Text><Text color="magenta">|_|    </Text><Text color="blueBright">|______</Text><Text color="magenta">|_| \_|  </Text><Text color="greenBright">    \_____</Text><Text color="green">|______</Text><Text color="greenBright">|_____|</Text></Text>
             <Text color="gray">                    {entry.content}</Text>
           </Box>
         );
@@ -872,12 +872,15 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
       case 'compact':
         return (
           <Box key={entry.id} flexDirection="column" marginTop={1}>
-            <Text color="cyan" bold>   ____  _____  ______ _   _        _____ _      _____ </Text>
-            <Text color="cyan" bold>  / __ \|  __ \|  ____| \ | |      / ____| |    |_   _|</Text>
-            <Text color="cyan" bold> | |  | | |__) | |__  |  \| |_____| |    | |      | |  </Text>
-            <Text color="cyan" bold> | |  | |  ___/|  __| | . ` |_____| |    | |      | |  </Text>
-            <Text color="blue" bold> | |__| | |    | |____| |\  |     | |____| |____ _| |_ </Text>
-            <Text color="blue" bold>  \____/|_|    |______|_| \_|      \_____|______|_____|</Text>
+            <Text>{' '}</Text>
+            <Text>{' '}</Text>
+            <Text>{' '}</Text>
+            <Text bold><Text color="cyanBright">   ____  </Text><Text color="cyan">_____  </Text><Text color="cyanBright">______ </Text><Text color="cyan">_   _   </Text><Text color="greenBright">     _____ </Text><Text color="green">_      </Text><Text color="greenBright">_____ </Text></Text>
+            <Text bold><Text color="cyanBright">  / __ \ </Text><Text color="cyan">|  __ \</Text><Text color="cyanBright">|  ____</Text><Text color="cyan">| \ | |  </Text><Text color="greenBright">    / ____</Text><Text color="green">| |    </Text><Text color="greenBright">|_   _|</Text></Text>
+            <Text bold><Text color="cyanBright"> | |  | |</Text><Text color="cyan"> |__) </Text><Text color="cyanBright">| |__  </Text><Text color="cyan">|  \| |</Text><Text color="yellow">_____</Text><Text color="greenBright">| |    </Text><Text color="green">| |      </Text><Text color="greenBright">| |  </Text></Text>
+            <Text bold><Text color="cyan"> | |  | |</Text><Text color="blue"> ___/ </Text><Text color="cyan">|  __| </Text><Text color="blue">| . ` |</Text><Text color="yellow">_____</Text><Text color="green">| |    </Text><Text color="greenBright">| |      </Text><Text color="green">| |  </Text></Text>
+            <Text bold><Text color="blue"> | |__| |</Text><Text color="blueBright"> |    </Text><Text color="blue">| |____</Text><Text color="blueBright">| |\  |  </Text><Text color="green">   | |____</Text><Text color="greenBright">| |____ </Text><Text color="green">_| |_ </Text></Text>
+            <Text bold><Text color="blueBright">  \____/</Text><Text color="magenta">|_|    </Text><Text color="blueBright">|______</Text><Text color="magenta">|_| \_|  </Text><Text color="greenBright">    \_____</Text><Text color="green">|______</Text><Text color="greenBright">|_____|</Text></Text>
             <Text color="gray">── {entry.content} ──</Text>
           </Box>
         );
