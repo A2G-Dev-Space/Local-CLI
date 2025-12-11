@@ -39,7 +39,7 @@ import { closeJsonStreamLogger } from '../../utils/json-stream-logger.js';
 import { configManager } from '../../core/config/config-manager.js';
 import { logger } from '../../utils/logger.js';
 import { usageTracker } from '../../core/usage-tracker.js';
-import { setToolExecutionCallback } from '../../tools/llm/simple/file-tools.js';
+import { setToolExecutionCallback, setTellToUserCallback } from '../../tools/llm/simple/file-tools.js';
 import { createRequire } from 'module';
 
 // Get version from package.json
@@ -121,6 +121,9 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
   // Tool execution reason display state
   const [toolReason, setToolReason] = useState<{ tool: string; reason: string; filePath?: string } | null>(null);
 
+  // Tell-to-user message display state
+  const [userMessage, setUserMessage] = useState<string | null>(null);
+
   // Use modular hooks
   const fileBrowserState = useFileBrowserState(input, isProcessing);
   const commandBrowserState = useCommandBrowserState(input, isProcessing);
@@ -143,6 +146,18 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
 
     return () => {
       setToolExecutionCallback(null);
+    };
+  }, []);
+
+  // Setup tell_to_user callback for displaying messages to user
+  useEffect(() => {
+    setTellToUserCallback((message) => {
+      setUserMessage(message);
+      logger.debug('Message to user', { message });
+    });
+
+    return () => {
+      setTellToUserCallback(null);
     };
   }, []);
 
@@ -497,6 +512,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
       setIsProcessing(false);
       setCurrentResponse('');
       setToolReason(null);  // Clear tool reason when processing ends
+      setUserMessage(null);  // Clear user message when processing ends
       logger.endTimer('message-processing');
       logger.exit('handleSubmit', { success: true });
     }
@@ -651,6 +667,14 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
           {toolReason.filePath && (
             <Text color="gray" dimColor> ({toolReason.filePath})</Text>
           )}
+        </Box>
+      )}
+
+      {/* User Message from tell_to_user tool */}
+      {isProcessing && userMessage && (
+        <Box marginY={0} paddingX={1}>
+          <Text color="yellow">💬 </Text>
+          <Text color="white">{userMessage}</Text>
         </Box>
       )}
 

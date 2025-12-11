@@ -718,6 +718,75 @@ export const findFilesTool: LLMSimpleTool = {
 };
 
 /**
+ * tell_to_user Tool Definition
+ * Used for sending status messages to the user during task execution
+ */
+const TELL_TO_USER_DEFINITION: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'tell_to_user',
+    description: `Send a message directly to the user to explain what you're doing or provide status updates.
+Use this tool to communicate with the user during task execution.
+The message will be displayed immediately in the UI.`,
+    parameters: {
+      type: 'object',
+      properties: {
+        message: {
+          type: 'string',
+          description: `A natural, conversational message for the user (in user's language).
+Examples:
+- "파일들을 분석하고 있어요, 잠시만 기다려주세요"
+- "설정 파일을 찾았어요! 이제 수정해볼게요"
+- "테스트를 실행해봤는데 2개가 실패했네요. 원인을 찾아볼게요"
+- "작업이 거의 끝나가요, 마무리 중이에요"`,
+        },
+      },
+      required: ['message'],
+    },
+  },
+};
+
+/**
+ * Callback for tell_to_user messages
+ */
+type TellToUserCallback = (message: string) => void;
+let tellToUserCallback: TellToUserCallback | null = null;
+
+/**
+ * Set callback for tell_to_user messages
+ */
+export function setTellToUserCallback(callback: TellToUserCallback | null): void {
+  tellToUserCallback = callback;
+}
+
+/**
+ * Internal: Execute tell_to_user
+ */
+async function _executeTellToUser(args: Record<string, unknown>): Promise<ToolResult> {
+  const message = args['message'] as string;
+
+  // Call the callback to display message in UI
+  if (tellToUserCallback) {
+    tellToUserCallback(message);
+  }
+
+  return {
+    success: true,
+    result: `Message sent to user: ${message}`,
+  };
+}
+
+/**
+ * tell_to_user LLM Simple Tool
+ */
+export const tellToUserTool: LLMSimpleTool = {
+  definition: TELL_TO_USER_DEFINITION,
+  execute: _executeTellToUser,
+  categories: ['llm-simple'] as ToolCategory[],
+  description: 'Send message to user',
+};
+
+/**
  * All file tools
  */
 export const FILE_SIMPLE_TOOLS: LLMSimpleTool[] = [
@@ -726,6 +795,7 @@ export const FILE_SIMPLE_TOOLS: LLMSimpleTool[] = [
   editFileTool,
   listFilesTool,
   findFilesTool,
+  tellToUserTool,
 ];
 
 /**
