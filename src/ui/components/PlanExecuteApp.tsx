@@ -9,7 +9,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { Box, Text, useInput, useApp } from 'ink';
 import Spinner from 'ink-spinner';
 import { CustomTextInput } from './CustomTextInput.js';
-import { LLMClient } from '../../core/llm-client.js';
+import { LLMClient, createLLMClient } from '../../core/llm-client.js';
 import { Message } from '../../types/index.js';
 import { TodoPanel, TodoStatusBar } from '../TodoPanel.js';
 import { sessionManager } from '../../core/session-manager.js';
@@ -49,13 +49,16 @@ interface PlanExecuteAppProps {
   };
 }
 
-export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, modelInfo }) => {
+export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initialLlmClient, modelInfo }) => {
   const { exit } = useApp();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentResponse, setCurrentResponse] = useState('');
   const [planningMode, setPlanningMode] = useState<PlanningMode>('auto');
+
+  // LLM Client state - 모델 변경 시 새로운 클라이언트로 교체
+  const [llmClient, setLlmClient] = useState<LLMClient | null>(initialLlmClient);
 
   // Pending user message (shown immediately after Enter)
   const [pendingUserMessage, setPendingUserMessage] = useState<string | null>(null);
@@ -268,6 +271,15 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient, model
           model: model.name,
           endpoint: endpoint.baseUrl,
         });
+
+        // 새로운 LLMClient 생성 (configManager에 이미 저장되어 있으므로 새로 생성하면 됨)
+        try {
+          const newClient = createLLMClient();
+          setLlmClient(newClient);
+          logger.info('LLMClient recreated with new model', { modelId, modelName: model.name });
+        } catch (error) {
+          logger.error('Failed to create new LLMClient', error as Error);
+        }
       }
 
       setShowModelSelector(false);
