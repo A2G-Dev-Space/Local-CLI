@@ -5,7 +5,7 @@
  * Phase 1 Enhanced: Request classification, TODO management, auto-execution
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Message, TodoItem } from '../../types/index.js';
 import { LLMClient } from '../../core/llm/llm-client.js';
 import { RequestClassifier } from '../../core/llm/request-classifier.js';
@@ -132,6 +132,9 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
   const [executionPhase, setExecutionPhase] = useState<ExecutionPhase>('idle');
   const [isInterrupted, setIsInterrupted] = useState(false);
   const [currentActivity, setCurrentActivity] = useState<string>('대기 중');
+
+  // Ref for interrupt flag (allows checking in async callbacks)
+  const isInterruptedRef = useRef(false);
 
   // Ask-user state
   const [askUserRequest, setAskUserRequest] = useState<AskUserRequest | null>(null);
@@ -262,6 +265,8 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
     if (executionPhase !== 'idle') {
       logger.flow('Interrupting execution');
       setIsInterrupted(true);
+      isInterruptedRef.current = true;
+      setCurrentActivity('중단됨');
       logger.debug('Execution interrupted by user');
     }
 
@@ -278,12 +283,27 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
     setMessages: React.Dispatch<React.SetStateAction<Message[]>>
   ) => {
     logger.enter('executeDirectMode', { messageLength: userMessage.length });
+
+    // Reset interrupt flag at start
+    isInterruptedRef.current = false;
+    setIsInterrupted(false);
     setCurrentActivity('요청 분석 중');
 
     try {
+      // Check for interrupt
+      if (isInterruptedRef.current) {
+        throw new Error('INTERRUPTED');
+      }
+
       setCurrentActivity('문서 검색 중');
       const { messages: messagesWithDocs } =
         await performDocsSearchIfNeeded(llmClient, userMessage, messages);
+
+      // Check for interrupt
+      if (isInterruptedRef.current) {
+        throw new Error('INTERRUPTED');
+      }
+
       setCurrentActivity('응답 생성 중');
 
       const { FILE_TOOLS } = await import('../../tools/llm/simple/file-tools.js');
@@ -300,11 +320,29 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
         5
       );
 
+      // Check for interrupt after LLM call
+      if (isInterruptedRef.current) {
+        throw new Error('INTERRUPTED');
+      }
+
       setMessages(result.allMessages);
       sessionManager.autoSaveCurrentSession(result.allMessages);
 
       logger.exit('executeDirectMode', { success: true });
     } catch (error) {
+      // Handle interrupt specially
+      if (error instanceof Error && error.message === 'INTERRUPTED') {
+        logger.flow('Direct mode interrupted by user');
+        const interruptedMessages: Message[] = [
+          ...messages,
+          { role: 'user', content: userMessage },
+          { role: 'assistant', content: '⚠️ 실행이 중단되었습니다.' }
+        ];
+        setMessages(interruptedMessages);
+        sessionManager.autoSaveCurrentSession(interruptedMessages);
+        return;
+      }
+
       logger.error('Direct mode execution failed', error as Error);
 
       const errorMessage = formatErrorMessage(error);
@@ -328,13 +366,28 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
     setMessages: React.Dispatch<React.SetStateAction<Message[]>>
   ) => {
     logger.enter('executePlanMode', { messageLength: userMessage.length });
+
+    // Reset interrupt flag at start
+    isInterruptedRef.current = false;
+    setIsInterrupted(false);
     setExecutionPhase('planning');
     setCurrentActivity('계획 수립 중');
 
     try {
+      // Check for interrupt
+      if (isInterruptedRef.current) {
+        throw new Error('INTERRUPTED');
+      }
+
       setCurrentActivity('문서 검색 중');
       const { messages: messagesWithDocs, performed: docsSearchPerformed } =
         await performDocsSearchIfNeeded(llmClient, userMessage, messages);
+
+      // Check for interrupt
+      if (isInterruptedRef.current) {
+        throw new Error('INTERRUPTED');
+      }
+
       setCurrentActivity('계획 수립 중');
 
       if (docsSearchPerformed) {
@@ -358,6 +411,10 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
       });
 
       orchestrator.on('todoStarted', (todo: TodoItem) => {
+        // Check for interrupt before starting new TODO
+        if (isInterruptedRef.current) {
+          return;
+        }
         logger.flow('TODO started', { todoId: todo.id });
         handleTodoUpdate({ ...todo, status: 'in_progress' as const });
         setExecutionPhase('executing');
@@ -376,6 +433,11 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
 
       const summary = await orchestrator.execute(userMessage);
 
+      // Check for interrupt after execution
+      if (isInterruptedRef.current) {
+        throw new Error('INTERRUPTED');
+      }
+
       const completionMessage = `✅ 실행 완료\n` +
         `전체: ${summary.totalTasks} | 완료: ${summary.completedTasks} | 실패: ${summary.failedTasks}\n` +
         `소요 시간: ${(summary.duration / 1000).toFixed(2)}초`;
@@ -391,6 +453,20 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
 
       logger.exit('executePlanMode', { success: true, summary });
     } catch (error) {
+      // Handle interrupt specially
+      if (error instanceof Error && error.message === 'INTERRUPTED') {
+        logger.flow('Plan mode interrupted by user');
+        setMessages(prev => {
+          const updatedMessages: Message[] = [
+            ...prev,
+            { role: 'assistant' as const, content: '⚠️ 실행이 중단되었습니다.' }
+          ];
+          sessionManager.autoSaveCurrentSession(updatedMessages);
+          return updatedMessages;
+        });
+        return;
+      }
+
       logger.error('Plan mode execution failed', error as Error);
 
       const errorMessage = formatErrorMessage(error);
@@ -428,12 +504,26 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
     setMessages: React.Dispatch<React.SetStateAction<Message[]>>
   ) => {
     logger.enter('executeAutoMode', { messageLength: userMessage.length });
+
+    // Reset interrupt flag at start
+    isInterruptedRef.current = false;
+    setIsInterrupted(false);
     setExecutionPhase('classifying');
     setCurrentActivity('요청 분류 중');
 
     try {
+      // Check for interrupt
+      if (isInterruptedRef.current) {
+        throw new Error('INTERRUPTED');
+      }
+
       const classifier = new RequestClassifier(llmClient);
       const classification = await classifier.classify(userMessage);
+
+      // Check for interrupt after classification
+      if (isInterruptedRef.current) {
+        throw new Error('INTERRUPTED');
+      }
 
       logger.vars(
         { name: 'classificationType', value: classification.type },
@@ -451,6 +541,22 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
 
       logger.exit('executeAutoMode', { classificationType: classification.type });
     } catch (error) {
+      // Handle interrupt specially
+      if (error instanceof Error && error.message === 'INTERRUPTED') {
+        logger.flow('Auto mode interrupted by user');
+        setMessages(prev => {
+          const updatedMessages: Message[] = [
+            ...prev,
+            { role: 'user' as const, content: userMessage },
+            { role: 'assistant' as const, content: '⚠️ 실행이 중단되었습니다.' }
+          ];
+          sessionManager.autoSaveCurrentSession(updatedMessages);
+          return updatedMessages;
+        });
+        setExecutionPhase('idle');
+        return;
+      }
+
       logger.error('Auto mode execution failed', error as Error);
 
       // Fallback to direct mode on classification error
@@ -464,6 +570,7 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
   useEffect(() => {
     if (executionPhase === 'idle' && isInterrupted) {
       setIsInterrupted(false);
+      isInterruptedRef.current = false;
     }
   }, [executionPhase, isInterrupted]);
 
