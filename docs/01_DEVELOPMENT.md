@@ -193,10 +193,13 @@ src/
 │   └── skills-layer.ts            # 스킬 계층
 │
 ├── tools/                          # AI 도구 정의
-│   ├── base/                      # 기본 도구 클래스 (Phase 0 리팩토링)
-│   │   ├── base-tool.ts           # BaseTool 추상 클래스
-│   │   └── tool-registry.ts       # 도구 레지스트리 싱글톤
+│   ├── base/                      # 기본 도구 클래스 ✅
+│   │   ├── base-tool.ts           # BaseTool 추상 클래스 ✅
+│   │   ├── tool-registry.ts       # 도구 레지스트리 싱글톤 ✅
+│   │   └── index.ts               # 내보내기
 │   ├── native/                    # 네이티브 도구 구현
+│   │   ├── file-tools.ts          # 파일 시스템 도구 ✅
+│   │   └── index.ts               # 내보내기
 │   ├── file-tools.ts              # 파일 시스템 도구 (re-export)
 │   └── index.ts                   # 도구 내보내기
 │
@@ -204,10 +207,11 @@ src/
 │   ├── ink-entry.tsx              # Ink 렌더링 진입점
 │   ├── TodoPanel.tsx              # TODO 패널 (미니맵, 예상시간, 토큰)
 │   ├── components/
-│   │   ├── views/                 # 뷰 컴포넌트 (Phase 0 리팩토링)
-│   │   │   └── ChatView.tsx       # 채팅 뷰 (마크다운 렌더링)
-│   │   ├── panels/                # 패널 컴포넌트
-│   │   ├── dialogs/               # 다이얼로그 컴포넌트
+│   │   ├── views/                 # 뷰 컴포넌트 ✅
+│   │   │   ├── ChatView.tsx       # 채팅 뷰 (마크다운 렌더링) ✅
+│   │   │   └── index.ts           # 내보내기
+│   │   ├── panels/                # 패널 컴포넌트 (폴더 생성됨)
+│   │   ├── dialogs/               # 다이얼로그 컴포넌트 (폴더 생성됨)
 │   │   ├── PlanExecuteApp.tsx     # 메인 앱 (가장 중요!)
 │   │   ├── CustomTextInput.tsx    # 텍스트 입력 (한글 지원)
 │   │   ├── FileBrowser.tsx        # @ 파일 선택기
@@ -228,13 +232,13 @@ src/
 │   ├── contexts/                  # React Context (상태 관리)
 │   │   └── TokenContext.tsx       # 토큰 사용량 추적 컨텍스트
 │   │
-│   └── hooks/                     # React 커스텀 훅 (Phase 0 리팩토링)
-│       ├── usePlanExecution.ts    # Plan 실행 상태 관리 훅
-│       ├── useFileBrowserState.ts # 파일 브라우저 상태 훅
-│       ├── useCommandBrowserState.ts # 명령 브라우저 상태 훅
-│       ├── slashCommandProcessor.ts  # /명령어 처리
-│       ├── atFileProcessor.ts        # @파일 처리
-│       ├── useFileList.ts            # 파일 목록 로드
+│   └── hooks/                     # React 커스텀 훅 ✅
+│       ├── usePlanExecution.ts    # Plan 실행 상태 관리 훅 ✅
+│       ├── useFileBrowserState.ts # 파일 브라우저 상태 훅 ✅
+│       ├── useCommandBrowserState.ts # 명령 브라우저 상태 훅 ✅
+│       ├── slashCommandProcessor.ts  # /명령어 처리 ✅
+│       ├── atFileProcessor.ts        # @파일 처리 ✅
+│       ├── useFileList.ts            # 파일 목록 로드 ✅
 │       └── index.ts               # 훅 내보내기
 │
 ├── types/                          # 전역 타입 정의

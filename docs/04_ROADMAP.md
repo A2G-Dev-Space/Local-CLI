@@ -1,7 +1,7 @@
 # OPEN-CLI Roadmap & TODO List
 
-> **문서 버전**: 1.0.1
-> **최종 수정일**: 2025-12-10
+> **문서 버전**: 1.0.2
+> **최종 수정일**: 2025-12-11
 > **작성자**: Development Team
 
 ## 목차
@@ -222,37 +222,49 @@ export abstract class BaseTool {
 ```
 
 **TODO**:
-- [ ] `BaseTool` 추상 클래스 구현
-- [ ] `ToolDefinition` 인터페이스 정의
-- [ ] `ToolResult` 타입 정의
-- [ ] `ValidationResult` 타입 정의
+- [x] `BaseTool` 추상 클래스 구현 ✅
+- [x] `ToolDefinition` 인터페이스 정의 ✅
+- [x] `ToolResult` 타입 정의 ✅
+- [x] `ToolCategory`, `RiskLevel`, `ToolMetadata` 타입 정의 ✅
 
-#### 3.3.2 도구 레지스트리 구현
+#### 3.3.2 도구 레지스트리 구현 ✅
 
-**신규 파일**: `tools/base/tool-registry.ts`
+**파일**: `tools/base/tool-registry.ts`
 
 ```typescript
-// 요구사항
+// 구현된 기능
 export class ToolRegistry {
   register(tool: BaseTool): void;
-  unregister(toolName: string): void;
-  getToolsByCategory(category: ToolCategory): BaseTool[];
-  getToolDefinitions(): ToolDefinition[];
-  executeTool(name: string, params: any): Promise<ToolResult>;
+  unregister(toolName: string): boolean;
+  get(name: string): BaseTool | undefined;
+  has(name: string): boolean;
+  getAll(): BaseTool[];
+  getByCategory(category: ToolCategory): BaseTool[];
+  getByRiskLevel(riskLevel: RiskLevel): BaseTool[];
+  getRequiringApproval(): BaseTool[];
+  getDefinitions(): ToolDefinition[];
+  getDefinitionsByCategory(category: ToolCategory): ToolDefinition[];
+  execute(name: string, args: Record<string, unknown>): Promise<ToolResult>;
+  count(): number;
+  getNames(): string[];
+  clear(): void;
+  getStats(): { total, byCategory, byRiskLevel, requiresApproval };
 }
 ```
 
-**TODO**:
-- [ ] `ToolRegistry` 클래스 구현
-- [ ] 도구 등록/해제 메서드
-- [ ] 카테고리별 도구 필터링
-- [ ] 도구 실행 래퍼 (에러 핸들링 포함)
+**완료된 TODO**:
+- [x] `ToolRegistry` 클래스 구현 ✅
+- [x] 도구 등록/해제 메서드 ✅
+- [x] 카테고리별 도구 필터링 ✅
+- [x] 위험도별 도구 필터링 ✅
+- [x] 도구 실행 래퍼 (에러 핸들링 포함) ✅
+- [x] 레지스트리 통계 기능 ✅
 
 #### 3.3.3 기존 file-tools.ts 마이그레이션
 
 **TODO**:
-- [ ] `file-tools.ts` → `tools/native/file-tool.ts` 이동
-- [ ] `BaseTool` 상속 구조로 리팩토링
+- [x] `file-tools.ts` → `tools/native/file-tools.ts` 이동 ✅
+- [ ] `BaseTool` 상속 구조로 리팩토링 (현재: 함수 기반)
 - [ ] 개별 파일 도구 분리 (read, write, list, find)
 
 ---
@@ -897,26 +909,28 @@ Effort│                 │                  │  Effort
 ### A. 파일 생성 체크리스트
 
 #### 신규 폴더
-- [x] `src/core/llm/`
-- [x] `src/core/config/`
-- [x] `src/core/session/`
-- [x] `src/core/knowledge/`
-- [ ] `src/tools/base/`
-- [ ] `src/tools/native/`
+- [x] `src/core/llm/` ✅
+- [x] `src/core/config/` ✅
+- [x] `src/core/session/` ✅
+- [x] `src/core/knowledge/` ✅
+- [x] `src/tools/base/` ✅
+- [x] `src/tools/native/` ✅
 - [ ] `src/tools/rag/`
 - [ ] `src/agents/`
 - [ ] `src/mcp/`
 - [ ] `src/rag/`
 - [ ] `src/analytics/`
 - [ ] `src/documentation/`
-- [x] `src/ui/components/views/`
-- [x] `src/ui/components/panels/`
-- [x] `src/ui/components/dialogs/`
-- [x] `src/ui/hooks/` (커스텀 훅 폴더)
+- [x] `src/ui/components/views/` ✅
+- [x] `src/ui/components/panels/` ✅ (폴더 생성됨, 컴포넌트 미이동)
+- [x] `src/ui/components/dialogs/` ✅ (폴더 생성됨, 컴포넌트 미이동)
+- [x] `src/ui/hooks/` ✅
+- [x] `src/ui/contexts/` ✅
 
 #### 신규 파일 (주요)
-- [ ] `tools/base/base-tool.ts`
-- [ ] `tools/base/tool-registry.ts`
+- [x] `tools/base/base-tool.ts` ✅
+- [x] `tools/base/tool-registry.ts` ✅
+- [x] `tools/native/file-tools.ts` ✅
 - [ ] `tools/native/bash-tool.ts`
 - [ ] `tools/native/git-tool.ts`
 - [ ] `tools/native/npm-tool.ts`
