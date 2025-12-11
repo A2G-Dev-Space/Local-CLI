@@ -9,6 +9,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { ToolDefinition } from '../../../types/index.js';
 import { LLMSimpleTool, ToolResult, ToolCategory } from '../../types.js';
+import { TODO_TOOLS } from './todo-tools.js';
 
 // Safety limits
 const EXCLUDED_DIRS = new Set([
@@ -799,9 +800,17 @@ export const FILE_SIMPLE_TOOLS: LLMSimpleTool[] = [
 ];
 
 /**
- * Tool definitions for LLM (backward compatible)
+ * All tools including TODO management
  */
-export const FILE_TOOLS: ToolDefinition[] = FILE_SIMPLE_TOOLS.map((tool) => tool.definition);
+export const ALL_SIMPLE_TOOLS: LLMSimpleTool[] = [
+  ...FILE_SIMPLE_TOOLS,
+  ...TODO_TOOLS,
+];
+
+/**
+ * Tool definitions for LLM (includes file + TODO tools)
+ */
+export const FILE_TOOLS: ToolDefinition[] = ALL_SIMPLE_TOOLS.map((tool) => tool.definition);
 
 /**
  * Callback for tool execution events (reason display to user)
@@ -969,13 +978,13 @@ export function emitAssistantResponse(content: string): void {
 }
 
 /**
- * Execute file tool by name (backward compatible)
+ * Execute tool by name (includes file tools + TODO tools)
  */
 export async function executeFileTool(
   toolName: string,
   args: Record<string, unknown>
 ): Promise<ToolResult> {
-  const tool = FILE_SIMPLE_TOOLS.find((t) => t.definition.function.name === toolName);
+  const tool = ALL_SIMPLE_TOOLS.find((t) => t.definition.function.name === toolName);
 
   if (!tool) {
     return {
@@ -984,10 +993,11 @@ export async function executeFileTool(
     };
   }
 
-  // Extract reason from args
+  // Extract reason from args (not required for TODO tools)
   const reason = args['reason'] as string | undefined;
 
   // Call the callback to notify UI about tool execution (pass all args)
+  // Skip for TODO tools which don't have reason parameter
   if (toolExecutionCallback && reason) {
     toolExecutionCallback(toolName, reason, args);
   }
@@ -996,7 +1006,9 @@ export async function executeFileTool(
   const result = await tool.execute(args);
 
   // Call the response callback to notify UI about tool result (전체 내용 전달)
-  if (toolResponseCallback) {
+  // Skip response callback for TODO tools to avoid cluttering UI
+  const isTodoTool = ['update_todos', 'get_todo_list'].includes(toolName);
+  if (toolResponseCallback && !isTodoTool) {
     const resultText = result.success
       ? (result.result || '')
       : (result.error || 'Unknown error');

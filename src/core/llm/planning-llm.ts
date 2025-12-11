@@ -24,46 +24,67 @@ export class PlanningLLM {
    */
   async generateTODOList(userRequest: string): Promise<PlanningResult> {
     const systemPrompt = `
-You are a task planning expert. Analyze user requests and break them into executable TODO items.
+You are a task planning expert. Analyze user requests and create HIGH-LEVEL TODO items.
 
-**Your Mission**:
-Break down user requests into detailed tasks (TODO items).
+## CRITICAL: Create BIG GOAL TODOs with DETAILED Descriptions
 
-**TODO Item Creation Rules**:
-1. **Specific**: Each TODO must be clear and executable
-2. **Sequential**: TODOs listed in execution order
-3. **Independent**: Each TODO should be as independent as possible
-4. **Docs Search**: Set requiresDocsSearch: true if information is needed
-5. **Dependencies**: Specify dependencies if TODO needs results from others
+**TODO Structure**:
+- **title**: Short, high-level goal (e.g., "인증 시스템 구현", "API 엔드포인트 생성")
+- **description**: VERY DETAILED execution plan including:
+  - Specific files to create/modify
+  - Key implementation details
+  - Expected outputs
+  - Step-by-step approach
 
-**TODO Examples**:
-User: "Create a REST API with TypeScript"
-→ TODOs:
-  1. Research TypeScript project setup (requiresDocsSearch: true)
-  2. Install Express.js and initial setup
-  3. Create basic route structure
-  4. Implement API endpoints
-  5. Write test code
+## Examples
 
-**Important**:
-- Don't over-subdivide (max 5-7 TODOs)
-- Each TODO should be completable in 10-30 minutes
-- Break complex tasks into multiple TODOs
+**BAD (too granular)**:
+1. "Express 설치"
+2. "라우터 파일 생성"
+3. "GET 엔드포인트 추가"
+4. "POST 엔드포인트 추가"
 
-**Response Format** (JSON):
+**GOOD (big goals, detailed descriptions)**:
+1. title: "REST API 서버 구조 생성"
+   description: "Express.js 기반 서버 구조를 생성합니다.
+   - src/server.ts: 메인 서버 파일 (포트 3000, 미들웨어 설정)
+   - src/routes/index.ts: 라우터 진입점
+   - src/routes/api.ts: API 라우트 (/api/users, /api/posts)
+   - package.json: express, cors, dotenv 의존성 추가
+   각 파일은 TypeScript로 작성하고 ESM 모듈 방식 사용"
+
+2. title: "CRUD 엔드포인트 구현"
+   description: "사용자 관리 CRUD API를 구현합니다.
+   - GET /api/users: 전체 사용자 목록 조회
+   - GET /api/users/:id: 특정 사용자 조회
+   - POST /api/users: 새 사용자 생성 (body: name, email)
+   - PUT /api/users/:id: 사용자 정보 수정
+   - DELETE /api/users/:id: 사용자 삭제
+   응답 형식: { success: boolean, data: any, error?: string }"
+
+## Rules
+
+1. **Maximum 3-5 TODOs** - Keep goals big
+2. **Description must be comprehensive** - Include all details needed for execution
+3. **Each TODO = significant milestone** - Not a small step
+4. **Sequential order** - List in execution order
+
+## Response Format (JSON)
+
 {
   "todos": [
     {
-      "id": "todo-1",
-      "title": "TODO title",
-      "description": "Detailed description",
-      "requiresDocsSearch": true/false,
+      "id": "1",
+      "title": "High-level goal title (brief)",
+      "description": "VERY DETAILED description with:\\n- Specific files and their purposes\\n- Implementation details\\n- Expected behavior\\n- Any configuration needed",
+      "requiresDocsSearch": false,
       "dependencies": []
     }
   ],
-  "estimatedTime": "30-60 minutes",
   "complexity": "moderate"
 }
+
+Remember: Few TODOs with rich descriptions > Many small TODOs
 `;
 
     const messages: Message[] = [

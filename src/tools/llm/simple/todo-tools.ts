@@ -57,68 +57,73 @@ export function clearTodoCallbacks(): void {
 }
 
 /**
- * update-todo-list Tool Definition
+ * update_todos Tool Definition (batch update)
  */
-const UPDATE_TODO_LIST_DEFINITION: ToolDefinition = {
+const UPDATE_TODOS_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
-    name: 'update_todo_list',
-    description: `Update the status of a TODO item in the current task list.
+    name: 'update_todos',
+    description: `Update multiple TODO items at once. Use this to batch update TODO statuses efficiently.
 
-Use this tool to:
-- Mark a TODO as in_progress when you start working on it
-- Mark a TODO as completed when you finish it
-- Mark a TODO as failed if you cannot complete it
+CRITICAL: TODO list must ALWAYS reflect your actual progress accurately.
+- Update TODO status IMMEDIATELY when status changes
+- Mark completed tasks right after finishing them
+- Mark the next task as in_progress before starting
 
-IMPORTANT:
-- Always update TODO status to reflect your current progress
-- Only one TODO should be in_progress at a time
-- Add notes to explain completion or failure reasons`,
+Example updates array:
+[
+  { "todo_id": "1", "status": "completed", "note": "파일 생성 완료" },
+  { "todo_id": "2", "status": "in_progress" }
+]`,
     parameters: {
       type: 'object',
       properties: {
-        todo_id: {
-          type: 'string',
-          description: 'The ID of the TODO item to update',
-        },
-        status: {
-          type: 'string',
-          enum: ['in_progress', 'completed', 'failed'],
-          description: 'The new status for the TODO item',
-        },
-        note: {
-          type: 'string',
-          description: 'Optional note explaining the status change (e.g., completion summary or failure reason)',
+        updates: {
+          type: 'array',
+          description: 'Array of TODO updates to apply',
+          items: {
+            type: 'object',
+            properties: {
+              todo_id: {
+                type: 'string',
+                description: 'The ID of the TODO item to update',
+              },
+              status: {
+                type: 'string',
+                enum: ['in_progress', 'completed', 'failed'],
+                description: 'The new status',
+              },
+              note: {
+                type: 'string',
+                description: 'Optional note explaining the status change',
+              },
+            },
+            required: ['todo_id', 'status'],
+          },
         },
       },
-      required: ['todo_id', 'status'],
+      required: ['updates'],
     },
   },
 };
 
 /**
- * update-todo-list Tool Implementation
+ * update_todos Tool Implementation (batch update)
  */
-async function executeUpdateTodoList(args: Record<string, unknown>): Promise<ToolResult> {
-  logger.enter('executeUpdateTodoList', args);
+async function executeUpdateTodos(args: Record<string, unknown>): Promise<ToolResult> {
+  logger.enter('executeUpdateTodos', args);
 
-  const todoId = args['todo_id'] as string;
-  const status = args['status'] as 'in_progress' | 'completed' | 'failed';
-  const note = args['note'] as string | undefined;
+  const updates = args['updates'] as Array<{
+    todo_id: string;
+    status: 'in_progress' | 'completed' | 'failed';
+    note?: string;
+  }>;
 
-  if (!todoId || !status) {
-    logger.warn('Missing required parameters');
+  if (!updates || !Array.isArray(updates) || updates.length === 0) {
+    logger.warn('Missing or empty updates array');
     return {
       success: false,
-      error: 'Missing required parameters: todo_id and status are required',
-    };
-  }
-
-  if (!['in_progress', 'completed', 'failed'].includes(status)) {
-    logger.warn('Invalid status value', { status });
-    return {
-      success: false,
-      error: 'Invalid status. Must be one of: in_progress, completed, failed',
+      error: 'Missing required parameter: updates array is required and must not be empty',
     };
   }
 
@@ -130,32 +135,49 @@ async function executeUpdateTodoList(args: Record<string, unknown>): Promise<Too
     };
   }
 
-  try {
-    logger.flow(`Updating TODO ${todoId} to ${status}`);
-    const success = await todoUpdateCallback(todoId, status, note);
+  const results: string[] = [];
+  const errors: string[] = [];
 
-    if (success) {
-      logger.debug(`TODO ${todoId} updated to ${status}`);
-      logger.exit('executeUpdateTodoList', { success: true });
-      return {
-        success: true,
-        result: `TODO ${todoId} has been updated to ${status}${note ? `. Note: ${note}` : ''}`,
-        metadata: { todoId, status, note },
-      };
-    } else {
-      logger.warn(`Failed to update TODO ${todoId}`);
-      return {
-        success: false,
-        error: `Failed to update TODO ${todoId}. It may not exist or the update was rejected.`,
-      };
+  for (const update of updates) {
+    const { todo_id, status, note } = update;
+
+    if (!todo_id || !status) {
+      errors.push(`Invalid update: missing todo_id or status`);
+      continue;
     }
-  } catch (error) {
-    logger.error('Error updating TODO', error as Error);
-    return {
-      success: false,
-      error: `Error updating TODO: ${error instanceof Error ? error.message : 'Unknown error'}`,
-    };
+
+    if (!['in_progress', 'completed', 'failed'].includes(status)) {
+      errors.push(`Invalid status for ${todo_id}: ${status}`);
+      continue;
+    }
+
+    try {
+      logger.flow(`Updating TODO ${todo_id} to ${status}`);
+      const success = await todoUpdateCallback(todo_id, status, note);
+
+      if (success) {
+        results.push(`✓ ${todo_id}: ${status}${note ? ` (${note})` : ''}`);
+      } else {
+        errors.push(`✗ ${todo_id}: update failed`);
+      }
+    } catch (error) {
+      errors.push(`✗ ${todo_id}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
+
+  const summary = [
+    `Updated ${results.length}/${updates.length} TODOs`,
+    results.length > 0 ? `\nSuccessful:\n${results.join('\n')}` : '',
+    errors.length > 0 ? `\nFailed:\n${errors.join('\n')}` : '',
+  ].filter(Boolean).join('');
+
+  logger.exit('executeUpdateTodos', { successCount: results.length, errorCount: errors.length });
+
+  return {
+    success: errors.length === 0,
+    result: summary,
+    metadata: { successCount: results.length, errorCount: errors.length },
+  };
 }
 
 /**
@@ -221,13 +243,13 @@ async function executeGetTodoList(_args: Record<string, unknown>): Promise<ToolR
 }
 
 /**
- * LLM Simple Tool: update_todo_list
+ * LLM Simple Tool: update_todos (batch)
  */
-export const UpdateTodoListTool: LLMSimpleTool = {
-  definition: UPDATE_TODO_LIST_DEFINITION,
-  execute: executeUpdateTodoList,
+export const UpdateTodosTool: LLMSimpleTool = {
+  definition: UPDATE_TODOS_DEFINITION,
+  execute: executeUpdateTodos,
   categories: ['llm-simple'] as ToolCategory[],
-  description: 'Update TODO item status',
+  description: 'Batch update TODO items',
 };
 
 /**
@@ -243,7 +265,7 @@ export const GetTodoListTool: LLMSimpleTool = {
 /**
  * All TODO Tools
  */
-export const TODO_TOOLS = [UpdateTodoListTool, GetTodoListTool];
+export const TODO_TOOLS = [UpdateTodosTool, GetTodoListTool];
 
 /**
  * Get TODO tool definitions for LLM
