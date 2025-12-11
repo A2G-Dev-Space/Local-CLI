@@ -10,7 +10,7 @@ import { LLMClient } from '../../core/llm-client.js';
 import { PlanExecuteOrchestrator } from '../../plan-and-execute/orchestrator.js';
 import { sessionManager } from '../../core/session-manager.js';
 import { performDocsSearchIfNeeded } from '../../core/agent-framework-handler.js';
-import { ApprovalAction } from '../components/ApprovalPrompt.js';
+import { ApprovalAction } from '../components/dialogs/ApprovalDialog.js';
 import { BaseError } from '../../errors/base.js';
 
 export type ExecutionPhase = 'idle' | 'planning' | 'executing';

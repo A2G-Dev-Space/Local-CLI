@@ -8,11 +8,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Text, useInput } from 'ink';
 import TextInput from 'ink-text-input';
 import SelectInput from 'ink-select-input';
-import { PlanningMode } from '../../core/slash-command-handler.js';
-import { configManager } from '../../core/config-manager.js';
-import { sessionManager } from '../../core/session-manager.js';
-import { LLMClient } from '../../core/llm/llm-client.js';
-import { EndpointConfig } from '../../types/index.js';
+import { PlanningMode } from '../../../core/slash-command-handler.js';
+import { configManager } from '../../../core/config-manager.js';
+import { sessionManager } from '../../../core/session-manager.js';
+import { LLMClient } from '../../../core/llm/llm-client.js';
+import { EndpointConfig } from '../../../types/index.js';
 
 interface SettingsBrowserProps {
   currentPlanningMode: PlanningMode;
@@ -62,10 +62,14 @@ type SettingsView =
 type FormField = 'name' | 'baseUrl' | 'apiKey' | 'modelId' | 'modelName' | 'buttons';
 
 export const SettingsBrowser: React.FC<SettingsBrowserProps> = ({
-  currentPlanningMode,
-  onPlanningModeChange,
+  currentPlanningMode: _currentPlanningMode, // Kept for backward compatibility but not used (always auto)
+  onPlanningModeChange: _onPlanningModeChange, // Kept for backward compatibility but not used
   onClose,
 }) => {
+  // Note: currentPlanningMode and onPlanningModeChange are kept for interface compatibility
+  // but are not used since planning mode is always 'auto'
+  void _currentPlanningMode;
+  void _onPlanningModeChange;
   const [view, setView] = useState<SettingsView>('main');
   const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
 
@@ -413,34 +417,23 @@ export const SettingsBrowser: React.FC<SettingsBrowserProps> = ({
     }
   });
 
-  // Main menu items
+  // Main menu items (Planning Mode removed - always auto)
   const mainMenuItems: SelectItem[] = [
     {
       label: '0. Status',
       value: 'status',
     },
     {
-      label: `1. Planning Mode (current: ${currentPlanningMode})`,
-      value: 'planning-mode',
-    },
-    {
-      label: '2. LLMs',
+      label: '1. LLMs',
       value: 'llms',
     },
   ];
 
-  // Planning mode options
+  // Planning mode options - kept for backward compatibility but not used
+  // Planning mode is always 'auto'
   const planningModeItems: SelectItem[] = [
     {
-      label: `1. planning${currentPlanningMode === 'planning' ? ' ✓' : ''}`,
-      value: 'planning',
-    },
-    {
-      label: `2. no-planning${currentPlanningMode === 'no-planning' ? ' ✓' : ''}`,
-      value: 'no-planning',
-    },
-    {
-      label: `3. auto${currentPlanningMode === 'auto' ? ' ✓' : ''}`,
+      label: 'auto ✓',
       value: 'auto',
     },
   ];
@@ -477,19 +470,17 @@ export const SettingsBrowser: React.FC<SettingsBrowserProps> = ({
 
   // Handle main menu selection
   const handleMainSelect = (item: SelectItem) => {
-    if (item.value === 'planning-mode') {
-      setView('planning-mode');
-    } else if (item.value === 'status') {
+    if (item.value === 'status') {
       setView('status');
     } else if (item.value === 'llms') {
       setView('llms');
     }
   };
 
-  // Handle planning mode selection
-  const handlePlanningModeSelect = (item: SelectItem) => {
-    const newMode = item.value as PlanningMode;
-    onPlanningModeChange(newMode);
+  // Handle planning mode selection (kept for backward compatibility but not used)
+  // Planning mode is always 'auto'
+  const handlePlanningModeSelect = (_item: SelectItem) => {
+    // No-op: planning mode is always 'auto'
     onClose();
   };
 

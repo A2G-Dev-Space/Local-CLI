@@ -1,7 +1,8 @@
 /**
  * Settings E2E 테스트 시나리오
  *
- * /settings 명령어 및 Planning Mode 관련 테스트
+ * /settings 명령어 관련 테스트
+ * Note: Planning Mode는 항상 'auto'로 고정됨 (모드 선택 기능 제거됨)
  */
 
 import { TestScenario } from '../types.js';
@@ -217,48 +218,34 @@ export const settingsScenarios: TestScenario[] = [
   },
 
   {
-    id: 'settings-planning-mode-change',
-    name: 'Planning Mode 변경 기능 테스트',
-    description: 'Planning Mode가 정상적으로 변경되는지 테스트합니다.',
+    id: 'settings-planning-mode-always-auto',
+    name: 'Planning Mode 항상 auto 테스트',
+    description: 'Planning Mode가 항상 auto로 고정되어 있는지 테스트합니다.',
     category: 'settings',
     enabled: true,
     timeout: 30000,
     steps: [
       {
-        name: 'Planning Mode 변경 시뮬레이션',
+        name: 'Planning Mode 항상 auto 확인',
         action: {
           type: 'custom',
           fn: async () => {
-            type PlanningMode = 'planning' | 'no-planning' | 'auto';
+            // PlanningMode는 이제 'auto'만 지원
+            type PlanningMode = 'auto';
 
-            // Planning Mode 변경 시뮬레이션
-            let currentMode: PlanningMode = 'auto';
-
-            const setPlanningMode = (mode: PlanningMode) => {
-              currentMode = mode;
-            };
-
-            // 모드 순환 테스트 (Tab 키 동작 시뮬레이션)
-            const modes: PlanningMode[] = ['auto', 'no-planning', 'planning'];
-            const results: PlanningMode[] = [];
-
-            for (let i = 0; i < 4; i++) {
-              const currentIndex = modes.indexOf(currentMode);
-              const nextIndex = (currentIndex + 1) % modes.length;
-              setPlanningMode(modes[nextIndex]!);
-              results.push(currentMode);
-            }
+            // Planning Mode는 항상 'auto'
+            const currentMode: PlanningMode = 'auto';
 
             return {
-              cycleResults: results,
-              expectedCycle: ['no-planning', 'planning', 'auto', 'no-planning'],
+              mode: currentMode,
+              isAlwaysAuto: currentMode === 'auto',
             };
           },
         },
         validation: {
           type: 'custom',
           fn: async (result: any) => {
-            return JSON.stringify(result.cycleResults) === JSON.stringify(result.expectedCycle);
+            return result.isAlwaysAuto === true && result.mode === 'auto';
           },
         },
       },

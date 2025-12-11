@@ -7,8 +7,8 @@
 
 import React, { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
-import { TodoItem } from '../../types/index.js';
-import { RiskAssessment } from '../../plan-and-execute/risk-analyzer.js';
+import { TodoItem } from '../../../types/index.js';
+import { RiskAssessment } from '../../../plan-and-execute/risk-analyzer.js';
 
 export type ApprovalAction = 'approve' | 'reject' | 'approve_all' | 'reject_all' | 'stop';
 

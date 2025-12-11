@@ -8,7 +8,8 @@
 import { Message, TodoItem } from '../types/index.js';
 import { sessionManager } from './session-manager.js';
 
-export type PlanningMode = 'planning' | 'no-planning' | 'auto';
+// Planning mode is always 'auto' - other modes have been removed
+export type PlanningMode = 'auto';
 
 export interface CommandHandlerContext {
   planningMode: PlanningMode;
@@ -122,8 +123,6 @@ Available commands:
   /load           - Load a saved session
 
 Keyboard shortcuts:
-  Tab             - Cycle through planning modes
-  Ctrl+T          - Toggle TODO panel
   Ctrl+C          - Exit
 
 Note: All conversations are automatically saved.

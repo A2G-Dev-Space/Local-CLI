@@ -15,11 +15,11 @@ import { TodoPanel, TodoStatusBar } from '../TodoPanel.js';
 import { sessionManager } from '../../core/session-manager.js';
 import { initializeDocsDirectory } from '../../core/docs-search-agent.js';
 import { FileBrowser } from './FileBrowser.js';
-import { SessionBrowser } from './SessionBrowser.js';
-import { SettingsBrowser } from './SettingsBrowser.js';
+import { SessionBrowser } from './panels/SessionPanel.js';
+import { SettingsBrowser } from './dialogs/SettingsDialog.js';
 import { LLMSetupWizard } from './LLMSetupWizard.js';
 import { ModelSelector } from './ModelSelector.js';
-import { PlanApprovalPrompt, TaskApprovalPrompt } from './ApprovalPrompt.js';
+import { PlanApprovalPrompt, TaskApprovalPrompt } from './dialogs/ApprovalDialog.js';
 import { CommandBrowser } from './CommandBrowser.js';
 import { ChatView } from './views/ChatView.js';
 import { Logo } from './Logo.js';
@@ -55,7 +55,8 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentResponse, setCurrentResponse] = useState('');
-  const [planningMode, setPlanningMode] = useState<PlanningMode>('auto');
+  // Planning mode is always 'auto' - mode selection has been removed
+  const planningMode: PlanningMode = 'auto';
 
   // LLM Client state - 모델 변경 시 새로운 클라이언트로 교체
   const [llmClient, setLlmClient] = useState<LLMClient | null>(initialLlmClient);
@@ -173,16 +174,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
     if (key.ctrl && inputChar === 'c') {
       handleExit().catch(console.error);
     }
-    // Tab key to cycle through planning modes (works anytime except when processing or in special UI modes)
-    const isInSpecialUI = showSessionBrowser || showSettings || showSetupWizard || showModelSelector ||
-                          planExecutionState.planApprovalRequest || planExecutionState.taskApprovalRequest;
-    if ((key.tab || inputChar === '\t') && !isProcessing && !isInSpecialUI) {
-      const modes: PlanningMode[] = ['auto', 'no-planning', 'planning'];
-      const currentIndex = modes.indexOf(planningMode);
-      const nextIndex = (currentIndex + 1) % modes.length;
-      logger.state('Planning mode', planningMode, modes[nextIndex]!);
-      setPlanningMode(modes[nextIndex]!);
-    }
+    // Tab key mode cycling has been removed - always use auto mode
   }, { isActive: !fileBrowserState.showFileBrowser && !commandBrowserState.showCommandBrowser });
 
   // Handle file selection from browser
@@ -232,11 +224,12 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
     logger.exit('handleSessionSelect', { sessionId });
   }, []);
 
-  // Handle settings planning mode change
-  const handleSettingsPlanningModeChange = useCallback((mode: PlanningMode) => {
-    logger.state('Planning mode (settings)', planningMode, mode);
-    setPlanningMode(mode);
-  }, [planningMode]);
+  // Planning mode change handler removed - always auto mode
+  // Kept for backward compatibility with SettingsBrowser interface
+  const handleSettingsPlanningModeChange = useCallback((_mode: PlanningMode) => {
+    // No-op: planning mode is always 'auto'
+    logger.debug('Planning mode change ignored - always auto');
+  }, []);
 
   // Handle settings close
   const handleSettingsClose = useCallback(() => {
@@ -338,7 +331,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         planningMode,
         messages,
         todos: planExecutionState.todos,
-        setPlanningMode,
+        setPlanningMode: () => {}, // No-op: planning mode is always 'auto'
         setMessages,
         setTodos: planExecutionState.setTodos,
         exit: handleExit,
@@ -366,21 +359,16 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
     logger.startTimer('message-processing');
 
     try {
-      let usePlanning = false;
+      // Auto mode: determine whether to use planning based on task complexity
+      const complexKeywords = [
+        'create', 'build', 'implement', 'develop', 'make',
+        'setup', 'configure', 'install', 'deploy', 'design',
+        'refactor', 'optimize', 'debug', 'test', 'analyze',
+        'multiple', 'several', 'tasks', 'steps'
+      ];
 
-      if (planningMode === 'planning') {
-        usePlanning = true;
-      } else if (planningMode === 'auto') {
-        const complexKeywords = [
-          'create', 'build', 'implement', 'develop', 'make',
-          'setup', 'configure', 'install', 'deploy', 'design',
-          'refactor', 'optimize', 'debug', 'test', 'analyze',
-          'multiple', 'several', 'tasks', 'steps'
-        ];
-
-        const lowerMessage = userMessage.toLowerCase();
-        usePlanning = complexKeywords.some(keyword => lowerMessage.includes(keyword));
-      }
+      const lowerMessage = userMessage.toLowerCase();
+      const usePlanning = complexKeywords.some(keyword => lowerMessage.includes(keyword));
 
       logger.vars(
         { name: 'usePlanning', value: usePlanning },
@@ -502,7 +490,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
             {getHealthIndicator()}
           </Box>
           <Text color="gray">
-            {currentModelInfo.model} | {planningMode}
+            {currentModelInfo.model}
           </Text>
         </Box>
       </Box>
@@ -664,19 +652,14 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         </Box>
       )}
 
-      {/* Status Bar - Always visible with model/mode info */}
+      {/* Status Bar - Always visible with model info */}
       <Box justifyContent="space-between" paddingX={1}>
         <Box>
-          {/* Model and Mode info - always visible */}
+          {/* Model info - always visible */}
           <Text color="gray">{getHealthIndicator()} </Text>
           <Text color="cyan">{currentModelInfo.model}</Text>
           <Text color="gray"> │ </Text>
-          <Text color={planningMode === 'planning' ? 'yellow' : planningMode === 'no-planning' ? 'green' : 'magenta'}>
-            {planningMode === 'planning' ? '📋' : planningMode === 'no-planning' ? '⚡' : '🤖'}
-          </Text>
-          <Text color={planningMode === 'planning' ? 'yellow' : planningMode === 'no-planning' ? 'green' : 'magenta'}>
-            {' '}{planningMode}
-          </Text>
+          <Text color="magenta">🤖 auto</Text>
           {planExecutionState.todos.length > 0 && (
             <>
               <Text color="gray"> │ </Text>
@@ -685,7 +668,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
           )}
         </Box>
         <Text color="gray" dimColor>
-          Tab: mode({planningMode === 'auto' ? 'a' : planningMode === 'no-planning' ? 'n' : 'p'}→{planningMode === 'auto' ? 'n' : planningMode === 'no-planning' ? 'p' : 'a'}) | /help
+          /help
         </Text>
       </Box>
     </Box>

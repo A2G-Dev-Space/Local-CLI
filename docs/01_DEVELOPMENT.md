@@ -192,16 +192,35 @@ src/
 │   ├── subagent-layer.ts          # 서브 에이전트 계층
 │   └── skills-layer.ts            # 스킬 계층
 │
-├── tools/                          # AI 도구 정의
-│   ├── base/                      # 기본 도구 클래스 ✅
-│   │   ├── base-tool.ts           # BaseTool 추상 클래스 ✅
-│   │   ├── tool-registry.ts       # 도구 레지스트리 싱글톤 ✅
-│   │   └── index.ts               # 내보내기
-│   ├── native/                    # 네이티브 도구 구현
-│   │   ├── file-tools.ts          # 파일 시스템 도구 ✅
-│   │   └── index.ts               # 내보내기
-│   ├── file-tools.ts              # 파일 시스템 도구 (re-export)
-│   └── index.ts                   # 도구 내보내기
+├── tools/                          # AI 도구 정의 (6가지 분류 시스템)
+│   ├── types.ts                   # 도구 타입 인터페이스 정의 ✅
+│   ├── registry.ts                # 도구 중앙 등록 시스템 ✅
+│   │
+│   ├── llm/                       # LLM이 tool_call로 호출하는 도구
+│   │   ├── simple/               # Sub-LLM 없는 단순 도구
+│   │   │   ├── file-tools.ts     # 파일 시스템 도구 (read, write, list, find)
+│   │   │   └── index.ts
+│   │   ├── agents/               # Sub-LLM 사용 에이전트 도구
+│   │   │   └── index.ts
+│   │   └── index.ts
+│   │
+│   ├── system/                    # 로직에서 자동 호출되는 도구
+│   │   ├── simple/               # Sub-LLM 없는 시스템 도구
+│   │   │   └── index.ts
+│   │   ├── agents/               # Sub-LLM 사용 시스템 도구
+│   │   │   ├── docs-search.ts    # 로컬 RAG 문서 검색 도구
+│   │   │   └── index.ts
+│   │   └── index.ts
+│   │
+│   ├── user/                      # 사용자 /슬래시 명령어
+│   │   └── index.ts
+│   │
+│   ├── mcp/                       # MCP (Model Context Protocol) 도구
+│   │   └── index.ts
+│   │
+│   ├── native/                    # (하위 호환성) → llm/simple/ 참조
+│   ├── file-tools.ts              # (하위 호환성) → llm/simple/file-tools.ts
+│   └── index.ts                   # 통합 내보내기
 │
 ├── ui/                             # UI 컴포넌트 (React/Ink)
 │   ├── ink-entry.tsx              # Ink 렌더링 진입점
@@ -294,7 +313,9 @@ src/
 
 **목적**: AI가 파일 시스템을 조작할 수 있게 하는 도구 모음
 
-**위치**: `src/tools/file-tools.ts`
+**위치**: `src/tools/llm/simple/file-tools.ts`
+
+**분류**: LLM Simple Tool (LLM이 tool_call로 호출, Sub-LLM 없음)
 
 #### 제공 도구
 
@@ -957,13 +978,30 @@ switch (layer) {
 
 ## 6. 새 기능 추가하기
 
-### 6.1 새 Tool 추가
+### 6.1 새 Tool 추가 (6가지 분류 시스템)
 
-**1단계**: `src/tools/file-tools.ts`에 도구 정의 추가
+#### 6가지 도구 분류
+
+| 분류 | 위치 | 호출 방식 | Sub-LLM |
+|------|------|-----------|---------|
+| LLM Simple | `tools/llm/simple/` | LLM tool_call | 없음 |
+| LLM Agent | `tools/llm/agents/` | LLM tool_call | 사용 |
+| System Simple | `tools/system/simple/` | 자동 트리거 | 없음 |
+| System Agent | `tools/system/agents/` | 자동 트리거 | 사용 |
+| User Command | `tools/user/` | /슬래시 명령 | - |
+| MCP | `tools/mcp/` | MCP 프로토콜 | - |
+
+#### LLM Simple Tool 추가 예시
+
+**1단계**: `src/tools/llm/simple/`에 도구 파일 생성
 
 ```typescript
-export const myNewTool = {
-  type: 'function' as const,
+// src/tools/llm/simple/my-tools.ts
+import { LLMSimpleTool, ToolResult, ToolCategory } from '../../types.js';
+import { ToolDefinition } from '../../../types/index.js';
+
+const MY_TOOL_DEFINITION: ToolDefinition = {
+  type: 'function',
   function: {
     name: 'my_tool',
     description: 'Description of what the tool does',
@@ -976,28 +1014,24 @@ export const myNewTool = {
     }
   }
 };
-```
 
-**2단계**: 도구 실행 함수 구현
-
-```typescript
-export async function executeMyTool(args: { param1: string }): Promise<string> {
-  logger.enter('executeMyTool', { args });
-
-  try {
-    // 도구 로직 구현
-    const result = await doSomething(args.param1);
-
-    logger.exit('executeMyTool', { success: true });
-    return result;
-  } catch (error) {
-    logger.error('executeMyTool failed', error);
-    throw error;
-  }
+async function _executeMyTool(args: Record<string, unknown>): Promise<ToolResult> {
+  const param1 = args['param1'] as string;
+  // 도구 로직 구현
+  return { success: true, result: 'result' };
 }
+
+export const myTool: LLMSimpleTool = {
+  definition: MY_TOOL_DEFINITION,
+  execute: _executeMyTool,
+  categories: ['llm-simple'] as ToolCategory[],
+  description: 'My tool description',
+};
 ```
 
-**3단계**: `src/core/llm-client.ts`에서 도구 등록
+**2단계**: `src/tools/llm/simple/index.ts`에서 export
+
+**3단계**: `src/tools/registry.ts`에 등록 (자동 등록됨)
 
 ### 6.2 새 UI 컴포넌트 추가
 

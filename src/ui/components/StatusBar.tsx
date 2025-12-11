@@ -197,7 +197,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({
       {/* Right section: Shortcuts and time */}
       <Box>
         <Text color="gray" dimColor>
-          Tab: mode | /help
+          /help
         </Text>
         <Text color="gray"> | </Text>
         <Clock />

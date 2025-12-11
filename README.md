@@ -167,9 +167,8 @@ You: _
 - `/exit` - 종료
 - `/clear` - 대화 초기화
 - `/load` - 저장된 대화 불러오기 (세션은 자동 저장됨)
-- `/endpoint` - LLM 엔드포인트 전환
-- `/docs` - 로컬 문서 보기/검색
-- `/status` - 시스템 상태 확인
+- `/settings` - 설정 메뉴 열기
+- `/model` - LLM 모델 전환
 - `/help` - 도움말
 
 ### LLM 도구 (자동 실행)
@@ -243,57 +242,49 @@ You: /docs search typescript
 - ✅ 멀티 엔드포인트 관리
 - ✅ 로컬 문서 시스템 (마크다운 지식 베이스)
 - ✅ ESM 마이그레이션
-- ✅ **GitHub Release Auto-Update System** 🆕
+- ✅ **GitHub Release Auto-Update System**
   - 자동 버전 체크 (GitHub Releases API)
   - 원클릭 업데이트 (Git pull 또는 Tarball 다운로드)
   - 롤백 지원 (자동 백업 생성)
   - `--no-update` 플래그로 비활성화 가능
-- ✅ **Model Compatibility Layer** 🆕
+- ✅ **Model Compatibility Layer**
   - gpt-oss-120b/20b 모델 Harmony format 422 에러 해결
   - tool_calls 메시지에 자동으로 content 필드 추가
   - 모든 OpenAI 호환 모델과의 완벽한 호환성
-- ✅ **Plan-and-Execute Architecture** 🆕
+- ✅ **Plan-and-Execute Architecture**
   - 사용자 요청을 자동으로 TODO list로 분해하고 순차 실행
   - Agent Loop with Context Gathering 및 Work Verification
   - 의존성 관리 및 실시간 진행 상황 추적
-- ✅ **Multi-Layered Execution System** 🆕
-  - Tool, Code-Gen, SubAgent, Skills 4개 계층 지원
-  - 작업 복잡도에 따른 자동 계층 선택
-  - 병렬 실행 및 결과 합성 지원
-- ✅ **Internal Monologue & Scratchpad** 🆕
-  - Extended Thinking (Question Decomposition)
-  - Self-Evaluation 및 Plan Generation
-  - 외부 Scratchpad (.md 파일)로 TODO 관리
-- ✅ **TDD Workflow & Verification System** 🆕
-  - 자동 테스트 생성 및 실행
-  - Rule-based, Visual, LLM-as-Judge 3가지 검증 모드
-  - Red-Green-Refactor 사이클 자동화
+- ✅ **6가지 도구 분류 시스템** 🆕
+  - LLM Simple Tools (Sub-LLM 없음)
+  - LLM Agent Tools (Sub-LLM 사용)
+  - System Simple/Agent Tools (자동 트리거)
+  - User Commands (/슬래시 명령어)
+  - MCP Tools (Model Context Protocol)
+- ✅ **도구 중앙 등록 시스템** 🆕
+  - 다중 카테고리 등록 지원
+  - 타입 안전한 도구 관리
 
-### 🚧 개발 중 (Phase 3)
+### 🚧 개발 중 (Phase 2)
 
-**Advanced Features & Integrations**
-
-다음 단계로 계획된 기능들:
+**Core Architecture Enhancements**
 
 - 🎨 **Enhanced UI/UX**
   - Tool 사용 내역 박스 표시
   - 하단 상태바 (컨텍스트 사용률)
-  - ASCII 로고 및 Welcome 화면
   - 실시간 진행 상황 시각화
 
 - 🔍 **Advanced Search & Context**
-  - Docs Search Agent Tool (multi-iteration bash 검색)
+  - Docs Search Agent Tool (multi-iteration bash 검색) ✅
   - 스마트 컨텍스트 우선순위 지정
   - 프로젝트별 컨텍스트 자동 감지
 
 - 🧪 **Testing & Quality**
-  - UI 자동화 테스트 통합
+  - 시나리오 기반 E2E 테스트
   - 성능 벤치마크 시스템
-  - 코드 품질 메트릭 수집
 
 - 📦 **Integration & Deployment**
   - Docker 컨테이너 지원
-  - CI/CD 파이프라인 템플릿
   - 플러그인 시스템 (확장 가능한 도구)
 
 ---
@@ -330,7 +321,8 @@ You: /docs search typescript
 
 - [01. 개발자 종합 가이드](docs/01_DEVELOPMENT.md) - **필독!** 아키텍처, 폴더 구조, 핵심 기능, 코딩 규칙
 - [02. 로깅 시스템 가이드](docs/02_LOGGING.md) - CLI 실행 모드 및 상세 로깅 사용법 (필수!)
-- [03. 테스트 가이드](docs/03_TESTING.md) - E2E 테스트 실행 및 시나리오 작성 가이드 (PR 전 필수!)
+- [03. 테스트 가이드](docs/03_TESTING.md) - 시나리오 기반 E2E 테스트 가이드 (PR 전 필수!)
+- [04. 로드맵](docs/04_ROADMAP.md) - 6가지 도구 분류 아키텍처 및 개발 계획
 
 ---
 
@@ -466,10 +458,9 @@ You: _
 **Meta Commands**:
 - `/exit` - Exit
 - `/clear` - Clear conversation
-- `/save [name]` - Save current conversation
 - `/load` - Load saved conversation
-- `/endpoint` - Switch LLM endpoint
-- `/docs` - View/search local documents
+- `/settings` - Open settings menu
+- `/model` - Switch LLM model
 - `/help` - Help
 
 ### LLM Tools (Auto-Execution)
@@ -537,57 +528,49 @@ You: /docs search typescript
 - ✅ Multi-endpoint management
 - ✅ Local document system (Markdown knowledge base)
 - ✅ ESM migration
-- ✅ **GitHub Release Auto-Update System** 🆕
+- ✅ **GitHub Release Auto-Update System**
   - Automatic version checking (GitHub Releases API)
   - One-click updates (Git pull or Tarball download)
   - Rollback support (automatic backup creation)
   - `--no-update` flag to disable
-- ✅ **Model Compatibility Layer** 🆕
+- ✅ **Model Compatibility Layer**
   - Fixes Harmony format 422 errors for gpt-oss-120b/20b models
   - Automatically adds content field to tool_calls messages
   - Full compatibility with all OpenAI-compatible models
-- ✅ **Plan-and-Execute Architecture** 🆕
+- ✅ **Plan-and-Execute Architecture**
   - Auto-decompose user requests into TODO lists and execute sequentially
   - Agent Loop with Context Gathering and Work Verification
   - Dependency management and real-time progress tracking
-- ✅ **Multi-Layered Execution System** 🆕
-  - 4-layer support: Tool, Code-Gen, SubAgent, Skills
-  - Auto-select layer based on task complexity
-  - Parallel execution and result synthesis
-- ✅ **Internal Monologue & Scratchpad** 🆕
-  - Extended Thinking (Question Decomposition)
-  - Self-Evaluation and Plan Generation
-  - External Scratchpad (.md files) for TODO management
-- ✅ **TDD Workflow & Verification System** 🆕
-  - Auto test generation and execution
-  - 3 verification modes: Rule-based, Visual, LLM-as-Judge
-  - Automated Red-Green-Refactor cycle
+- ✅ **6-Category Tool Classification System** 🆕
+  - LLM Simple Tools (No Sub-LLM)
+  - LLM Agent Tools (With Sub-LLM)
+  - System Simple/Agent Tools (Auto-triggered)
+  - User Commands (/slash commands)
+  - MCP Tools (Model Context Protocol)
+- ✅ **Central Tool Registry** 🆕
+  - Multi-category registration support
+  - Type-safe tool management
 
-### 🚧 In Development (Phase 3)
+### 🚧 In Development (Phase 2)
 
-**Advanced Features & Integrations**
-
-Planned features for next phase:
+**Core Architecture Enhancements**
 
 - 🎨 **Enhanced UI/UX**
   - Tool usage display box
   - Bottom status bar (context usage)
-  - ASCII logo and welcome screen
   - Real-time progress visualization
 
 - 🔍 **Advanced Search & Context**
-  - Docs Search Agent Tool (multi-iteration bash search)
+  - Docs Search Agent Tool (multi-iteration bash search) ✅
   - Smart context prioritization
   - Auto-detect project-specific context
 
 - 🧪 **Testing & Quality**
-  - UI automation test integration
+  - Scenario-based E2E testing
   - Performance benchmark system
-  - Code quality metrics collection
 
 - 📦 **Integration & Deployment**
   - Docker container support
-  - CI/CD pipeline templates
   - Plugin system (extensible tools)
 
 ---
@@ -619,7 +602,8 @@ Planned features for next phase:
 
 - [01. Development Guide](docs/01_DEVELOPMENT.md) - **Start Here!** Architecture, folder structure, core features, coding rules.
 - [02. Logging System Guide](docs/02_LOGGING.md) - CLI execution modes and detailed logging usage (Required!).
-- [03. Testing Guide](docs/03_TESTING.md) - E2E test execution and scenario creation guide (Required before PR!).
+- [03. Testing Guide](docs/03_TESTING.md) - Scenario-based E2E test guide (Required before PR!).
+- [04. Roadmap](docs/04_ROADMAP.md) - 6-category tool architecture and development plan.
 
 ---
 
@@ -636,5 +620,5 @@ MIT License
 
 ---
 
-**Version**: 0.3.4
-**Last Updated**: 2025-11-10
+**Version**: 0.4.0
+**Last Updated**: 2025-12-11
