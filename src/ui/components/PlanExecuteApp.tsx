@@ -707,7 +707,20 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
                 {sessionTokens > 0 && ` · ↑ ${formatTokensCompact(sessionTokens)} tokens`})
               </Text>
             </Box>
-            <Text color="cyan">{currentModelInfo.model}</Text>
+            <Box>
+              {/* Context remaining indicator (also shown during processing) */}
+              {(() => {
+                const ctxPercent = planExecutionState.getContextRemainingPercent();
+                const ctxColor = ctxPercent > 50 ? 'green' : ctxPercent > 20 ? 'yellow' : 'red';
+                return (
+                  <>
+                    <Text color={ctxColor}>Context {ctxPercent}%</Text>
+                    <Text color="gray"> │ </Text>
+                  </>
+                );
+              })()}
+              <Text color="cyan">{currentModelInfo.model}</Text>
+            </Box>
           </>
         ) : (
           // Default status bar
