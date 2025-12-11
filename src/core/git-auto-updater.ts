@@ -5,13 +5,54 @@
  * No API rate limits, uses pure git commands
  */
 
-import { execSync } from 'child_process';
+import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import chalk from 'chalk';
 import ora from 'ora';
 import { logger } from '../utils/logger.js';
+
+/**
+ * Execute command asynchronously (allows spinner animation)
+ */
+function execAsync(command: string, options: { cwd?: string } = {}): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    const [cmd, ...args] = command.split(' ');
+    const child = spawn(cmd!, args, {
+      cwd: options.cwd,
+      shell: true,
+      stdio: 'pipe',
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout?.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    child.stderr?.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve({ stdout, stderr });
+      } else {
+        const error = new Error(`Command failed: ${command}`) as any;
+        error.stdout = stdout;
+        error.stderr = stderr;
+        error.code = code;
+        reject(error);
+      }
+    });
+
+    child.on('error', (err) => {
+      reject(err);
+    });
+  });
+}
 
 export class GitAutoUpdater {
   private repoUrl: string = 'https://github.com/A2G-Dev-Space/Open-Code-CLI.git';
@@ -111,10 +152,7 @@ export class GitAutoUpdater {
       logger.debug('Cloning repository', { repoUrl: this.repoUrl, destination: this.repoDir });
 
       logger.startTimer('git-clone');
-      execSync(`git clone ${this.repoUrl} ${this.repoDir}`, {
-        stdio: 'pipe',
-        encoding: 'utf-8',
-      });
+      await execAsync(`git clone ${this.repoUrl} ${this.repoDir}`);
       const cloneTime = logger.endTimer('git-clone');
 
       logger.debug('Repository cloned successfully');
@@ -126,11 +164,7 @@ export class GitAutoUpdater {
       spinner.text = chalk.cyan('Step 2/4: Installing dependencies (npm install)... This may take a while');
       logger.debug('Running npm install', { cwd: this.repoDir });
 
-      execSync('npm install', {
-        cwd: this.repoDir,
-        stdio: 'pipe',
-        encoding: 'utf-8',
-      });
+      await execAsync('npm install', { cwd: this.repoDir });
 
       spinner.succeed(chalk.green('Step 2/4: Dependencies installed'));
 
@@ -138,11 +172,7 @@ export class GitAutoUpdater {
       spinner.start(chalk.cyan('Step 3/4: Building TypeScript project...'));
       logger.debug('Running npm run build', { cwd: this.repoDir });
 
-      execSync('npm run build', {
-        cwd: this.repoDir,
-        stdio: 'pipe',
-        encoding: 'utf-8',
-      });
+      await execAsync('npm run build', { cwd: this.repoDir });
 
       spinner.succeed(chalk.green('Step 3/4: Build completed'));
 
@@ -150,11 +180,7 @@ export class GitAutoUpdater {
       spinner.start(chalk.cyan('Step 4/4: Creating global command link...'));
       logger.debug('Running npm link', { cwd: this.repoDir });
 
-      execSync('npm link', {
-        cwd: this.repoDir,
-        stdio: 'pipe',
-        encoding: 'utf-8',
-      });
+      await execAsync('npm link', { cwd: this.repoDir });
 
       spinner.succeed(chalk.green('Step 4/4: Global link created'));
       logger.debug('Initial setup completed successfully');
@@ -191,14 +217,10 @@ export class GitAutoUpdater {
 
     try {
       // Check git status first
-      const status = execSync('git status --porcelain', {
-        cwd: this.repoDir,
-        encoding: 'utf-8',
-        stdio: 'pipe',
-      });
+      const statusResult = await execAsync('git status --porcelain', { cwd: this.repoDir });
 
-      if (status.trim() !== '') {
-        logger.warn('Local changes detected in repo directory', { status });
+      if (statusResult.stdout.trim() !== '') {
+        logger.warn('Local changes detected in repo directory', { status: statusResult.stdout });
         console.log(chalk.yellow('⚠️  Local changes detected in ~/.open-cli/repo'));
         console.log(chalk.dim('   Skipping auto-update to preserve changes'));
         return;
@@ -207,11 +229,8 @@ export class GitAutoUpdater {
       // Pull latest changes
       logger.debug('Pulling latest changes from main branch');
 
-      const pullOutput = execSync('git pull origin main', {
-        cwd: this.repoDir,
-        encoding: 'utf-8',
-        stdio: 'pipe',
-      });
+      const pullResult = await execAsync('git pull origin main', { cwd: this.repoDir });
+      const pullOutput = pullResult.stdout;
 
       logger.debug('Git pull output', { output: pullOutput });
 
@@ -238,11 +257,7 @@ export class GitAutoUpdater {
         // Install dependencies (in case package.json changed)
         logger.debug('Running npm install after update');
 
-        execSync('npm install', {
-          cwd: this.repoDir,
-          stdio: 'pipe',
-          encoding: 'utf-8',
-        });
+        await execAsync('npm install', { cwd: this.repoDir });
 
         spinner.succeed(chalk.green('Step 1/3: Dependencies updated'));
 
@@ -250,11 +265,7 @@ export class GitAutoUpdater {
         spinner.start(chalk.cyan('Step 2/3: Building project...'));
         logger.debug('Running npm run build after update');
 
-        execSync('npm run build', {
-          cwd: this.repoDir,
-          stdio: 'pipe',
-          encoding: 'utf-8',
-        });
+        await execAsync('npm run build', { cwd: this.repoDir });
 
         spinner.succeed(chalk.green('Step 2/3: Build completed'));
 
@@ -262,11 +273,7 @@ export class GitAutoUpdater {
         spinner.start(chalk.cyan('Step 3/3: Updating global link...'));
         logger.debug('Running npm link after update');
 
-        execSync('npm link', {
-          cwd: this.repoDir,
-          stdio: 'pipe',
-          encoding: 'utf-8',
-        });
+        await execAsync('npm link', { cwd: this.repoDir });
 
         spinner.succeed(chalk.green('Step 3/3: Global link updated'));
         logger.debug('Auto-update completed successfully');
@@ -285,10 +292,7 @@ export class GitAutoUpdater {
           console.log();
           console.log(chalk.yellow('🔄 Rolling back to previous version...'));
 
-          execSync('git reset --hard HEAD@{1}', {
-            cwd: this.repoDir,
-            stdio: 'pipe',
-          });
+          await execAsync('git reset --hard HEAD@{1}', { cwd: this.repoDir });
 
           logger.debug('Rollback successful');
           console.log(chalk.green('✓ Rollback successful'));
@@ -324,22 +328,13 @@ export class GitAutoUpdater {
     }
 
     try {
-      const status = execSync('git status --porcelain', {
-        cwd: this.repoDir,
-        encoding: 'utf-8',
-        stdio: 'pipe',
-      });
-
-      const commit = execSync('git rev-parse HEAD', {
-        cwd: this.repoDir,
-        encoding: 'utf-8',
-        stdio: 'pipe',
-      }).trim();
+      const statusResult = await execAsync('git status --porcelain', { cwd: this.repoDir });
+      const commitResult = await execAsync('git rev-parse HEAD', { cwd: this.repoDir });
 
       return {
         exists: true,
-        hasChanges: status.trim() !== '',
-        currentCommit: commit,
+        hasChanges: statusResult.stdout.trim() !== '',
+        currentCommit: commitResult.stdout.trim(),
       };
     } catch (error) {
       logger.error('Failed to get repository status', error);
