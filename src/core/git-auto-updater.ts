@@ -73,8 +73,9 @@ export class GitAutoUpdater {
 
   /**
    * Main entry point - runs on every 'open' command
+   * @returns true if updated and needs restart, false otherwise
    */
-  async run(options: { noUpdate?: boolean } = {}): Promise<void> {
+  async run(options: { noUpdate?: boolean } = {}): Promise<boolean> {
     logger.enter('GitAutoUpdater.run', {
       noUpdate: options.noUpdate,
       enabled: this.enabled,
@@ -85,7 +86,7 @@ export class GitAutoUpdater {
       logger.flow('Git auto-update disabled - skipping');
       logger.debug('Git auto-update is disabled');
       logger.exit('GitAutoUpdater.run', { skipped: true, reason: 'disabled' });
-      return;
+      return false;
     }
 
     try {
@@ -107,12 +108,16 @@ export class GitAutoUpdater {
         await this.initialSetup();
       } else {
         // Subsequent runs: pull and update if needed
-        await this.pullAndUpdate();
+        const updated = await this.pullAndUpdate();
+        if (updated) {
+          return true;
+        }
       }
     } catch (error) {
       logger.error('Git auto-update failed', error);
       console.log(chalk.yellow('⚠️  Auto-update failed, continuing with current version...'));
     }
+    return false;
   }
 
   /**
@@ -211,8 +216,9 @@ export class GitAutoUpdater {
 
   /**
    * Pull latest changes and rebuild if needed
+   * @returns true if updated and needs restart
    */
-  private async pullAndUpdate(): Promise<void> {
+  private async pullAndUpdate(): Promise<boolean> {
     logger.debug('Checking for updates', { repoDir: this.repoDir });
 
     try {
@@ -223,7 +229,7 @@ export class GitAutoUpdater {
         logger.warn('Local changes detected in repo directory', { status: statusResult.stdout });
         console.log(chalk.yellow('⚠️  Local changes detected in ~/.open-cli/repo'));
         console.log(chalk.dim('   Skipping auto-update to preserve changes'));
-        return;
+        return false;
       }
 
       // Pull latest changes
@@ -237,7 +243,7 @@ export class GitAutoUpdater {
       // Check if there were any changes
       if (pullOutput.includes('Already up to date') || pullOutput.includes('Already up-to-date')) {
         logger.debug('Already up to date, no rebuild needed');
-        return;
+        return false;
       }
 
       // Changes detected - rebuild
@@ -283,8 +289,8 @@ export class GitAutoUpdater {
         console.log(chalk.white('   Please run "open" again to use the new version.'));
         console.log();
 
-        // Exit so user restarts with new version
-        process.exit(0);
+        // Return true to indicate restart needed
+        return true;
       } catch (buildError: any) {
         spinner.fail(chalk.red('Update failed'));
         logger.error('Build/link failed after pull', buildError);
@@ -320,6 +326,7 @@ export class GitAutoUpdater {
       // Don't throw - just log and continue with current version
       console.log(chalk.yellow('⚠️  Could not check for updates, continuing with current version'));
     }
+    return false;
   }
 
   /**

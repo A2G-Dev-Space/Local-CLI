@@ -40,7 +40,11 @@ program
     try {
       // Auto-update check (runs on every 'open' command)
       const updater = new GitAutoUpdater();
-      await updater.run();
+      const needsRestart = await updater.run();
+      if (needsRestart) {
+        // Exit immediately so user can restart with new version
+        process.exit(0);
+      }
 
       // Clear terminal on start
       process.stdout.write('\x1B[2J\x1B[0f');
