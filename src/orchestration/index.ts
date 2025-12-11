@@ -1,5 +1,5 @@
 /**
- * Plan & Execute Module
+ * Orchestration Module
  *
  * A robust implementation of the Plan -> Execute -> Debug workflow
  * inspired by Claude Code's architecture.
@@ -13,7 +13,7 @@
  *
  * @example
  * ```typescript
- * import { PlanExecuteOrchestrator } from './plan-and-execute';
+ * import { PlanExecuteOrchestrator } from './orchestration';
  * import { LLMClient } from './core/llm-client';
  *
  * const llmClient = new LLMClient();

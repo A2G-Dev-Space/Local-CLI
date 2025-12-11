@@ -183,10 +183,11 @@ export class PlanExecuteOrchestrator extends EventEmitter {
           userRequest,
         });
 
-        if (approval.action === 'reject' || approval.action === 'stop') {
-          throw new Error(
-            `Plan rejected by user: ${approval.reason || 'User rejected the plan'}`
-          );
+        if (approval.action === 'reject_with_comment' || approval.action === 'stop') {
+          const rejectMessage = approval.comment
+            ? `Plan rejected by user: ${approval.comment}`
+            : `Plan rejected by user: ${approval.reason || 'User rejected the plan'}`;
+          throw new Error(rejectMessage);
         }
 
         logger.info('Plan approved by user');
@@ -320,16 +321,17 @@ export class PlanExecuteOrchestrator extends EventEmitter {
           context: task.description,
         });
 
-        if (approval.action === 'reject') {
-          logger.info(`Task ${task.id} rejected by user`);
+        if (approval.action === 'reject_with_comment') {
+          const rejectReason = approval.comment || approval.reason || 'Task rejected by user';
+          logger.info(`Task ${task.id} rejected by user: ${rejectReason}`);
           this.stateManager.recordFailure(task.id, {
             message: 'Task rejected by user',
-            details: approval.reason,
+            details: rejectReason,
           });
           return false;
         }
 
-        if (approval.action === 'reject_all' || approval.action === 'stop') {
+        if (approval.action === 'stop') {
           logger.info(`Execution stopped by user at task ${task.id}`);
           throw new Error(
             `Execution stopped by user: ${approval.reason || 'User stopped execution'}`

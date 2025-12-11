@@ -9,10 +9,10 @@ import { useState, useCallback, useEffect } from 'react';
 import { Message, TodoItem } from '../../types/index.js';
 import { LLMClient } from '../../core/llm-client.js';
 import { RequestClassifier } from '../../core/llm/request-classifier.js';
-import { PlanExecuteOrchestrator } from '../../plan-and-execute/orchestrator.js';
+import { PlanExecuteOrchestrator } from '../../orchestration/orchestrator.js';
+import { ApprovalAction } from '../../orchestration/approval-manager.js';
 import { sessionManager } from '../../core/session-manager.js';
 import { performDocsSearchIfNeeded } from '../../core/agent-framework-handler.js';
-import { ApprovalAction } from '../components/dialogs/ApprovalDialog.js';
 import { BaseError } from '../../errors/base.js';
 import { logger } from '../../utils/logger.js';
 import {
@@ -52,7 +52,7 @@ export interface ApprovalState {
 export interface PlanExecutionActions {
   setTodos: React.Dispatch<React.SetStateAction<TodoItem[]>>;
   handleTodoUpdate: (todo: TodoItem) => void;
-  handleApprovalResponse: (action: ApprovalAction) => void;
+  handleApprovalResponse: (action: ApprovalAction, comment?: string) => void;
   handleAskUserResponse: (response: AskUserResponse) => void;
   handleInterrupt: () => void;
   executeAutoMode: (
@@ -278,11 +278,13 @@ export function usePlanExecution(): PlanExecutionState & ApprovalState & PlanExe
     });
   }, []);
 
-  const handleApprovalResponse = useCallback((action: ApprovalAction) => {
-    logger.enter('handleApprovalResponse', { action });
+  const handleApprovalResponse = useCallback((action: ApprovalAction, comment?: string) => {
+    logger.enter('handleApprovalResponse', { action, hasComment: !!comment });
 
     if (approvalResolver) {
-      approvalResolver.resolve(action);
+      // For reject_with_comment, include the comment in the action
+      const resolveValue = comment ? `${action}:${comment}` : action;
+      approvalResolver.resolve(resolveValue);
       setApprovalResolver(null);
     }
     setPlanApprovalRequest(null);
