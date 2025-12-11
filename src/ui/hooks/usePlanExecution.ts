@@ -143,6 +143,9 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
   // Ref for interrupt flag (allows checking in async callbacks)
   const isInterruptedRef = useRef(false);
 
+  // Ref for orchestrator (maintained across executions, reset on compact)
+  const orchestratorRef = useRef<PlanExecuteOrchestrator | null>(null);
+
   // Ask-user state
   const [askUserRequest, setAskUserRequest] = useState<AskUserRequest | null>(null);
   const [askUserResolver, setAskUserResolver] = useState<{
@@ -401,10 +404,17 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
         setMessages(messagesWithDocs);
       }
 
-      const orchestrator = new PlanExecuteOrchestrator(llmClient, {
-        maxDebugAttempts: 2,
-        verbose: false,
-      });
+      // Reuse existing orchestrator or create new one (maintains conversation history)
+      if (!orchestratorRef.current) {
+        orchestratorRef.current = new PlanExecuteOrchestrator(llmClient, {
+          maxDebugAttempts: 2,
+          verbose: false,
+        });
+      }
+      const orchestrator = orchestratorRef.current;
+
+      // Remove existing listeners to prevent duplicates when reusing orchestrator
+      orchestrator.removeAllListeners();
 
       orchestrator.on('planCreated', (newTodos: TodoItem[]) => {
         logger.flow('Plan created', { todoCount: newTodos.length });
@@ -622,6 +632,12 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
         setMessages(compactedMessages);
         contextTracker.reset();
         sessionManager.autoSaveCurrentSession(compactedMessages);
+
+        // Reset orchestrator conversation history on compact
+        if (orchestratorRef.current) {
+          orchestratorRef.current.resetConversationHistory();
+          logger.flow('Orchestrator conversation history reset on compact');
+        }
 
         // Emit compact event for Static log
         emitCompact(result.originalMessageCount, result.newMessageCount);

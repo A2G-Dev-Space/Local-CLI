@@ -73,6 +73,8 @@ export class PlanExecuteOrchestrator extends EventEmitter {
   private planningLLM: PlanningLLM;
   private stateManager: PlanExecuteStateManager | null = null;
   private config: Required<OrchestratorConfig>;
+  /** Conversation history maintained across all tasks - only reset on compact */
+  private conversationHistory: Array<{ role: 'system' | 'user' | 'assistant' | 'tool'; content: string; tool_call_id?: string; tool_calls?: any[] }> = [];
 
   constructor(llmClient: LLMClient, config: OrchestratorConfig = {}) {
     super();
@@ -358,6 +360,7 @@ export class PlanExecuteOrchestrator extends EventEmitter {
   /**
    * Call LLM for task execution with tools support
    * Now uses chatCompletionWithTools for actual file operations
+   * Maintains conversation history across all tasks (only reset on compact)
    */
   private async callLLMForTask(
     input: PlanExecuteLLMInput,
@@ -365,6 +368,7 @@ export class PlanExecuteOrchestrator extends EventEmitter {
   ): Promise<PlanExecuteLLMOutput> {
     logger.enter('PlanExecuteOrchestrator.callLLMForTask', {
       taskId: input.current_task.id,
+      historyLength: this.conversationHistory.length,
     });
 
     try {
@@ -378,15 +382,6 @@ export class PlanExecuteOrchestrator extends EventEmitter {
 **Title**: ${input.current_task.title}
 **Description**: ${input.current_task.description || 'No description provided'}
 
-## Previous Context
-${input.previous_context.completed_tasks.length > 0
-  ? input.previous_context.completed_tasks.map(t => `- ✅ ${t.title}: ${t.result}`).join('\n')
-  : 'No previous tasks completed yet.'}
-
-${input.previous_context.last_step_result
-  ? `**Last Step Result**: ${input.previous_context.last_step_result}`
-  : ''}
-
 ${input.error_log.is_debug
   ? `## Debug Mode
 **Error to Fix**: ${input.error_log.error_message || 'Unknown error'}
@@ -397,18 +392,30 @@ ${input.error_log.is_debug
 Please execute this task now using the available tools.
 `;
 
-      // Build messages array with system prompt
-      const messages = [
-        { role: 'system' as const, content: PLAN_EXECUTE_SYSTEM_PROMPT },
-        { role: 'user' as const, content: taskContext },
-      ];
+      // Initialize conversation history with system prompt if empty
+      if (this.conversationHistory.length === 0) {
+        this.conversationHistory.push({
+          role: 'system' as const,
+          content: PLAN_EXECUTE_SYSTEM_PROMPT,
+        });
+      }
 
-      // Execute with tools
+      // Add the new user message to conversation history
+      this.conversationHistory.push({
+        role: 'user' as const,
+        content: taskContext,
+      });
+
+      // Execute with tools using full conversation history
       const result = await this.llmClient.chatCompletionWithTools(
-        messages,
+        this.conversationHistory as any,
         FILE_TOOLS,
         5  // max iterations for tool calls
       );
+
+      // Update conversation history with all new messages from this execution
+      // allMessages includes the original history plus new messages
+      this.conversationHistory = result.allMessages as any;
 
       // Extract final response content
       const responseContent = result.message.content || '';
@@ -438,6 +445,7 @@ Please execute this task now using the available tools.
       logger.exit('PlanExecuteOrchestrator.callLLMForTask', {
         status,
         toolCallCount: result.toolCalls.length,
+        updatedHistoryLength: this.conversationHistory.length,
       });
 
       return {
@@ -470,6 +478,21 @@ Please execute this task now using the available tools.
         },
       };
     }
+  }
+
+  /**
+   * Reset conversation history (called on compact)
+   */
+  resetConversationHistory(): void {
+    logger.flow('Resetting conversation history (compact)');
+    this.conversationHistory = [];
+  }
+
+  /**
+   * Get current conversation history length
+   */
+  getConversationHistoryLength(): number {
+    return this.conversationHistory.length;
   }
 
   /**
