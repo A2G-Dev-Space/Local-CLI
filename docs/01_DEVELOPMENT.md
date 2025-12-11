@@ -1,7 +1,7 @@
 # 개발자 종합 가이드 (Development Guide)
 
-> **문서 버전**: 5.1.0 (v1.1.0)
-> **최종 수정일**: 2025-12-11
+> **문서 버전**: 6.0.0 (v1.1.0)
+> **최종 수정일**: 2025-12-12
 
 이 문서는 **OPEN-CLI** 프로젝트의 전체 구조, 아키텍처, 핵심 기능, 개발 규칙을 설명합니다.
 
@@ -31,17 +31,20 @@
 - AI가 직접 파일을 읽고, 쓰고, 검색하고, 코드를 실행
 - 터미널에서 Interactive UI로 AI와 대화
 
-### 핵심 기능 (v1.0.0)
+### 핵심 기능 (v1.1.0)
 
 | 기능 | 설명 |
 |------|------|
 | Plan & Execute | 복잡한 작업을 자동으로 분해하여 순차 실행 |
 | 요청 분류 | simple_response vs requires_todo 자동 분류 |
 | ask-to-user Tool | LLM이 사용자에게 질문 (2-4 선택지 + Other) |
+| tell_to_user Tool | LLM이 사용자에게 진행 상황 메시지 전달 |
 | 사용량 추적 | 세션/일별/월별 토큰 통계 |
 | 문서 다운로드 | /docs download agno, adk |
 | Auto-Compact | Context 80% 도달 시 자동 대화 압축 |
 | Claude Code 스타일 상태바 | `✶ ~하는 중… (esc to interrupt · 2m 7s · ↑ 3.6k tokens)` |
+| Static Log 시스템 | 스크롤 가능한 로그 이력 (Ink Static 컴포넌트) |
+| Tool 아이콘 표시 | 각 도구별 이모지 아이콘 (📖📝✏️📂🔍💬) |
 
 ---
 
@@ -119,7 +122,7 @@ src/
 │   │
 │   ├── llm/                        # LLM이 tool_call로 호출하는 도구
 │   │   ├── simple/                 # Sub-LLM 없는 단순 도구
-│   │   │   ├── file-tools.ts       # 파일 도구 (read, write, list, find)
+│   │   │   ├── file-tools.ts       # 파일 도구 + 콜백 시스템
 │   │   │   ├── todo-tools.ts       # TODO 관리 도구
 │   │   │   ├── ask-user-tool.ts    # ask-to-user 도구
 │   │   │   └── index.ts
@@ -149,8 +152,11 @@ src/
 │   │
 │   ├── components/
 │   │   ├── PlanExecuteApp.tsx      # 메인 앱 (가장 중요!)
+│   │   │                           # - Static log 시스템
+│   │   │                           # - LogEntry 타입 및 렌더링
+│   │   │                           # - Tool 아이콘/이모지
 │   │   ├── StatusBar.tsx           # 상태바 (Claude Code 스타일, Context %)
-│   │   ├── Logo.tsx                # 시작 화면 로고 (버전 표시)
+│   │   ├── Logo.tsx                # 시작 화면 로고 (컬러 그라데이션)
 │   │   ├── CustomTextInput.tsx     # 텍스트 입력 (한글 지원)
 │   │   ├── FileBrowser.tsx         # @ 파일 선택기
 │   │   ├── CommandBrowser.tsx      # / 명령어 선택기
@@ -256,7 +262,97 @@ simple_response      requires_todo
 (바로 응답)          (TODO 생성 후 실행)
 ```
 
-### 4.2 TODO 관리 LLM Tools
+### 4.2 File-Tools (파일 도구)
+
+**위치**: `src/tools/llm/simple/file-tools.ts`
+
+| 도구 | 아이콘 | 설명 | 파라미터 |
+|------|--------|------|----------|
+| `read_file` | 📖 | 파일 내용 읽기 | `reason`, `file_path` |
+| `create_file` | 📝 | 새 파일 생성 (기존 파일 있으면 실패) | `reason`, `file_path`, `content` |
+| `edit_file` | ✏️ | 기존 파일 수정 (줄 단위 편집) | `reason`, `file_path`, `edits[]` |
+| `list_files` | 📂 | 디렉토리 목록 조회 | `reason`, `directory_path?`, `recursive?` |
+| `find_files` | 🔍 | glob 패턴으로 파일 검색 | `reason`, `pattern`, `directory_path?` |
+| `tell_to_user` | 💬 | 사용자에게 메시지 전달 | `message` |
+
+**중요**: 모든 파일 도구는 `reason` 파라미터 필수 (사용자에게 무엇을 하는지 설명)
+
+#### edit_file 사용법
+
+```typescript
+// 줄 단위 편집 (line_number는 1-based)
+{
+  "file_path": "src/app.ts",
+  "edits": [
+    { "line_number": 5, "original_text": "const x = 1;", "new_text": "const x = 2;" },
+    { "line_number": 10, "original_text": "// delete this", "new_text": "" }  // 삭제
+  ]
+}
+```
+
+### 4.3 Static Log 시스템
+
+**위치**: `src/ui/components/PlanExecuteApp.tsx`
+
+Ink의 `Static` 컴포넌트를 사용한 스크롤 가능한 로그 시스템입니다.
+
+```typescript
+// LogEntry 타입
+type LogEntryType =
+  | 'logo'              // 시작 로고
+  | 'user_input'        // 사용자 입력
+  | 'assistant_message' // AI 응답
+  | 'tool_start'        // 도구 실행 시작
+  | 'tool_result'       // 도구 실행 결과
+  | 'tell_user'         // tell_to_user 메시지
+  | 'plan_created'      // 플랜 생성됨
+  | 'todo_start'        // TODO 시작
+  | 'todo_complete'     // TODO 완료
+  | 'todo_fail'         // TODO 실패
+  | 'compact';          // 대화 압축됨
+
+interface LogEntry {
+  id: string;
+  type: LogEntryType;
+  content: string;
+  details?: string;
+  toolArgs?: Record<string, unknown>;  // tool_start, tool_result용
+  success?: boolean;
+  items?: string[];     // plan_created용
+  diff?: string[];      // edit_file diff용
+}
+```
+
+#### 콜백 시스템
+
+`file-tools.ts`에서 UI로 이벤트를 전달하는 콜백 함수들:
+
+```typescript
+// Tool 실행 시작/결과
+setToolExecutionCallback((toolName, reason, args) => { ... });
+setToolResponseCallback((toolName, success, result) => { ... });
+
+// 메시지/플랜/TODO 이벤트
+setTellToUserCallback((message) => { ... });
+setPlanCreatedCallback((todoTitles) => { ... });
+setTodoStartCallback((title) => { ... });
+setTodoCompleteCallback((title) => { ... });
+setTodoFailCallback((title) => { ... });
+setCompactCallback((originalCount, newCount) => { ... });
+```
+
+### 4.4 Tool 결과 표시 규칙
+
+| Tool | 표시 방식 |
+|------|----------|
+| `read_file` | 5줄까지만 표시 + "... (N more lines)" |
+| `list_files` | "N개 항목 (preview...)" |
+| `find_files` | "N개 항목 (preview...)" |
+| `create_file` | diff 형식 (+ 로 전체 줄 표시, 녹색) |
+| `edit_file` | diff 형식 (- / + 전체 표시, 빨강/녹색) |
+| `tell_to_user` | tool_result 숨김 (tell_user 로그에서 표시) |
+
+### 4.5 TODO 관리 LLM Tools
 
 **위치**: `src/tools/llm/simple/todo-tools.ts`
 
@@ -265,7 +361,7 @@ simple_response      requires_todo
 | `update-todo-list` | TODO 상태 업데이트 (in_progress, completed, failed) |
 | `get-todo-list` | 현재 TODO 목록 조회 |
 
-### 4.3 ask-to-user Tool
+### 4.6 ask-to-user Tool
 
 **위치**: `src/tools/llm/simple/ask-user-tool.ts`
 
@@ -284,7 +380,7 @@ interface AskUserRequest {
 - 숫자 키(1-4)로 빠른 선택
 - "Other" 선택 시 텍스트 입력
 
-### 4.4 Auto-Compact (대화 압축)
+### 4.7 Auto-Compact (대화 압축)
 
 **위치**: `src/core/compact/`
 
@@ -305,7 +401,7 @@ Context window가 80%에 도달하면 자동으로 대화를 압축합니다.
 - StatusBar에 "Context XX%" 표시 (초록/노랑/빨강)
 ```
 
-### 4.5 사용량 추적
+### 4.8 사용량 추적
 
 **위치**: `src/core/usage-tracker.ts`
 
@@ -330,7 +426,7 @@ usageTracker.formatSessionStatus(activity);  // Claude Code 스타일
 
 **슬래시 명령어**: `/usage`
 
-### 4.6 문서 다운로드
+### 4.9 문서 다운로드
 
 **위치**: `src/core/docs-manager.ts`
 
@@ -354,18 +450,7 @@ AVAILABLE_SOURCES = [
 - 숫자 키(1-9)로 빠른 다운로드
 - 설치 상태 표시 (✅ 설치됨 / ⬜ 미설치)
 
-### 4.7 File-Tools
-
-**위치**: `src/tools/llm/simple/file-tools.ts`
-
-| 도구 | 설명 | 파라미터 |
-|------|------|----------|
-| `read_file` | 파일 내용 읽기 | `file_path` |
-| `write_file` | 파일 생성/수정 | `file_path`, `content` |
-| `list_files` | 디렉토리 목록 조회 | `directory_path` |
-| `find_files` | glob 패턴으로 파일 검색 | `pattern`, `directory_path?` |
-
-### 4.8 LLM-Client
+### 4.10 LLM-Client
 
 **위치**: `src/core/llm/llm-client.ts`
 
@@ -374,8 +459,9 @@ AVAILABLE_SOURCES = [
 | 기본 대화 | `sendMessage()` | 단일 메시지 전송 |
 | 스트리밍 | `sendMessageStream()` | 실시간 토큰 응답 |
 | Tool Calling | `sendMessageWithTools()` | AI 도구 호출 |
+| Tool + 반복 | `chatCompletionWithTools()` | 도구 호출 반복 실행 |
 
-### 4.9 Plan-Execute (Orchestration)
+### 4.11 Plan-Execute (Orchestration)
 
 **위치**: `src/orchestration/`
 
@@ -385,6 +471,22 @@ AVAILABLE_SOURCES = [
 | `state-manager.ts` | 실행 상태 관리 |
 | `llm-schemas.ts` | LLM 입출력 형식 |
 | `types.ts` | 타입 정의 |
+
+### 4.12 슬래시 명령어
+
+**위치**: `src/ui/hooks/slashCommandProcessor.ts`
+
+| 명령어 | 설명 |
+|--------|------|
+| `/exit`, `/quit` | 앱 종료 |
+| `/clear` | 대화 및 TODO 초기화 |
+| `/compact` | 대화 압축 (수동) |
+| `/settings` | 설정 메뉴 열기 |
+| `/model` | 모델 선택기 열기 |
+| `/load` | 저장된 세션 불러오기 |
+| `/docs` | 문서 브라우저 열기 |
+| `/usage` | 토큰 사용량 통계 |
+| `/help` | 도움말 표시 |
 
 ---
 
@@ -398,6 +500,12 @@ User Input (터미널 메시지)
 ┌─────────────────────────────────────────────────────────────────┐
 │                   React/Ink UI Layer                             │
 │              src/ui/components/PlanExecuteApp.tsx                │
+│                                                                  │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ Static Log System                                         │   │
+│  │ - LogEntry[] 배열로 이력 관리                              │   │
+│  │ - Ink Static 컴포넌트로 스크롤 가능                        │   │
+│  └──────────────────────────────────────────────────────────┘   │
 └──────────────────────────┬──────────────────────────────────────┘
                            ↓
 ┌─────────────────────────────────────────────────────────────────┐
@@ -428,6 +536,8 @@ User Input (터미널 메시지)
 │  │ (Simple/   │ │ Tools      │ │ Commands   │ │ Tools      │   │
 │  │  Agent)    │ │            │ │ (/slash)   │ │            │   │
 │  └────────────┘ └────────────┘ └────────────┘ └────────────┘   │
+│                                                                  │
+│  Tool Callbacks → PlanExecuteApp → Static Log                   │
 └──────────────────────────┬──────────────────────────────────────┘
                            ↓
 ┌─────────────────────────────────────────────────────────────────┐
@@ -461,9 +571,13 @@ const MY_TOOL_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: {
+          type: 'string',
+          description: `A natural, conversational explanation for the user...`
+        },
         param1: { type: 'string', description: 'Parameter description' }
       },
-      required: ['param1']
+      required: ['reason', 'param1']
     }
   }
 };
@@ -483,6 +597,20 @@ export const myTool: LLMSimpleTool = {
 ```
 
 **2단계**: `src/tools/llm/simple/index.ts`에서 export
+
+**3단계**: Tool 아이콘 추가 (PlanExecuteApp.tsx의 `getToolIcon` 함수)
+
+```typescript
+const getToolIcon = (toolName: string): string => {
+  switch (toolName) {
+    // ... 기존 도구들
+    case 'my_tool':
+      return '🔧';  // 적절한 아이콘 선택
+    default:
+      return '🔧';
+  }
+};
+```
 
 ### 6.2 새 슬래시 명령어 추가
 
@@ -585,6 +713,21 @@ const value = args['param_name'];
 
 // 틀린 방법 (TS4111 에러)
 const value = args.param_name;
+```
+
+### 7.4 Tool reason 파라미터
+
+모든 LLM Tool은 `reason` 파라미터를 포함해야 합니다:
+
+```typescript
+reason: {
+  type: 'string',
+  description: `A natural, conversational explanation for the user about what you're doing (in user's language).
+Write as if you're talking to the user directly.
+Examples:
+- "현재 인증 로직이 어떻게 구현되어 있는지 확인해볼게요"
+- "에러가 발생한 파일을 열어서 문제를 찾아볼게요"`
+}
 ```
 
 ---
