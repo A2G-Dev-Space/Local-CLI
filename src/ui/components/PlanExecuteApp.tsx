@@ -761,13 +761,13 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
             <Text>{' '}</Text>
             <Text>{' '}</Text>
             <Text>{' '}</Text>
-            <Text bold color="cyanBright">   ____  _____  ______ _   _        _____ _      _____ </Text>
-            <Text bold color="cyan">  / __ \|  __ \|  ____| \ | |      / ____| |    |_   _|</Text>
-            <Text bold color="cyan"> | |  | | |__) | |__  |  \| |_____| |    | |      | |  </Text>
-            <Text bold color="blue"> | |  | |  ___/|  __| | . ` |_____| |    | |      | |  </Text>
-            <Text bold color="blue"> | |__| | |    | |____| |\  |      | |____| |____ _| |_ </Text>
-            <Text bold color="blueBright">  \____/|_|    |______|_| \_|       \_____|______|_____|</Text>
-            <Text color="gray">                    {entry.content}</Text>
+            <Text bold color="cyanBright">  ██████╗ ██████╗ ███████╗███╗   ██╗       ██████╗██╗     ██╗</Text>
+            <Text bold color="cyan">  ██╔═══██╗██╔══██╗██╔════╝████╗  ██║      ██╔════╝██║     ██║</Text>
+            <Text bold color="cyan">  ██║   ██║██████╔╝█████╗  ██╔██╗ ██║█████╗██║     ██║     ██║</Text>
+            <Text bold color="blue">  ██║   ██║██╔═══╝ ██╔══╝  ██║╚██╗██║╚════╝██║     ██║     ██║</Text>
+            <Text bold color="blue">  ╚██████╔╝██║     ███████╗██║ ╚████║      ╚██████╗███████╗██║</Text>
+            <Text bold color="blueBright">   ╚═════╝ ╚═╝     ╚══════╝╚═╝  ╚═══╝       ╚═════╝╚══════╝╚═╝</Text>
+            <Text color="gray">                      {entry.content}</Text>
           </Box>
         );
 
@@ -995,12 +995,12 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
             <Text>{' '}</Text>
             <Text>{' '}</Text>
             <Text>{' '}</Text>
-            <Text bold color="cyanBright">   ____  _____  ______ _   _        _____ _      _____ </Text>
-            <Text bold color="cyan">  / __ \|  __ \|  ____| \ | |      / ____| |    |_   _|</Text>
-            <Text bold color="cyan"> | |  | | |__) | |__  |  \| |_____| |    | |      | |  </Text>
-            <Text bold color="blue"> | |  | |  ___/|  __| | . ` |_____| |    | |      | |  </Text>
-            <Text bold color="blue"> | |__| | |    | |____| |\  |      | |____| |____ _| |_ </Text>
-            <Text bold color="blueBright">  \____/|_|    |______|_| \_|       \_____|______|_____|</Text>
+            <Text bold color="cyanBright">  ██████╗ ██████╗ ███████╗███╗   ██╗       ██████╗██╗     ██╗</Text>
+            <Text bold color="cyan">  ██╔═══██╗██╔══██╗██╔════╝████╗  ██║      ██╔════╝██║     ██║</Text>
+            <Text bold color="cyan">  ██║   ██║██████╔╝█████╗  ██╔██╗ ██║█████╗██║     ██║     ██║</Text>
+            <Text bold color="blue">  ██║   ██║██╔═══╝ ██╔══╝  ██║╚██╗██║╚════╝██║     ██║     ██║</Text>
+            <Text bold color="blue">  ╚██████╔╝██║     ███████╗██║ ╚████║      ╚██████╗███████╗██║</Text>
+            <Text bold color="blueBright">   ╚═════╝ ╚═╝     ╚══════╝╚═╝  ╚═══╝       ╚═════╝╚══════╝╚═╝</Text>
             <Text color="gray">── {entry.content} ──</Text>
           </Box>
         );
