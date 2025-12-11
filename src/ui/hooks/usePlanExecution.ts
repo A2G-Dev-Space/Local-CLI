@@ -34,6 +34,7 @@ export interface PlanExecutionState {
   currentTodoId: string | undefined;
   executionPhase: ExecutionPhase;
   isInterrupted: boolean;
+  currentActivity: string;  // LLM이 업데이트하는 현재 활동 (Claude Code style)
 }
 
 export interface ApprovalState {
@@ -126,6 +127,7 @@ export function usePlanExecution(): PlanExecutionState & ApprovalState & PlanExe
   const [currentTodoId, setCurrentTodoId] = useState<string | undefined>();
   const [executionPhase, setExecutionPhase] = useState<ExecutionPhase>('idle');
   const [isInterrupted, setIsInterrupted] = useState(false);
+  const [currentActivity, setCurrentActivity] = useState<string>('대기 중');
 
   // Approval state (kept for Phase 2 - approval mode)
   const [planApprovalRequest, setPlanApprovalRequest] = useState<{
@@ -333,10 +335,13 @@ export function usePlanExecution(): PlanExecutionState & ApprovalState & PlanExe
     setMessages: React.Dispatch<React.SetStateAction<Message[]>>
   ) => {
     logger.enter('executeDirectMode', { messageLength: userMessage.length });
+    setCurrentActivity('요청 분석 중');
 
     try {
+      setCurrentActivity('문서 검색 중');
       const { messages: messagesWithDocs } =
         await performDocsSearchIfNeeded(llmClient, userMessage, messages);
+      setCurrentActivity('응답 생성 중');
 
       const { FILE_TOOLS } = await import('../../tools/file-tools.js');
 
@@ -376,10 +381,13 @@ export function usePlanExecution(): PlanExecutionState & ApprovalState & PlanExe
   ) => {
     logger.enter('executePlanMode', { messageLength: userMessage.length });
     setExecutionPhase('planning');
+    setCurrentActivity('계획 수립 중');
 
     try {
+      setCurrentActivity('문서 검색 중');
       const { messages: messagesWithDocs, performed: docsSearchPerformed } =
         await performDocsSearchIfNeeded(llmClient, userMessage, messages);
+      setCurrentActivity('계획 수립 중');
 
       if (docsSearchPerformed) {
         setMessages(messagesWithDocs);
@@ -419,6 +427,7 @@ export function usePlanExecution(): PlanExecutionState & ApprovalState & PlanExe
         logger.flow('TODO started', { todoId: todo.id });
         handleTodoUpdate({ ...todo, status: 'in_progress' as const });
         setExecutionPhase('executing');
+        setCurrentActivity(todo.title);  // Update activity to current TODO title
       });
 
       orchestrator.on('todoCompleted', (todo: TodoItem) => {
@@ -487,6 +496,7 @@ export function usePlanExecution(): PlanExecutionState & ApprovalState & PlanExe
   ) => {
     logger.enter('executeAutoMode', { messageLength: userMessage.length });
     setExecutionPhase('classifying');
+    setCurrentActivity('요청 분류 중');
 
     try {
       // Phase 1: Use RequestClassifier for intelligent classification
@@ -532,6 +542,7 @@ export function usePlanExecution(): PlanExecutionState & ApprovalState & PlanExe
     currentTodoId,
     executionPhase,
     isInterrupted,
+    currentActivity,
     planApprovalRequest,
     taskApprovalRequest,
     askUserRequest,

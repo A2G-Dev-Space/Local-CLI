@@ -32,6 +32,9 @@ export interface StatusBarProps {
   todoCompleted?: number;
   // Health status
   healthStatus?: 'healthy' | 'unhealthy' | 'checking' | 'unknown';
+  // Claude Code style execution status
+  currentActivity?: string;  // LLM이 업데이트하는 현재 활동 (예: "파일 분석", "코드 작성")
+  sessionElapsedSeconds?: number;  // 세션 경과 시간
 }
 
 /**
@@ -88,6 +91,18 @@ const ContextMiniBar: React.FC<{ current: number; max: number }> = ({ current, m
   );
 };
 
+/**
+ * Format elapsed time (Claude Code style)
+ */
+function formatElapsedTime(seconds: number): string {
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}m ${secs}s`;
+}
+
 export const StatusBar: React.FC<StatusBarProps> = ({
   model,
   endpoint: _endpoint,
@@ -99,6 +114,8 @@ export const StatusBar: React.FC<StatusBarProps> = ({
   todoCount,
   todoCompleted,
   healthStatus,
+  currentActivity,
+  sessionElapsedSeconds,
 }) => {
   // endpoint and message reserved for future enhanced display
   void _endpoint;
@@ -135,6 +152,35 @@ export const StatusBar: React.FC<StatusBarProps> = ({
     }
   };
 
+  // Claude Code style: "✶ ~ 하는 중… (esc to interrupt · 2m 7s · ↑ 3.6k tokens)"
+  const isActive = status === 'thinking' || status === 'executing';
+
+  // 실행 중일 때는 Claude Code 스타일 상태바 표시
+  if (isActive && currentActivity) {
+    return (
+      <Box justifyContent="space-between" paddingX={1}>
+        <Box>
+          <Text color="magenta" bold>✶ </Text>
+          <Text color="white">{currentActivity}… </Text>
+          <Text color="gray">(esc to interrupt</Text>
+          {sessionElapsedSeconds !== undefined && (
+            <Text color="gray"> · {formatElapsedTime(sessionElapsedSeconds)}</Text>
+          )}
+          {sessionTokens > 0 && (
+            <Text color="gray"> · ↑ {formatTokens(sessionTokens)} tokens</Text>
+          )}
+          <Text color="gray">)</Text>
+        </Box>
+
+        {/* Right: Model */}
+        <Box>
+          {model && <Text color="cyan">{model.slice(0, 15)}</Text>}
+        </Box>
+      </Box>
+    );
+  }
+
+  // 기본 상태바 (idle, error 등)
   return (
     <Box justifyContent="space-between" paddingX={1}>
       {/* Left section: Health, Status, Model */}

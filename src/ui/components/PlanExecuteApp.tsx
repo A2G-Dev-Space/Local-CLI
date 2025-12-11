@@ -38,9 +38,26 @@ import {
 import { closeJsonStreamLogger } from '../../utils/json-stream-logger.js';
 import { configManager } from '../../core/config-manager.js';
 import { logger } from '../../utils/logger.js';
+import { usageTracker } from '../../core/usage-tracker.js';
 
 // Initialization steps for detailed progress display
 type InitStep = 'docs' | 'config' | 'health' | 'done';
+
+// Helper functions for status bar
+function formatElapsedTime(seconds: number): string {
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}m ${secs}s`;
+}
+
+function formatTokensCompact(count: number): string {
+  if (count < 1000) return count.toString();
+  if (count < 1000000) return `${(count / 1000).toFixed(1)}k`;
+  return `${(count / 1000000).toFixed(2)}M`;
+}
 
 interface PlanExecuteAppProps {
   llmClient: LLMClient | null;
@@ -71,6 +88,10 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
   const [activityDetail, setActivityDetail] = useState<string>('');
   const [subActivities, setSubActivities] = useState<SubActivity[]>([]);
 
+  // Session usage tracking for Claude Code style status bar
+  const [sessionTokens, setSessionTokens] = useState(0);
+  const [sessionElapsed, setSessionElapsed] = useState(0);
+
   // Session browser state
   const [showSessionBrowser, setShowSessionBrowser] = useState(false);
 
@@ -99,6 +120,21 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
       logger.exit('PlanExecuteApp', { messageCount: messages.length });
     };
   }, []);
+
+  // Update session usage and elapsed time in real-time
+  useEffect(() => {
+    if (!isProcessing) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      const sessionUsage = usageTracker.getSessionUsage();
+      setSessionTokens(sessionUsage.totalTokens);
+      setSessionElapsed(usageTracker.getSessionElapsedSeconds());
+    }, 500); // Update every 500ms
+
+    return () => clearInterval(interval);
+  }, [isProcessing]);
 
   // Initialize on startup: check LLM configuration and run health check
   useEffect(() => {
@@ -362,6 +398,11 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
     setCurrentResponse('');
     setActivityStartTime(Date.now());
     setSubActivities([]);
+
+    // Reset session usage for new task
+    usageTracker.resetSession();
+    setSessionTokens(0);
+    setSessionElapsed(0);
 
     logger.startTimer('message-processing');
 
@@ -655,22 +696,42 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         </Box>
       )}
 
-      {/* Status Bar - Always visible with model info */}
+      {/* Status Bar - Claude Code style when processing */}
       <Box justifyContent="space-between" paddingX={1}>
-        <Box>
-          {/* Model info - always visible */}
-          <Text color="gray">{getHealthIndicator()} </Text>
-          <Text color="cyan">{currentModelInfo.model}</Text>
-          {planExecutionState.todos.length > 0 && (
-            <>
-              <Text color="gray"> │ </Text>
-              <TodoStatusBar todos={planExecutionState.todos} />
-            </>
-          )}
-        </Box>
-        <Text color="gray" dimColor>
-          /help
-        </Text>
+        {isProcessing ? (
+          // Claude Code style: "✶ ~ 하는 중… (esc to interrupt · 2m 7s · ↑ 3.6k tokens)"
+          <>
+            <Box>
+              <Text color="magenta" bold>✶ </Text>
+              <Text color="white">
+                {planExecutionState.currentActivity || '처리 중'}…
+              </Text>
+              <Text color="gray">
+                {' '}(esc to interrupt · {formatElapsedTime(sessionElapsed)}
+                {sessionTokens > 0 && ` · ↑ ${formatTokensCompact(sessionTokens)} tokens`})
+              </Text>
+            </Box>
+            <Text color="cyan">{currentModelInfo.model}</Text>
+          </>
+        ) : (
+          // Default status bar
+          <>
+            <Box>
+              {/* Model info - always visible */}
+              <Text color="gray">{getHealthIndicator()} </Text>
+              <Text color="cyan">{currentModelInfo.model}</Text>
+              {planExecutionState.todos.length > 0 && (
+                <>
+                  <Text color="gray"> │ </Text>
+                  <TodoStatusBar todos={planExecutionState.todos} />
+                </>
+              )}
+            </Box>
+            <Text color="gray" dimColor>
+              /help
+            </Text>
+          </>
+        )}
       </Box>
     </Box>
   );

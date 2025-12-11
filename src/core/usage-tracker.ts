@@ -2,9 +2,10 @@
  * Usage Tracker
  *
  * Phase 3: 사용량 추적 기능
- * - 토큰 사용량 추적
+ * - 토큰 사용량 추적 (세션/작업 단위 취합)
  * - 세션별/일별/월별 통계
  * - 로컬 파일 저장
+ * - 실시간 세션 토큰 추적
  */
 
 import * as fs from 'fs';
@@ -67,6 +68,18 @@ export interface UsageSummary {
   };
 }
 
+/**
+ * 현재 세션/작업 사용량 (실시간 취합용)
+ */
+export interface SessionUsage {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  requestCount: number;
+  startTime: number;
+  models: Record<string, number>;
+}
+
 const DATA_DIR = path.join(process.env['HOME'] || '.', '.open-code-cli');
 const USAGE_FILE = path.join(DATA_DIR, 'usage.json');
 
@@ -76,6 +89,16 @@ const USAGE_FILE = path.join(DATA_DIR, 'usage.json');
 class UsageTrackerClass {
   private data: UsageData;
   private saveTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  // 현재 세션 사용량 (여러 LLM 호출 취합)
+  private currentSession: SessionUsage = {
+    inputTokens: 0,
+    outputTokens: 0,
+    totalTokens: 0,
+    requestCount: 0,
+    startTime: Date.now(),
+    models: {},
+  };
 
   constructor() {
     logger.enter('UsageTracker.constructor');
@@ -138,7 +161,9 @@ class UsageTrackerClass {
   }
 
   /**
-   * Record token usage
+   * Record token usage (개별 LLM 호출마다)
+   * - 현재 세션 사용량 업데이트
+   * - 전체 통계 업데이트
    */
   recordUsage(
     model: string,
@@ -151,6 +176,13 @@ class UsageTrackerClass {
     const timestamp = new Date().toISOString();
     const date = timestamp.split('T')[0] || timestamp;
     const totalTokens = inputTokens + outputTokens;
+
+    // 현재 세션 사용량 업데이트 (실시간 취합)
+    this.currentSession.inputTokens += inputTokens;
+    this.currentSession.outputTokens += outputTokens;
+    this.currentSession.totalTokens += totalTokens;
+    this.currentSession.requestCount += 1;
+    this.currentSession.models[model] = (this.currentSession.models[model] || 0) + totalTokens;
 
     // Add record
     const record: UsageRecord = {
@@ -259,6 +291,68 @@ class UsageTrackerClass {
    */
   getTotalTokens(): number {
     return this.data.totalTokens;
+  }
+
+  /**
+   * Get current session usage (실시간 취합된 값)
+   */
+  getSessionUsage(): SessionUsage {
+    return { ...this.currentSession };
+  }
+
+  /**
+   * Get session elapsed time in seconds
+   */
+  getSessionElapsedSeconds(): number {
+    return Math.floor((Date.now() - this.currentSession.startTime) / 1000);
+  }
+
+  /**
+   * Reset session usage (새 작업 시작 시 호출)
+   */
+  resetSession(): void {
+    logger.flow('Resetting session usage');
+    this.currentSession = {
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      requestCount: 0,
+      startTime: Date.now(),
+      models: {},
+    };
+  }
+
+  /**
+   * Format session usage for status bar display
+   * Claude Code 스타일: "✶ ~ 하는 중… (esc to interrupt · 2m 7s · ↑ 3.6k tokens)"
+   */
+  formatSessionStatus(currentActivity?: string): string {
+    const elapsed = this.getSessionElapsedSeconds();
+    const tokens = this.currentSession.totalTokens;
+
+    // Format time
+    let timeStr: string;
+    if (elapsed < 60) {
+      timeStr = `${elapsed}s`;
+    } else {
+      const mins = Math.floor(elapsed / 60);
+      const secs = elapsed % 60;
+      timeStr = `${mins}m ${secs}s`;
+    }
+
+    // Format tokens
+    let tokenStr: string;
+    if (tokens < 1000) {
+      tokenStr = tokens.toString();
+    } else if (tokens < 1000000) {
+      tokenStr = `${(tokens / 1000).toFixed(1)}k`;
+    } else {
+      tokenStr = `${(tokens / 1000000).toFixed(2)}M`;
+    }
+
+    // Build status string
+    const activity = currentActivity || '처리 중';
+    return `✶ ${activity}… (esc to interrupt · ${timeStr} · ↑ ${tokenStr} tokens)`;
   }
 
   /**
