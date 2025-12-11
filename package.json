@@ -1,6 +1,6 @@
 {
   "name": "open-cli",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "OPEN-CLI - 오프라인 기업 환경을 위한 완전한 로컬 LLM CLI 플랫폼",
   "type": "module",
   "main": "dist/index.js",
