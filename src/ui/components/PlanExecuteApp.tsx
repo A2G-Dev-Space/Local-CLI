@@ -864,12 +864,15 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
             <Box key={entry.id} flexDirection="column" marginLeft={2}>
               <Box>
                 <Text color="gray">⎿  </Text>
-                <Text color={entry.success ? 'green' : 'red'}>{entry.success ? '✓' : '✗'} </Text>
+                <Text color={entry.success ? 'cyan' : 'red'}>{entry.success ? '✓' : '✗'} </Text>
                 <Text color="gray">{entry.success ? 'Updated' : 'Failed'}</Text>
               </Box>
               {entry.diff.map((line, idx) => (
                 <Box key={idx} marginLeft={3}>
-                  <Text color={line.includes(' + ') ? 'green' : line.includes(' - ') ? 'red' : 'gray'}>
+                  <Text
+                    color={line.includes(' + ') ? 'white' : line.includes(' - ') ? 'white' : 'gray'}
+                    backgroundColor={line.includes(' + ') ? 'blue' : line.includes(' - ') ? 'red' : undefined}
+                  >
                     {line}
                   </Text>
                 </Box>
@@ -921,12 +924,12 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
               <Box key={entry.id} flexDirection="column" marginLeft={2}>
                 <Box>
                   <Text color="gray">⎿  </Text>
-                  <Text color={entry.success ? 'green' : 'red'}>{entry.success ? '✓' : '✗'} </Text>
+                  <Text color={entry.success ? 'cyan' : 'red'}>{entry.success ? '✓' : '✗'} </Text>
                   <Text color="gray">Created {filePath} ({contentLines.length} lines)</Text>
                 </Box>
                 {contentLines.map((line, idx) => (
                   <Box key={idx} marginLeft={3}>
-                    <Text color="green">+ {line}</Text>
+                    <Text color="white" backgroundColor="blue">+ {line}</Text>
                   </Box>
                 ))}
               </Box>
@@ -938,7 +941,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         return (
           <Box key={entry.id} marginLeft={2}>
             <Text color="gray">⎿  </Text>
-            <Text color={entry.success ? 'green' : 'red'}>{entry.success ? '✓' : '✗'} </Text>
+            <Text color={entry.success ? 'cyan' : 'red'}>{entry.success ? '✓' : '✗'} </Text>
             <Text color={entry.success ? 'gray' : 'red'}>{displayText}</Text>
           </Box>
         );
