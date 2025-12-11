@@ -171,8 +171,14 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
 
   // Keyboard shortcuts
   useInput((inputChar: string, key: { ctrl: boolean; shift: boolean; meta: boolean; escape: boolean; tab?: boolean }) => {
+    // Ctrl+C: Exit application
     if (key.ctrl && inputChar === 'c') {
       handleExit().catch(console.error);
+    }
+    // ESC: Interrupt current execution
+    if (key.escape && isProcessing) {
+      logger.flow('ESC pressed - interrupting execution');
+      planExecutionState.handleInterrupt();
     }
     // Tab key mode cycling has been removed - always use auto mode
   }, { isActive: !fileBrowserState.showFileBrowser && !commandBrowserState.showCommandBrowser });
@@ -359,31 +365,17 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
     logger.startTimer('message-processing');
 
     try {
-      // Auto mode: determine whether to use planning based on task complexity
-      const complexKeywords = [
-        'create', 'build', 'implement', 'develop', 'make',
-        'setup', 'configure', 'install', 'deploy', 'design',
-        'refactor', 'optimize', 'debug', 'test', 'analyze',
-        'multiple', 'several', 'tasks', 'steps'
-      ];
-
-      const lowerMessage = userMessage.toLowerCase();
-      const usePlanning = complexKeywords.some(keyword => lowerMessage.includes(keyword));
+      // Phase 1: Use auto mode with LLM-based request classification
+      setActivityType('thinking');
+      setActivityDetail('Analyzing request...');
 
       logger.vars(
-        { name: 'usePlanning', value: usePlanning },
-        { name: 'planningMode', value: planningMode }
+        { name: 'planningMode', value: planningMode },
+        { name: 'messageLength', value: userMessage.length }
       );
 
-      if (usePlanning) {
-        setActivityType('planning');
-        setActivityDetail('Analyzing request and creating plan...');
-        await planExecutionState.executePlanMode(userMessage, llmClient, messages, setMessages);
-      } else {
-        setActivityType('thinking');
-        setActivityDetail('Processing your request...');
-        await planExecutionState.executeDirectMode(userMessage, llmClient, messages, setMessages);
-      }
+      // Use executeAutoMode which handles classification internally
+      await planExecutionState.executeAutoMode(userMessage, llmClient, messages, setMessages);
 
     } catch (error) {
       logger.error('Message processing failed', error as Error);
@@ -658,8 +650,6 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
           {/* Model info - always visible */}
           <Text color="gray">{getHealthIndicator()} </Text>
           <Text color="cyan">{currentModelInfo.model}</Text>
-          <Text color="gray"> │ </Text>
-          <Text color="magenta">🤖 auto</Text>
           {planExecutionState.todos.length > 0 && (
             <>
               <Text color="gray"> │ </Text>

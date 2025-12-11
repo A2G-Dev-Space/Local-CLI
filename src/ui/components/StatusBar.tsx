@@ -30,8 +30,6 @@ export interface StatusBarProps {
   // TODO status
   todoCount?: number;
   todoCompleted?: number;
-  // Planning mode
-  planningMode?: string;
   // Health status
   healthStatus?: 'healthy' | 'unhealthy' | 'checking' | 'unknown';
 }
@@ -100,7 +98,6 @@ export const StatusBar: React.FC<StatusBarProps> = ({
   contextUsage,
   todoCount,
   todoCompleted,
-  planningMode,
   healthStatus,
 }) => {
   // endpoint and message reserved for future enhanced display
@@ -152,11 +149,6 @@ export const StatusBar: React.FC<StatusBarProps> = ({
             <Text color="gray"> | </Text>
             <Text color="cyan">{model.slice(0, 15)}</Text>
           </>
-        )}
-
-        {/* Planning mode */}
-        {planningMode && (
-          <Text color="gray" dimColor> [{planningMode}]</Text>
         )}
       </Box>
 

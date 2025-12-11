@@ -36,6 +36,9 @@ program
   .action(async (options: { verbose?: boolean; debug?: boolean }) => {
     let cleanup: (() => Promise<void>) | null = null;
     try {
+      // Clear terminal on start
+      process.stdout.write('\x1B[2J\x1B[0f');
+
       // Setup logging (log level, JSON stream logger, exit handlers)
       const loggingSetup = await setupLogging({
         verbose: options.verbose,
