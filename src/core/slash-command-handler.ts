@@ -7,6 +7,7 @@
 
 import { Message, TodoItem } from '../types/index.js';
 import { sessionManager } from './session-manager.js';
+import { usageTracker } from './usage-tracker.js';
 
 // Planning mode is always 'auto' - other modes have been removed
 export type PlanningMode = 'auto';
@@ -112,6 +113,23 @@ export async function executeSlashCommand(
     };
   }
 
+  // Usage command - show token usage statistics
+  if (trimmedCommand === '/usage') {
+    const usageMessage = usageTracker.formatUsageDisplay();
+    const updatedMessages = [
+      ...context.messages,
+      { role: 'assistant' as const, content: usageMessage },
+    ];
+    context.setMessages(updatedMessages);
+    return {
+      handled: true,
+      shouldContinue: false,
+      updatedContext: {
+        messages: updatedMessages,
+      },
+    };
+  }
+
   // Help command
   if (trimmedCommand === '/help') {
     const helpMessage = `
@@ -121,9 +139,11 @@ Available commands:
   /settings       - Open settings menu
   /model          - Switch between LLM models
   /load           - Load a saved session
+  /usage          - Show token usage statistics
 
 Keyboard shortcuts:
   Ctrl+C          - Exit
+  ESC             - Interrupt current execution
 
 Note: All conversations are automatically saved.
     `;

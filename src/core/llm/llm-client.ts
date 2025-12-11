@@ -27,6 +27,7 @@ import {
   ContextLengthError,
 } from '../../errors/llm.js';
 import { logger } from '../../utils/logger.js';
+import { usageTracker } from '../usage-tracker.js';
 
 /**
  * LLM 응답 인터페이스 (OpenAI Compatible)
@@ -203,6 +204,15 @@ export class LLMClient {
         { name: 'tokensUsed', value: response.data.usage?.total_tokens || 0 },
         { name: 'responseTime', value: elapsed }
       );
+
+      // Track token usage (Phase 3)
+      if (response.data.usage) {
+        usageTracker.recordUsage(
+          this.model,
+          response.data.usage.prompt_tokens || 0,
+          response.data.usage.completion_tokens || 0
+        );
+      }
 
       logger.exit('chatCompletion', {
         success: true,
