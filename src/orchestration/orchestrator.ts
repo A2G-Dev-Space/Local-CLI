@@ -496,6 +496,21 @@ Please execute this task now using the available tools.
   }
 
   /**
+   * Get current conversation history (for syncing with external state)
+   */
+  getConversationHistory(): Array<{ role: 'system' | 'user' | 'assistant' | 'tool'; content: string; tool_call_id?: string; tool_calls?: any[] }> {
+    return [...this.conversationHistory];
+  }
+
+  /**
+   * Set conversation history from external source (for syncing with external state)
+   */
+  setConversationHistory(history: Array<{ role: 'system' | 'user' | 'assistant' | 'tool'; content: string; tool_call_id?: string; tool_calls?: any[] }>): void {
+    logger.flow(`Setting conversation history from external source (${history.length} messages)`);
+    this.conversationHistory = [...history];
+  }
+
+  /**
    * Get all execution logs
    */
   getAllLogs(): ExecutionStep[] {

@@ -262,6 +262,12 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
   // Setup plan/todo callbacks - adds to Static log
   useEffect(() => {
     setPlanCreatedCallback((todoTitles) => {
+      // Reset session time and tokens when new TODO plan is created
+      // Note: /usage still shows cumulative total (stored in usageTracker.data)
+      usageTracker.resetSession();
+      setSessionTokens(0);
+      setSessionElapsed(0);
+
       addLog({
         type: 'plan_created',
         content: `${todoTitles.length}개의 작업을 생성했습니다`,

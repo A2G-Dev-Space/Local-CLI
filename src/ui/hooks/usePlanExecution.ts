@@ -299,6 +299,11 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
     setIsInterrupted(false);
     setCurrentActivity('요청 분석 중');
 
+    // Clear todos when executing direct mode (simple response)
+    // This hides the TODO panel after todos are completed
+    setTodos([]);
+    setCurrentTodoId(undefined);
+
     try {
       // Check for interrupt
       if (isInterruptedRef.current) {
@@ -413,6 +418,11 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
       }
       const orchestrator = orchestratorRef.current;
 
+      // Sync external messages to orchestrator's conversation history
+      // This ensures continuity between direct mode and plan mode
+      const currentMessages = docsSearchPerformed ? messagesWithDocs : messages;
+      orchestrator.setConversationHistory(currentMessages as any);
+
       // Remove existing listeners to prevent duplicates when reusing orchestrator
       orchestrator.removeAllListeners();
 
@@ -467,18 +477,21 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
         throw new Error('INTERRUPTED');
       }
 
+      // Sync orchestrator's conversation history back to external messages
+      // This includes all tool calls and responses from task execution
+      const orchestratorHistory = orchestrator.getConversationHistory();
+
       const completionMessage = `✅ 실행 완료\n` +
         `전체: ${summary.totalTasks} | 완료: ${summary.completedTasks} | 실패: ${summary.failedTasks}\n` +
         `소요 시간: ${(summary.duration / 1000).toFixed(2)}초`;
 
-      setMessages(prev => {
-        const updatedMessages: Message[] = [
-          ...prev,
-          { role: 'assistant' as const, content: completionMessage }
-        ];
-        sessionManager.autoSaveCurrentSession(updatedMessages);
-        return updatedMessages;
-      });
+      // Use orchestrator's history as the new messages state
+      const updatedMessages: Message[] = [
+        ...orchestratorHistory as Message[],
+        { role: 'assistant' as const, content: completionMessage }
+      ];
+      setMessages(updatedMessages);
+      sessionManager.autoSaveCurrentSession(updatedMessages);
 
       logger.exit('executePlanMode', { success: true, summary });
     } catch (error) {
