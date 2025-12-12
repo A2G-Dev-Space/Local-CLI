@@ -630,7 +630,8 @@ adminRoutes.get('/stats/model-daily-trend', async (req: AuthenticatedRequest, re
     // Debug logging
     console.log(`[model-daily-trend] Models: ${models.length}, DailyStats rows: ${dailyStats.length}`);
     if (dailyStats.length > 0) {
-      console.log(`[model-daily-trend] Sample stat:`, JSON.stringify(dailyStats[0]));
+      const sample = dailyStats[0]!;
+      console.log(`[model-daily-trend] Sample: date=${sample.date}, model_id=${sample.model_id}, tokens=${sample.total_tokens}`);
     }
 
     // Process into date-keyed structure with model usage
