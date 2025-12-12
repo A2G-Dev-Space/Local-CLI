@@ -1,11 +1,11 @@
 {
-  "name": "nexus-coder-cli",
+  "name": "nexus-coder",
   "version": "2.1.2",
   "description": "Nexus Coder - Enterprise AI Coding Assistant",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "ncli": "dist/cli.js"
+    "nexus": "dist/cli.js"
   },
   "scripts": {
     "build": "tsc",

@@ -114,10 +114,9 @@ Samsung DS GenAI Portal SSO에서 발급하는 JWT 토큰 검증에 사용됩니
 nexus-coder-admin/cert/cert.cer
 ```
 
-**CLI에서도 동일한 인증서 필요:**
-```
-~/.nexus-coder/cert/cert.cer
-```
+**CLI 인증서는 레포에 번들됨:**
+CLI 설치 시 `cert/cert.cer` 파일이 자동으로 포함됩니다.
+사용자가 별도로 인증서를 배치할 필요가 없습니다.
 
 ---
 
