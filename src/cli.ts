@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 /**
- * LOCAL-CLI
- * 오프라인 기업 환경을 위한 완전한 로컬 LLM CLI 플랫폼
+ * Nexus Coder
+ * Enterprise AI Coding Assistant
  *
  * Entry Point: CLI 애플리케이션의 진입점
  */
@@ -16,7 +16,6 @@ import { configManager } from './core/config/config-manager.js';
 import { createLLMClient } from './core/llm/llm-client.js';
 import { PlanExecuteApp } from './ui/components/PlanExecuteApp.js';
 import { setupLogging } from './utils/logger.js';
-
 // Read version from package.json (single source of truth)
 const require = createRequire(import.meta.url);
 const packageJson = require('../package.json') as { version: string };
@@ -27,8 +26,8 @@ const program = new Command();
  * CLI 프로그램 설정
  */
 program
-  .name('lcli')
-  .description('LOCAL-CLI - OpenAI-Compatible Local CLI Coding Agent')
+  .name('nexus')
+  .description('Nexus Coder - Enterprise AI Coding Assistant')
   .version(packageJson.version)
   .helpOption(false);  // -h, --help 비활성화 (/help 사용)
 
@@ -71,7 +70,7 @@ program
 
       // Ink UI 시작 (verbose/debug/llm-log 모드에서만 시작 메시지 표시)
       if (options.verbose || options.debug) {
-        console.log(chalk.cyan('🚀 Starting LOCAL-CLI...\n'));
+        console.log(chalk.cyan('🚀 Starting Nexus Coder...\n'));
       }
 
       // Ink UI를 같은 프로세스에서 직접 렌더링 (stdin raw mode 유지)
@@ -101,6 +100,33 @@ program
     }
   });
 
+/**
+ * login 명령어: SSO 로그인
+ */
+program
+  .command('login')
+  .description('Login via SSO')
+  .action(async () => {
+    console.log(chalk.cyan('🔐 SSO Login'));
+    console.log(chalk.yellow('SSO login will be implemented in Phase 2'));
+    // TODO: Implement SSO login flow
+    // 1. Start local callback server
+    // 2. Open browser to SSO URL
+    // 3. Receive JWT token
+    // 4. Decode and store credentials
+  });
+
+/**
+ * logout 명령어: 로그아웃
+ */
+program
+  .command('logout')
+  .description('Logout and clear credentials')
+  .action(async () => {
+    console.log(chalk.cyan('🔓 Logging out...'));
+    console.log(chalk.yellow('Logout will be implemented in Phase 2'));
+    // TODO: Clear auth.json
+  });
 
 /**
  * 에러 핸들링: 알 수 없는 옵션 처리
@@ -118,7 +144,7 @@ program.configureOutput({
 
 program.on('command:*', () => {
   console.error(chalk.red('⚠️  알 수 없는 명령어입니다.'));
-  console.log(chalk.white('사용법: lcli [--verbose] [--debug]\n'));
+  console.log(chalk.white('사용법: ncli [--verbose] [--debug]\n'));
   console.log(chalk.white('대화형 모드에서 /help를 사용하여 도움말을 확인하세요.\n'));
   process.exit(1);
 });

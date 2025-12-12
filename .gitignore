@@ -39,9 +39,17 @@ coverage/
 # Evaluation reports
 evaluation-reports/
 
-# Open-CLI specific
+# Nexus Coder specific
+.nexus-coder/
+.local-cli/
 .open-cli/
+*.nexus-coder-session.json
 *.open-cli-session.json
+
+# Certificates (keep placeholder, ignore real certs)
+cert/*.pem
+cert/*.key
+!cert/cert.cer
 
 # Temporary files
 tmp/
