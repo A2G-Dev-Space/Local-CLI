@@ -1,5 +1,14 @@
 # OPEN-CLI v1.3.1
 
+[![GitHub release](https://img.shields.io/github/v/release/A2G-Dev-Space/Open-Code-CLI)](https://github.com/A2G-Dev-Space/Open-Code-CLI/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node.js](https://img.shields.io/badge/Node.js-20%2B-green)](https://nodejs.org/)
+
+**AI Coding Assistant CLI for Offline Enterprise Environments**
+
+> Local LLM CLI platform with Plan & Execute architecture, Supervised Mode, and session management.
+> Works with vLLM, Ollama, LM Studio, and any OpenAI-compatible API.
+
 **오프라인 기업 환경을 위한 로컬 LLM CLI 플랫폼**
 
 ---
@@ -203,6 +212,12 @@ open --no-update  # 자동 업데이트 비활성화
 ## 라이선스
 
 MIT License
+
+---
+
+## Keywords
+
+`AI coding assistant` `local LLM` `offline AI` `enterprise AI` `CLI tool` `vLLM` `Ollama` `LM Studio` `OpenAI compatible` `code generation` `developer tools` `TypeScript` `Node.js` `plan and execute` `supervised mode` `session management`
 
 ---
 
