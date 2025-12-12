@@ -18,15 +18,6 @@ export {
   ConnectionError,
 } from './network.js';
 
-// Config
-export {
-  ConfigError,
-  InitializationError,
-  ConfigNotFoundError,
-  InvalidConfigError,
-  EndpointNotFoundError,
-} from './config.js';
-
 // Validation
 export {
   ValidationError,
