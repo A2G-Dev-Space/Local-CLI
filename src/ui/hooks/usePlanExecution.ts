@@ -85,6 +85,7 @@ export interface PlanExecutionActions {
   ) => Promise<CompactResult>;
   shouldAutoCompact: () => boolean;
   getContextRemainingPercent: () => number;
+  getContextUsageInfo: () => { tokens: number; percent: number };
 }
 
 /**
@@ -331,8 +332,7 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
 
       const result = await llmClient.chatCompletionWithTools(
         messagesWithSystem.concat({ role: 'user', content: userMessage }),
-        FILE_TOOLS,
-        5
+        FILE_TOOLS
       );
 
       // Check for interrupt after LLM call
@@ -694,6 +694,19 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
     return usage.remainingPercentage;
   }, []);
 
+  /**
+   * Get context usage info (tokens + percentage)
+   */
+  const getContextUsageInfo = useCallback((): { tokens: number; percent: number } => {
+    const model = configManager.getCurrentModel();
+    const maxTokens = model?.maxTokens || 128000;
+    const usage = contextTracker.getContextUsage(maxTokens);
+    return {
+      tokens: usage.currentTokens,
+      percent: usage.usagePercentage,
+    };
+  }, []);
+
   logger.exit('usePlanExecution');
 
   return {
@@ -713,5 +726,6 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
     performCompact,
     shouldAutoCompact,
     getContextRemainingPercent,
+    getContextUsageInfo,
   };
 }

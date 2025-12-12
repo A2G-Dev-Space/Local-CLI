@@ -91,8 +91,7 @@ export class TodoExecutor {
       logger.debug(`🔧 Executing: ${todo.title}`);
       const result = await this.llmClient.chatCompletionWithTools(
         updatedMessages,
-        FILE_TOOLS,
-        5 // maxIterations
+        FILE_TOOLS
       );
 
       // 4. Save result

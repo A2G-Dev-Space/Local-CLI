@@ -849,6 +849,18 @@ type TodoFailCallback = (title: string) => void;
 let todoFailCallback: TodoFailCallback | null = null;
 
 /**
+ * Callback for tool approval (Supervised Mode)
+ * Returns: 'approve' | 'always' | { reject: true; comment: string }
+ */
+export type ToolApprovalResult = 'approve' | 'always' | { reject: true; comment: string };
+type ToolApprovalCallback = (
+  toolName: string,
+  args: Record<string, unknown>,
+  reason?: string
+) => Promise<ToolApprovalResult>;
+let toolApprovalCallback: ToolApprovalCallback | null = null;
+
+/**
  * Set callback for tool execution events
  */
 export function setToolExecutionCallback(callback: ToolExecutionCallback | null): void {
@@ -888,6 +900,28 @@ export function setTodoCompleteCallback(callback: TodoCompleteCallback | null): 
  */
 export function setTodoFailCallback(callback: TodoFailCallback | null): void {
   todoFailCallback = callback;
+}
+
+/**
+ * Set callback for tool approval (Supervised Mode)
+ */
+export function setToolApprovalCallback(callback: ToolApprovalCallback | null): void {
+  toolApprovalCallback = callback;
+}
+
+/**
+ * Request tool approval from user (Supervised Mode)
+ * Returns approval result or null if no callback is set
+ */
+export async function requestToolApproval(
+  toolName: string,
+  args: Record<string, unknown>,
+  reason?: string
+): Promise<ToolApprovalResult | null> {
+  if (!toolApprovalCallback) {
+    return null;
+  }
+  return toolApprovalCallback(toolName, args, reason);
 }
 
 /**

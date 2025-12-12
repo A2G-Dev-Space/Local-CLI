@@ -76,6 +76,8 @@ export class LLMClient {
   private apiKey: string;
   private model: string;
   private modelName: string;
+  private currentAbortController: AbortController | null = null;
+  private isInterrupted: boolean = false;
 
   constructor() {
     // ConfigManager에서 현재 설정 가져오기
@@ -163,7 +165,10 @@ export class LLMClient {
         temperature: options.temperature ?? 0.7,
         max_tokens: options.max_tokens,
         stream: false,
-        ...(options.tools && { tools: options.tools }),
+        ...(options.tools && {
+          tools: options.tools,
+          parallel_tool_calls: false,  // Enforce one tool at a time via API
+        }),
       };
 
       logger.flow('API 요청 준비 완료');
@@ -185,7 +190,15 @@ export class LLMClient {
       }
 
       logger.startTimer('llm-api-call');
-      const response = await this.axiosInstance.post<LLMResponse>(url, requestBody);
+
+      // Create AbortController for this request
+      this.currentAbortController = new AbortController();
+
+      const response = await this.axiosInstance.post<LLMResponse>(url, requestBody, {
+        signal: this.currentAbortController.signal,
+      });
+
+      this.currentAbortController = null;
       const elapsed = logger.endTimer('llm-api-call');
 
       logger.flow('API 응답 수신 완료');
@@ -237,6 +250,15 @@ export class LLMClient {
 
       return response.data;
     } catch (error) {
+      this.currentAbortController = null;
+
+      // Check if this was an abort/cancel
+      if (axios.isCancel(error) || (error instanceof Error && error.name === 'CanceledError')) {
+        logger.flow('API 호출 취소됨 (사용자 인터럽트)');
+        logger.exit('chatCompletion', { success: false, aborted: true });
+        throw new Error('INTERRUPTED');
+      }
+
       logger.flow('API 호출 실패 - 에러 처리');
       logger.exit('chatCompletion', { success: false, error: (error as Error).message });
       throw this.handleError(error, {
@@ -245,6 +267,40 @@ export class LLMClient {
         body: options,
       });
     }
+  }
+
+  /**
+   * Abort current LLM request and set interrupt flag (for ESC interrupt)
+   */
+  abort(): void {
+    logger.flow('LLM 인터럽트 - 모든 동작 중단');
+    this.isInterrupted = true;
+
+    if (this.currentAbortController) {
+      this.currentAbortController.abort();
+      this.currentAbortController = null;
+    }
+  }
+
+  /**
+   * Check if interrupted
+   */
+  checkInterrupted(): boolean {
+    return this.isInterrupted;
+  }
+
+  /**
+   * Reset interrupt flag (call before starting new operation)
+   */
+  resetInterrupt(): void {
+    this.isInterrupted = false;
+  }
+
+  /**
+   * Check if there's an active request
+   */
+  isRequestActive(): boolean {
+    return this.currentAbortController !== null;
   }
 
   /**
@@ -417,18 +473,17 @@ export class LLMClient {
 
   /**
    * Tools를 사용한 메시지 전송 (반복적으로 tool call 처리)
+   * No iteration limit - continues until LLM stops calling tools
    */
   async sendMessageWithTools(
     userMessage: string,
     tools: import('../../types/index.js').ToolDefinition[],
-    systemPrompt?: string,
-    maxIterations: number = 5
+    systemPrompt?: string
   ): Promise<{ response: string; toolCalls: Array<{ tool: string; args: unknown; result: string }> }> {
     logger.enter('sendMessageWithTools', {
       messageLength: userMessage.length,
       toolsCount: tools.length,
-      hasSystemPrompt: !!systemPrompt,
-      maxIterations
+      hasSystemPrompt: !!systemPrompt
     });
 
     logger.flow('메시지 준비');
@@ -454,16 +509,19 @@ export class LLMClient {
     const toolCallHistory: Array<{ tool: string; args: unknown; result: string }> = [];
     let iterations = 0;
 
-    logger.flow('Tool call 반복 시작');
-    while (iterations < maxIterations) {
+    logger.flow('Tool call 반복 시작 (무제한)');
+    while (true) {
+      // Check for interrupt at start of each iteration
+      if (this.isInterrupted) {
+        logger.flow('Interrupt detected - stopping tool loop');
+        throw new Error('INTERRUPTED');
+      }
+
       iterations++;
 
-      logger.vars(
-        { name: 'iteration', value: iterations },
-        { name: 'maxIterations', value: maxIterations }
-      );
+      logger.vars({ name: 'iteration', value: iterations });
 
-      logger.flow(`반복 ${iterations}/${maxIterations} - LLM 호출`);
+      logger.flow(`반복 ${iterations} - LLM 호출`);
 
       // LLM 호출 (tools 포함)
       logger.startTimer(`tool-iteration-${iterations}`);
@@ -472,6 +530,12 @@ export class LLMClient {
         tools,
       });
       logger.endTimer(`tool-iteration-${iterations}`);
+
+      // Check for interrupt after LLM call
+      if (this.isInterrupted) {
+        logger.flow('Interrupt detected after LLM call - stopping');
+        throw new Error('INTERRUPTED');
+      }
 
       const choice = response.choices[0];
       if (!choice) {
@@ -488,7 +552,13 @@ export class LLMClient {
         logger.flow(`Tool calls 발견: ${message.tool_calls.length}개`);
         logger.vars({ name: 'toolCallsCount', value: message.tool_calls.length });
 
-        // Tool calls 실행
+        // Multi-tool detection logging
+        if (message.tool_calls.length > 1) {
+          const toolNames = message.tool_calls.map(tc => tc.function.name).join(', ');
+          logger.warn(`[MULTI-TOOL DETECTED] LLM returned ${message.tool_calls.length} tools: ${toolNames}`);
+        }
+
+        // Tool calls 실행 (parallel_tool_calls: false로 API에서 단일 tool만 호출됨)
         for (const toolCall of message.tool_calls) {
           const toolName = toolCall.function.name;
           logger.flow(`Tool 실행: ${toolName}`);
@@ -524,7 +594,33 @@ export class LLMClient {
 
           // Tool 실행 (외부에서 주입받아야 함 - 여기서는 import)
           logger.flow('Tool 모듈 로드');
-          const { executeFileTool } = await import('../../tools/llm/simple/file-tools.js');
+          const { executeFileTool, requestToolApproval } = await import('../../tools/llm/simple/file-tools.js');
+
+          // Supervised Mode: Request user approval before tool execution
+          const approvalResult = await requestToolApproval(toolName, toolArgs);
+
+          if (approvalResult && typeof approvalResult === 'object' && approvalResult.reject) {
+            // User rejected the tool execution
+            logger.flow(`Tool rejected by user: ${toolName}`);
+
+            const rejectMessage = approvalResult.comment
+              ? `Tool execution rejected by user. Reason: ${approvalResult.comment}`
+              : 'Tool execution rejected by user.';
+
+            messages.push({
+              role: 'tool',
+              content: rejectMessage,
+              tool_call_id: toolCall.id,
+            });
+
+            toolCallHistory.push({
+              tool: toolName,
+              args: toolArgs,
+              result: rejectMessage,
+            });
+
+            continue;
+          }
 
           logger.debug(`Executing tool: ${toolName}`, toolArgs);
 
@@ -599,30 +695,16 @@ export class LLMClient {
         };
       }
     }
-
-    // Max iterations 도달
-    logger.flow('최대 반복 횟수 도달');
-    logger.exit('sendMessageWithTools', {
-      success: false,
-      reason: 'Max iterations reached',
-      iterations: maxIterations,
-      toolCallsCount: toolCallHistory.length
-    });
-
-    return {
-      response: '최대 반복 횟수에 도달했습니다. Tool 실행이 완료되지 않았을 수 있습니다.',
-      toolCalls: toolCallHistory,
-    };
   }
 
   /**
    * Chat Completion with Tools (대화 히스토리 유지)
    * Interactive Mode에서 사용 - 전체 대화 히스토리와 함께 tool calling 지원
+   * No iteration limit - continues until LLM stops calling tools
    */
   async chatCompletionWithTools(
     messages: Message[],
-    tools: import('../../types/index.js').ToolDefinition[],
-    maxIterations: number = 5
+    tools: import('../../types/index.js').ToolDefinition[]
   ): Promise<{
     message: Message;
     toolCalls: Array<{ tool: string; args: unknown; result: string }>;
@@ -632,7 +714,13 @@ export class LLMClient {
     const toolCallHistory: Array<{ tool: string; args: unknown; result: string }> = [];
     let iterations = 0;
 
-    while (iterations < maxIterations) {
+    while (true) {
+      // Check for interrupt at start of each iteration
+      if (this.isInterrupted) {
+        logger.flow('Interrupt detected - stopping tool loop');
+        throw new Error('INTERRUPTED');
+      }
+
       iterations++;
 
       // LLM 호출 (tools 포함)
@@ -640,6 +728,12 @@ export class LLMClient {
         messages: workingMessages,
         tools,
       });
+
+      // Check for interrupt after LLM call
+      if (this.isInterrupted) {
+        logger.flow('Interrupt detected after LLM call - stopping');
+        throw new Error('INTERRUPTED');
+      }
 
       const choice = response.choices[0];
       if (!choice) {
@@ -651,7 +745,13 @@ export class LLMClient {
 
       // Tool calls 확인
       if (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
-        // Tool calls 실행
+        // Multi-tool detection logging
+        if (assistantMessage.tool_calls.length > 1) {
+          const toolNames = assistantMessage.tool_calls.map(tc => tc.function.name).join(', ');
+          logger.warn(`[MULTI-TOOL DETECTED] LLM returned ${assistantMessage.tool_calls.length} tools: ${toolNames}`);
+        }
+
+        // Tool calls 실행 (parallel_tool_calls: false로 API에서 단일 tool만 호출됨)
         for (const toolCall of assistantMessage.tool_calls) {
           const toolName = toolCall.function.name;
           let toolArgs: Record<string, unknown>;
@@ -679,7 +779,33 @@ export class LLMClient {
           }
 
           // Tool 실행
-          const { executeFileTool } = await import('../../tools/llm/simple/file-tools.js');
+          const { executeFileTool, requestToolApproval } = await import('../../tools/llm/simple/file-tools.js');
+
+          // Supervised Mode: Request user approval before tool execution
+          const approvalResult = await requestToolApproval(toolName, toolArgs);
+
+          if (approvalResult && typeof approvalResult === 'object' && approvalResult.reject) {
+            // User rejected the tool execution
+            logger.flow(`Tool rejected by user: ${toolName}`);
+
+            const rejectMessage = approvalResult.comment
+              ? `Tool execution rejected by user. Reason: ${approvalResult.comment}`
+              : 'Tool execution rejected by user.';
+
+            workingMessages.push({
+              role: 'tool',
+              content: rejectMessage,
+              tool_call_id: toolCall.id,
+            });
+
+            toolCallHistory.push({
+              tool: toolName,
+              args: toolArgs,
+              result: rejectMessage,
+            });
+
+            continue;
+          }
 
           logger.debug(`Executing tool: ${toolName}`, toolArgs);
 
@@ -740,24 +866,6 @@ export class LLMClient {
         };
       }
     }
-
-    // Max iterations 도달
-    const finalMessage: Message = {
-      role: 'assistant',
-      content: '최대 반복 횟수에 도달했습니다. Tool 실행이 완료되지 않았을 수 있습니다.',
-    };
-
-    workingMessages.push(finalMessage);
-
-    // Emit assistant response event for UI
-    const { emitAssistantResponse } = await import('../../tools/llm/simple/file-tools.js');
-    emitAssistantResponse(finalMessage.content || '');
-
-    return {
-      message: finalMessage,
-      toolCalls: toolCallHistory,
-      allMessages: workingMessages,
-    };
   }
 
   /**

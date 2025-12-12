@@ -15,7 +15,6 @@ import { configManager } from './core/config/config-manager.js';
 import { createLLMClient } from './core/llm/llm-client.js';
 import { PlanExecuteApp } from './ui/components/PlanExecuteApp.js';
 import { setupLogging } from './utils/logger.js';
-import { GitAutoUpdater } from './core/git-auto-updater.js';
 
 const program = new Command();
 
@@ -38,14 +37,6 @@ program
   .action(async (options: { verbose?: boolean; debug?: boolean; llmLog?: boolean }) => {
     let cleanup: (() => Promise<void>) | null = null;
     try {
-      // Auto-update check (runs on every 'open' command)
-      const updater = new GitAutoUpdater();
-      const needsRestart = await updater.run();
-      if (needsRestart) {
-        // Exit immediately so user can restart with new version
-        process.exit(0);
-      }
-
       // Clear terminal on start
       process.stdout.write('\x1B[2J\x1B[0f');
 

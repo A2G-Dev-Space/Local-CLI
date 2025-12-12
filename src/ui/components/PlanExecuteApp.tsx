@@ -23,7 +23,11 @@ export type LogEntryType =
   | 'todo_start'
   | 'todo_complete'
   | 'todo_fail'
-  | 'compact';
+  | 'compact'
+  | 'approval_request'
+  | 'approval_response'
+  | 'interrupt'
+  | 'session_restored';
 
 export interface LogEntry {
   id: string;
@@ -47,6 +51,7 @@ import { SettingsBrowser } from './dialogs/SettingsDialog.js';
 import { LLMSetupWizard } from './LLMSetupWizard.js';
 import { ModelSelector } from './ModelSelector.js';
 import { AskUserDialog } from './dialogs/AskUserDialog.js';
+import { ApprovalDialog } from './dialogs/ApprovalDialog.js';
 import { DocsBrowser } from './dialogs/DocsBrowser.js';
 import { CommandBrowser } from './CommandBrowser.js';
 // ChatView removed - using Static log instead
@@ -64,6 +69,7 @@ import {
 } from '../../core/slash-command-handler.js';
 import { closeJsonStreamLogger } from '../../utils/json-stream-logger.js';
 import { configManager } from '../../core/config/config-manager.js';
+import { GitAutoUpdater } from '../../core/git-auto-updater.js';
 import { logger } from '../../utils/logger.js';
 import { usageTracker } from '../../core/usage-tracker.js';
 import {
@@ -76,6 +82,8 @@ import {
   setTodoFailCallback,
   setCompactCallback,
   setAssistantResponseCallback,
+  setToolApprovalCallback,
+  type ToolApprovalResult,
 } from '../../tools/llm/simple/file-tools.js';
 import { createRequire } from 'module';
 
@@ -85,7 +93,11 @@ const pkg = require('../../../package.json') as { version: string };
 const VERSION = pkg.version;
 
 // Initialization steps for detailed progress display
-type InitStep = 'docs' | 'config' | 'health' | 'done';
+type InitStep = 'git_update' | 'health' | 'docs' | 'config' | 'done';
+
+// Tools that require user approval in Supervised Mode
+// Only file-modifying tools need approval (read-only and internal tools are auto-approved)
+const TOOLS_REQUIRING_APPROVAL = new Set(['create_file', 'edit_file']);
 
 // Helper functions for status bar
 function formatElapsedTime(seconds: number): string {
@@ -154,10 +166,27 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
   // TODO Panel details toggle state
   const [showTodoDetails, setShowTodoDetails] = useState(true);
 
+  // Execution mode: 'auto' (autonomous) or 'supervised' (requires user approval)
+  const [executionMode, setExecutionMode] = useState<'auto' | 'supervised'>('auto');
+
+  // Auto-approved tools for this session (only in supervised mode)
+  const [autoApprovedTools, setAutoApprovedTools] = useState<Set<string>>(new Set());
+
+  // Pending tool approval state
+  const [pendingToolApproval, setPendingToolApproval] = useState<{
+    toolName: string;
+    args: Record<string, unknown>;
+    reason?: string;
+    resolve: (result: 'approve' | 'always' | { reject: true; comment: string }) => void;
+  } | null>(null);
+
   // Static log entries for scrollable history
   const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
   const logIdCounter = React.useRef(0);
   const lastToolArgsRef = React.useRef<Record<string, unknown> | null>(null);
+
+  // Pending user message queue (for messages entered during LLM processing)
+  const [pendingUserMessage, setPendingUserMessage] = useState<string | null>(null);
 
   // Helper: add log entry
   const addLog = useCallback((entry: Omit<LogEntry, 'id'>) => {
@@ -171,10 +200,20 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
     logIdCounter.current = 0;
   }, []);
 
+  // Sync log entries to session manager for auto-save
+  useEffect(() => {
+    sessionManager.setLogEntries(logEntries);
+  }, [logEntries]);
+
   // Use modular hooks
   const fileBrowserState = useFileBrowserState(input, isProcessing);
   const commandBrowserState = useCommandBrowserState(input, isProcessing);
   const planExecutionState = usePlanExecution();
+
+  // Sync todos to session manager for auto-save (only in-progress/pending)
+  useEffect(() => {
+    sessionManager.setTodos(planExecutionState.todos);
+  }, [planExecutionState.todos]);
 
   // Print logo at startup
   useEffect(() => {
@@ -275,6 +314,87 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
     };
   }, [addLog]);
 
+  // Setup tool approval callback (Supervised Mode)
+  useEffect(() => {
+    setToolApprovalCallback(async (toolName, args, reason) => {
+      // Auto mode: no approval needed
+      if (executionMode === 'auto') {
+        return 'approve';
+      }
+
+      // Only file-modifying tools require approval
+      if (!TOOLS_REQUIRING_APPROVAL.has(toolName)) {
+        return 'approve';
+      }
+
+      // Check if this tool is already auto-approved for this session
+      if (autoApprovedTools.has(toolName)) {
+        logger.debug('Tool auto-approved from session', { toolName });
+        return 'approve';
+      }
+
+      // Add approval request to log
+      addLog({
+        type: 'approval_request',
+        content: toolName,
+        details: reason,
+        toolArgs: args,
+      });
+
+      // Request approval from user via dialog
+      return new Promise<ToolApprovalResult>((resolve) => {
+        setPendingToolApproval({
+          toolName,
+          args,
+          reason,
+          resolve,
+        });
+      });
+    });
+
+    return () => {
+      setToolApprovalCallback(null);
+    };
+  }, [executionMode, autoApprovedTools, addLog]);
+
+  // Handle approval dialog response
+  const handleApprovalResponse = useCallback((result: ToolApprovalResult) => {
+    if (!pendingToolApproval) return;
+
+    const { toolName, resolve } = pendingToolApproval;
+
+    // Log the approval response
+    if (result === 'approve') {
+      addLog({
+        type: 'approval_response',
+        content: toolName,
+        details: 'approved',
+        success: true,
+      });
+    } else if (result === 'always') {
+      setAutoApprovedTools(prev => new Set([...prev, toolName]));
+      addLog({
+        type: 'approval_response',
+        content: toolName,
+        details: 'always_approved',
+        success: true,
+      });
+    } else if (typeof result === 'object' && result.reject) {
+      addLog({
+        type: 'approval_response',
+        content: toolName,
+        details: result.comment || 'rejected',
+        success: false,
+      });
+    }
+
+    // Resolve the promise
+    resolve(result);
+    setPendingToolApproval(null);
+
+    logger.debug('Approval response', { toolName, result });
+  }, [pendingToolApproval, addLog]);
+
   // Setup plan/todo callbacks - adds to Static log
   useEffect(() => {
     setPlanCreatedCallback((todoTitles) => {
@@ -345,55 +465,69 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
     return () => clearInterval(interval);
   }, [isProcessing]);
 
-  // Initialize on startup: check LLM configuration and run health check
+  // Initialize on startup: git update check -> health check -> docs -> config
   useEffect(() => {
     const initialize = async () => {
       logger.flow('Starting initialization');
       logger.startTimer('app-init');
 
       try {
-        // Step 1: Initialize docs directory
+        // Step 1: Check for git updates
+        setInitStep('git_update');
+        logger.flow('Checking for git updates');
+        const updater = new GitAutoUpdater();
+        const needsRestart = await updater.run();
+        if (needsRestart) {
+          // Exit immediately so user can restart with new version
+          process.exit(0);
+        }
+
+        // Step 2: Run health check (only if endpoints configured)
+        setInitStep('health');
+        logger.flow('Running health check');
+        setHealthStatus('checking');
+
+        if (configManager.hasEndpoints()) {
+          const healthResults = await LLMClient.healthCheckAll();
+
+          // Check if any model is healthy
+          let hasHealthy = false;
+          for (const [endpointId, modelResults] of healthResults) {
+            logger.vars(
+              { name: 'endpointId', value: endpointId },
+              { name: 'healthyModels', value: modelResults.filter(r => r.healthy).length }
+            );
+            if (modelResults.some((r) => r.healthy)) {
+              hasHealthy = true;
+            }
+          }
+
+          logger.state('Health status', 'checking', hasHealthy ? 'healthy' : 'unhealthy');
+          setHealthStatus(hasHealthy ? 'healthy' : 'unhealthy');
+
+          // Update health status in config
+          await configManager.updateAllHealthStatus(healthResults);
+        } else {
+          setHealthStatus('unknown');
+        }
+
+        // Step 3: Initialize docs directory
         setInitStep('docs');
         logger.flow('Initializing docs directory');
         await initializeDocsDirectory().catch((err) => {
           logger.warn('Docs directory initialization warning', { error: err });
         });
 
-        // Step 2: Check config
+        // Step 4: Check config (show setup wizard if no endpoints)
         setInitStep('config');
         logger.flow('Checking configuration');
         if (!configManager.hasEndpoints()) {
           logger.debug('No endpoints configured, showing setup wizard');
           setShowSetupWizard(true);
           setIsInitializing(false);
-          setHealthStatus('unknown');
           logger.endTimer('app-init');
           return;
         }
-
-        // Step 3: Run health check
-        setInitStep('health');
-        logger.flow('Running health check');
-        setHealthStatus('checking');
-        const healthResults = await LLMClient.healthCheckAll();
-
-        // Check if any model is healthy
-        let hasHealthy = false;
-        for (const [endpointId, modelResults] of healthResults) {
-          logger.vars(
-            { name: 'endpointId', value: endpointId },
-            { name: 'healthyModels', value: modelResults.filter(r => r.healthy).length }
-          );
-          if (modelResults.some((r) => r.healthy)) {
-            hasHealthy = true;
-          }
-        }
-
-        logger.state('Health status', 'checking', hasHealthy ? 'healthy' : 'unhealthy');
-        setHealthStatus(hasHealthy ? 'healthy' : 'unhealthy');
-
-        // Update health status in config
-        await configManager.updateAllHealthStatus(healthResults);
 
         setInitStep('done');
       } catch (error) {
@@ -426,13 +560,42 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
       setShowTodoDetails(prev => !prev);
       logger.debug('TODO details toggled', { showTodoDetails: !showTodoDetails });
     }
-    // ESC: Interrupt current execution
+    // ESC: Interrupt current execution immediately
     if (key.escape && isProcessing) {
-      logger.flow('ESC pressed - interrupting execution');
+      logger.flow('ESC pressed - interrupting execution immediately');
+
+      // Abort any active LLM request
+      if (llmClient) {
+        llmClient.abort();
+      }
+
+      // Set interrupt flag
       planExecutionState.handleInterrupt();
+
+      // Add red "Interrupted" message to log immediately
+      addLog({
+        type: 'interrupt',
+        content: '⎿ Interrupted',
+      });
+
+      // Force stop processing state
+      setIsProcessing(false);
     }
-    // Tab key mode cycling has been removed - always use auto mode
-  }, { isActive: !fileBrowserState.showFileBrowser && !commandBrowserState.showCommandBrowser });
+    // Tab key: toggle execution mode (auto/supervised)
+    if (key.tab && !isProcessing && !pendingToolApproval) {
+      const newMode = executionMode === 'auto' ? 'supervised' : 'auto';
+      setExecutionMode(newMode);
+      // Clear auto-approved tools when switching to auto mode
+      if (newMode === 'auto') {
+        setAutoApprovedTools(new Set());
+      }
+      addLog({
+        type: 'assistant_message',
+        content: `실행 모드 변경: ${newMode === 'auto' ? '🚀 Auto Mode (자율 실행)' : '👁️ Supervised Mode (승인 필요)'}`,
+      });
+      logger.debug('Execution mode toggled', { newMode });
+    }
+  }, { isActive: !fileBrowserState.showFileBrowser && !commandBrowserState.showCommandBrowser && !pendingToolApproval });
 
   // Handle file selection from browser
   const handleFileSelect = useCallback((filePaths: string[]) => {
@@ -468,8 +631,75 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         return;
       }
 
-      logger.debug('Session loaded', { sessionId, messageCount: sessionData.messages.length });
+      const hasTodos = sessionData.todos && sessionData.todos.length > 0;
+
+      logger.debug('Session loaded', {
+        sessionId,
+        messageCount: sessionData.messages.length,
+        logEntryCount: sessionData.logEntries?.length || 0,
+        todoCount: hasTodos ? sessionData.todos!.length : 0,
+      });
+
+      // Restore messages
       setMessages(sessionData.messages);
+
+      // Reset auto-approved tools (Supervised mode security)
+      setAutoApprovedTools(new Set());
+      logger.debug('Auto-approved tools cleared on session load');
+
+      // Restore in-progress TODOs if available
+      if (hasTodos) {
+        // Convert SessionTodoItem to TodoItem format (add required fields with defaults)
+        const restoredTodos = sessionData.todos!.map(todo => ({
+          id: todo.id,
+          title: todo.title,
+          description: todo.description || '',
+          status: todo.status,
+          requiresDocsSearch: false,  // Default value
+          dependencies: [],            // Default value
+          result: todo.result,
+          error: todo.error,
+        }));
+        planExecutionState.setTodos(restoredTodos);
+        logger.debug('Restored in-progress TODOs', { count: restoredTodos.length });
+      }
+
+      // Build restore details message
+      const detailParts: string[] = [];
+      detailParts.push(`${sessionData.messages.length}개 메시지`);
+      if (sessionData.logEntries?.length) {
+        detailParts.push(`${sessionData.logEntries.length}개 로그`);
+      }
+      if (hasTodos) {
+        detailParts.push(`${sessionData.todos!.length}개 TODO 복구`);
+      }
+
+      // Restore log entries if available
+      if (sessionData.logEntries && sessionData.logEntries.length > 0) {
+        // Clear current logs and add session restored header
+        const restoredLogs: LogEntry[] = [
+          {
+            id: `log-restored-header`,
+            type: 'session_restored',
+            content: `세션 복구됨: ${new Date(sessionData.metadata.updatedAt).toLocaleString('ko-KR')}`,
+            details: detailParts.join(', '),
+          },
+          ...sessionData.logEntries.map((entry, idx) => ({
+            ...entry,
+            id: `log-restored-${idx}`,
+          })) as LogEntry[],
+        ];
+        setLogEntries(restoredLogs);
+        logIdCounter.current = restoredLogs.length;
+      } else {
+        // No log entries saved, show session restored message only
+        clearLogs();
+        addLog({
+          type: 'session_restored',
+          content: `세션 복구됨: ${new Date(sessionData.metadata.updatedAt).toLocaleString('ko-KR')}`,
+          details: detailParts.join(', ') + (sessionData.logEntries?.length ? '' : ' (로그 히스토리 없음)'),
+        });
+      }
     } catch (error) {
       const errorMessage = `세션 로드 실패: ${error instanceof Error ? error.message : 'Unknown error'}`;
       logger.error(`Session load failed (sessionId: ${sessionId})`, error as Error);
@@ -479,7 +709,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
       ]);
     }
     logger.exit('handleSessionSelect', { sessionId });
-  }, []);
+  }, [addLog, clearLogs]);
 
   // Planning mode change handler removed - always auto mode
   // Kept for backward compatibility with SettingsBrowser interface
@@ -571,7 +801,20 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
   }, []);
 
   const handleSubmit = useCallback(async (value: string) => {
-    if (!value.trim() || isProcessing || fileBrowserState.showFileBrowser || showSessionBrowser || showSettings || showSetupWizard || showDocsBrowser) {
+    // If processing and user submits a message, queue it for next LLM invoke
+    if (isProcessing && value.trim()) {
+      const queuedMessage = `[Request interrupted by user]\n${value.trim()}`;
+      setPendingUserMessage(queuedMessage);
+      logger.flow('User message queued during processing', { message: value.trim() });
+      addLog({
+        type: 'user_input',
+        content: `(대기 중) ${value.trim()}`,
+      });
+      setInput('');
+      return;
+    }
+
+    if (!value.trim() || fileBrowserState.showFileBrowser || showSessionBrowser || showSettings || showSetupWizard || showDocsBrowser) {
       return;
     }
 
@@ -643,6 +886,11 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
     setActivityStartTime(Date.now());
     setSubActivities([]);
 
+    // Reset interrupt flag for new operation
+    if (llmClient) {
+      llmClient.resetInterrupt();
+    }
+
     // Reset session usage for new task
     usageTracker.resetSession();
     setSessionTokens(0);
@@ -700,20 +948,57 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
     planExecutionState,
     llmClient,
     handleExit,
+    addLog,
   ]);
+
+  // Process pending user message after LLM processing completes
+  useEffect(() => {
+    if (!isProcessing && pendingUserMessage && llmClient) {
+      logger.flow('Processing queued user message');
+
+      // Clear the pending message
+      const queuedMessage = pendingUserMessage;
+      setPendingUserMessage(null);
+
+      // Add the queued message to messages and trigger new LLM call
+      const updatedMessages: Message[] = [...messages, { role: 'user' as const, content: queuedMessage }];
+      setMessages(updatedMessages);
+
+      // Add to log (replacing the "(대기 중)" entry)
+      addLog({
+        type: 'user_input',
+        content: queuedMessage.replace('[Request interrupted by user]\n', '📩 '),
+      });
+
+      // Start new processing
+      setIsProcessing(true);
+      setActivityStartTime(Date.now());
+
+      // Execute the queued message
+      planExecutionState.executeAutoMode(queuedMessage, llmClient, updatedMessages, setMessages)
+        .catch((error) => {
+          logger.error('Queued message processing failed', error as Error);
+        })
+        .finally(() => {
+          setIsProcessing(false);
+        });
+    }
+  }, [isProcessing, pendingUserMessage, llmClient, messages, planExecutionState, addLog]);
 
   // Show loading screen with logo during initialization
   if (isInitializing) {
     const getInitStepInfo = () => {
       switch (initStep) {
-        case 'docs':
-          return { icon: '📚', text: 'Initializing docs directory...', progress: 1 };
-        case 'config':
-          return { icon: '⚙️', text: 'Checking configuration...', progress: 2 };
+        case 'git_update':
+          return { icon: '🔄', text: 'Checking for updates...', progress: 1 };
         case 'health':
-          return { icon: '🏥', text: 'Running health check...', progress: 3 };
+          return { icon: '🏥', text: 'Checking model health...', progress: 2 };
+        case 'docs':
+          return { icon: '📚', text: 'Initializing docs...', progress: 3 };
+        case 'config':
+          return { icon: '⚙️', text: 'Loading configuration...', progress: 4 };
         default:
-          return { icon: '✓', text: 'Ready!', progress: 4 };
+          return { icon: '✓', text: 'Ready!', progress: 5 };
       }
     };
 
@@ -806,6 +1091,21 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
           <Box key={entry.id} marginTop={1}>
             <Text color="magenta" bold>● </Text>
             <Text>{entry.content}</Text>
+          </Box>
+        );
+
+      case 'interrupt':
+        return (
+          <Box key={entry.id} marginTop={1}>
+            <Text color="red" bold>{entry.content}</Text>
+          </Box>
+        );
+
+      case 'session_restored':
+        return (
+          <Box key={entry.id} marginTop={1} flexDirection="column">
+            <Text color="cyan" bold>📂 {entry.content}</Text>
+            {entry.details && <Text color="gray" dimColor>   {entry.details}</Text>}
           </Box>
         );
 
@@ -1030,6 +1330,58 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
           </Box>
         );
 
+      case 'approval_request': {
+        // Format tool args for display
+        const formatArg = (_key: string, value: unknown): string => {
+          if (typeof value === 'string') {
+            if (value.length > 100) return value.substring(0, 100) + '...';
+            return value;
+          }
+          return JSON.stringify(value);
+        };
+
+        return (
+          <Box key={entry.id} flexDirection="column" marginTop={1}>
+            <Box>
+              <Text color="yellow" bold>⚠️ 승인 요청: </Text>
+              <Text color="cyan" bold>{entry.content}</Text>
+            </Box>
+            {entry.details && (
+              <Box marginLeft={2}>
+                <Text color="gray">⎿ </Text>
+                <Text>{entry.details}</Text>
+              </Box>
+            )}
+            {entry.toolArgs && Object.entries(entry.toolArgs).map(([key, value], idx) => {
+              if (key === 'reason') return null;
+              return (
+                <Box key={idx} marginLeft={2}>
+                  <Text color="gray">⎿ </Text>
+                  <Text color="magenta">{key}: </Text>
+                  <Text color="gray">{formatArg(key, value)}</Text>
+                </Box>
+              );
+            })}
+          </Box>
+        );
+      }
+
+      case 'approval_response':
+        return (
+          <Box key={entry.id} marginLeft={2}>
+            <Text color="gray">⎿ </Text>
+            {entry.success ? (
+              <Text color="green">
+                ✓ {entry.details === 'always_approved' ? '항상 승인됨' : '승인됨'}
+              </Text>
+            ) : (
+              <Text color="red">
+                ✗ 거부됨{entry.details && entry.details !== 'rejected' ? `: ${entry.details}` : ''}
+              </Text>
+            )}
+          </Box>
+        );
+
       default:
         return null;
     }
@@ -1042,8 +1394,20 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         {(entry) => renderLogEntry(entry)}
       </Static>
 
+      {/* Tool Approval Dialog (Supervised Mode) - shown in scrollable area */}
+      {pendingToolApproval && (
+        <Box marginY={1}>
+          <ApprovalDialog
+            toolName={pendingToolApproval.toolName}
+            args={pendingToolApproval.args}
+            reason={pendingToolApproval.reason}
+            onResponse={handleApprovalResponse}
+          />
+        </Box>
+      )}
+
       {/* Activity Indicator (shown when processing, but NOT when TODO panel is visible) */}
-      {isProcessing && planExecutionState.todos.length === 0 && (
+      {isProcessing && planExecutionState.todos.length === 0 && !pendingToolApproval && (
         <Box marginY={0}>
           <ActivityIndicator
             activity={getCurrentActivityType()}
@@ -1202,13 +1566,13 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
               </Text>
             </Box>
             <Box>
-              {/* Context remaining indicator (also shown during processing) */}
+              {/* Context usage indicator (tokens / percent) */}
               {(() => {
-                const ctxPercent = planExecutionState.getContextRemainingPercent();
-                const ctxColor = ctxPercent > 50 ? 'green' : ctxPercent > 20 ? 'yellow' : 'red';
+                const ctxInfo = planExecutionState.getContextUsageInfo();
+                const ctxColor = ctxInfo.percent < 50 ? 'green' : ctxInfo.percent < 80 ? 'yellow' : 'red';
                 return (
                   <>
-                    <Text color={ctxColor}>Context {ctxPercent}%</Text>
+                    <Text color={ctxColor}>Context ({formatTokensCompact(ctxInfo.tokens)} / {ctxInfo.percent}%)</Text>
                     <Text color="gray"> │ </Text>
                   </>
                 );
@@ -1220,13 +1584,18 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
           // Default status bar
           <>
             <Box>
-              {/* Context remaining indicator */}
+              {/* Execution mode indicator */}
+              <Text color={executionMode === 'auto' ? 'green' : 'yellow'} bold>
+                [{executionMode === 'auto' ? 'Auto' : 'Supervised'}]
+              </Text>
+              <Text color="gray"> │ </Text>
+              {/* Context usage indicator (tokens / percent) */}
               {(() => {
-                const ctxPercent = planExecutionState.getContextRemainingPercent();
-                const ctxColor = ctxPercent > 50 ? 'green' : ctxPercent > 20 ? 'yellow' : 'red';
+                const ctxInfo = planExecutionState.getContextUsageInfo();
+                const ctxColor = ctxInfo.percent < 50 ? 'green' : ctxInfo.percent < 80 ? 'yellow' : 'red';
                 return (
                   <>
-                    <Text color={ctxColor}>Context {ctxPercent}%</Text>
+                    <Text color={ctxColor}>Context ({formatTokensCompact(ctxInfo.tokens)} / {ctxInfo.percent}%)</Text>
                     <Text color="gray"> │ </Text>
                   </>
                 );
@@ -1242,7 +1611,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
               )}
             </Box>
             <Text color="gray" dimColor>
-              /help
+              Tab: mode │ /help
             </Text>
           </>
         )}

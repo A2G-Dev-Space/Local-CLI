@@ -409,8 +409,7 @@ Please execute this task now using the available tools.
       // Execute with tools using full conversation history
       const result = await this.llmClient.chatCompletionWithTools(
         this.conversationHistory as any,
-        FILE_TOOLS,
-        5  // max iterations for tool calls
+        FILE_TOOLS
       );
 
       // Update conversation history with all new messages from this execution
