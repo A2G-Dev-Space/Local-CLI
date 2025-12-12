@@ -110,3 +110,7 @@ nexus --debug      # 디버그 모드
 ## License
 
 Internal Use Only - Samsung DS
+
+---
+
+**Authors**: syngha.han, byeongju.lee, young87.kim
