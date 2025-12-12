@@ -27,7 +27,7 @@ const RUN_BASH_TOOL: ToolDefinition = {
   type: 'function',
   function: {
     name: 'run_bash',
-    description: 'Execute bash command to search and read documentation. Commands run in ~/.open-cli/docs directory.',
+    description: 'Execute bash command to search and read documentation. Commands run in ~/.local-cli/docs directory.',
     parameters: {
       type: 'object',
       properties: {
@@ -152,7 +152,7 @@ function buildSystemPrompt(frameworkDetection: FrameworkDetection, keywords: str
   const keywordHint = keywords.length > 0 ? ` Keywords: ${keywords.join(', ')}` : '';
   const frameworkPaths = getFrameworkPathsForDocs().map(({ name, path }) => `${name}: ${path}`).join(', ');
 
-  return `Docs search expert for ~/.open-cli/docs.${searchHint}${keywordHint}
+  return `Docs search expert for ~/.local-cli/docs.${searchHint}${keywordHint}
 
 Tools: run_bash (find/grep/cat/head/ls)
 ${searchStrategy}
@@ -168,12 +168,12 @@ Rules:
 - Max ${DOCS_SEARCH_MAX_ITERATIONS} calls
 - Cite: [file.md] path/to/file.md
 
-CWD: ~/.open-cli/docs`;
+CWD: ~/.local-cli/docs`;
 }
 
 /**
  * Execute Docs Search Agent
- * Uses sub-LLM with bash tools to search ~/.open-cli/docs
+ * Uses sub-LLM with bash tools to search ~/.local-cli/docs
  */
 export async function executeDocsSearchAgent(
   llmClient: LLMClient,
@@ -435,7 +435,7 @@ export async function initializeDocsDirectory(): Promise<void> {
   logger.enter('initializeDocsDirectory', {});
 
   const fs = await import('fs/promises');
-  const docsPath = path.join(os.homedir(), '.open-cli', 'docs');
+  const docsPath = path.join(os.homedir(), '.local-cli', 'docs');
 
   try {
     logger.flow('Creating docs directory if not exists');
@@ -453,9 +453,9 @@ export async function initializeDocsDirectory(): Promise<void> {
     } catch {
       logger.flow('Creating sample README.md');
       // Create a sample README
-      const sampleReadme = `# OPEN-CLI Documentation
+      const sampleReadme = `# LOCAL-CLI Documentation
 
-Welcome to the OPEN-CLI documentation directory!
+Welcome to the LOCAL-CLI documentation directory!
 
 ## Overview
 
@@ -482,7 +482,7 @@ Simply place your markdown (.md) files in this directory. The AI will be able to
 ## Example Structure
 
 \`\`\`
-~/.open-cli/docs/
+~/.local-cli/docs/
 ├── README.md
 ├── api/
 │   ├── authentication.md
@@ -518,7 +518,7 @@ export async function addDocumentationFile(
 
   try {
     const fs = await import('fs/promises');
-    const docsPath = path.join(os.homedir(), '.open-cli', 'docs');
+    const docsPath = path.join(os.homedir(), '.local-cli', 'docs');
 
     // Ensure docs directory exists
     logger.flow('Ensuring docs directory exists');

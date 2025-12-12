@@ -1,11 +1,11 @@
 {
-  "name": "open-cli",
-  "version": "1.3.1",
-  "description": "OPEN-CLI - 오프라인 기업 환경을 위한 완전한 로컬 LLM CLI 플랫폼",
+  "name": "local-cli",
+  "version": "2.0.0",
+  "description": "LOCAL-CLI - OpenAI-Compatible Local CLI Coding Agent",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "open": "dist/cli.js"
+    "lcli": "dist/cli.js"
   },
   "scripts": {
     "build": "tsc",
@@ -33,11 +33,14 @@
     "ai",
     "llm",
     "openai",
-    "offline",
-    "enterprise",
-    "coding-assistant"
+    "local-llm",
+    "coding-assistant",
+    "coding-agent",
+    "vllm",
+    "ollama",
+    "offline"
   ],
-  "author": "OPEN-CLI Team",
+  "author": "LOCAL-CLI Team",
   "license": "MIT",
   "engines": {
     "node": ">=20.0.0",

@@ -1,5 +1,5 @@
 /**
- * OPEN-CLI Constants
+ * LOCAL-CLI Constants
  *
  * 프로젝트 전역 상수 정의
  */
@@ -8,40 +8,43 @@ import * as path from 'path';
 import * as os from 'os';
 
 /**
- * OPEN-CLI 홈 디렉토리
- * ~/.open-cli/
+ * LOCAL-CLI 홈 디렉토리
+ * ~/.local-cli/
  */
-export const OPEN_HOME_DIR = path.join(os.homedir(), '.open-cli');
+export const LOCAL_HOME_DIR = path.join(os.homedir(), '.local-cli');
+
+// Backward compatibility alias
+export const OPEN_HOME_DIR = LOCAL_HOME_DIR;
 
 /**
  * 설정 파일 경로
- * ~/.open-cli/config.json
+ * ~/.local-cli/config.json
  */
-export const CONFIG_FILE_PATH = path.join(OPEN_HOME_DIR, 'config.json');
+export const CONFIG_FILE_PATH = path.join(LOCAL_HOME_DIR, 'config.json');
 
 /**
  * 엔드포인트 설정 파일 경로
- * ~/.open-cli/endpoints.json
+ * ~/.local-cli/endpoints.json
  */
-export const ENDPOINTS_FILE_PATH = path.join(OPEN_HOME_DIR, 'endpoints.json');
+export const ENDPOINTS_FILE_PATH = path.join(LOCAL_HOME_DIR, 'endpoints.json');
 
 /**
  * 문서 디렉토리
- * ~/.open-cli/docs/
+ * ~/.local-cli/docs/
  */
-export const DOCS_DIR = path.join(OPEN_HOME_DIR, 'docs');
+export const DOCS_DIR = path.join(LOCAL_HOME_DIR, 'docs');
 
 /**
  * 백업 디렉토리
- * ~/.open-cli/backups/
+ * ~/.local-cli/backups/
  */
-export const BACKUPS_DIR = path.join(OPEN_HOME_DIR, 'backups');
+export const BACKUPS_DIR = path.join(LOCAL_HOME_DIR, 'backups');
 
 /**
  * 프로젝트별 로그 디렉토리
- * ~/.open-cli/projects/
+ * ~/.local-cli/projects/
  */
-export const PROJECTS_DIR = path.join(OPEN_HOME_DIR, 'projects');
+export const PROJECTS_DIR = path.join(LOCAL_HOME_DIR, 'projects');
 
 /**
  * 기본 엔드포인트 ID
@@ -87,9 +90,9 @@ export const SUPPORTED_TEXT_EXTENSIONS = [
 /**
  * 앱 버전
  */
-export const APP_VERSION = '0.1.0';
+export const APP_VERSION = '2.0.0';
 
 /**
  * 앱 이름
  */
-export const APP_NAME = 'OPEN-CLI';
+export const APP_NAME = 'LOCAL-CLI';

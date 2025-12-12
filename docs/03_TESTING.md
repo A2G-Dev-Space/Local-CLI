@@ -1,6 +1,6 @@
 # 테스트 가이드 (Testing Guide)
 
-이 문서는 OPEN-CLI의 E2E 테스트 시스템을 설명합니다.
+이 문서는 LOCAL-CLI의 E2E 테스트 시스템을 설명합니다.
 **모든 PR은 테스트 통과 후 생성해야 합니다.**
 
 ---
@@ -40,7 +40,7 @@ npm run test:e2e
 
 ```
 ╔════════════════════════════════════════════════════════════╗
-║          OPEN-CLI E2E Test Suite                          ║
+║          LOCAL-CLI E2E Test Suite                          ║
 ╚════════════════════════════════════════════════════════════╝
 
 테스트 시나리오 현황:
@@ -191,7 +191,7 @@ npm run test:e2e -- -t llm-basic-chat -v
 ```
 목적: write_file 도구가 파일을 정상적으로 생성하는지 확인
 동작:
-  1. /tmp/open-cli-test 디렉토리 생성 (setup)
+  1. /tmp/local-cli-test 디렉토리 생성 (setup)
   2. write_file 도구로 test-file.txt 파일에 내용 작성
   3. fs.access()로 파일 존재 확인
   4. 디렉토리 삭제 (teardown)
@@ -205,10 +205,10 @@ npm run test:e2e -- -t llm-basic-chat -v
 ```
 목적: LLM이 read_file 도구를 올바르게 호출하는지 확인
 동작:
-  1. 테스트 파일 생성 (Project Name: OPEN-CLI 내용)
+  1. 테스트 파일 생성 (Project Name: LOCAL-CLI 내용)
   2. LLM에게 "파일을 읽고 프로젝트 이름을 알려주세요" 요청
   3. LLM이 read_file 도구 호출 → 파일 내용 획득 → 응답 생성
-기대값: LLM 응답에 'OPEN-CLI' 포함
+기대값: LLM 응답에 'LOCAL-CLI' 포함
 확인방법:
   - verbose 모드에서 LLM 응답 내용 확인
   - 응답에 프로젝트 이름이 정확히 포함되어 있는지 확인
@@ -256,9 +256,9 @@ npm run test:e2e -- -t llm-basic-chat -v
 ```
 목적: LLM이 제공된 컨텍스트를 이해하고 질문에 답하는지 확인
 동작:
-  1. 프롬프트에 프로젝트 정보 포함 (이름: OPEN-CLI, 버전: 1.0.0 등)
+  1. 프롬프트에 프로젝트 정보 포함 (이름: LOCAL-CLI, 버전: 1.0.0 등)
   2. "이 프로젝트의 이름은 무엇인가요?" 질문
-기대값: 응답에 'OPEN-CLI' 포함
+기대값: 응답에 'LOCAL-CLI' 포함
 확인방법:
   - LLM이 컨텍스트에서 정보를 추출하여 정확히 답변
   - verbose 모드에서 응답 내용 확인
@@ -318,7 +318,7 @@ npm run test:e2e -- -t llm-basic-chat -v
 ```
 목적: Agent Loop가 단순한 작업을 완료하는지 확인
 동작:
-  1. /tmp/open-cli-agent-test에 data.json 파일 생성
+  1. /tmp/local-cli-agent-test에 data.json 파일 생성
   2. Agent에게 TODO 전달: "data.json 파일을 읽고 프로젝트 이름 확인"
   3. Agent Loop 실행 (최대 3회 반복)
      - Context Gathering: 파일 읽기
@@ -442,7 +442,7 @@ npm run test:e2e -- -t llm-basic-chat -v
 
 #### integration-full-workflow
 ```
-목적: OPEN-CLI의 전체 흐름이 정상 동작하는지 확인
+목적: LOCAL-CLI의 전체 흐름이 정상 동작하는지 확인
 동작:
   1. 테스트 파일 생성 (project-info.json)
   2. LLM에게 파일 읽기 요청 → 도구 호출 → 응답
@@ -465,7 +465,7 @@ npm run test:e2e -- -t llm-basic-chat -v
   3. 정상 파일 읽기 (package.json)
 기대값:
   - 첫 번째 단계: error === true
-  - 두 번째 단계: 파일 내용에 'open-cli' 포함
+  - 두 번째 단계: 파일 내용에 'local-cli' 포함
 확인방법:
   - 첫 번째 단계에서 에러가 throw되지 않고 처리됨
   - 두 번째 단계가 정상 실행됨
@@ -490,7 +490,7 @@ LLM 기반 테스트는 **비결정적(non-deterministic)** 특성을 가집니�
 동일한 입력에 대해 다른 출력이 나올 수 있습니다.
 
 #### 비결정적 테스트 예시
-- `llm-context-understanding`: LLM이 "OPEN-CLI" 대신 "OPEN‑CLI" (다른 하이픈)로 응답
+- `llm-context-understanding`: LLM이 "LOCAL-CLI" 대신 "OPEN‑CLI" (다른 하이픈)로 응답
 - `file-tools-llm-write`: LLM이 도구를 호출하지 않고 "파일을 생성했습니다"라고만 응답
 - `agent-file-creation`: Agent가 파일 생성 도구를 호출하지 않음
 
@@ -551,7 +551,7 @@ verbose 모드에서는 각 단계의 결과가 자세히 표시됩니다:
 ```
 ┌─ [llm-client] 컨텍스트 이해 테스트 (llm-context-understanding)
 │ LLM이 주어진 컨텍스트를 이해하는지 테스트합니다.
-│  ○ 컨텍스트 기반 질문  [Action Result]: 프로젝트 이름은 **OPEN-CLI**입니다.
+│  ○ 컨텍스트 기반 질문  [Action Result]: 프로젝트 이름은 **LOCAL-CLI**입니다.
 │  ✓ 컨텍스트 기반 질문
 │
 └─ ✓ PASSED 1284ms
@@ -731,7 +731,7 @@ export function getAllScenarios(): TestScenario[] {
 **A:** 설정을 확인하세요.
 
 ```bash
-# OPEN-CLI 실행
+# LOCAL-CLI 실행
 open
 
 # UI에서 설정 확인
@@ -763,7 +763,7 @@ npm run test:e2e -- --verbose
 **A:** 임시 파일을 수동으로 삭제하세요.
 
 ```bash
-rm -rf /tmp/open-cli-*
+rm -rf /tmp/local-cli-*
 ```
 
 ---

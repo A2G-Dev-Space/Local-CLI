@@ -1,8 +1,8 @@
 /**
  * Configuration Manager
  *
- * OPEN-CLI 설정 관리 시스템
- * ~/.open-cli/ 디렉토리 및 설정 파일 관리
+ * LOCAL-CLI 설정 관리 시스템
+ * ~/.local-cli/ 디렉토리 및 설정 파일 관리
  */
 
 import { OpenConfig, EndpointConfig, ModelInfo } from '../../types/index.js';
@@ -46,8 +46,8 @@ export class ConfigManager {
   private initialized = false;
 
   /**
-   * OPEN-CLI 초기화
-   * ~/.open-cli/ 디렉토리 및 설정 파일 생성
+   * LOCAL-CLI 초기화
+   * ~/.local-cli/ 디렉토리 및 설정 파일 생성
    */
   async initialize(): Promise<void> {
     if (this.initialized) {

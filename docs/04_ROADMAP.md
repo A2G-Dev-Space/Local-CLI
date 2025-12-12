@@ -1,4 +1,4 @@
-# OPEN-CLI Roadmap
+# LOCAL-CLI Roadmap
 
 > **문서 버전**: 6.0.0 (v1.2.3)
 > **최종 수정일**: 2025-12-12
@@ -55,7 +55,7 @@
 - ✅ Claude Code 스타일 상태바
   - `✶ ~하는 중… (esc to interrupt · 2m 7s · ↑ 3.6k tokens)`
 - ✅ 일별/월별/전체 통계
-- ✅ `~/.open-cli/usage.json` 저장
+- ✅ `~/.local-cli/usage.json` 저장
 
 ### 2.4 Phase 4: 문서 다운로드 내재화 ✅
 
@@ -172,7 +172,7 @@ AI가 피드백 반영하여 재시도
 | `/save` | 현재 세션 수동 저장 (이름 지정 가능) |
 
 ```
-~/.open-cli/projects/{cwd}/
+~/.local-cli/projects/{cwd}/
 ├── auto_session.json        # 자동 저장 세션
 ├── session_2025-12-12.json  # 수동 저장 세션
 └── ...

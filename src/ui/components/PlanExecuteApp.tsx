@@ -1004,6 +1004,37 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
 
     const stepInfo = getInitStepInfo();
 
+    // Authors component with cycling highlight animation
+    const AuthorsDisplay = () => {
+      const authors = ['syngha.han', 'byeongju.lee', 'youngsub.kim'];
+      const [highlightIndex, setHighlightIndex] = useState(0);
+
+      useEffect(() => {
+        const interval = setInterval(() => {
+          setHighlightIndex((prev) => (prev + 1) % authors.length);
+        }, 800);
+        return () => clearInterval(interval);
+      }, []);
+
+      return (
+        <Box marginTop={2}>
+          <Text color="gray">by </Text>
+          {authors.map((author, idx) => (
+            <React.Fragment key={author}>
+              <Text
+                color={idx === highlightIndex ? 'cyan' : 'gray'}
+                bold={idx === highlightIndex}
+                dimColor={idx !== highlightIndex}
+              >
+                {author}
+              </Text>
+              {idx < authors.length - 1 && <Text color="gray"> · </Text>}
+            </React.Fragment>
+          ))}
+        </Box>
+      );
+    };
+
     return (
       <Box flexDirection="column" alignItems="center" paddingY={2}>
         <Logo showVersion={true} showTagline={true} />
@@ -1024,6 +1055,9 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
             <Text color="gray"> → </Text>
             <Text color={stepInfo.progress >= 4 ? 'green' : 'gray'}>●</Text>
           </Box>
+
+          {/* Authors with cycling highlight */}
+          <AuthorsDisplay />
         </Box>
       </Box>
     );

@@ -55,12 +55,12 @@ function execAsync(command: string, options: { cwd?: string } = {}): Promise<{ s
 }
 
 export class GitAutoUpdater {
-  private repoUrl: string = 'https://github.com/A2G-Dev-Space/Open-Code-CLI.git';
+  private repoUrl: string = 'https://github.com/A2G-Dev-Space/Local-CLI.git';
   private repoDir: string;
   private enabled: boolean = true;
 
   constructor(options?: { repoUrl?: string; enabled?: boolean }) {
-    this.repoDir = path.join(os.homedir(), '.open-cli', 'repo');
+    this.repoDir = path.join(os.homedir(), '.local-cli', 'repo');
 
     if (options?.repoUrl) {
       this.repoUrl = options.repoUrl;
@@ -192,7 +192,7 @@ export class GitAutoUpdater {
 
       console.log();
       console.log(chalk.green.bold('✨ Setup Complete!'));
-      console.log(chalk.white('   OPEN-CLI is now ready to use'));
+      console.log(chalk.white('   LOCAL-CLI is now ready to use'));
       console.log(chalk.dim('   Updates will happen automatically on each run'));
       console.log();
     } catch (error: any) {
@@ -227,7 +227,7 @@ export class GitAutoUpdater {
 
       if (statusResult.stdout.trim() !== '') {
         logger.warn('Local changes detected in repo directory', { status: statusResult.stdout });
-        console.log(chalk.yellow('⚠️  Local changes detected in ~/.open-cli/repo'));
+        console.log(chalk.yellow('⚠️  Local changes detected in ~/.local-cli/repo'));
         console.log(chalk.dim('   Skipping auto-update to preserve changes'));
         return false;
       }

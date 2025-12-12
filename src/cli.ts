@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * OPEN-CLI
+ * LOCAL-CLI
  * 오프라인 기업 환경을 위한 완전한 로컬 LLM CLI 플랫폼
  *
  * Entry Point: CLI 애플리케이션의 진입점
@@ -22,9 +22,9 @@ const program = new Command();
  * CLI 프로그램 설정
  */
 program
-  .name('open')
-  .description('OPEN-CLI - 오프라인 기업용 AI 코딩 어시스턴트')
-  .version('0.1.0')
+  .name('lcli')
+  .description('LOCAL-CLI - OpenAI-Compatible Local CLI Coding Agent')
+  .version('2.0.0')
   .helpOption(false);  // -h, --help 비활성화 (/help 사용)
 
 /**
@@ -66,7 +66,7 @@ program
 
       // Ink UI 시작 (verbose/debug/llm-log 모드에서만 시작 메시지 표시)
       if (options.verbose || options.debug) {
-        console.log(chalk.cyan('🚀 Starting OPEN-CLI...\n'));
+        console.log(chalk.cyan('🚀 Starting LOCAL-CLI...\n'));
       }
 
       // Ink UI를 같은 프로세스에서 직접 렌더링 (stdin raw mode 유지)
@@ -113,7 +113,7 @@ program.configureOutput({
 
 program.on('command:*', () => {
   console.error(chalk.red('⚠️  알 수 없는 명령어입니다.'));
-  console.log(chalk.white('사용법: open [--verbose] [--debug]\n'));
+  console.log(chalk.white('사용법: lcli [--verbose] [--debug]\n'));
   console.log(chalk.white('대화형 모드에서 /help를 사용하여 도움말을 확인하세요.\n'));
   process.exit(1);
 });

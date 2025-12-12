@@ -27,7 +27,7 @@ const __dirname = dirname(__filename);
  */
 export class AutoUpdater {
   private owner: string = 'A2G-Dev-Space';
-  private repo: string = 'Open-Code-CLI';
+  private repo: string = 'Local-CLI';
   private currentVersion: string;
   private apiBaseUrl: string = 'https://api.github.com';
   private config: AutoUpdateConfig;
@@ -106,7 +106,7 @@ export class AutoUpdater {
         timeout: 5000, // 5 second timeout
         headers: {
           'Accept': 'application/vnd.github.v3+json',
-          'User-Agent': 'OPEN-CLI',
+          'User-Agent': 'LOCAL-CLI',
         },
       });
 
@@ -404,9 +404,9 @@ export class AutoUpdater {
    */
   private async performTarballUpdate(releaseInfo: ReleaseInfo): Promise<{ success: boolean; error?: string }> {
     const spinner = ora('Downloading update...').start();
-    const tempDir = path.join(os.tmpdir(), `open-cli-update-${Date.now()}`);
+    const tempDir = path.join(os.tmpdir(), `local-cli-update-${Date.now()}`);
     const currentDir = process.cwd();
-    const backupDir = path.join(currentDir, '..', `open-cli-backup-${Date.now()}`);
+    const backupDir = path.join(currentDir, '..', `local-cli-backup-${Date.now()}`);
 
     logger.debug('Starting tarball-based update', {
       version: releaseInfo.version,
@@ -429,7 +429,7 @@ export class AutoUpdater {
         responseType: 'stream',
         timeout: 60000, // 60 seconds
         headers: {
-          'User-Agent': 'OPEN-CLI'
+          'User-Agent': 'LOCAL-CLI'
         }
       });
 
@@ -582,7 +582,7 @@ export class AutoUpdater {
    */
   private saveConfig(): void {
     // Save to config file
-    const configPath = path.join(os.homedir(), '.open-cli', 'config.json');
+    const configPath = path.join(os.homedir(), '.local-cli', 'config.json');
 
     if (fs.existsSync(configPath)) {
       const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));

@@ -25,7 +25,7 @@ export interface CompactContext {
  * System prompt for LLM to compress conversations
  */
 export const COMPACT_SYSTEM_PROMPT = `# Role
-You are a "Technical Context Compressor" for OPEN-CLI, an AI coding assistant. Your task is to compress a conversation into a minimal, high-density state representation that preserves ALL critical context for seamless continuation.
+You are a "Technical Context Compressor" for LOCAL-CLI, an AI coding assistant. Your task is to compress a conversation into a minimal, high-density state representation that preserves ALL critical context for seamless continuation.
 
 # Objective
 Reduce token usage by 70-90% while preserving 100% of:

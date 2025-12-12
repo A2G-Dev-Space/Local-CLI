@@ -1,7 +1,7 @@
 /**
  * Logo Component
  *
- * ASCII art logo for OPEN-CLI startup screen
+ * ASCII art logo for LOCAL-CLI startup screen
  * With gradient animation and typing effects
  */
 
@@ -14,14 +14,14 @@ const require = createRequire(import.meta.url);
 const pkg = require('../../../package.json') as { version: string };
 const VERSION = pkg.version;
 
-// ASCII Art Logo for OPEN-CLI
+// ASCII Art Logo for LOCAL-CLI
 const LOGO_LINES = [
-  '   ____  _____  ______ _   _        _____ _      _____ ',
-  '  / __ \\|  __ \\|  ____| \\ | |      / ____| |    |_   _|',
-  ' | |  | | |__) | |__  |  \\| |_____| |    | |      | |  ',
-  ' | |  | |  ___/|  __| | . ` |_____| |    | |      | |  ',
-  ' | |__| | |    | |____| |\\  |     | |____| |____ _| |_ ',
-  '  \\____/|_|    |______|_| \\_|      \\_____|______|_____|',
+  '  _      ____   _____          _           _____ _      _____ ',
+  ' | |    / __ \\ / ____|   /\\   | |         / ____| |    |_   _|',
+  ' | |   | |  | | |       /  \\  | |  ______| |    | |      | |  ',
+  ' | |   | |  | | |      / /\\ \\ | | |______| |    | |      | |  ',
+  ' | |___| |__| | |____ / ____ \\| |____    | |____| |____ _| |_ ',
+  ' |______\\____/ \\_____/_/    \\_\\______|    \\_____|______|_____|',
 ];
 
 // Gradient colors (cycle through these)
@@ -44,7 +44,7 @@ export const Logo: React.FC<LogoProps> = ({
   void _variant;
   const [colorIndex, setColorIndex] = useState(0);
   const [taglineIndex, setTaglineIndex] = useState(0);
-  const tagline = 'Enterprise-ready AI for offline environments';
+  const tagline = 'OpenAI-Compatible Local CLI Coding Agent';
 
   // Gradient color animation
   useEffect(() => {
@@ -93,7 +93,7 @@ export const Logo: React.FC<LogoProps> = ({
       <Box marginTop={1} flexDirection="column" alignItems="center">
         {showVersion && (
           <Text color="gray">
-            v{VERSION} - Local LLM Coding Assistant
+            v{VERSION} - Local LLM Coding Agent
           </Text>
         )}
         {showTagline && (

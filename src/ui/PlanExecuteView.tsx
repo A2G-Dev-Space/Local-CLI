@@ -35,7 +35,7 @@ export const PlanExecuteView: React.FC<PlanExecuteViewProps> = ({
       {/* Title */}
       <Box marginBottom={1} justifyContent="center">
         <Text bold color="cyan">
-          ====== OPEN-CLI Plan-and-Execute Mode ======
+          ====== LOCAL-CLI Plan-and-Execute Mode ======
         </Text>
       </Box>
 

@@ -1,38 +1,36 @@
-# OPEN-CLI v1.3.1
+# LOCAL-CLI v2.0.0
 
-[![GitHub release](https://img.shields.io/github/v/release/A2G-Dev-Space/Open-Code-CLI)](https://github.com/A2G-Dev-Space/Open-Code-CLI/releases)
+[![GitHub release](https://img.shields.io/github/v/release/A2G-Dev-Space/Local-CLI)](https://github.com/A2G-Dev-Space/Local-CLI/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/Node.js-20%2B-green)](https://nodejs.org/)
 
-**AI Coding Assistant CLI for Offline Enterprise Environments**
+**OpenAI-Compatible Local CLI Coding Agent**
 
-> Local LLM CLI platform with Plan & Execute architecture, Supervised Mode, and session management.
+> Standalone AI coding agent for local LLM environments.
 > Works with vLLM, Ollama, LM Studio, and any OpenAI-compatible API.
 
-**오프라인 기업 환경을 위한 로컬 LLM CLI 플랫폼**
-
 ---
 
-## 빠른 시작
+## Quick Start
 
 ```bash
-# 1. 설치
-git clone https://github.com/A2G-Dev-Space/Open-Code-CLI.git
-cd Open-Code-CLI
+# 1. Install
+git clone https://github.com/A2G-Dev-Space/Local-CLI.git
+cd Local-CLI
 npm install && npm run build
 
-# 2. 실행
-node dist/cli.js       # 또는 npm link 후 'open' 명령어 사용
+# 2. Run
+node dist/cli.js       # or use 'lcli' command after npm link
 ```
 
-첫 실행 시 LLM 엔드포인트 설정 마법사가 자동 실행됩니다.
+The LLM endpoint setup wizard will automatically run on first launch.
 
 ---
 
-## 핵심 기능
+## Key Features
 
-### 🆕 Supervised Mode (v1.2.x)
-파일 수정 도구(`create_file`, `edit_file`) 실행 전 사용자 승인을 요청합니다.
+### Supervised Mode
+Request user approval before executing file modification tools.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -46,170 +44,141 @@ node dist/cli.js       # 또는 npm link 후 'open' 명령어 사용
 └─────────────────────────────────────────────────────────────┘
 ```
 
-- **Tab 키** - Auto ↔ Supervised 모드 전환
-- **파일 수정 도구만** 승인 필요 (read_file, list_files 등은 자동 실행)
-- **Reject 시** 코멘트 입력 → AI가 피드백 반영하여 재시도
+- **Tab key** - Toggle Auto ↔ Supervised mode
+- **Only file modification tools** require approval (read_file, list_files, etc. run automatically)
+- **On Reject** - Enter comment → AI retries with feedback
 
 ### Plan & Execute Architecture
-사용자 요청을 자동으로 TODO 리스트로 분해하고 순차 실행합니다.
+Automatically breaks down user requests into TODO lists and executes them sequentially.
 
 ```
-You: 프로젝트에 로깅 시스템을 추가해줘
+You: Add a logging system to the project
 
-✶ 계획 수립 중… (esc to interrupt · 5s · ↑ 1.2k tokens)
+✶ Planning... (esc to interrupt · 5s · ↑ 1.2k tokens)
 
-📋 3개의 작업이 생성되었습니다:
-  1. logger.ts 파일 생성
-  2. 기존 파일에 로거 import 추가
-  3. 에러 핸들링 로거 적용
+📋 3 tasks created:
+  1. Create logger.ts file
+  2. Add logger import to existing files
+  3. Apply logger to error handling
 ```
 
 ### Static Log UI
-Claude Code 스타일의 스크롤 가능한 로그 히스토리:
-- 도구별 아이콘 표시 (📖 read, 📝 create, ✏️ edit, 📂 list, 🔍 find, 💬 message)
-- Diff 형식으로 파일 변경사항 표시 (파란색: 추가, 빨간색: 삭제)
-- 실시간 진행 상황 표시
+Claude Code-style scrollable log history:
+- Tool-specific icons (📖 read, 📝 create, ✏️ edit, 📂 list, 🔍 find, 💬 message)
+- Diff format for file changes (blue: added, red: deleted)
+- Real-time progress display
 
-### LLM 도구
-| 도구 | 설명 | 승인 필요 |
-|------|------|----------|
-| `read_file` | 파일 읽기 | ❌ |
-| `create_file` | 새 파일 생성 | ✅ |
-| `edit_file` | 기존 파일 수정 (줄 단위 편집) | ✅ |
-| `list_files` | 디렉토리 목록 | ❌ |
-| `find_files` | 파일 검색 (glob 패턴) | ❌ |
-| `tell_to_user` | 사용자에게 메시지 전달 | ❌ |
-| `ask_user` | 사용자에게 질문 | ❌ |
+### LLM Tools
+| Tool | Description | Requires Approval |
+|------|-------------|-------------------|
+| `read_file` | Read file | ❌ |
+| `create_file` | Create new file | ✅ |
+| `edit_file` | Edit existing file (line-by-line) | ✅ |
+| `list_files` | List directory | ❌ |
+| `find_files` | Search files (glob pattern) | ❌ |
+| `tell_to_user` | Send message to user | ❌ |
+| `ask_user` | Ask user a question | ❌ |
 
-### 슬래시 명령어
-| 명령어 | 설명 |
-|--------|------|
-| `/help` | 도움말 표시 |
-| `/clear` | 대화 초기화 |
-| `/compact` | 대화 압축 (Context 절약) |
-| `/load` | 저장된 세션 불러오기 |
-| `/model` | LLM 모델 전환 |
-| `/settings` | 설정 메뉴 |
-| `/usage` | 토큰 사용량 통계 (누적) |
-| `/docs` | 문서 브라우저 (↑↓ 선택, Enter 다운로드) |
-| `/docs download <source>` | 문서 다운로드 (agno, adk) |
+### Slash Commands
+| Command | Description |
+|---------|-------------|
+| `/help` | Show help |
+| `/clear` | Reset conversation |
+| `/compact` | Compress conversation (save context) |
+| `/load` | Load saved session |
+| `/model` | Switch LLM model |
+| `/settings` | Settings menu |
+| `/usage` | Token usage statistics |
 
-### 키보드 단축키
-- `Ctrl+C` - 종료
-- `ESC` - 현재 실행 중단
-- `Tab` - Auto ↔ Supervised 모드 전환
-- `@` - 파일 선택 브라우저
-- `/` - 명령어 자동완성
+### Keyboard Shortcuts
+- `Ctrl+C` - Exit
+- `ESC` - Interrupt current execution
+- `Tab` - Toggle Auto ↔ Supervised mode
+- `@` - File browser
+- `/` - Command autocomplete
 
 ---
 
-## 주요 특징
+## Main Features
 
-### Supervised Mode (v1.2.x)
-- 파일 수정 전 사용자 승인 요청
-- Tab 키로 Auto/Supervised 모드 전환
-- Reject 시 코멘트로 피드백 전달
+### Supervised Mode
+- Request user approval before file modification
+- Toggle Auto/Supervised mode with Tab key
+- Provide feedback via comments on Reject
 
-### 대화 히스토리 유지
-- 모든 TODO task 간 대화 히스토리 자동 유지
-- Tool call/response 포함한 전체 컨텍스트 보존
-- `/compact` 시에만 히스토리 초기화
+### Session Management
+- Auto-save/restore conversation history between TODO tasks
+- Preserve full context including tool calls/responses
+- History only resets on `/compact`
 
-### Context 사용량 표시
-- 상태바에 `Context (1.3K / 13%)` 형식으로 표시
-- 80% 도달 시 Auto-Compact 자동 실행
+### Context Usage Display
+- Status bar shows `Context (1.3K / 13%)` format
+- Auto-Compact runs automatically at 80% usage
 
-### 단일 Tool 실행
-- `parallel_tool_calls: false` API 파라미터로 강제
-- LLM이 한 번에 하나의 도구만 호출하여 안정적 실행
-
-### 스마트 TODO 패널
-- TODO 작업 시에만 패널 표시
-- 단순 응답 요청 시 자동 숨김
+### Single Tool Execution
+- `parallel_tool_calls: false` API parameter enforced
+- LLM calls only one tool at a time for stable execution
 
 ---
 
-## 문서 다운로드
+## Configuration
 
-AI Agent 개발에 필요한 문서를 로컬에 다운로드하여 오프라인에서 참조할 수 있습니다.
+### Add LLM Endpoint
 
 ```bash
-# 사용 가능한 문서 확인
-/docs
+# Run setup wizard
+lcli    # First run auto-launches wizard
 
-# Agno Framework 문서 다운로드
-/docs download agno
-
-# Google ADK 문서 다운로드
-/docs download adk
+# Or via settings
+/settings
 ```
 
-다운로드된 문서는 `~/.open-cli/docs/` 에 저장되며, AI가 자동으로 검색하여 응답에 활용합니다.
-
----
-
-## 설정
-
-### LLM 엔드포인트 추가
-
-```bash
-# 설정 마법사 실행
-open config init
-
-# 설정 확인
-open config show
-```
-
-OpenAI Compatible API를 지원하는 모든 LLM 서버와 연결 가능합니다:
+Compatible with any OpenAI-compatible API server:
 - vLLM, Ollama, LM Studio
 - Azure OpenAI, Google Gemini (OpenAI Compatible)
-- 사내 LLM 서버
+- Internal LLM servers
 
-### CLI 옵션
+### CLI Options
 
 ```bash
-open              # 기본 실행
-open --verbose    # 상세 로깅
-open --debug      # 디버그 모드
-open --no-update  # 자동 업데이트 비활성화
+lcli              # Default run
+lcli --verbose    # Verbose logging
+lcli --debug      # Debug mode
 ```
 
 ---
 
-## 디렉토리 구조
+## Directory Structure
 
 ```
-~/.open-cli/
-├── config.json        # 설정 파일
-├── endpoints.json     # 엔드포인트 설정
-├── usage.json         # 사용량 통계
-├── docs/              # 다운로드된 문서
-│   └── agent_framework/
-│       ├── agno/
-│       └── adk/
-└── projects/          # 프로젝트별 세션
+~/.local-cli/
+├── config.json        # Configuration file
+├── endpoints.json     # Endpoint settings
+├── usage.json         # Usage statistics
+├── docs/              # Downloaded docs
+└── projects/          # Project-specific sessions
 ```
 
 ---
 
-## 요구사항
+## Requirements
 
 - Node.js v20+
 - npm v10+
-- Git (문서 다운로드용)
+- Git (for doc downloads)
 
 ---
 
-## 문서
+## Documentation
 
-- [개발자 가이드](docs/01_DEVELOPMENT.md)
-- [로깅 시스템](docs/02_LOGGING.md)
-- [테스트 가이드](docs/03_TESTING.md)
-- [로드맵](docs/04_ROADMAP.md)
+- [Developer Guide](docs/01_DEVELOPMENT.md)
+- [Logging System](docs/02_LOGGING.md)
+- [Testing Guide](docs/03_TESTING.md)
+- [Roadmap](docs/04_ROADMAP.md)
 
 ---
 
-## 라이선스
+## License
 
 MIT License
 
@@ -217,8 +186,8 @@ MIT License
 
 ## Keywords
 
-`AI coding assistant` `local LLM` `offline AI` `enterprise AI` `CLI tool` `vLLM` `Ollama` `LM Studio` `OpenAI compatible` `code generation` `developer tools` `TypeScript` `Node.js` `plan and execute` `supervised mode` `session management`
+`AI coding assistant` `local LLM` `offline AI` `CLI tool` `vLLM` `Ollama` `LM Studio` `OpenAI compatible` `code generation` `developer tools` `TypeScript` `Node.js` `coding agent`
 
 ---
 
-**GitHub**: https://github.com/A2G-Dev-Space/Open-Code-CLI
+**GitHub**: https://github.com/A2G-Dev-Space/Local-CLI

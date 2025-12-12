@@ -213,7 +213,7 @@ export function formatLLMInput(input: PlanExecuteLLMInput): string {
  * Default system prompt for general chat interactions
  * Informs users about CLI's full development capabilities
  */
-export const DEFAULT_SYSTEM_PROMPT = `You are OPEN-CLI, an AI-powered coding assistant running in a terminal environment.
+export const DEFAULT_SYSTEM_PROMPT = `You are LOCAL-CLI, an AI-powered coding assistant running in a terminal environment.
 
 **Important**: This CLI is a full-featured development tool, not just a chat interface.
 

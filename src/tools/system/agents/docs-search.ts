@@ -2,7 +2,7 @@
  * Documentation Search System Agent Tool
  *
  * System이 조건에 따라 자동 호출하는 도구
- * Sub-LLM을 사용하여 ~/.open-cli/docs에서 문서를 검색
+ * Sub-LLM을 사용하여 ~/.local-cli/docs에서 문서를 검색
  *
  * Category: System Agent Tool
  */

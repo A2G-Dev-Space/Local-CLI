@@ -34,7 +34,7 @@ export class InitializationError extends BaseError {
       {
         ...options,
         isRecoverable: false,
-        userMessage: options.userMessage ?? 'OPEN-CLI 초기화에 실패했습니다. "open config init" 명령어를 실행해주세요.',
+        userMessage: options.userMessage ?? 'LOCAL-CLI 초기화에 실패했습니다. "open config init" 명령어를 실행해주세요.',
       }
     );
   }
@@ -51,7 +51,7 @@ export class ConfigNotFoundError extends BaseError {
       {
         ...options,
         isRecoverable: false,
-        userMessage: options.userMessage ?? 'OPEN-CLI가 초기화되지 않았습니다. "open config init" 명령어를 실행해주세요.',
+        userMessage: options.userMessage ?? 'LOCAL-CLI가 초기화되지 않았습니다. "open config init" 명령어를 실행해주세요.',
       }
     );
   }

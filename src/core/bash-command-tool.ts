@@ -19,7 +19,7 @@ const BASH_COMMAND_MAX_BUFFER_BYTES = 256 * 1024; // 256KB max buffer (reduced t
 
 /**
  * Execute bash command
- * Security: Restricted to ~/.open-cli/docs directory by default
+ * Security: Restricted to ~/.local-cli/docs directory by default
  */
 export async function executeBashCommand(
   command: string,
@@ -85,8 +85,8 @@ export async function executeBashCommand(
       };
     }
 
-    // Default working directory: ~/.open-cli/docs
-    const docsPath = cwd || path.join(os.homedir(), '.open-cli', 'docs');
+    // Default working directory: ~/.local-cli/docs
+    const docsPath = cwd || path.join(os.homedir(), '.local-cli', 'docs');
 
     // Ensure the docs directory exists
     const fs = await import('fs/promises');

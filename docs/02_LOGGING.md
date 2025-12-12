@@ -1,6 +1,6 @@
 # 로깅 시스템 가이드 (Logging System Guide)
 
-이 문서는 OPEN-CLI의 로깅 시스템을 설명합니다.
+이 문서는 LOCAL-CLI의 로깅 시스템을 설명합니다.
 **모든 새 기능 구현 시 반드시 이 가이드에 따라 로깅을 추가해야 합니다.**
 
 ---
@@ -21,7 +21,7 @@
 
 ## 1. CLI 실행 모드
 
-OPEN-CLI는 3가지 로깅 모드를 지원합니다.
+LOCAL-CLI는 3가지 로깅 모드를 지원합니다.
 
 **중요**: Normal 모드(`open`)에서는 **로그가 전혀 출력되지 않습니다**.
 모든 사용자 피드백은 UI 컴포넌트로 처리됩니다.
@@ -56,26 +56,26 @@ OPEN-CLI는 3가지 로깅 모드를 지원합니다.
 
 **Verbose Mode** (`open --verbose`)
 ```
-[2025-11-12T06:50:04.349Z] [OPEN-CLI] [app.ts:17:startApp] ↓ ENTER: startApp
+[2025-11-12T06:50:04.349Z] [LOCAL-CLI] [app.ts:17:startApp] ↓ ENTER: startApp
   Args: { "mode": "VERBOSE" }
-[2025-11-12T06:50:04.349Z] [OPEN-CLI] [app.ts:22:startApp] ➜ FLOW: 설정 로드 중
-[2025-11-12T06:50:04.349Z] [OPEN-CLI] [app.ts:25:startApp] 📦 VARS:
+[2025-11-12T06:50:04.349Z] [LOCAL-CLI] [app.ts:22:startApp] ➜ FLOW: 설정 로드 중
+[2025-11-12T06:50:04.349Z] [LOCAL-CLI] [app.ts:25:startApp] 📦 VARS:
    config.endpoint="https://api.example.com" (string)
-[2025-11-12T06:50:04.350Z] [OPEN-CLI] [app.ts:30:startApp] 🔄 STATE: 상태 변경
+[2025-11-12T06:50:04.350Z] [LOCAL-CLI] [app.ts:30:startApp] 🔄 STATE: 상태 변경
   Before: "idle"
   After: "running"
-[2025-11-12T06:50:04.350Z] [OPEN-CLI] [app.ts:35:startApp] ⏱️  TIMER END: init 150ms
+[2025-11-12T06:50:04.350Z] [LOCAL-CLI] [app.ts:35:startApp] ⏱️  TIMER END: init 150ms
 ```
 
 **Debug Mode** (`open --debug`)
 ```
-[2025-11-12T06:50:04.350Z] [OPEN-CLI] [http.ts:42:request] → HTTP REQUEST: POST https://api.example.com/v1/chat
+[2025-11-12T06:50:04.350Z] [LOCAL-CLI] [http.ts:42:request] → HTTP REQUEST: POST https://api.example.com/v1/chat
   Body: { "messages": [...] }
-[2025-11-12T06:50:04.550Z] [OPEN-CLI] [http.ts:56:request] ← HTTP RESPONSE: 200 OK
+[2025-11-12T06:50:04.550Z] [LOCAL-CLI] [http.ts:56:request] ← HTTP RESPONSE: 200 OK
   Data: { "choices": [...] }
-[2025-11-12T06:50:04.551Z] [OPEN-CLI] [tools.ts:89:executeTool] 🔧 TOOL SUCCESS: read_file
+[2025-11-12T06:50:04.551Z] [LOCAL-CLI] [tools.ts:89:executeTool] 🔧 TOOL SUCCESS: read_file
   Args: { "path": "README.md" }
-  Result: "# OPEN-CLI\n\n..."
+  Result: "# LOCAL-CLI\n\n..."
 ```
 
 ### 1.3 모드 선택 가이드
@@ -344,7 +344,7 @@ logger.toolExecution('read_file', { path: 'README.md' }, undefined, error);
 ```
 [...] [tools.ts:89] 🔧 TOOL SUCCESS: read_file
   Args: { "path": "README.md" }
-  Result: "# OPEN-CLI\n\n..."
+  Result: "# LOCAL-CLI\n\n..."
 ```
 
 ---

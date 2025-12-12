@@ -11,7 +11,7 @@ import * as path from 'path';
 import { execSync } from 'child_process';
 import { logger } from '../utils/logger.js';
 
-const DOCS_DIR = path.join(process.env['HOME'] || '.', '.open-cli', 'docs');
+const DOCS_DIR = path.join(process.env['HOME'] || '.', '.local-cli', 'docs');
 
 /**
  * 문서 소스 정의

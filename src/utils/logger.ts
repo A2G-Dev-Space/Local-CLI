@@ -868,7 +868,7 @@ export class Logger {
  */
 export const logger = new Logger({
   level: LogLevel.ERROR, // Normal 모드: 로그 출력 없음 (ERROR만 표시)
-  prefix: 'OPEN-CLI',
+  prefix: 'LOCAL-CLI',
   timestamp: true,
   showLocation: false, // setLogLevel()에서 동적으로 변경
   showPid: false, // 필요시 환경 변수로 활성화
