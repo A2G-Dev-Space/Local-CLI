@@ -1,8 +1,10 @@
 # Build stage
 FROM node:20-alpine AS builder
 
-# Install OpenSSL for Prisma
-RUN apk add --no-cache openssl openssl-dev libc6-compat
+# Install OpenSSL for Prisma (skip SSL verification for corporate network)
+RUN echo "http://dl-cdn.alpinelinux.org/alpine/v3.18/main" > /etc/apk/repositories && \
+    echo "http://dl-cdn.alpinelinux.org/alpine/v3.18/community" >> /etc/apk/repositories && \
+    apk add --no-cache --allow-untrusted openssl1.1-compat
 
 WORKDIR /app
 
@@ -29,8 +31,10 @@ RUN npx tsc
 # Production stage
 FROM node:20-alpine AS production
 
-# Install OpenSSL for Prisma
-RUN apk add --no-cache openssl openssl-dev libc6-compat
+# Install OpenSSL 1.1 for Prisma (skip SSL verification for corporate network)
+RUN echo "http://dl-cdn.alpinelinux.org/alpine/v3.18/main" > /etc/apk/repositories && \
+    echo "http://dl-cdn.alpinelinux.org/alpine/v3.18/community" >> /etc/apk/repositories && \
+    apk add --no-cache --allow-untrusted openssl1.1-compat
 
 WORKDIR /app
 
