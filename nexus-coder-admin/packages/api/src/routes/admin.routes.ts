@@ -637,18 +637,25 @@ adminRoutes.get('/stats/model-daily-trend', async (req: AuthenticatedRequest, re
     // Process into date-keyed structure with model usage
     const dateMap = new Map<string, Record<string, number>>();
 
-    // Initialize all dates in range
+    // Initialize all dates in range with 0 for all models
+    const modelIds = models.map((m) => m.id);
     for (let d = new Date(startDate); d <= new Date(); d.setDate(d.getDate() + 1)) {
       const dateStr = d.toISOString().split('T')[0]!;
-      dateMap.set(dateStr, {});
+      // Initialize with 0 for all models
+      const initialData: Record<string, number> = {};
+      for (const modelId of modelIds) {
+        initialData[modelId] = 0;
+      }
+      dateMap.set(dateStr, initialData);
     }
 
-    // Populate with actual data
+    // Populate with actual data (overwrite 0s)
     for (const stat of dailyStats) {
       const dateStr = formatDateToString(stat.date);
-      const existing = dateMap.get(dateStr) || {};
-      existing[stat.model_id] = Number(stat.total_tokens);
-      dateMap.set(dateStr, existing);
+      const existing = dateMap.get(dateStr);
+      if (existing) {
+        existing[stat.model_id] = Number(stat.total_tokens);
+      }
     }
 
     // Convert to array format for chart
