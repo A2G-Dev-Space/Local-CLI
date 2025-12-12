@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Users, Server, Activity, Zap } from 'lucide-react';
 import { statsApi } from '../services/api';
-import UsageChart from '../components/Charts/UsageChart';
+import UserStatsChart from '../components/Charts/UserStatsChart';
+import ModelUsageChart from '../components/Charts/ModelUsageChart';
+import UsersByModelChart from '../components/Charts/UsersByModelChart';
 
 interface OverviewStats {
   activeUsers: number;
@@ -14,18 +16,8 @@ interface OverviewStats {
   totalModels: number;
 }
 
-interface DailyStat {
-  date: string;
-  _sum: {
-    totalInputTokens: string;
-    totalOutputTokens: string;
-    requestCount: number;
-  };
-}
-
 export default function Dashboard() {
   const [overview, setOverview] = useState<OverviewStats | null>(null);
-  const [dailyStats, setDailyStats] = useState<DailyStat[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -34,12 +26,8 @@ export default function Dashboard() {
 
   const loadData = async () => {
     try {
-      const [overviewRes, dailyRes] = await Promise.all([
-        statsApi.overview(),
-        statsApi.daily(30),
-      ]);
+      const overviewRes = await statsApi.overview();
       setOverview(overviewRes.data);
-      setDailyStats(dailyRes.data.dailyStats);
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
     } finally {
@@ -146,10 +134,19 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Usage Chart */}
-      <div className="bg-white rounded-xl shadow-sm p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Daily Usage (Last 30 Days)</h2>
-        <UsageChart data={dailyStats} />
+      {/* User Stats Chart (Cumulative + Daily Active) */}
+      <div className="mb-8">
+        <UserStatsChart />
+      </div>
+
+      {/* Model Usage Chart */}
+      <div className="mb-8">
+        <ModelUsageChart />
+      </div>
+
+      {/* Users by Model Chart */}
+      <div className="mb-8">
+        <UsersByModelChart />
       </div>
     </div>
   );

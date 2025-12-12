@@ -476,3 +476,278 @@ adminRoutes.get('/stats/by-dept', async (req: AuthenticatedRequest, res) => {
     res.status(500).json({ error: 'Failed to get department statistics' });
   }
 });
+
+/**
+ * GET /admin/stats/daily-active-users
+ * Get daily active user count for charts
+ * Query params: days (14-365), default 30
+ */
+adminRoutes.get('/stats/daily-active-users', async (req: AuthenticatedRequest, res) => {
+  try {
+    const days = Math.min(365, Math.max(14, parseInt(req.query['days'] as string) || 30));
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    startDate.setHours(0, 0, 0, 0);
+
+    // Get distinct users per day from usage logs (일별 활성 사용자)
+    const dailyUsers = await prisma.$queryRaw<Array<{ date: Date; user_count: bigint }>>`
+      SELECT DATE(timestamp) as date, COUNT(DISTINCT user_id) as user_count
+      FROM usage_logs
+      WHERE timestamp >= ${startDate}
+      GROUP BY DATE(timestamp)
+      ORDER BY date ASC
+    `;
+
+    // Convert to chart format
+    const chartData = dailyUsers.map((item) => ({
+      date: item.date.toISOString().split('T')[0],
+      userCount: Number(item.user_count),
+    }));
+
+    // Get total unique users in period
+    const totalUsers = await prisma.usageLog.groupBy({
+      by: ['userId'],
+      where: {
+        timestamp: { gte: startDate },
+      },
+    });
+
+    res.json({
+      chartData,
+      totalUniqueUsers: totalUsers.length,
+    });
+  } catch (error) {
+    console.error('Get daily active users error:', error);
+    res.status(500).json({ error: 'Failed to get daily active users' });
+  }
+});
+
+/**
+ * GET /admin/stats/cumulative-users
+ * Get cumulative unique user count by date (누적 사용자 수)
+ * Shows total unique users who have used the service at least once up to each date
+ * Query params: days (14-365), default 30
+ */
+adminRoutes.get('/stats/cumulative-users', async (req: AuthenticatedRequest, res) => {
+  try {
+    const days = Math.min(365, Math.max(14, parseInt(req.query['days'] as string) || 30));
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    startDate.setHours(0, 0, 0, 0);
+
+    // Get the first usage date for each user
+    const userFirstUsage = await prisma.$queryRaw<Array<{ first_date: Date; new_users: bigint }>>`
+      SELECT DATE(first_usage) as first_date, COUNT(*) as new_users
+      FROM (
+        SELECT user_id, MIN(timestamp) as first_usage
+        FROM usage_logs
+        GROUP BY user_id
+      ) as user_first
+      WHERE first_usage >= ${startDate}
+      GROUP BY DATE(first_usage)
+      ORDER BY first_date ASC
+    `;
+
+    // Get users who joined before the start date (for initial count)
+    const existingUsers = await prisma.$queryRaw<Array<{ count: bigint }>>`
+      SELECT COUNT(DISTINCT user_id) as count
+      FROM usage_logs
+      WHERE timestamp < ${startDate}
+    `;
+
+    let cumulativeCount = Number(existingUsers[0]?.count || 0);
+
+    // Build cumulative chart data
+    const newUsersMap = new Map(
+      userFirstUsage.map((item) => [
+        item.first_date.toISOString().split('T')[0],
+        Number(item.new_users),
+      ])
+    );
+
+    const chartData: Array<{ date: string; cumulativeUsers: number; newUsers: number }> = [];
+
+    // Generate all dates in range
+    for (let d = new Date(startDate); d <= new Date(); d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().split('T')[0]!;
+      const newUsers = newUsersMap.get(dateStr) || 0;
+      cumulativeCount += newUsers;
+      chartData.push({
+        date: dateStr,
+        cumulativeUsers: cumulativeCount,
+        newUsers,
+      });
+    }
+
+    res.json({
+      chartData,
+      totalUsers: cumulativeCount,
+    });
+  } catch (error) {
+    console.error('Get cumulative users error:', error);
+    res.status(500).json({ error: 'Failed to get cumulative users' });
+  }
+});
+
+/**
+ * GET /admin/stats/model-daily-trend
+ * Get daily usage trend per model (for line chart)
+ * Query params: days (14-365), default 30
+ */
+adminRoutes.get('/stats/model-daily-trend', async (req: AuthenticatedRequest, res) => {
+  try {
+    const days = Math.min(365, Math.max(14, parseInt(req.query['days'] as string) || 30));
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    startDate.setHours(0, 0, 0, 0);
+
+    // Get all models
+    const models = await prisma.model.findMany({
+      select: { id: true, name: true, displayName: true },
+    });
+
+    // Get daily stats grouped by model and date
+    const dailyStats = await prisma.usageLog.groupBy({
+      by: ['modelId', 'timestamp'],
+      where: {
+        timestamp: { gte: startDate },
+      },
+      _sum: {
+        totalTokens: true,
+      },
+    });
+
+    // Process into date-keyed structure with model usage
+    const dateMap = new Map<string, Record<string, number>>();
+
+    // Initialize all dates in range
+    for (let d = new Date(startDate); d <= new Date(); d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().split('T')[0]!;
+      dateMap.set(dateStr, {});
+    }
+
+    // Aggregate by date (since timestamp includes time)
+    for (const stat of dailyStats) {
+      const dateStr = new Date(stat.timestamp).toISOString().split('T')[0]!;
+      const existing = dateMap.get(dateStr) || {};
+      existing[stat.modelId] = (existing[stat.modelId] || 0) + (stat._sum.totalTokens || 0);
+      dateMap.set(dateStr, existing);
+    }
+
+    // Convert to array format for chart
+    const chartData = Array.from(dateMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, modelUsage]) => ({
+        date,
+        ...modelUsage,
+      }));
+
+    res.json({
+      models: models.map((m) => ({ id: m.id, name: m.name, displayName: m.displayName })),
+      chartData,
+    });
+  } catch (error) {
+    console.error('Get model daily trend error:', error);
+    res.status(500).json({ error: 'Failed to get model daily trend' });
+  }
+});
+
+/**
+ * GET /admin/stats/model-user-trend
+ * Get daily usage trend per user for a specific model
+ * Query params: modelId (required), days (14-365), topN (10-100)
+ */
+adminRoutes.get('/stats/model-user-trend', async (req: AuthenticatedRequest, res) => {
+  try {
+    const modelId = req.query['modelId'] as string;
+    if (!modelId) {
+      res.status(400).json({ error: 'modelId is required' });
+      return;
+    }
+
+    const days = Math.min(365, Math.max(14, parseInt(req.query['days'] as string) || 30));
+    const topN = Math.min(100, Math.max(10, parseInt(req.query['topN'] as string) || 10));
+
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    startDate.setHours(0, 0, 0, 0);
+
+    // Get top N users by total usage for this model in the period
+    const topUsers = await prisma.usageLog.groupBy({
+      by: ['userId'],
+      where: {
+        modelId,
+        timestamp: { gte: startDate },
+      },
+      _sum: {
+        totalTokens: true,
+      },
+      orderBy: {
+        _sum: {
+          totalTokens: 'desc',
+        },
+      },
+      take: topN,
+    });
+
+    const topUserIds = topUsers.map((u) => u.userId);
+
+    // Get user details
+    const users = await prisma.user.findMany({
+      where: { id: { in: topUserIds } },
+      select: { id: true, loginid: true, username: true, deptname: true },
+    });
+
+    // Get daily stats for these users
+    const dailyStats = await prisma.usageLog.groupBy({
+      by: ['userId', 'timestamp'],
+      where: {
+        modelId,
+        userId: { in: topUserIds },
+        timestamp: { gte: startDate },
+      },
+      _sum: {
+        totalTokens: true,
+      },
+    });
+
+    // Process into date-keyed structure
+    const dateMap = new Map<string, Record<string, number>>();
+
+    // Initialize all dates in range
+    for (let d = new Date(startDate); d <= new Date(); d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().split('T')[0]!;
+      dateMap.set(dateStr, {});
+    }
+
+    // Aggregate by date
+    for (const stat of dailyStats) {
+      const dateStr = new Date(stat.timestamp).toISOString().split('T')[0]!;
+      const existing = dateMap.get(dateStr) || {};
+      existing[stat.userId] = (existing[stat.userId] || 0) + (stat._sum.totalTokens || 0);
+      dateMap.set(dateStr, existing);
+    }
+
+    // Convert to array format
+    const chartData = Array.from(dateMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, userUsage]) => ({
+        date,
+        ...userUsage,
+      }));
+
+    // Include total usage for ranking info
+    const usersWithTotal = users.map((u) => {
+      const total = topUsers.find((t) => t.userId === u.id)?._sum.totalTokens || 0;
+      return { ...u, totalTokens: total };
+    }).sort((a, b) => (b.totalTokens || 0) - (a.totalTokens || 0));
+
+    res.json({
+      users: usersWithTotal,
+      chartData,
+    });
+  } catch (error) {
+    console.error('Get model user trend error:', error);
+    res.status(500).json({ error: 'Failed to get model user trend' });
+  }
+});
