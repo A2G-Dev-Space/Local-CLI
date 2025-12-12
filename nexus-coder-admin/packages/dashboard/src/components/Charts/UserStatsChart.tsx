@@ -92,14 +92,17 @@ export default function UserStatsChart() {
 
   // Calculate stats for cumulative
   const cumulativeStats = useMemo(() => {
-    if (cumulativeData.length === 0) return { newInPeriod: 0, growthRate: 0 };
+    if (cumulativeData.length === 0) return { newInPeriod: 0, growthRate: 0, isNewStart: false };
     const newUsers = cumulativeData.reduce((sum, d) => sum + d.newUsers, 0);
     const startCount = cumulativeData[0]?.cumulativeUsers || 0;
     const endCount = cumulativeData[cumulativeData.length - 1]?.cumulativeUsers || 0;
+    // 시작이 0이면 신규 시작이므로 특별 처리
+    const isNewStart = startCount === 0 && endCount > 0;
     const growthRate = startCount > 0 ? ((endCount - startCount) / startCount) * 100 : 0;
     return {
       newInPeriod: newUsers,
       growthRate: Math.round(growthRate * 10) / 10,
+      isNewStart,
     };
   }, [cumulativeData]);
 
@@ -191,9 +194,9 @@ export default function UserStatsChart() {
           </div>
           <div className="text-center p-3 bg-green-50 rounded-lg">
             <p className="text-2xl font-bold text-green-600">
-              {cumulativeStats.growthRate > 0 ? '+' : ''}{cumulativeStats.growthRate}%
+              {cumulativeStats.isNewStart ? 'NEW' : `${cumulativeStats.growthRate > 0 ? '+' : ''}${cumulativeStats.growthRate}%`}
             </p>
-            <p className="text-xs text-gray-500">성장률</p>
+            <p className="text-xs text-gray-500">{cumulativeStats.isNewStart ? '신규 시작' : '성장률'}</p>
           </div>
         </div>
       ) : (
