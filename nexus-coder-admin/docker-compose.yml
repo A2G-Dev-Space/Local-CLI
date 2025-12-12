@@ -36,7 +36,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # API Server
+  # API Server (internal only, accessed via Nginx)
   api:
     build:
       context: ./packages/api
@@ -54,15 +54,16 @@ services:
       PORT: 3000
     volumes:
       - ./cert:/app/cert:ro
-    ports:
-      - "3000:3000"
+    # No external port - accessed via Nginx only
+    expose:
+      - "3000"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
 
-  # React Dashboard
+  # React Dashboard (internal only, accessed via Nginx)
   dashboard:
     build:
       context: ./packages/dashboard
@@ -71,8 +72,9 @@ services:
     restart: unless-stopped
     environment:
       VITE_API_URL: /api
-    ports:
-      - "8080:80"
+    # No external port - accessed via Nginx only
+    expose:
+      - "80"
     depends_on:
       - api
 
