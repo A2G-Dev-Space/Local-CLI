@@ -67,12 +67,25 @@ program
         if (options.verbose || options.debug) {
           console.log(chalk.green('✓ Models loaded from Admin Server\n'));
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error(chalk.red('\n❌ Admin Server에서 모델 목록을 가져올 수 없습니다.'));
         if (error instanceof Error) {
           console.error(chalk.red(`   ${error.message}`));
         }
-        console.log(chalk.yellow('\n서버 연결 상태를 확인하거나 관리자에게 문의하세요.\n'));
+
+        // 프록시 차단 감지
+        const responseData = error.response?.data;
+        if (responseData && (
+          typeof responseData === 'string' && responseData.includes('차단') ||
+          JSON.stringify(responseData).includes('차단')
+        )) {
+          console.log(chalk.yellow('\n⚠️  사내 프록시에 의해 차단되었습니다.'));
+          console.log(chalk.white('   no_proxy 환경변수에 서버 주소를 추가하세요:\n'));
+          console.log(chalk.cyan('   export no_proxy="$no_proxy,a2g.samsungds.net"'));
+          console.log(chalk.gray('\n   또는 ~/.bashrc 또는 ~/.zshrc에 추가 후 터미널 재시작\n'));
+        } else {
+          console.log(chalk.yellow('\n서버 연결 상태를 확인하거나 관리자에게 문의하세요.\n'));
+        }
         process.exit(1);
       }
 
