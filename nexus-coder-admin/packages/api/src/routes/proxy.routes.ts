@@ -3,12 +3,75 @@
  *
  * Proxies /v1/* requests to actual LLM endpoints
  * 폐쇄망 환경: 인증 없이 사용 가능
+ * Usage tracking: LLM 응답에서 토큰 사용량 추출하여 DB에 저장
  */
 
 import { Router, Request, Response } from 'express';
-import { prisma } from '../index.js';
+import { prisma, redis } from '../index.js';
+import { incrementUsage, trackActiveUser } from '../services/redis.service.js';
 
 export const proxyRoutes = Router();
+
+// 기본 사용자 정보 (폐쇄망에서 인증 없이 사용 시)
+const DEFAULT_USER = {
+  loginid: 'anonymous',
+  username: 'Anonymous User',
+  deptname: 'Unknown',
+};
+
+/**
+ * 사용자 조회 또는 생성 (upsert)
+ * X-User-Id 헤더가 있으면 해당 사용자, 없으면 기본 사용자
+ */
+async function getOrCreateUser(req: Request) {
+  const loginid = (req.headers['x-user-id'] as string) || DEFAULT_USER.loginid;
+  const username = (req.headers['x-user-name'] as string) || DEFAULT_USER.username;
+  const deptname = (req.headers['x-user-dept'] as string) || DEFAULT_USER.deptname;
+
+  const user = await prisma.user.upsert({
+    where: { loginid },
+    update: { lastActive: new Date() },
+    create: {
+      loginid,
+      username,
+      deptname,
+    },
+  });
+
+  return user;
+}
+
+/**
+ * Usage 저장 (DB + Redis)
+ */
+async function recordUsage(
+  userId: string,
+  loginid: string,
+  modelId: string,
+  inputTokens: number,
+  outputTokens: number
+) {
+  const totalTokens = inputTokens + outputTokens;
+
+  // DB에 usage_logs 저장
+  await prisma.usageLog.create({
+    data: {
+      userId,
+      modelId,
+      inputTokens,
+      outputTokens,
+      totalTokens,
+    },
+  });
+
+  // Redis 카운터 업데이트
+  await incrementUsage(redis, userId, modelId, inputTokens, outputTokens);
+
+  // 활성 사용자 추적
+  await trackActiveUser(redis, loginid);
+
+  console.log(`[Usage] Recorded: user=${loginid}, model=${modelId}, tokens=${totalTokens} (in=${inputTokens}, out=${outputTokens})`);
+}
 
 /**
  * endpointUrl에 /chat/completions가 없으면 자동 추가
@@ -106,6 +169,9 @@ proxyRoutes.post('/chat/completions', async (req: Request, res: Response) => {
       return;
     }
 
+    // Get or create user for usage tracking
+    const user = await getOrCreateUser(req);
+
     // Prepare request to actual LLM
     const llmRequestBody = {
       model: model.name,
@@ -124,9 +190,9 @@ proxyRoutes.post('/chat/completions', async (req: Request, res: Response) => {
 
     // Handle streaming
     if (stream) {
-      await handleStreamingRequest(res, model, llmRequestBody, headers);
+      await handleStreamingRequest(res, model, llmRequestBody, headers, user);
     } else {
-      await handleNonStreamingRequest(res, model, llmRequestBody, headers);
+      await handleNonStreamingRequest(res, model, llmRequestBody, headers, user);
     }
 
   } catch (error) {
@@ -142,7 +208,8 @@ async function handleNonStreamingRequest(
   res: Response,
   model: { id: string; name: string; endpointUrl: string; apiKey: string | null },
   requestBody: any,
-  headers: Record<string, string>
+  headers: Record<string, string>,
+  user: { id: string; loginid: string }
 ) {
   try {
     const url = buildChatCompletionsUrl(model.endpointUrl);
@@ -163,6 +230,17 @@ async function handleNonStreamingRequest(
 
     const data = await response.json();
 
+    // Extract and record usage
+    if (data.usage) {
+      const inputTokens = data.usage.prompt_tokens || 0;
+      const outputTokens = data.usage.completion_tokens || 0;
+
+      // 비동기로 usage 저장 (응답 지연 방지)
+      recordUsage(user.id, user.loginid, model.id, inputTokens, outputTokens).catch((err) => {
+        console.error('[Usage] Failed to record usage:', err);
+      });
+    }
+
     // Return response to client
     res.json(data);
 
@@ -174,21 +252,29 @@ async function handleNonStreamingRequest(
 
 /**
  * Handle streaming chat completion
+ * Streaming에서는 마지막 chunk에 usage 정보가 포함될 수 있음
  */
 async function handleStreamingRequest(
   res: Response,
   model: { id: string; name: string; endpointUrl: string; apiKey: string | null },
   requestBody: any,
-  headers: Record<string, string>
+  headers: Record<string, string>,
+  user: { id: string; loginid: string }
 ) {
   try {
     const url = buildChatCompletionsUrl(model.endpointUrl);
     console.log(`[Proxy] Streaming request to: ${url}`);
 
+    // stream_options를 추가하여 usage 정보 요청 (OpenAI compatible)
+    const requestWithUsage = {
+      ...requestBody,
+      stream_options: { include_usage: true },
+    };
+
     const response = await fetch(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify(requestBody),
+      body: JSON.stringify(requestWithUsage),
     });
 
     if (!response.ok) {
@@ -211,6 +297,7 @@ async function handleStreamingRequest(
 
     const decoder = new TextDecoder();
     let buffer = '';
+    let usageData: { prompt_tokens?: number; completion_tokens?: number } | null = null;
 
     try {
       while (true) {
@@ -236,6 +323,16 @@ async function handleStreamingRequest(
               continue;
             }
 
+            // Parse to check for usage data
+            try {
+              const parsed = JSON.parse(dataStr);
+              if (parsed.usage) {
+                usageData = parsed.usage;
+              }
+            } catch {
+              // Not valid JSON, ignore
+            }
+
             res.write(`data: ${dataStr}\n\n`);
           } else if (line.trim()) {
             res.write(`${line}\n`);
@@ -250,6 +347,18 @@ async function handleStreamingRequest(
 
     } finally {
       reader.releaseLock();
+    }
+
+    // Record usage if available
+    if (usageData) {
+      const inputTokens = usageData.prompt_tokens || 0;
+      const outputTokens = usageData.completion_tokens || 0;
+
+      recordUsage(user.id, user.loginid, model.id, inputTokens, outputTokens).catch((err) => {
+        console.error('[Usage] Failed to record streaming usage:', err);
+      });
+    } else {
+      console.log('[Usage] No usage data in streaming response');
     }
 
     res.end();
