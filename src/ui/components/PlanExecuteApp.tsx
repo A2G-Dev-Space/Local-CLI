@@ -96,8 +96,8 @@ const VERSION = pkg.version;
 type InitStep = 'git_update' | 'health' | 'docs' | 'config' | 'done';
 
 // Tools that require user approval in Supervised Mode
-// Only file-modifying tools need approval (read-only and internal tools are auto-approved)
-const TOOLS_REQUIRING_APPROVAL = new Set(['create_file', 'edit_file']);
+// File-modifying tools and bash commands need approval (read-only and internal tools are auto-approved)
+const TOOLS_REQUIRING_APPROVAL = new Set(['create_file', 'edit_file', 'bash']);
 
 // Helper functions for status bar
 function formatElapsedTime(seconds: number): string {
@@ -1186,6 +1186,8 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
               return '🔍';  // 검색
             case 'tell_to_user':
               return '💬';  // 메시지
+            case 'bash':
+              return '⚡';  // 터미널/쉘 명령어
             default:
               return '🔧';  // 기본 도구
           }
@@ -1216,6 +1218,8 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
             }
             case 'tell_to_user':
               return '';  // tell_to_user는 파라미터 표시 안함
+            case 'bash':
+              return args['command'] as string || '';
             default:
               return '';
           }
@@ -1277,6 +1281,14 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
           const lines = displayText.split('\n');
           if (lines.length > 5) {
             displayText = lines.slice(0, 5).join('\n') + `\n... (${lines.length - 5} more lines)`;
+          }
+        }
+
+        // bash: 3줄 넘으면 축약
+        if (entry.content === 'bash') {
+          const lines = displayText.split('\n');
+          if (lines.length > 3) {
+            displayText = lines.slice(0, 3).join('\n') + `\n... (${lines.length - 3} more lines)`;
           }
         }
 
