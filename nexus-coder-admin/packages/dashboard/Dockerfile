@@ -12,8 +12,8 @@ RUN npm ci --include=dev
 # Copy source code
 COPY . .
 
-# Build the app
-RUN npm run build
+# Build the app (use npx for tsc and vite)
+RUN npx tsc && npx vite build
 
 # Production stage - serve with nginx
 FROM nginx:alpine AS production
