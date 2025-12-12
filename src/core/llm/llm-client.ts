@@ -77,6 +77,7 @@ export class LLMClient {
   private model: string;
   private modelName: string;
   private currentAbortController: AbortController | null = null;
+  private isInterrupted: boolean = false;
 
   constructor() {
     // ConfigManager에서 현재 설정 가져오기
@@ -269,14 +270,30 @@ export class LLMClient {
   }
 
   /**
-   * Abort current LLM request (for ESC interrupt)
+   * Abort current LLM request and set interrupt flag (for ESC interrupt)
    */
   abort(): void {
+    logger.flow('LLM 인터럽트 - 모든 동작 중단');
+    this.isInterrupted = true;
+
     if (this.currentAbortController) {
-      logger.flow('LLM 요청 취소 중...');
       this.currentAbortController.abort();
       this.currentAbortController = null;
     }
+  }
+
+  /**
+   * Check if interrupted
+   */
+  checkInterrupted(): boolean {
+    return this.isInterrupted;
+  }
+
+  /**
+   * Reset interrupt flag (call before starting new operation)
+   */
+  resetInterrupt(): void {
+    this.isInterrupted = false;
   }
 
   /**
@@ -494,6 +511,12 @@ export class LLMClient {
 
     logger.flow('Tool call 반복 시작 (무제한)');
     while (true) {
+      // Check for interrupt at start of each iteration
+      if (this.isInterrupted) {
+        logger.flow('Interrupt detected - stopping tool loop');
+        throw new Error('INTERRUPTED');
+      }
+
       iterations++;
 
       logger.vars({ name: 'iteration', value: iterations });
@@ -507,6 +530,12 @@ export class LLMClient {
         tools,
       });
       logger.endTimer(`tool-iteration-${iterations}`);
+
+      // Check for interrupt after LLM call
+      if (this.isInterrupted) {
+        logger.flow('Interrupt detected after LLM call - stopping');
+        throw new Error('INTERRUPTED');
+      }
 
       const choice = response.choices[0];
       if (!choice) {
@@ -686,6 +715,12 @@ export class LLMClient {
     let iterations = 0;
 
     while (true) {
+      // Check for interrupt at start of each iteration
+      if (this.isInterrupted) {
+        logger.flow('Interrupt detected - stopping tool loop');
+        throw new Error('INTERRUPTED');
+      }
+
       iterations++;
 
       // LLM 호출 (tools 포함)
@@ -693,6 +728,12 @@ export class LLMClient {
         messages: workingMessages,
         tools,
       });
+
+      // Check for interrupt after LLM call
+      if (this.isInterrupted) {
+        logger.flow('Interrupt detected after LLM call - stopping');
+        throw new Error('INTERRUPTED');
+      }
 
       const choice = response.choices[0];
       if (!choice) {

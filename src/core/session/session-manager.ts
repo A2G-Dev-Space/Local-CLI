@@ -40,12 +40,25 @@ export interface SessionLogEntry {
 }
 
 /**
+ * TODO item for session restoration
+ */
+export interface SessionTodoItem {
+  id: string;
+  title: string;
+  description?: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  result?: string;
+  error?: string;
+}
+
+/**
  * 세션 데이터 인터페이스
  */
 export interface SessionData {
   metadata: SessionMetadata;
   messages: Message[];
   logEntries?: SessionLogEntry[];  // Optional for backward compatibility
+  todos?: SessionTodoItem[];       // Only in-progress todos are saved
 }
 
 /**
@@ -274,12 +287,22 @@ export class SessionManager {
 
   // Current log entries for auto-save (set by UI)
   private currentLogEntries: SessionLogEntry[] = [];
+  // Current todos for auto-save (set by UI)
+  private currentTodos: SessionTodoItem[] = [];
 
   /**
    * Set current log entries for auto-save
    */
   setLogEntries(logEntries: SessionLogEntry[]): void {
     this.currentLogEntries = logEntries;
+  }
+
+  /**
+   * Set current todos for auto-save (only saves in-progress/pending todos)
+   */
+  setTodos(todos: SessionTodoItem[]): void {
+    // Only save todos that are not completed (pending or in_progress)
+    this.currentTodos = todos.filter(t => t.status === 'pending' || t.status === 'in_progress');
   }
 
   /**
@@ -337,6 +360,7 @@ export class SessionManager {
         },
         messages: normalizedMessages,
         logEntries: this.currentLogEntries,  // Include log entries
+        todos: this.currentTodos.length > 0 ? this.currentTodos : undefined,  // Only include if there are pending/in-progress todos
       };
 
       // 파일로 저장 (덮어쓰기)

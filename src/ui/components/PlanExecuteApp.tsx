@@ -209,6 +209,11 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
   const commandBrowserState = useCommandBrowserState(input, isProcessing);
   const planExecutionState = usePlanExecution();
 
+  // Sync todos to session manager for auto-save (only in-progress/pending)
+  useEffect(() => {
+    sessionManager.setTodos(planExecutionState.todos);
+  }, [planExecutionState.todos]);
+
   // Print logo at startup
   useEffect(() => {
     addLog({
@@ -611,10 +616,13 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         return;
       }
 
+      const hasTodos = sessionData.todos && sessionData.todos.length > 0;
+
       logger.debug('Session loaded', {
         sessionId,
         messageCount: sessionData.messages.length,
         logEntryCount: sessionData.logEntries?.length || 0,
+        todoCount: hasTodos ? sessionData.todos!.length : 0,
       });
 
       // Restore messages
@@ -624,6 +632,33 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
       setAutoApprovedTools(new Set());
       logger.debug('Auto-approved tools cleared on session load');
 
+      // Restore in-progress TODOs if available
+      if (hasTodos) {
+        // Convert SessionTodoItem to TodoItem format (add required fields with defaults)
+        const restoredTodos = sessionData.todos!.map(todo => ({
+          id: todo.id,
+          title: todo.title,
+          description: todo.description || '',
+          status: todo.status,
+          requiresDocsSearch: false,  // Default value
+          dependencies: [],            // Default value
+          result: todo.result,
+          error: todo.error,
+        }));
+        planExecutionState.setTodos(restoredTodos);
+        logger.debug('Restored in-progress TODOs', { count: restoredTodos.length });
+      }
+
+      // Build restore details message
+      const detailParts: string[] = [];
+      detailParts.push(`${sessionData.messages.length}개 메시지`);
+      if (sessionData.logEntries?.length) {
+        detailParts.push(`${sessionData.logEntries.length}개 로그`);
+      }
+      if (hasTodos) {
+        detailParts.push(`${sessionData.todos!.length}개 TODO 복구`);
+      }
+
       // Restore log entries if available
       if (sessionData.logEntries && sessionData.logEntries.length > 0) {
         // Clear current logs and add session restored header
@@ -632,7 +667,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
             id: `log-restored-header`,
             type: 'session_restored',
             content: `세션 복구됨: ${new Date(sessionData.metadata.updatedAt).toLocaleString('ko-KR')}`,
-            details: `${sessionData.messages.length}개 메시지, ${sessionData.logEntries.length}개 로그`,
+            details: detailParts.join(', '),
           },
           ...sessionData.logEntries.map((entry, idx) => ({
             ...entry,
@@ -647,7 +682,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         addLog({
           type: 'session_restored',
           content: `세션 복구됨: ${new Date(sessionData.metadata.updatedAt).toLocaleString('ko-KR')}`,
-          details: `${sessionData.messages.length}개 메시지 (로그 히스토리 없음)`,
+          details: detailParts.join(', ') + (sessionData.logEntries?.length ? '' : ' (로그 히스토리 없음)'),
         });
       }
     } catch (error) {
@@ -835,6 +870,11 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
     setIsProcessing(true);
     setActivityStartTime(Date.now());
     setSubActivities([]);
+
+    // Reset interrupt flag for new operation
+    if (llmClient) {
+      llmClient.resetInterrupt();
+    }
 
     // Reset session usage for new task
     usageTracker.resetSession();
