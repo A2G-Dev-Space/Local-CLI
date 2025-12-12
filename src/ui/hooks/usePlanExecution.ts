@@ -167,10 +167,10 @@ ${pendingCount > 0 || inProgressCount > 0
 }
 
 /**
- * Check if all TODOs are completed
+ * Check if all TODOs are completed (empty array is considered completed)
  */
 function areAllTodosCompleted(todos: TodoItem[]): boolean {
-  return todos.length > 0 && todos.every(t => t.status === 'completed' || t.status === 'failed');
+  return todos.every(t => t.status === 'completed' || t.status === 'failed');
 }
 
 export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExecutionActions {
@@ -580,6 +580,8 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
             ];
             setMessages([...currentMessages]);
             emitCompact(compactResult.originalMessageCount, compactResult.newMessageCount);
+            // Reset context tracker to allow subsequent auto-compactions
+            contextTracker.reset();
           }
 
           setExecutionPhase('executing');

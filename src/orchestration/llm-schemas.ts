@@ -323,6 +323,16 @@ Example batch update:
 - **update_todos**: Update TODO statuses (batch supported)
 - **get_todo_list**: Check current TODO list state
 
+## CRITICAL - Tool "reason" Parameter
+
+Every file tool has a required "reason" parameter. This will be shown directly to the user.
+Write naturally as if talking to the user. Examples:
+- "Checking how the current authentication logic is implemented"
+- "Fixing the buggy section"
+- "Creating a new component file"
+The reason helps users understand what you're doing and why.
+Remember to write the reason in the user's language.
+
 ## Execution Guidelines
 
 1. **Understand First**: Read existing code before modifying
