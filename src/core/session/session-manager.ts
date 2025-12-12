@@ -101,6 +101,31 @@ export class SessionManager {
   }
 
   /**
+   * Normalize messages for saving: include tool_calls, tool_call_id, name fields
+   */
+  private normalizeMessages(messages: Message[]): Message[] {
+    return messages.map(msg => {
+      const normalized: Message = {
+        role: msg.role,
+        content: msg.content,
+      };
+      // tool_calls가 있으면 포함 (assistant 메시지)
+      if (msg.tool_calls && msg.tool_calls.length > 0) {
+        normalized.tool_calls = msg.tool_calls;
+      }
+      // tool_call_id가 있으면 포함 (tool 메시지)
+      if (msg.tool_call_id) {
+        normalized.tool_call_id = msg.tool_call_id;
+      }
+      // name이 있으면 포함 (tool 메시지)
+      if (msg.name) {
+        normalized.name = msg.name;
+      }
+      return normalized;
+    });
+  }
+
+  /**
    * Validate tool messages: remove orphaned tool messages that have no matching tool_calls
    * This fixes sessions saved before tool_calls were properly persisted
    */
@@ -159,25 +184,7 @@ export class SessionManager {
     const model = configManager.getCurrentModel();
 
     // 메시지 정규화 (tool_calls, tool_call_id 포함)
-    const normalizedMessages: Message[] = messages.map(msg => {
-      const normalized: Message = {
-        role: msg.role,
-        content: msg.content,
-      };
-      // tool_calls가 있으면 포함 (assistant 메시지)
-      if (msg.tool_calls && msg.tool_calls.length > 0) {
-        normalized.tool_calls = msg.tool_calls;
-      }
-      // tool_call_id가 있으면 포함 (tool 메시지)
-      if (msg.tool_call_id) {
-        normalized.tool_call_id = msg.tool_call_id;
-      }
-      // name이 있으면 포함 (tool 메시지)
-      if (msg.name) {
-        normalized.name = msg.name;
-      }
-      return normalized;
-    });
+    const normalizedMessages = this.normalizeMessages(messages);
 
     // 세션 데이터 생성
     const sessionData: SessionData = {
@@ -324,25 +331,7 @@ export class SessionManager {
     }
 
     // 메시지 정규화 (tool_calls, tool_call_id 포함)
-    const normalizedMessages: Message[] = messages.map(msg => {
-      const normalized: Message = {
-        role: msg.role,
-        content: msg.content,
-      };
-      // tool_calls가 있으면 포함 (assistant 메시지)
-      if (msg.tool_calls && msg.tool_calls.length > 0) {
-        normalized.tool_calls = msg.tool_calls;
-      }
-      // tool_call_id가 있으면 포함 (tool 메시지)
-      if (msg.tool_call_id) {
-        normalized.tool_call_id = msg.tool_call_id;
-      }
-      // name이 있으면 포함 (tool 메시지)
-      if (msg.name) {
-        normalized.name = msg.name;
-      }
-      return normalized;
-    });
+    const normalizedMessages = this.normalizeMessages(messages);
 
     sessionData.messages = normalizedMessages;
     sessionData.metadata.messageCount = messages.length;
@@ -411,11 +400,8 @@ export class SessionManager {
       const endpoint = configManager.getCurrentEndpoint();
       const model = configManager.getCurrentModel();
 
-      // 메시지 키 순서 정규화 (role -> content 순서 보장)
-      const normalizedMessages = messages.map(msg => ({
-        role: msg.role,
-        content: msg.content,
-      }));
+      // 메시지 정규화 (tool_calls, tool_call_id 포함)
+      const normalizedMessages = this.normalizeMessages(messages);
 
       // 세션 데이터 생성/업데이트
       const sessionData: SessionData = {
