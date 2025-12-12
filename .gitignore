@@ -1,8 +1,11 @@
 # Dependencies
 node_modules/
-package-lock.json
+/package-lock.json
 yarn.lock
 pnpm-lock.yaml
+
+# Allow package-lock.json in admin server packages (needed for Docker)
+!nexus-coder-admin/packages/*/package-lock.json
 
 # Build output
 dist/
