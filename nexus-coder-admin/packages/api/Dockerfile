@@ -3,6 +3,9 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# npm SSL 설정 (사내 네트워크)
+RUN npm config set strict-ssl false
+
 # Copy package files
 COPY package*.json ./
 COPY prisma ./prisma/
