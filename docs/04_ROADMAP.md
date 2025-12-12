@@ -1,6 +1,6 @@
 # OPEN-CLI Roadmap
 
-> **문서 버전**: 5.0.0 (v1.3.0)
+> **문서 버전**: 6.0.0 (v1.2.3)
 > **최종 수정일**: 2025-12-12
 > **작성자**: Development Team
 
@@ -66,64 +66,55 @@
 
 ---
 
-## 3. Phase 5: Supervised Mode (실행 모드)
+## 3. Phase 5: Supervised Mode (실행 모드) ✅
 
-> **목표**: 사용자가 AI의 모든 Tool 실행을 승인/거부할 수 있는 모드
+> **목표**: 사용자가 AI의 파일 수정 Tool 실행을 승인/거부할 수 있는 모드
 > **우선순위**: 🔴 높음
-> **상태**: 🔲 구현 예정
+> **상태**: ✅ 완료 (v1.2.x)
 
 ### 3.1 개요
 
-두 가지 실행 모드를 제공하여 사용자가 AI 자율성 수준을 선택할 수 있게 합니다.
+두 가지 실행 모드를 제공하여 사용자가 AI 자율성 수준을 선택할 수 있습니다.
 
 | 모드 | 설명 | Tool 실행 |
 |------|------|-----------|
-| **Auto Mode** | 현재와 동일, 자율 실행 | 자동 실행 |
-| **Supervised Mode** | 모든 Tool에 사용자 승인 필요 | 승인 후 실행 |
+| **Auto Mode** | 자율 실행 | 모든 도구 자동 실행 |
+| **Supervised Mode** | 파일 수정 시 승인 필요 | `create_file`, `edit_file`만 승인 필요 |
 
 ### 3.2 모드 전환
 
 ```
 Tab 키           → Auto ↔ Supervised 토글
-/settings        → 모드 선택 UI
 상태바           → 현재 모드 표시 [Auto] 또는 [Supervised]
 ```
 
-### 3.3 Supervised Mode 승인 흐름
+### 3.3 승인이 필요한 도구
+
+| 도구 | 승인 필요 | 설명 |
+|------|----------|------|
+| `create_file` | ✅ | 새 파일 생성 |
+| `edit_file` | ✅ | 기존 파일 수정 |
+| `read_file` | ❌ | 파일 읽기 |
+| `list_files` | ❌ | 디렉토리 목록 |
+| `find_files` | ❌ | 파일 검색 |
+| `tell_to_user` | ❌ | 메시지 전달 |
+| `ask_user` | ❌ | 사용자에게 질문 |
+
+### 3.4 승인 다이얼로그
 
 ```
-AI가 Tool 호출 요청
-        ↓
-┌─────────────────────────────────────────────┐
-│  🔧 Tool: create_file                       │
-│  ─────────────────────────────────────────  │
-│  📁 path: src/utils/helper.ts               │
-│  📝 content:                                │
-│     export function helper() {              │
-│       return 'hello';                       │
-│     }                                       │
-│  ─────────────────────────────────────────  │
-│  [1] ✅ Approve                             │
-│  [2] ✅ Always Approve (이 Tool)             │
-│  [3] ❌ Reject                              │
-└─────────────────────────────────────────────┘
-        ↓
-사용자 선택
-        ↓
-┌──────────────────┬────────────────────────────┐
-│ Approve          │ Tool 실행, 계속 진행         │
-│ Always Approve   │ 이 세션에서 같은 Tool 자동승인 │
-│ Reject           │ 코멘트 입력 → AI에게 전달     │
-└──────────────────┴────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│  🔧 create_file                                              │
+│  ───────────────────────────────────────────────────────    │
+│  📁 file_path: /src/utils/helper.ts                          │
+│  📝 content: export function helper() { ... }                │
+│  ───────────────────────────────────────────────────────    │
+│  ▸ [1] ✅ Approve                                            │
+│    [2] ❌ Reject                                             │
+│  ───────────────────────────────────────────────────────    │
+│  ↑↓ 이동 | Enter 선택 | 1-2 번호 선택                          │
+└─────────────────────────────────────────────────────────────┘
 ```
-
-### 3.4 승인 옵션
-
-| 옵션 | 키 | 동작 |
-|------|-----|------|
-| **Approve** | `1` 또는 `Enter` | 이 Tool 실행 승인 |
-| **Always Approve** | `2` | 세션 내 동일 Tool 자동 승인 |
-| **Reject** | `3` | 거부 + 코멘트 입력 |
 
 ### 3.5 거부 시 코멘트 흐름
 
@@ -140,47 +131,23 @@ Reject 선택
 AI가 피드백 반영하여 재시도
 ```
 
-### 3.6 Always Approve 동작
+### 3.6 구현 완료 항목
 
-- 세션 한정: 앱 재시작 시 초기화
-- Tool 이름 기준: `create_file`, `edit_file` 등
-- 상태 표시: `[Auto-approved: create_file, read_file]`
+- [x] `ExecutionMode` 타입 정의 (`'auto' | 'supervised'`)
+- [x] `executionMode` 상태 (PlanExecuteApp)
+- [x] `ApprovalDialog` UI 컴포넌트
+- [x] Tab 키 모드 토글
+- [x] 상태바 모드 표시
+- [x] Tool 실행 전 승인 체크 로직 (콜백 시스템)
+- [x] 거부 시 코멘트 → AI 메시지 전달
+- [x] Static Log에 승인/거부 로그 표시
 
-### 3.7 구현 항목
+### 3.7 추가 구현 사항 (v1.2.x)
 
-- [ ] `ExecutionMode` 타입 정의 (`'auto' | 'supervised'`)
-- [ ] `executionMode` 상태 (PlanExecuteApp)
-- [ ] `ApprovalDialog` UI 컴포넌트
-- [ ] `autoApprovedTools` Set (세션 내 자동 승인 목록)
-- [ ] Tab 키 모드 토글
-- [ ] `/settings`에서 모드 변경
-- [ ] 상태바 모드 표시
-- [ ] Tool 실행 전 승인 체크 로직
-- [ ] 거부 시 코멘트 → AI 메시지 전달
-
-### 3.8 UI 예시
-
-**상태바:**
-```
-[Supervised] ✶ 파일 생성 중... (esc to interrupt · 2m 7s · ↑ 3.6k tokens)
-```
-
-**승인 다이얼로그:**
-```
-┌─────────────────────────────────────────────────────────────┐
-│  🔧 edit_file                                               │
-│  ───────────────────────────────────────────────────────    │
-│  📁 file_path: /src/components/App.tsx                      │
-│  ✏️  old_string: "const [count, setCount] = useState(0)"    │
-│  ✏️  new_string: "const [count, setCount] = useState(10)"   │
-│  ───────────────────────────────────────────────────────    │
-│  ▸ [1] ✅ Approve                                           │
-│    [2] ✅ Always Approve (edit_file)                        │
-│    [3] ❌ Reject                                            │
-│  ───────────────────────────────────────────────────────    │
-│  ↑↓ 이동 | Enter 선택 | 1-3 번호 선택                         │
-└─────────────────────────────────────────────────────────────┘
-```
+- [x] `parallel_tool_calls: false` API 파라미터로 단일 Tool 실행 강제
+- [x] Context 표시 형식 변경: `Context (1.3K / 13%)`
+- [x] maxIterations 제한 제거 (무제한 Tool 실행)
+- [x] 코드베이스 이해 우선 지시문 추가
 
 ---
 
@@ -303,18 +270,18 @@ User 요청
 | 2 | ask-to-user Tool | ✅ 완료 | - |
 | 3 | 사용량 추적 | ✅ 완료 | - |
 | 4 | 문서 다운로드 내재화 | ✅ 완료 | - |
-| 5 | **Supervised Mode (실행 모드)** | 🔲 예정 | 🔴 높음 |
-| 6 | Codebase RAG | 🔲 예정 | 🟡 중간 |
+| 5 | **Supervised Mode (실행 모드)** | ✅ 완료 | - |
+| 6 | Codebase RAG | 🔲 예정 | 🔴 높음 |
 | 7 | MCP 기능 지원 | 🔲 예정 | 🟡 중간 |
 | 8 | Tool Selector | 🔲 예정 | 🟢 낮음 |
 
 ### 7.2 권장 구현 순서
 
 ```
-Phase 5 → Phase 6 → Phase 7 → Phase 8
-   ↓         ↓         ↓         ↓
- 실행      코드      외부      최적화
- 모드      분석      연동     (나중에)
+Phase 6 → Phase 7 → Phase 8
+   ↓         ↓         ↓
+ 코드      외부      최적화
+ 분석      연동     (나중에)
 ```
 
 ---

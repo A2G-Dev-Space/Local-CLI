@@ -1,4 +1,4 @@
-# OPEN-CLI v1.2.0
+# OPEN-CLI v1.2.3
 
 **오프라인 기업 환경을 위한 로컬 LLM CLI 플랫폼**
 
@@ -22,6 +22,25 @@ node dist/cli.js       # 또는 npm link 후 'open' 명령어 사용
 
 ## 핵심 기능
 
+### 🆕 Supervised Mode (v1.2.x)
+파일 수정 도구(`create_file`, `edit_file`) 실행 전 사용자 승인을 요청합니다.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  🔧 create_file                                              │
+│  ─────────────────────────────────────────────────────────   │
+│  📁 file_path: /src/utils/helper.ts                          │
+│  📝 content: export function helper() { ... }                │
+│  ─────────────────────────────────────────────────────────   │
+│  ▸ [1] ✅ Approve                                            │
+│    [2] ❌ Reject                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+- **Tab 키** - Auto ↔ Supervised 모드 전환
+- **파일 수정 도구만** 승인 필요 (read_file, list_files 등은 자동 실행)
+- **Reject 시** 코멘트 입력 → AI가 피드백 반영하여 재시도
+
 ### Plan & Execute Architecture
 사용자 요청을 자동으로 TODO 리스트로 분해하고 순차 실행합니다.
 
@@ -42,16 +61,16 @@ Claude Code 스타일의 스크롤 가능한 로그 히스토리:
 - Diff 형식으로 파일 변경사항 표시 (파란색: 추가, 빨간색: 삭제)
 - 실시간 진행 상황 표시
 
-### LLM 도구 (자동 실행)
-| 도구 | 설명 |
-|------|------|
-| `read_file` | 파일 읽기 |
-| `create_file` | 새 파일 생성 |
-| `edit_file` | 기존 파일 수정 (줄 단위 편집) |
-| `list_files` | 디렉토리 목록 |
-| `find_files` | 파일 검색 (glob 패턴) |
-| `tell_to_user` | 사용자에게 메시지 전달 |
-| `ask_user` | 사용자에게 질문 |
+### LLM 도구
+| 도구 | 설명 | 승인 필요 |
+|------|------|----------|
+| `read_file` | 파일 읽기 | ❌ |
+| `create_file` | 새 파일 생성 | ✅ |
+| `edit_file` | 기존 파일 수정 (줄 단위 편집) | ✅ |
+| `list_files` | 디렉토리 목록 | ❌ |
+| `find_files` | 파일 검색 (glob 패턴) | ❌ |
+| `tell_to_user` | 사용자에게 메시지 전달 | ❌ |
+| `ask_user` | 사용자에게 질문 | ❌ |
 
 ### 슬래시 명령어
 | 명령어 | 설명 |
@@ -69,22 +88,31 @@ Claude Code 스타일의 스크롤 가능한 로그 히스토리:
 ### 키보드 단축키
 - `Ctrl+C` - 종료
 - `ESC` - 현재 실행 중단
+- `Tab` - Auto ↔ Supervised 모드 전환
 - `@` - 파일 선택 브라우저
 - `/` - 명령어 자동완성
-- `Tab` - TODO 상세 토글
 
 ---
 
 ## 주요 특징
+
+### Supervised Mode (v1.2.x)
+- 파일 수정 전 사용자 승인 요청
+- Tab 키로 Auto/Supervised 모드 전환
+- Reject 시 코멘트로 피드백 전달
 
 ### 대화 히스토리 유지
 - 모든 TODO task 간 대화 히스토리 자동 유지
 - Tool call/response 포함한 전체 컨텍스트 보존
 - `/compact` 시에만 히스토리 초기화
 
-### 세션 토큰/시간 추적
-- 새 TODO 생성 시 세션 토큰/시간 초기화
-- `/usage`는 누적 사용량 표시
+### Context 사용량 표시
+- 상태바에 `Context (1.3K / 13%)` 형식으로 표시
+- 80% 도달 시 Auto-Compact 자동 실행
+
+### 단일 Tool 실행
+- `parallel_tool_calls: false` API 파라미터로 강제
+- LLM이 한 번에 하나의 도구만 호출하여 안정적 실행
 
 ### 스마트 TODO 패널
 - TODO 작업 시에만 패널 표시
