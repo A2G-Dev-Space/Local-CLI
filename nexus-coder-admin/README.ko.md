@@ -168,10 +168,10 @@ docker-compose restart api
 
 | 서비스 | URL |
 |--------|-----|
-| **Admin Dashboard** | http://localhost:4090 |
-| **API Server** | http://localhost:4090/api |
-| **PostgreSQL** | localhost:5432 |
-| **Redis** | localhost:6379 |
+| **Admin Dashboard** | http://a2g.samsungds.net:4090 |
+| **API Server** | http://a2g.samsungds.net:4090/api |
+| **PostgreSQL** | a2g.samsungds.net:4091 |
+| **Redis** | a2g.samsungds.net:4092 |
 
 ---
 
@@ -179,7 +179,7 @@ docker-compose restart api
 
 ### Dashboard 접속
 
-1. 브라우저에서 `http://localhost:4090` 접속
+1. 브라우저에서 `http://a2g.samsungds.net:4090` 접속
 2. 로그인 화면에서 관리자 계정 입력:
    - **ID:** `admin` (또는 .env의 `ADMIN_USERNAME`)
    - **Password:** `aidivn` (또는 .env의 `ADMIN_PASSWORD`)
