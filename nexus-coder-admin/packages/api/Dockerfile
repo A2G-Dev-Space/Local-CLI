@@ -3,7 +3,8 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# npm SSL 설정 (사내 네트워크)
+# SSL 인증서 검증 비활성화 (사내 네트워크)
+ENV NODE_TLS_REJECT_UNAUTHORIZED=0
 RUN npm config set strict-ssl false
 
 # Copy package files
