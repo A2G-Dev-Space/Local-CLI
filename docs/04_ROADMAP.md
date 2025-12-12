@@ -1,32 +1,33 @@
 # OPEN-CLI Roadmap
 
-> **문서 버전**: 4.0.0 (v1.0.0)
-> **최종 수정일**: 2025-12-11
+> **문서 버전**: 5.0.0 (v1.3.0)
+> **최종 수정일**: 2025-12-12
 > **작성자**: Development Team
 
 ## 목차
 
 1. [개요](#1-개요)
 2. [v1.0.0 완료 기능](#2-v100-완료-기능)
-3. [Phase 5: Codebase RAG](#3-phase-5-codebase-rag)
-4. [Phase 6: MCP 기능 지원](#4-phase-6-mcp-기능-지원)
-5. [Phase 7: Tool Selector](#5-phase-7-tool-selector)
-6. [우선순위 매트릭스](#6-우선순위-매트릭스)
+3. [Phase 5: Supervised Mode (실행 모드)](#3-phase-5-supervised-mode-실행-모드)
+4. [Phase 6: Codebase RAG](#4-phase-6-codebase-rag)
+5. [Phase 7: MCP 기능 지원](#5-phase-7-mcp-기능-지원)
+6. [Phase 8: Tool Selector](#6-phase-8-tool-selector)
+7. [우선순위 매트릭스](#7-우선순위-매트릭스)
 
 ---
 
 ## 1. 개요
 
-### 1.1 현재 아키텍처 (v1.0.0)
+### 1.1 현재 아키텍처 (v1.2.x)
 
 | 항목 | 상태 |
 |------|------|
-| 실행 모드 | **auto only** (단일 모드) |
+| 실행 모드 | **Auto Mode** (자율 실행) |
 | Plan-Execute | **자동 요청 분류 + TODO 기반 실행** |
 | 도구 분류 | **6가지 분류 시스템** |
-| 승인 모드 | **approve / approve_always / reject+comment** |
 | 사용량 추적 | **세션/일별/월별 통계** |
 | 문서 관리 | **/docs download agno, adk** |
+| Git Auto-Update | **자동 업데이트 + spinner 애니메이션** |
 
 ---
 
@@ -40,12 +41,11 @@
 - ✅ ESC 키 Human Interrupt
 - ✅ Plan 승인 제거 (자동 실행)
 
-### 2.2 Phase 2: 승인 모드 / ask-to-user Tool ✅
+### 2.2 Phase 2: ask-to-user Tool ✅
 
 - ✅ `ask-to-user` LLM Tool (2-4개 선택지 + "Other")
 - ✅ AskUserDialog UI 컴포넌트
-- ✅ 승인 모드 UI (승인/승인(항상허용)/거부+코멘트)
-- ✅ 거부 시 코멘트 입력
+- ✅ LLM이 사용자에게 질문/확인 가능
 
 ### 2.3 Phase 3: 사용량 추적 ✅
 
@@ -66,12 +66,130 @@
 
 ---
 
-## 3. Phase 5: Codebase RAG
+## 3. Phase 5: Supervised Mode (실행 모드)
+
+> **목표**: 사용자가 AI의 모든 Tool 실행을 승인/거부할 수 있는 모드
+> **우선순위**: 🔴 높음
+> **상태**: 🔲 구현 예정
+
+### 3.1 개요
+
+두 가지 실행 모드를 제공하여 사용자가 AI 자율성 수준을 선택할 수 있게 합니다.
+
+| 모드 | 설명 | Tool 실행 |
+|------|------|-----------|
+| **Auto Mode** | 현재와 동일, 자율 실행 | 자동 실행 |
+| **Supervised Mode** | 모든 Tool에 사용자 승인 필요 | 승인 후 실행 |
+
+### 3.2 모드 전환
+
+```
+Tab 키           → Auto ↔ Supervised 토글
+/settings        → 모드 선택 UI
+상태바           → 현재 모드 표시 [Auto] 또는 [Supervised]
+```
+
+### 3.3 Supervised Mode 승인 흐름
+
+```
+AI가 Tool 호출 요청
+        ↓
+┌─────────────────────────────────────────────┐
+│  🔧 Tool: create_file                       │
+│  ─────────────────────────────────────────  │
+│  📁 path: src/utils/helper.ts               │
+│  📝 content:                                │
+│     export function helper() {              │
+│       return 'hello';                       │
+│     }                                       │
+│  ─────────────────────────────────────────  │
+│  [1] ✅ Approve                             │
+│  [2] ✅ Always Approve (이 Tool)             │
+│  [3] ❌ Reject                              │
+└─────────────────────────────────────────────┘
+        ↓
+사용자 선택
+        ↓
+┌──────────────────┬────────────────────────────┐
+│ Approve          │ Tool 실행, 계속 진행         │
+│ Always Approve   │ 이 세션에서 같은 Tool 자동승인 │
+│ Reject           │ 코멘트 입력 → AI에게 전달     │
+└──────────────────┴────────────────────────────┘
+```
+
+### 3.4 승인 옵션
+
+| 옵션 | 키 | 동작 |
+|------|-----|------|
+| **Approve** | `1` 또는 `Enter` | 이 Tool 실행 승인 |
+| **Always Approve** | `2` | 세션 내 동일 Tool 자동 승인 |
+| **Reject** | `3` | 거부 + 코멘트 입력 |
+
+### 3.5 거부 시 코멘트 흐름
+
+```
+Reject 선택
+    ↓
+┌─────────────────────────────────────────────┐
+│  💬 AI에게 전달할 코멘트를 입력하세요:        │
+│  > 이 파일 대신 existing-helper.ts를 수정해줘 │
+└─────────────────────────────────────────────┘
+    ↓
+코멘트가 AI의 다음 메시지로 전달
+    ↓
+AI가 피드백 반영하여 재시도
+```
+
+### 3.6 Always Approve 동작
+
+- 세션 한정: 앱 재시작 시 초기화
+- Tool 이름 기준: `create_file`, `edit_file` 등
+- 상태 표시: `[Auto-approved: create_file, read_file]`
+
+### 3.7 구현 항목
+
+- [ ] `ExecutionMode` 타입 정의 (`'auto' | 'supervised'`)
+- [ ] `executionMode` 상태 (PlanExecuteApp)
+- [ ] `ApprovalDialog` UI 컴포넌트
+- [ ] `autoApprovedTools` Set (세션 내 자동 승인 목록)
+- [ ] Tab 키 모드 토글
+- [ ] `/settings`에서 모드 변경
+- [ ] 상태바 모드 표시
+- [ ] Tool 실행 전 승인 체크 로직
+- [ ] 거부 시 코멘트 → AI 메시지 전달
+
+### 3.8 UI 예시
+
+**상태바:**
+```
+[Supervised] ✶ 파일 생성 중... (esc to interrupt · 2m 7s · ↑ 3.6k tokens)
+```
+
+**승인 다이얼로그:**
+```
+┌─────────────────────────────────────────────────────────────┐
+│  🔧 edit_file                                               │
+│  ───────────────────────────────────────────────────────    │
+│  📁 file_path: /src/components/App.tsx                      │
+│  ✏️  old_string: "const [count, setCount] = useState(0)"    │
+│  ✏️  new_string: "const [count, setCount] = useState(10)"   │
+│  ───────────────────────────────────────────────────────    │
+│  ▸ [1] ✅ Approve                                           │
+│    [2] ✅ Always Approve (edit_file)                        │
+│    [3] ❌ Reject                                            │
+│  ───────────────────────────────────────────────────────    │
+│  ↑↓ 이동 | Enter 선택 | 1-3 번호 선택                         │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 4. Phase 6: Codebase RAG
 
 > **목표**: 대규모 코드베이스를 LLM이 이해하기 쉽게 인덱싱
 > **우선순위**: 🟡 중간
 
-### 3.1 `/indexing` User Command
+### 4.1 `/indexing` User Command
 
 ```
 /indexing                 # 도움말
@@ -80,7 +198,7 @@
 /indexing refresh         # 변경된 파일만 재인덱싱
 ```
 
-### 3.2 인덱스 구조
+### 4.2 인덱스 구조
 
 ```typescript
 interface CodebaseIndex {
@@ -102,7 +220,7 @@ interface CodebaseIndex {
 }
 ```
 
-### 3.3 구현 항목
+### 4.3 구현 항목
 
 - [ ] `/indexing` 명령어 구현
 - [ ] 코드 구조 분석기
@@ -112,19 +230,19 @@ interface CodebaseIndex {
 
 ---
 
-## 4. Phase 6: MCP 기능 지원
+## 5. Phase 7: MCP 기능 지원
 
 > **목표**: Model Context Protocol 통합
 > **우선순위**: 🟡 중간
 
-### 4.1 MCP Client 구현
+### 5.1 MCP Client 구현
 
 - [ ] MCP 프로토콜 구현 (JSON-RPC)
 - [ ] stdio 전송 지원
 - [ ] SSE 전송 지원
 - [ ] 서버 연결/해제 관리
 
-### 4.2 `/mcp` User Command
+### 5.2 `/mcp` User Command
 
 ```
 /mcp                      # 도움말
@@ -135,26 +253,26 @@ interface CodebaseIndex {
 /mcp disable <tool>       # 도구 비활성화
 ```
 
-### 4.3 MCP Tool 통합
+### 5.3 MCP Tool 통합
 
 - [ ] MCP Tool을 LLM Tool로 자동 등록
-- [ ] Tool Selector와 연동 (Phase 7)
+- [ ] Tool Selector와 연동 (Phase 8)
 
 ---
 
-## 5. Phase 7: Tool Selector
+## 6. Phase 8: Tool Selector
 
 > **목표**: LLM Tool이 많아질 경우 성능 저하 방지
 > **우선순위**: 🟢 낮음 (Tool이 많아진 후 구현)
 
-### 5.1 문제 정의
+### 6.1 문제 정의
 
 ```
 현재: 모든 LLM Tool을 프롬프트에 포함
 문제: Tool 수 증가 → 프롬프트 길이 증가 → 성능 저하
 ```
 
-### 5.2 해결 방안
+### 6.2 해결 방안
 
 ```
 User 요청
@@ -167,7 +285,7 @@ User 요청
 선택된 Tool만 포함하여 메인 LLM 호출
 ```
 
-### 5.3 구현 항목
+### 6.3 구현 항목
 
 - [ ] `tools/selector/` 폴더 구조 생성
 - [ ] Tool 메타데이터 정의 (name, description, keywords)
@@ -175,27 +293,28 @@ User 요청
 
 ---
 
-## 6. 우선순위 매트릭스
+## 7. 우선순위 매트릭스
 
-### 6.1 구현 순서
+### 7.1 구현 순서
 
 | Phase | 항목 | 상태 | 우선순위 |
 |-------|------|------|----------|
 | 1 | Plan-Execute Auto Mode 강화 | ✅ 완료 | - |
-| 2 | 승인 모드 / ask-to-user Tool | ✅ 완료 | - |
+| 2 | ask-to-user Tool | ✅ 완료 | - |
 | 3 | 사용량 추적 | ✅ 완료 | - |
 | 4 | 문서 다운로드 내재화 | ✅ 완료 | - |
-| 5 | Codebase RAG | 🔲 예정 | 🟡 중간 |
-| 6 | MCP 기능 지원 | 🔲 예정 | 🟡 중간 |
-| 7 | Tool Selector | 🔲 예정 | 🟢 낮음 |
+| 5 | **Supervised Mode (실행 모드)** | 🔲 예정 | 🔴 높음 |
+| 6 | Codebase RAG | 🔲 예정 | 🟡 중간 |
+| 7 | MCP 기능 지원 | 🔲 예정 | 🟡 중간 |
+| 8 | Tool Selector | 🔲 예정 | 🟢 낮음 |
 
-### 6.2 권장 구현 순서
+### 7.2 권장 구현 순서
 
 ```
-Phase 5 → Phase 6 → Phase 7
-   ↓         ↓         ↓
- 코드      외부      최적화
- 분석      연동     (나중에)
+Phase 5 → Phase 6 → Phase 7 → Phase 8
+   ↓         ↓         ↓         ↓
+ 실행      코드      외부      최적화
+ 모드      분석      연동     (나중에)
 ```
 
 ---
