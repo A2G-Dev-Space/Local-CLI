@@ -1,6 +1,9 @@
 # Build stage
 FROM node:20-alpine AS builder
 
+# Install OpenSSL for Prisma
+RUN apk add --no-cache openssl openssl-dev libc6-compat
+
 WORKDIR /app
 
 # SSL 인증서 검증 비활성화 (사내 네트워크)
@@ -25,6 +28,9 @@ RUN npx tsc
 
 # Production stage
 FROM node:20-alpine AS production
+
+# Install OpenSSL for Prisma
+RUN apk add --no-cache openssl openssl-dev libc6-compat
 
 WORKDIR /app
 
