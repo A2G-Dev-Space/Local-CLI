@@ -11,6 +11,31 @@ import { prisma } from '../index.js';
 export const proxyRoutes = Router();
 
 /**
+ * endpointUrl에 /chat/completions가 없으면 자동 추가
+ */
+function buildChatCompletionsUrl(endpointUrl: string): string {
+  let url = endpointUrl.trim();
+
+  // 이미 /chat/completions로 끝나면 그대로 반환
+  if (url.endsWith('/chat/completions')) {
+    return url;
+  }
+
+  // 끝에 슬래시 제거
+  if (url.endsWith('/')) {
+    url = url.slice(0, -1);
+  }
+
+  // /v1으로 끝나면 /chat/completions 추가
+  if (url.endsWith('/v1')) {
+    return `${url}/chat/completions`;
+  }
+
+  // 그 외의 경우도 /chat/completions 추가
+  return `${url}/chat/completions`;
+}
+
+/**
  * GET /v1/models
  * Returns list of available models from Admin Server
  */
@@ -120,7 +145,10 @@ async function handleNonStreamingRequest(
   headers: Record<string, string>
 ) {
   try {
-    const response = await fetch(model.endpointUrl, {
+    const url = buildChatCompletionsUrl(model.endpointUrl);
+    console.log(`[Proxy] Non-streaming request to: ${url}`);
+
+    const response = await fetch(url, {
       method: 'POST',
       headers,
       body: JSON.stringify(requestBody),
@@ -154,7 +182,10 @@ async function handleStreamingRequest(
   headers: Record<string, string>
 ) {
   try {
-    const response = await fetch(model.endpointUrl, {
+    const url = buildChatCompletionsUrl(model.endpointUrl);
+    console.log(`[Proxy] Streaming request to: ${url}`);
+
+    const response = await fetch(url, {
       method: 'POST',
       headers,
       body: JSON.stringify(requestBody),
