@@ -193,8 +193,8 @@ export class PlanExecuteOrchestrator extends EventEmitter {
       );
 
       try {
-        // Execute the task
-        const success = await this.executeTask(currentTask);
+        // Execute the task with full plan context
+        const success = await this.executeTask(currentTask, plan, totalSteps);
 
         if (success) {
           completedCount++;
@@ -247,8 +247,12 @@ export class PlanExecuteOrchestrator extends EventEmitter {
   /**
    * Execute a single task with Plan -> Execute -> Debug workflow
    */
-  private async executeTask(task: TodoItem): Promise<boolean> {
-    logger.enter('PlanExecuteOrchestrator.executeTask', { taskId: task.id });
+  private async executeTask(
+    task: TodoItem,
+    allTodos: TodoItem[],
+    currentIndex: number
+  ): Promise<boolean> {
+    logger.enter('PlanExecuteOrchestrator.executeTask', { taskId: task.id, currentIndex, totalTodos: allTodos.length });
 
     if (!this.stateManager) {
       throw new Error('State manager not initialized');
@@ -262,8 +266,8 @@ export class PlanExecuteOrchestrator extends EventEmitter {
         // Build LLM input
         const input = this.buildLLMInput(task, debugAttempts > 0, lastError);
 
-        // Call LLM with structured input
-        const output = await this.callLLMForTask(input);
+        // Call LLM with structured input and full plan context
+        const output = await this.callLLMForTask(input, allTodos, currentIndex);
 
         // Handle different status outcomes
         if (output.status === 'success') {
@@ -364,32 +368,67 @@ export class PlanExecuteOrchestrator extends EventEmitter {
    */
   private async callLLMForTask(
     input: PlanExecuteLLMInput,
-    _retryCount: number = 0
+    allTodos: TodoItem[],
+    currentIndex: number
   ): Promise<PlanExecuteLLMOutput> {
     logger.enter('PlanExecuteOrchestrator.callLLMForTask', {
       taskId: input.current_task.id,
       historyLength: this.conversationHistory.length,
+      currentIndex,
+      totalTodos: allTodos.length,
     });
 
     try {
       // Import FILE_TOOLS for actual file operations
       const { FILE_TOOLS } = await import('../tools/llm/simple/file-tools.js');
 
-      // Build user message with task context
+      // Build TODO list overview
+      const todoListOverview = allTodos.map((todo, idx) => {
+        const status = input.previous_context.completed_tasks.find(t => t.id === todo.id)
+          ? '✅'
+          : idx + 1 === currentIndex
+            ? '🔄'
+            : '⏳';
+        return `${idx + 1}. ${status} ${todo.title}`;
+      }).join('\n');
+
+      // Get completed task titles
+      const completedTitles = input.previous_context.completed_tasks
+        .map(t => `- ${t.title}`)
+        .join('\n') || 'None yet';
+
+      // Get next task info
+      const nextTask = currentIndex < allTodos.length ? allTodos[currentIndex] : null;
+      const nextTaskInfo = nextTask
+        ? `**Title**: ${nextTask.title}\n**Description**: ${nextTask.description || 'No description'}`
+        : 'This is the last task.';
+
+      // Build user message with full context
       const taskContext = `
-## Current Task
-**ID**: ${input.current_task.id}
+## Progress: ${currentIndex}/${allTodos.length}
+
+## TODO List Overview
+${todoListOverview}
+
+## Current Task (Task ${currentIndex})
 **Title**: ${input.current_task.title}
 **Description**: ${input.current_task.description || 'No description provided'}
 
+## Completed Tasks
+${completedTitles}
+
+## Next Task Preview
+${nextTaskInfo}
+
 ${input.error_log.is_debug
-  ? `## Debug Mode
+  ? `## ⚠️ Debug Mode
 **Error to Fix**: ${input.error_log.error_message || 'Unknown error'}
 **Details**: ${input.error_log.error_details || 'No details'}
 `
   : ''}
 
-Please execute this task now using the available tools.
+---
+**Instructions**: Focus ONLY on the current task. Complete it fully, then stop. The next task will be given separately.
 `;
 
       // Initialize conversation history with system prompt if empty
