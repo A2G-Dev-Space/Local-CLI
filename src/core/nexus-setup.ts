@@ -34,14 +34,28 @@ interface NexusModelResponse {
 /**
  * Admin Server에서 모델 목록을 가져와서 endpoint 형식으로 설정
  */
-export async function setupNexusModels(): Promise<void> {
+export async function setupNexusModels(debug = false): Promise<void> {
+  const url = `${ADMIN_SERVER_URL}/v1/models`;
+  if (debug) console.log(`[DEBUG] Requesting: ${url}`);
+
   // Admin Server에서 모델 목록 가져오기 (인증 없음)
-  const response = await axios.get<NexusModelResponse>(`${ADMIN_SERVER_URL}/v1/models`, {
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    timeout: 10000,
-  });
+  let response;
+  try {
+    response = await axios.get<NexusModelResponse>(url, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      timeout: 10000,
+    });
+  } catch (error: any) {
+    if (debug) {
+      console.log('[DEBUG] Request failed:');
+      console.log('  URL:', url);
+      console.log('  Status:', error.response?.status);
+      console.log('  Data:', JSON.stringify(error.response?.data));
+    }
+    throw error;
+  }
 
   const models: ModelInfo[] = response.data.data.map((model) => ({
     id: model.id,
