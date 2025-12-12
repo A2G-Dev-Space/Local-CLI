@@ -186,7 +186,7 @@ export class GitAutoUpdater {
     } catch (error: any) {
       logger.error('Initial setup failed', error);
       this.emitStatus({ type: 'error', message: `Setup failed: ${error.message}` });
-      throw error;
+      return false;
     }
   }
 

@@ -1009,7 +1009,8 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         case 'skipped':
           return `Skipped: ${gitUpdateStatus.reason}`;
         default:
-          return 'Checking for updates...';
+          // Exhaustiveness check: if new status types are added, TypeScript will error here
+          return (((_: never): string => 'Checking for updates...')(gitUpdateStatus));
       }
     };
 
