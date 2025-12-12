@@ -1,8 +1,11 @@
 # Dependencies
 node_modules/
-package-lock.json
+/package-lock.json
 yarn.lock
 pnpm-lock.yaml
+
+# Allow package-lock.json in admin server packages (needed for Docker)
+!nexus-coder-admin/packages/*/package-lock.json
 
 # Build output
 dist/
@@ -39,9 +42,17 @@ coverage/
 # Evaluation reports
 evaluation-reports/
 
-# Open-CLI specific
+# Nexus Coder specific
+.nexus-coder/
+.local-cli/
 .open-cli/
+*.nexus-coder-session.json
 *.open-cli-session.json
+
+# Certificates (keep placeholder, ignore real certs)
+cert/*.pem
+cert/*.key
+!cert/cert.cer
 
 # Temporary files
 tmp/

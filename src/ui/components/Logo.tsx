@@ -1,7 +1,7 @@
 /**
  * Logo Component
  *
- * ASCII art logo for LOCAL-CLI startup screen
+ * ASCII art logo for Nexus Coder startup screen
  * With gradient animation and typing effects
  */
 
@@ -14,14 +14,20 @@ const require = createRequire(import.meta.url);
 const pkg = require('../../../package.json') as { version: string };
 const VERSION = pkg.version;
 
-// ASCII Art Logo for LOCAL-CLI
+// ASCII Art Logo for Nexus Coder
 const LOGO_LINES = [
-  '  _      ____   _____          _           _____ _      _____ ',
-  ' | |    / __ \\ / ____|   /\\   | |         / ____| |    |_   _|',
-  ' | |   | |  | | |       /  \\  | |  ______| |    | |      | |  ',
-  ' | |   | |  | | |      / /\\ \\ | | |______| |    | |      | |  ',
-  ' | |___| |__| | |____ / ____ \\| |____    | |____| |____ _| |_ ',
-  ' |______\\____/ \\_____/_/    \\_\\______|    \\_____|______|_____|',
+  ' ███╗   ██╗███████╗██╗  ██╗██╗   ██╗███████╗',
+  ' ████╗  ██║██╔════╝╚██╗██╔╝██║   ██║██╔════╝',
+  ' ██╔██╗ ██║█████╗   ╚███╔╝ ██║   ██║███████╗',
+  ' ██║╚██╗██║██╔══╝   ██╔██╗ ██║   ██║╚════██║',
+  ' ██║ ╚████║███████╗██╔╝ ██╗╚██████╔╝███████║',
+  ' ╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝',
+  '      ██████╗ ██████╗ ██████╗ ███████╗██████╗ ',
+  '     ██╔════╝██╔═══██╗██╔══██╗██╔════╝██╔══██╗',
+  '     ██║     ██║   ██║██║  ██║█████╗  ██████╔╝',
+  '     ██║     ██║   ██║██║  ██║██╔══╝  ██╔══██╗',
+  '     ╚██████╗╚██████╔╝██████╔╝███████╗██║  ██║',
+  '      ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝╚═╝  ╚═╝',
 ];
 
 // Gradient colors (cycle through these)
@@ -44,7 +50,7 @@ export const Logo: React.FC<LogoProps> = ({
   void _variant;
   const [colorIndex, setColorIndex] = useState(0);
   const [taglineIndex, setTaglineIndex] = useState(0);
-  const tagline = 'OpenAI-Compatible Local CLI Coding Agent';
+  const tagline = 'Enterprise AI Coding Assistant';
 
   // Gradient color animation
   useEffect(() => {
@@ -93,7 +99,7 @@ export const Logo: React.FC<LogoProps> = ({
       <Box marginTop={1} flexDirection="column" alignItems="center">
         {showVersion && (
           <Text color="gray">
-            v{VERSION} - Local LLM Coding Agent
+            v{VERSION} - Enterprise AI Coding Assistant
           </Text>
         )}
         {showTagline && (

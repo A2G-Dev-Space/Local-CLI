@@ -1,193 +1,116 @@
-# LOCAL-CLI v2.1.2
+# Nexus Coder v2.1.2
 
-[![GitHub release](https://img.shields.io/github/v/release/A2G-Dev-Space/Local-CLI)](https://github.com/A2G-Dev-Space/Local-CLI/releases)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node.js](https://img.shields.io/badge/Node.js-20%2B-green)](https://nodejs.org/)
+**Enterprise AI Coding Assistant**
 
-**OpenAI-Compatible Local CLI Coding Agent**
-
-> Standalone AI coding agent for local LLM environments.
-> Works with vLLM, Ollama, LM Studio, and any OpenAI-compatible API.
+> SSO 인증 기반 사내 AI 코딩 어시스턴트
 
 ---
 
-## Quick Start
+## 설치
 
 ```bash
-# 1. Install
+# 1. 저장소 클론
 git clone https://github.com/A2G-Dev-Space/Local-CLI.git
 cd Local-CLI
+git checkout nexus-coder
+
+# 2. 의존성 설치 및 빌드
 npm install && npm run build
 
-# 2. Run
-node dist/cli.js       # or use 'lcli' command after npm link
+# 3. 전역 설치
+npm link
+
+# 4. 실행
+nexus
 ```
 
-The LLM endpoint setup wizard will automatically run on first launch.
+첫 실행 시 자동으로 브라우저에서 SSO 로그인 창이 열립니다.
 
 ---
 
-## Key Features
+## 사용법
 
-### Supervised Mode
-Request user approval before executing file modification tools.
-
+```bash
+nexus              # 대화형 모드 시작
+nexus --verbose    # 상세 로깅
+nexus --debug      # 디버그 모드
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  🔧 create_file                                              │
-│  ─────────────────────────────────────────────────────────   │
-│  📁 file_path: /src/utils/helper.ts                          │
-│  📝 content: export function helper() { ... }                │
-│  ─────────────────────────────────────────────────────────   │
-│  ▸ [1] ✅ Approve                                            │
-│    [2] ❌ Reject                                             │
-└─────────────────────────────────────────────────────────────┘
-```
-
-- **Tab key** - Toggle Auto ↔ Supervised mode
-- **Only file modification tools** require approval (read_file, list_files, etc. run automatically)
-- **On Reject** - Enter comment → AI retries with feedback
-
-### Plan & Execute Architecture
-Automatically breaks down user requests into TODO lists and executes them sequentially.
-
-```
-You: Add a logging system to the project
-
-✶ Planning... (esc to interrupt · 5s · ↑ 1.2k tokens)
-
-📋 3 tasks created:
-  1. Create logger.ts file
-  2. Add logger import to existing files
-  3. Apply logger to error handling
-```
-
-### Static Log UI
-Claude Code-style scrollable log history:
-- Tool-specific icons (📖 read, 📝 create, ✏️ edit, 📂 list, 🔍 find, 💬 message)
-- Diff format for file changes (blue: added, red: deleted)
-- Real-time progress display
-
-### LLM Tools
-| Tool | Description | Requires Approval |
-|------|-------------|-------------------|
-| `read_file` | Read file | ❌ |
-| `create_file` | Create new file | ✅ |
-| `edit_file` | Edit existing file (line-by-line) | ✅ |
-| `list_files` | List directory | ❌ |
-| `find_files` | Search files (glob pattern) | ❌ |
-| `tell_to_user` | Send message to user | ❌ |
-| `ask_user` | Ask user a question | ❌ |
 
 ### Slash Commands
-| Command | Description |
-|---------|-------------|
-| `/help` | Show help |
-| `/clear` | Reset conversation |
-| `/compact` | Compress conversation (save context) |
-| `/load` | Load saved session |
-| `/model` | Switch LLM model |
-| `/settings` | Settings menu |
-| `/usage` | Token usage statistics |
 
-### Keyboard Shortcuts
-- `Ctrl+C` - Exit
-- `ESC` - Interrupt current execution
-- `Tab` - Toggle Auto ↔ Supervised mode
-- `@` - File browser
-- `/` - Command autocomplete
+| Command | 설명 |
+|---------|------|
+| `/help` | 도움말 |
+| `/clear` | 대화 초기화 |
+| `/compact` | 대화 압축 (컨텍스트 절약) |
+| `/model` | 모델 선택 |
+| `/settings` | 설정 |
+| `/usage` | 토큰 사용량 |
+| `/load` | 저장된 세션 로드 |
+| `/docs` | 문서 관리 |
 
----
+### 단축키
 
-## Main Features
-
-### Supervised Mode
-- Request user approval before file modification
-- Toggle Auto/Supervised mode with Tab key
-- Provide feedback via comments on Reject
-
-### Session Management
-- Auto-save/restore conversation history between TODO tasks
-- Preserve full context including tool calls/responses
-- History only resets on `/compact`
-
-### Context Usage Display
-- Status bar shows `Context (1.3K / 13%)` format
-- Auto-Compact runs automatically at 80% usage
-
-### Single Tool Execution
-- `parallel_tool_calls: false` API parameter enforced
-- LLM calls only one tool at a time for stable execution
+| 키 | 기능 |
+|----|------|
+| `Ctrl+C` | 종료 |
+| `ESC` | 현재 작업 중단 |
+| `Tab` | Auto ↔ Supervised 모드 전환 |
+| `@` | 파일 브라우저 |
+| `/` | 명령어 자동완성 |
 
 ---
 
-## Configuration
+## 주요 기능
 
-### Add LLM Endpoint
+- **SSO 로그인**: Samsung DS GenAI Portal SSO 연동
+- **중앙집중식 모델**: Admin이 등록한 LLM 모델 사용
+- **Plan & Execute**: 작업 자동 분해 및 순차 실행
+- **Supervised Mode**: 파일 수정 전 승인 요청
+- **Session 관리**: 대화 히스토리 저장/복원
 
-```bash
-# Run setup wizard
-lcli    # First run auto-launches wizard
+---
 
-# Or via settings
-/settings
+## 사용자 데이터
+
 ```
-
-Compatible with any OpenAI-compatible API server:
-- vLLM, Ollama, LM Studio
-- Azure OpenAI, Google Gemini (OpenAI Compatible)
-- Internal LLM servers
-
-### CLI Options
-
-```bash
-lcli              # Default run
-lcli --verbose    # Verbose logging
-lcli --debug      # Debug mode
+~/.nexus-coder/
+├── config.json    # 설정 파일
+├── auth.json      # 인증 정보 (자동 저장)
+├── docs/          # 다운로드된 문서
+├── backups/       # 백업 파일
+└── projects/      # 프로젝트별 세션
 ```
 
 ---
 
-## Directory Structure
+## 문제 해결
 
-```
-~/.local-cli/
-├── config.json        # Configuration file
-├── endpoints.json     # Endpoint settings
-├── usage.json         # Usage statistics
-├── docs/              # Downloaded docs
-└── projects/          # Project-specific sessions
-```
+### "Admin Server에서 모델을 가져올 수 없습니다"
+- 네트워크 연결 확인
+- Admin 담당자에게 서버 상태 문의
+
+### SSO 로그인 실패
+- 브라우저 팝업 차단 확인
+- 다시 `nexus` 실행
+
+### 세션 만료
+- 자동으로 재로그인 요청됨
+- 안되면 `~/.nexus-coder/auth.json` 삭제 후 재시도
 
 ---
 
-## Requirements
+## 요구사항
 
 - Node.js v20+
 - npm v10+
-- Git (for doc downloads)
-
----
-
-## Documentation
-
-- [Developer Guide](docs/01_DEVELOPMENT.md)
-- [Logging System](docs/02_LOGGING.md)
-- [Testing Guide](docs/03_TESTING.md)
-- [Roadmap](docs/04_ROADMAP.md)
 
 ---
 
 ## License
 
-MIT License
+Internal Use Only - Samsung DS
 
 ---
 
-## Keywords
-
-`AI coding assistant` `local LLM` `offline AI` `CLI tool` `vLLM` `Ollama` `LM Studio` `OpenAI compatible` `code generation` `developer tools` `TypeScript` `Node.js` `coding agent`
-
----
-
-**GitHub**: https://github.com/A2G-Dev-Space/Local-CLI
+**Authors**: syngha.han, byeongju.lee, young87.kim

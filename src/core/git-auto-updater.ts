@@ -73,15 +73,20 @@ function execAsync(command: string, options: { cwd?: string } = {}): Promise<{ s
 
 export class GitAutoUpdater {
   private repoUrl: string = 'https://github.com/A2G-Dev-Space/Local-CLI.git';
+  private branch: string = 'nexus-coder';
   private repoDir: string;
   private enabled: boolean = true;
   private onStatus: StatusCallback | null = null;
 
-  constructor(options?: { repoUrl?: string; enabled?: boolean; onStatus?: StatusCallback }) {
-    this.repoDir = path.join(os.homedir(), '.local-cli', 'repo');
+  constructor(options?: { repoUrl?: string; branch?: string; enabled?: boolean; onStatus?: StatusCallback }) {
+    this.repoDir = path.join(os.homedir(), '.nexus-coder', 'repo');
 
     if (options?.repoUrl) {
       this.repoUrl = options.repoUrl;
+    }
+
+    if (options?.branch) {
+      this.branch = options.branch;
     }
 
     if (options?.enabled !== undefined) {
@@ -166,7 +171,7 @@ export class GitAutoUpdater {
         fs.mkdirSync(parentDir, { recursive: true });
       }
 
-      await execAsync(`git clone ${this.repoUrl} ${this.repoDir}`);
+      await execAsync(`git clone -b ${this.branch} ${this.repoUrl} ${this.repoDir}`);
 
       // Step 2: Install dependencies
       this.emitStatus({ type: 'first_run', step: 2, totalSteps, message: 'Installing dependencies...' });
@@ -208,7 +213,7 @@ export class GitAutoUpdater {
       }
 
       // Pull latest changes
-      const pullResult = await execAsync('git pull origin main', { cwd: this.repoDir });
+      const pullResult = await execAsync(`git pull origin ${this.branch}`, { cwd: this.repoDir });
       const pullOutput = pullResult.stdout;
 
       // Check if there were any changes
@@ -263,10 +268,10 @@ export class GitAutoUpdater {
 
     try {
       // Fetch without merge
-      await execAsync('git fetch origin main', { cwd: this.repoDir });
+      await execAsync(`git fetch origin ${this.branch}`, { cwd: this.repoDir });
 
       const currentResult = await execAsync('git rev-parse HEAD', { cwd: this.repoDir });
-      const latestResult = await execAsync('git rev-parse origin/main', { cwd: this.repoDir });
+      const latestResult = await execAsync(`git rev-parse origin/${this.branch}`, { cwd: this.repoDir });
 
       const currentCommit = currentResult.stdout.trim();
       const latestCommit = latestResult.stdout.trim();

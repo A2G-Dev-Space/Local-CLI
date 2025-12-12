@@ -28,6 +28,8 @@ import {
 } from '../../errors/llm.js';
 import { logger, isLLMLogEnabled } from '../../utils/logger.js';
 import { usageTracker } from '../usage-tracker.js';
+import { authManager } from '../auth/index.js';
+import { isNexusEndpoint } from '../nexus-setup.js';
 
 /**
  * LLM 응답 인터페이스 (OpenAI Compatible)
@@ -93,13 +95,26 @@ export class LLMClient {
     this.model = currentModel.id;
     this.modelName = currentModel.name;
 
+    // Build headers
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    // Add API key if provided
+    if (this.apiKey) {
+      headers['Authorization'] = `Bearer ${this.apiKey}`;
+    }
+
+    // Nexus endpoint인 경우 auth headers 추가 (user config)
+    if (isNexusEndpoint(endpoint.id)) {
+      const authHeaders = authManager.getAuthHeaders();
+      Object.assign(headers, authHeaders);
+    }
+
     // Axios 인스턴스 생성
     this.axiosInstance = axios.create({
       baseURL: this.baseUrl,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(this.apiKey && { Authorization: `Bearer ${this.apiKey}` }),
-      },
+      headers,
       timeout: 600000, // 600초 (10분)
     });
   }

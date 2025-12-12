@@ -1,0 +1,101 @@
+// Nexus Coder Admin - Database Schema
+// PostgreSQL with Prisma ORM
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Users - auto-created on first login via SSO
+model User {
+  id         String   @id @default(uuid())
+  loginid    String   @unique
+  deptname   String
+  username   String
+  firstSeen  DateTime @default(now()) @map("first_seen")
+  lastActive DateTime @default(now()) @map("last_active")
+  isActive   Boolean  @default(true) @map("is_active")
+
+  usageLogs  UsageLog[]
+  dailyStats DailyUsageStat[]
+
+  @@map("users")
+}
+
+// Admins - manually added by super admin
+model Admin {
+  id        String   @id @default(uuid())
+  loginid   String   @unique
+  role      AdminRole @default(ADMIN)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  models    Model[]
+
+  @@map("admins")
+}
+
+enum AdminRole {
+  SUPER_ADMIN
+  ADMIN
+  VIEWER
+}
+
+// Models - LLM endpoints managed by admin
+model Model {
+  id          String   @id @default(uuid())
+  name        String
+  displayName String   @map("display_name")
+  endpointUrl String   @map("endpoint_url")
+  apiKey      String?  @map("api_key") // encrypted
+  maxTokens   Int      @default(128000) @map("max_tokens")
+  enabled     Boolean  @default(true)
+  createdBy   String?  @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  creator    Admin?   @relation(fields: [createdBy], references: [id])
+  usageLogs  UsageLog[]
+  dailyStats DailyUsageStat[]
+
+  @@map("models")
+}
+
+// Usage Logs - per request tracking
+model UsageLog {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  modelId      String   @map("model_id")
+  inputTokens  Int      @map("input_tokens")
+  outputTokens Int      @map("output_tokens")
+  totalTokens  Int      @map("total_tokens")
+  timestamp    DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id])
+  model Model @relation(fields: [modelId], references: [id])
+
+  @@index([userId, timestamp])
+  @@index([modelId, timestamp])
+  @@map("usage_logs")
+}
+
+// Daily Stats - aggregated for fast dashboard queries
+model DailyUsageStat {
+  id                String   @id @default(uuid())
+  date              DateTime @db.Date
+  userId            String   @map("user_id")
+  modelId           String   @map("model_id")
+  deptname          String
+  totalInputTokens  BigInt   @map("total_input_tokens")
+  totalOutputTokens BigInt   @map("total_output_tokens")
+  requestCount      Int      @map("request_count")
+
+  user  User  @relation(fields: [userId], references: [id])
+  model Model @relation(fields: [modelId], references: [id])
+
+  @@unique([date, userId, modelId])
+  @@index([date])
+  @@map("daily_usage_stats")
+}
