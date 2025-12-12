@@ -4,7 +4,7 @@
  * Protected endpoints for admin dashboard
  */
 
-import { Router } from 'express';
+import { Router, RequestHandler } from 'express';
 import { prisma } from '../index.js';
 import { redis } from '../index.js';
 import { authenticateToken, requireAdmin, requireSuperAdmin, AuthenticatedRequest } from '../middleware/auth.js';
@@ -15,7 +15,7 @@ export const adminRoutes = Router();
 
 // Apply authentication and admin check to all routes
 adminRoutes.use(authenticateToken);
-adminRoutes.use(requireAdmin as Router['use'] extends (handler: infer H) => unknown ? H : never);
+adminRoutes.use(requireAdmin as RequestHandler);
 
 // ==================== Models Management ====================
 
@@ -227,7 +227,7 @@ adminRoutes.get('/users/:id', async (req: AuthenticatedRequest, res) => {
  * GET /admin/admins
  * Get all admins (super admin only)
  */
-adminRoutes.get('/admins', requireSuperAdmin as Router['use'] extends (handler: infer H) => unknown ? H : never, async (_req: AuthenticatedRequest, res) => {
+adminRoutes.get('/admins', requireSuperAdmin as RequestHandler, async (_req: AuthenticatedRequest, res) => {
   try {
     const admins = await prisma.admin.findMany({
       orderBy: { createdAt: 'desc' },
@@ -244,7 +244,7 @@ adminRoutes.get('/admins', requireSuperAdmin as Router['use'] extends (handler: 
  * POST /admin/admins
  * Add new admin (super admin only)
  */
-adminRoutes.post('/admins', requireSuperAdmin as Router['use'] extends (handler: infer H) => unknown ? H : never, async (req: AuthenticatedRequest, res) => {
+adminRoutes.post('/admins', requireSuperAdmin as RequestHandler, async (req: AuthenticatedRequest, res) => {
   try {
     const { loginid, role } = req.body;
 
@@ -268,7 +268,7 @@ adminRoutes.post('/admins', requireSuperAdmin as Router['use'] extends (handler:
  * DELETE /admin/admins/:id
  * Remove admin (super admin only)
  */
-adminRoutes.delete('/admins/:id', requireSuperAdmin as Router['use'] extends (handler: infer H) => unknown ? H : never, async (req: AuthenticatedRequest, res) => {
+adminRoutes.delete('/admins/:id', requireSuperAdmin as RequestHandler, async (req: AuthenticatedRequest, res) => {
   try {
     const { id } = req.params;
 

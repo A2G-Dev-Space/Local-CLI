@@ -5,7 +5,7 @@
  * Records usage in database before returning response
  */
 
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import { prisma } from '../index.js';
 import { redis } from '../index.js';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth.js';
@@ -164,7 +164,7 @@ async function handleNonStreamingRequest(
       return;
     }
 
-    const data = await response.json();
+    const data = await response.json() as { usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } };
 
     // Extract usage from response
     const usage = data.usage || {};
@@ -343,7 +343,7 @@ async function recordUsage(
  * POST /v1/completions
  * Proxy legacy completion request (non-chat)
  */
-proxyRoutes.post('/completions', async (req: AuthenticatedRequest, res: Response) => {
+proxyRoutes.post('/completions', async (_req: AuthenticatedRequest, res: Response) => {
   // Similar to chat/completions but for legacy format
   res.status(501).json({ error: 'Legacy completions endpoint not implemented. Use /v1/chat/completions instead.' });
 });
@@ -352,7 +352,7 @@ proxyRoutes.post('/completions', async (req: AuthenticatedRequest, res: Response
  * GET /v1/health
  * Health check endpoint for CLI
  */
-proxyRoutes.get('/health', async (req: AuthenticatedRequest, res: Response) => {
+proxyRoutes.get('/health', async (_req: AuthenticatedRequest, res: Response) => {
   try {
     // Check database connection
     await prisma.$queryRaw`SELECT 1`;
