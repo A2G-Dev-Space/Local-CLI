@@ -1274,35 +1274,6 @@ export class LLMClient {
     for (const endpoint of endpoints) {
       const modelResults: { modelId: string; healthy: boolean; latency?: number; error?: string }[] = [];
 
-      // Nexus Admin Server endpoint는 /health로 간단히 체크
-      if (endpoint.id === 'nexus-admin-server') {
-        const startTime = Date.now();
-        try {
-          const response = await axios.get(`${endpoint.baseUrl}/health`, { timeout: 5000 });
-          const latency = Date.now() - startTime;
-          const isHealthy = response.status === 200;
-
-          // 모든 모델을 healthy로 설정
-          for (const model of endpoint.models) {
-            modelResults.push({
-              modelId: model.id,
-              healthy: isHealthy && model.enabled,
-              latency,
-            });
-          }
-        } catch {
-          // Health check 실패해도 모델은 healthy로 간주 (실제 LLM 호출 시 에러 처리)
-          for (const model of endpoint.models) {
-            modelResults.push({
-              modelId: model.id,
-              healthy: model.enabled,
-            });
-          }
-        }
-        results.set(endpoint.id, modelResults);
-        continue;
-      }
-
       for (const model of endpoint.models) {
         if (!model.enabled) {
           modelResults.push({
