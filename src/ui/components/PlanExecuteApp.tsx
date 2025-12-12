@@ -69,6 +69,7 @@ import {
 } from '../../core/slash-command-handler.js';
 import { closeJsonStreamLogger } from '../../utils/json-stream-logger.js';
 import { configManager } from '../../core/config/config-manager.js';
+import { GitAutoUpdater } from '../../core/git-auto-updater.js';
 import { logger } from '../../utils/logger.js';
 import { usageTracker } from '../../core/usage-tracker.js';
 import {
@@ -92,7 +93,7 @@ const pkg = require('../../../package.json') as { version: string };
 const VERSION = pkg.version;
 
 // Initialization steps for detailed progress display
-type InitStep = 'docs' | 'config' | 'health' | 'done';
+type InitStep = 'git_update' | 'health' | 'docs' | 'config' | 'done';
 
 // Tools that require user approval in Supervised Mode
 // Only file-modifying tools need approval (read-only and internal tools are auto-approved)
@@ -464,55 +465,69 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
     return () => clearInterval(interval);
   }, [isProcessing]);
 
-  // Initialize on startup: check LLM configuration and run health check
+  // Initialize on startup: git update check -> health check -> docs -> config
   useEffect(() => {
     const initialize = async () => {
       logger.flow('Starting initialization');
       logger.startTimer('app-init');
 
       try {
-        // Step 1: Initialize docs directory
+        // Step 1: Check for git updates
+        setInitStep('git_update');
+        logger.flow('Checking for git updates');
+        const updater = new GitAutoUpdater();
+        const needsRestart = await updater.run();
+        if (needsRestart) {
+          // Exit immediately so user can restart with new version
+          process.exit(0);
+        }
+
+        // Step 2: Run health check (only if endpoints configured)
+        setInitStep('health');
+        logger.flow('Running health check');
+        setHealthStatus('checking');
+
+        if (configManager.hasEndpoints()) {
+          const healthResults = await LLMClient.healthCheckAll();
+
+          // Check if any model is healthy
+          let hasHealthy = false;
+          for (const [endpointId, modelResults] of healthResults) {
+            logger.vars(
+              { name: 'endpointId', value: endpointId },
+              { name: 'healthyModels', value: modelResults.filter(r => r.healthy).length }
+            );
+            if (modelResults.some((r) => r.healthy)) {
+              hasHealthy = true;
+            }
+          }
+
+          logger.state('Health status', 'checking', hasHealthy ? 'healthy' : 'unhealthy');
+          setHealthStatus(hasHealthy ? 'healthy' : 'unhealthy');
+
+          // Update health status in config
+          await configManager.updateAllHealthStatus(healthResults);
+        } else {
+          setHealthStatus('unknown');
+        }
+
+        // Step 3: Initialize docs directory
         setInitStep('docs');
         logger.flow('Initializing docs directory');
         await initializeDocsDirectory().catch((err) => {
           logger.warn('Docs directory initialization warning', { error: err });
         });
 
-        // Step 2: Check config
+        // Step 4: Check config (show setup wizard if no endpoints)
         setInitStep('config');
         logger.flow('Checking configuration');
         if (!configManager.hasEndpoints()) {
           logger.debug('No endpoints configured, showing setup wizard');
           setShowSetupWizard(true);
           setIsInitializing(false);
-          setHealthStatus('unknown');
           logger.endTimer('app-init');
           return;
         }
-
-        // Step 3: Run health check
-        setInitStep('health');
-        logger.flow('Running health check');
-        setHealthStatus('checking');
-        const healthResults = await LLMClient.healthCheckAll();
-
-        // Check if any model is healthy
-        let hasHealthy = false;
-        for (const [endpointId, modelResults] of healthResults) {
-          logger.vars(
-            { name: 'endpointId', value: endpointId },
-            { name: 'healthyModels', value: modelResults.filter(r => r.healthy).length }
-          );
-          if (modelResults.some((r) => r.healthy)) {
-            hasHealthy = true;
-          }
-        }
-
-        logger.state('Health status', 'checking', hasHealthy ? 'healthy' : 'unhealthy');
-        setHealthStatus(hasHealthy ? 'healthy' : 'unhealthy');
-
-        // Update health status in config
-        await configManager.updateAllHealthStatus(healthResults);
 
         setInitStep('done');
       } catch (error) {
@@ -974,14 +989,16 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
   if (isInitializing) {
     const getInitStepInfo = () => {
       switch (initStep) {
-        case 'docs':
-          return { icon: '📚', text: 'Initializing docs directory...', progress: 1 };
-        case 'config':
-          return { icon: '⚙️', text: 'Checking configuration...', progress: 2 };
+        case 'git_update':
+          return { icon: '🔄', text: 'Checking for updates...', progress: 1 };
         case 'health':
-          return { icon: '🏥', text: 'Running health check...', progress: 3 };
+          return { icon: '🏥', text: 'Checking model health...', progress: 2 };
+        case 'docs':
+          return { icon: '📚', text: 'Initializing docs...', progress: 3 };
+        case 'config':
+          return { icon: '⚙️', text: 'Loading configuration...', progress: 4 };
         default:
-          return { icon: '✓', text: 'Ready!', progress: 4 };
+          return { icon: '✓', text: 'Ready!', progress: 5 };
       }
     };
 
