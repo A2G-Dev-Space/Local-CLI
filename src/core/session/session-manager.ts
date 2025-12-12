@@ -26,11 +26,26 @@ export interface SessionMetadata {
 }
 
 /**
+ * Log entry for session restoration (matches PlanExecuteApp.tsx LogEntry)
+ */
+export interface SessionLogEntry {
+  id: string;
+  type: string;
+  content: string;
+  details?: string;
+  toolArgs?: Record<string, unknown>;
+  success?: boolean;
+  items?: string[];
+  diff?: string[];
+}
+
+/**
  * 세션 데이터 인터페이스
  */
 export interface SessionData {
   metadata: SessionMetadata;
   messages: Message[];
+  logEntries?: SessionLogEntry[];  // Optional for backward compatibility
 }
 
 /**
@@ -257,14 +272,29 @@ export class SessionManager {
     return true;
   }
 
+  // Current log entries for auto-save (set by UI)
+  private currentLogEntries: SessionLogEntry[] = [];
+
+  /**
+   * Set current log entries for auto-save
+   */
+  setLogEntries(logEntries: SessionLogEntry[]): void {
+    this.currentLogEntries = logEntries;
+  }
+
   /**
    * 현재 세션 자동 저장 (메시지가 추가될 때마다 호출)
    * Fire-and-forget 방식으로 비동기 저장 (블로킹 없음)
    */
-  autoSaveCurrentSession(messages: Message[]): void {
+  autoSaveCurrentSession(messages: Message[], logEntries?: SessionLogEntry[]): void {
     // Skip if already saving or no messages
     if (this.isSaving || !this.currentSessionId || messages.length === 0) {
       return;
+    }
+
+    // Update log entries if provided
+    if (logEntries) {
+      this.currentLogEntries = logEntries;
     }
 
     // Fire-and-forget: 비동기 저장을 백그라운드에서 실행
@@ -306,6 +336,7 @@ export class SessionManager {
           endpoint: endpoint?.baseUrl || 'unknown',
         },
         messages: normalizedMessages,
+        logEntries: this.currentLogEntries,  // Include log entries
       };
 
       // 파일로 저장 (덮어쓰기)

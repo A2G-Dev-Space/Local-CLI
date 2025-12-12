@@ -25,7 +25,9 @@ export type LogEntryType =
   | 'todo_fail'
   | 'compact'
   | 'approval_request'
-  | 'approval_response';
+  | 'approval_response'
+  | 'interrupt'
+  | 'session_restored';
 
 export interface LogEntry {
   id: string;
@@ -182,6 +184,9 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
   const logIdCounter = React.useRef(0);
   const lastToolArgsRef = React.useRef<Record<string, unknown> | null>(null);
 
+  // Pending user message queue (for messages entered during LLM processing)
+  const [pendingUserMessage, setPendingUserMessage] = useState<string | null>(null);
+
   // Helper: add log entry
   const addLog = useCallback((entry: Omit<LogEntry, 'id'>) => {
     const id = `log-${++logIdCounter.current}`;
@@ -193,6 +198,11 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
     setLogEntries([]);
     logIdCounter.current = 0;
   }, []);
+
+  // Sync log entries to session manager for auto-save
+  useEffect(() => {
+    sessionManager.setLogEntries(logEntries);
+  }, [logEntries]);
 
   // Use modular hooks
   const fileBrowserState = useFileBrowserState(input, isProcessing);
@@ -530,10 +540,26 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
       setShowTodoDetails(prev => !prev);
       logger.debug('TODO details toggled', { showTodoDetails: !showTodoDetails });
     }
-    // ESC: Interrupt current execution
+    // ESC: Interrupt current execution immediately
     if (key.escape && isProcessing) {
-      logger.flow('ESC pressed - interrupting execution');
+      logger.flow('ESC pressed - interrupting execution immediately');
+
+      // Abort any active LLM request
+      if (llmClient) {
+        llmClient.abort();
+      }
+
+      // Set interrupt flag
       planExecutionState.handleInterrupt();
+
+      // Add red "Interrupted" message to log immediately
+      addLog({
+        type: 'interrupt',
+        content: '⎿ Interrupted',
+      });
+
+      // Force stop processing state
+      setIsProcessing(false);
     }
     // Tab key: toggle execution mode (auto/supervised)
     if (key.tab && !isProcessing && !pendingToolApproval) {
@@ -585,8 +611,45 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         return;
       }
 
-      logger.debug('Session loaded', { sessionId, messageCount: sessionData.messages.length });
+      logger.debug('Session loaded', {
+        sessionId,
+        messageCount: sessionData.messages.length,
+        logEntryCount: sessionData.logEntries?.length || 0,
+      });
+
+      // Restore messages
       setMessages(sessionData.messages);
+
+      // Reset auto-approved tools (Supervised mode security)
+      setAutoApprovedTools(new Set());
+      logger.debug('Auto-approved tools cleared on session load');
+
+      // Restore log entries if available
+      if (sessionData.logEntries && sessionData.logEntries.length > 0) {
+        // Clear current logs and add session restored header
+        const restoredLogs: LogEntry[] = [
+          {
+            id: `log-restored-header`,
+            type: 'session_restored',
+            content: `세션 복구됨: ${new Date(sessionData.metadata.updatedAt).toLocaleString('ko-KR')}`,
+            details: `${sessionData.messages.length}개 메시지, ${sessionData.logEntries.length}개 로그`,
+          },
+          ...sessionData.logEntries.map((entry, idx) => ({
+            ...entry,
+            id: `log-restored-${idx}`,
+          })) as LogEntry[],
+        ];
+        setLogEntries(restoredLogs);
+        logIdCounter.current = restoredLogs.length;
+      } else {
+        // No log entries saved, show session restored message only
+        clearLogs();
+        addLog({
+          type: 'session_restored',
+          content: `세션 복구됨: ${new Date(sessionData.metadata.updatedAt).toLocaleString('ko-KR')}`,
+          details: `${sessionData.messages.length}개 메시지 (로그 히스토리 없음)`,
+        });
+      }
     } catch (error) {
       const errorMessage = `세션 로드 실패: ${error instanceof Error ? error.message : 'Unknown error'}`;
       logger.error(`Session load failed (sessionId: ${sessionId})`, error as Error);
@@ -596,7 +659,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
       ]);
     }
     logger.exit('handleSessionSelect', { sessionId });
-  }, []);
+  }, [addLog, clearLogs]);
 
   // Planning mode change handler removed - always auto mode
   // Kept for backward compatibility with SettingsBrowser interface
@@ -688,7 +751,20 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
   }, []);
 
   const handleSubmit = useCallback(async (value: string) => {
-    if (!value.trim() || isProcessing || fileBrowserState.showFileBrowser || showSessionBrowser || showSettings || showSetupWizard || showDocsBrowser) {
+    // If processing and user submits a message, queue it for next LLM invoke
+    if (isProcessing && value.trim()) {
+      const queuedMessage = `[Request interrupted by user]\n${value.trim()}`;
+      setPendingUserMessage(queuedMessage);
+      logger.flow('User message queued during processing', { message: value.trim() });
+      addLog({
+        type: 'user_input',
+        content: `(대기 중) ${value.trim()}`,
+      });
+      setInput('');
+      return;
+    }
+
+    if (!value.trim() || fileBrowserState.showFileBrowser || showSessionBrowser || showSettings || showSetupWizard || showDocsBrowser) {
       return;
     }
 
@@ -817,7 +893,42 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
     planExecutionState,
     llmClient,
     handleExit,
+    addLog,
   ]);
+
+  // Process pending user message after LLM processing completes
+  useEffect(() => {
+    if (!isProcessing && pendingUserMessage && llmClient) {
+      logger.flow('Processing queued user message');
+
+      // Clear the pending message
+      const queuedMessage = pendingUserMessage;
+      setPendingUserMessage(null);
+
+      // Add the queued message to messages and trigger new LLM call
+      const updatedMessages: Message[] = [...messages, { role: 'user' as const, content: queuedMessage }];
+      setMessages(updatedMessages);
+
+      // Add to log (replacing the "(대기 중)" entry)
+      addLog({
+        type: 'user_input',
+        content: queuedMessage.replace('[Request interrupted by user]\n', '📩 '),
+      });
+
+      // Start new processing
+      setIsProcessing(true);
+      setActivityStartTime(Date.now());
+
+      // Execute the queued message
+      planExecutionState.executeAutoMode(queuedMessage, llmClient, updatedMessages, setMessages)
+        .catch((error) => {
+          logger.error('Queued message processing failed', error as Error);
+        })
+        .finally(() => {
+          setIsProcessing(false);
+        });
+    }
+  }, [isProcessing, pendingUserMessage, llmClient, messages, planExecutionState, addLog]);
 
   // Show loading screen with logo during initialization
   if (isInitializing) {
@@ -923,6 +1034,21 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
           <Box key={entry.id} marginTop={1}>
             <Text color="magenta" bold>● </Text>
             <Text>{entry.content}</Text>
+          </Box>
+        );
+
+      case 'interrupt':
+        return (
+          <Box key={entry.id} marginTop={1}>
+            <Text color="red" bold>{entry.content}</Text>
+          </Box>
+        );
+
+      case 'session_restored':
+        return (
+          <Box key={entry.id} marginTop={1} flexDirection="column">
+            <Text color="cyan" bold>📂 {entry.content}</Text>
+            {entry.details && <Text color="gray" dimColor>   {entry.details}</Text>}
           </Box>
         );
 

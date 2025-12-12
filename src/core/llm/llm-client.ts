@@ -76,6 +76,7 @@ export class LLMClient {
   private apiKey: string;
   private model: string;
   private modelName: string;
+  private currentAbortController: AbortController | null = null;
 
   constructor() {
     // ConfigManager에서 현재 설정 가져오기
@@ -188,7 +189,15 @@ export class LLMClient {
       }
 
       logger.startTimer('llm-api-call');
-      const response = await this.axiosInstance.post<LLMResponse>(url, requestBody);
+
+      // Create AbortController for this request
+      this.currentAbortController = new AbortController();
+
+      const response = await this.axiosInstance.post<LLMResponse>(url, requestBody, {
+        signal: this.currentAbortController.signal,
+      });
+
+      this.currentAbortController = null;
       const elapsed = logger.endTimer('llm-api-call');
 
       logger.flow('API 응답 수신 완료');
@@ -240,6 +249,15 @@ export class LLMClient {
 
       return response.data;
     } catch (error) {
+      this.currentAbortController = null;
+
+      // Check if this was an abort/cancel
+      if (axios.isCancel(error) || (error instanceof Error && error.name === 'CanceledError')) {
+        logger.flow('API 호출 취소됨 (사용자 인터럽트)');
+        logger.exit('chatCompletion', { success: false, aborted: true });
+        throw new Error('INTERRUPTED');
+      }
+
       logger.flow('API 호출 실패 - 에러 처리');
       logger.exit('chatCompletion', { success: false, error: (error as Error).message });
       throw this.handleError(error, {
@@ -248,6 +266,24 @@ export class LLMClient {
         body: options,
       });
     }
+  }
+
+  /**
+   * Abort current LLM request (for ESC interrupt)
+   */
+  abort(): void {
+    if (this.currentAbortController) {
+      logger.flow('LLM 요청 취소 중...');
+      this.currentAbortController.abort();
+      this.currentAbortController = null;
+    }
+  }
+
+  /**
+   * Check if there's an active request
+   */
+  isRequestActive(): boolean {
+    return this.currentAbortController !== null;
   }
 
   /**
