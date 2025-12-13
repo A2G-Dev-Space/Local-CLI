@@ -56,6 +56,11 @@ export const statsApi = {
   byUser: (days = 30) => api.get(`/admin/stats/by-user?days=${days}`),
   byModel: (days = 30) => api.get(`/admin/stats/by-model?days=${days}`),
   byDept: (days = 30) => api.get(`/admin/stats/by-dept?days=${days}`),
+  dailyActiveUsers: (days = 30) => api.get(`/admin/stats/daily-active-users?days=${days}`),
+  cumulativeUsers: (days = 30) => api.get(`/admin/stats/cumulative-users?days=${days}`),
+  modelDailyTrend: (days = 30) => api.get(`/admin/stats/model-daily-trend?days=${days}`),
+  modelUserTrend: (modelId: string, days = 30, topN = 10) =>
+    api.get(`/admin/stats/model-user-trend?modelId=${modelId}&days=${days}&topN=${topN}`),
 };
 
 interface CreateModelData {
