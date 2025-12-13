@@ -9,6 +9,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import axios from 'axios';
 import { NEXUS_HOME_DIR, AUTH_FILE_PATH, ADMIN_SERVER_URL, CERT_DIR, SSO_CONFIG } from '../../constants.js';
 import { AuthState, AuthFileData, SSOUser } from './types.js';
 import { ssoClient } from './sso-client.js';
@@ -184,15 +185,45 @@ class AuthManager {
       );
     }
 
-    // Start SSO flow
-    const { user, token } = await ssoClient.startLoginFlow(openBrowser);
+    // Start SSO flow - get SSO token
+    const { user, token: ssoToken } = await ssoClient.startLoginFlow(openBrowser);
 
-    // Get expiration from token
-    const expiresAt = getTokenExpiration(token) || new Date(Date.now() + 24 * 60 * 60 * 1000);
+    // Exchange SSO token for session token from Admin Server
+    logger.debug('Exchanging SSO token for session token');
+    let sessionToken: string;
+    let expiresAt: Date;
+
+    try {
+      const response = await axios.post<{
+        success: boolean;
+        sessionToken: string;
+        user: SSOUser;
+      }>(
+        `${ADMIN_SERVER_URL}/api/auth/callback`,
+        {},
+        {
+          headers: {
+            'Authorization': `Bearer ${ssoToken}`,
+            'Content-Type': 'application/json',
+          },
+          timeout: 10000,
+        }
+      );
+
+      sessionToken = response.data.sessionToken;
+      // Session token expires in 24 hours
+      expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      logger.debug('Session token received from Admin Server');
+    } catch (error) {
+      // If Admin Server is not available, use SSO token directly
+      logger.warn('Failed to get session token from Admin Server, using SSO token directly');
+      sessionToken = ssoToken;
+      expiresAt = getTokenExpiration(ssoToken) || new Date(Date.now() + 24 * 60 * 60 * 1000);
+    }
 
     // Create auth state
     this.authState = {
-      token,
+      token: sessionToken,
       user,
       expiresAt,
       serverUrl: ADMIN_SERVER_URL,

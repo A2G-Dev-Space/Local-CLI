@@ -151,14 +151,19 @@ function decodeJWT(token: string): JWTPayload | null {
 
     const payload = JSON.parse(Buffer.from(payloadBase64, 'base64').toString('utf8'));
 
+    // Debug: log actual payload fields
+    console.log('JWT payload fields:', Object.keys(payload));
+    console.log('JWT payload:', JSON.stringify(payload, null, 2));
+
     return {
-      loginid: payload.loginid || payload.sub || payload.user_id || '',
-      deptname: payload.deptname || payload.department || payload.dept || '',
-      username: payload.username || payload.name || payload.display_name || '',
+      loginid: payload.loginid || payload.sub || payload.user_id || payload.userId || payload.id || '',
+      deptname: payload.deptname || payload.department || payload.dept || payload.deptName || '',
+      username: payload.username || payload.name || payload.display_name || payload.userName || payload.displayName || '',
       iat: payload.iat,
       exp: payload.exp,
     };
-  } catch {
+  } catch (error) {
+    console.error('JWT decode error:', error);
     return null;
   }
 }
