@@ -228,7 +228,10 @@ async function handleNonStreamingRequest(
       return;
     }
 
-    const data = await response.json();
+    const data = await response.json() as {
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
+      [key: string]: unknown;
+    };
 
     // Extract and record usage
     if (data.usage) {
@@ -266,16 +269,27 @@ async function handleStreamingRequest(
     console.log(`[Proxy] Streaming request to: ${url}`);
 
     // stream_options를 추가하여 usage 정보 요청 (OpenAI compatible)
+    // 일부 LLM은 이 옵션을 지원하지 않을 수 있으므로 원본도 유지
     const requestWithUsage = {
       ...requestBody,
       stream_options: { include_usage: true },
     };
 
-    const response = await fetch(url, {
+    let response = await fetch(url, {
       method: 'POST',
       headers,
       body: JSON.stringify(requestWithUsage),
     });
+
+    // stream_options 지원 안 하는 LLM의 경우 원본 요청으로 재시도
+    if (!response.ok && response.status === 400) {
+      console.log('[Proxy] Retrying without stream_options');
+      response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestBody),
+      });
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
