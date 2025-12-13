@@ -580,8 +580,7 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
             ];
             setMessages([...currentMessages]);
             emitCompact(compactResult.originalMessageCount, compactResult.newMessageCount);
-            // Reset context tracker to allow subsequent auto-compactions
-            contextTracker.reset();
+            // Note: contextTracker.reset() is already called inside compactManager.compact()
           }
 
           setExecutionPhase('executing');
