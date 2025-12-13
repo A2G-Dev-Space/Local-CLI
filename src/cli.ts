@@ -18,6 +18,8 @@ import { createLLMClient } from './core/llm/llm-client.js';
 import { PlanExecuteApp } from './ui/components/PlanExecuteApp.js';
 import { setupLogging } from './utils/logger.js';
 import { setupNexusModels } from './core/nexus-setup.js';
+import { authManager } from './core/auth/index.js';
+import open from 'open';
 
 // Read version from package.json (single source of truth)
 const require = createRequire(import.meta.url);
@@ -57,6 +59,29 @@ program
 
       // ConfigManager 초기화
       await configManager.initialize();
+
+      // AuthManager 초기화 및 SSO 로그인 체크
+      await authManager.initialize();
+
+      if (!authManager.isAuthenticated()) {
+        console.log(chalk.yellow('\n🔐 SSO 로그인이 필요합니다.\n'));
+        console.log(chalk.gray('브라우저에서 로그인 페이지가 열립니다...\n'));
+
+        try {
+          await authManager.login(async (url) => {
+            await open(url);
+          });
+          const user = authManager.getCurrentUser();
+          console.log(chalk.green(`✓ 로그인 성공: ${user?.username} (${user?.deptname})\n`));
+        } catch (error) {
+          console.error(chalk.red('\n❌ SSO 로그인 실패:'));
+          if (error instanceof Error) {
+            console.error(chalk.red(`   ${error.message}`));
+          }
+          console.log(chalk.yellow('\n인증서 파일을 확인하거나 관리자에게 문의하세요.\n'));
+          process.exit(1);
+        }
+      }
 
       // Admin Server에서 모델 목록 가져와서 설정
       if (options.verbose || options.debug) {

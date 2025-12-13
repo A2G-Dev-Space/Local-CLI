@@ -156,14 +156,18 @@ class AuthManager {
 
   /**
    * Get auth headers for API calls
-   * 인증 토큰과 사용자 정보를 헤더로 전송
+   * 폐쇄망 모드: Authorization 토큰 없이 사용자 정보만 전송
+   * SSO 로그인으로 저장된 user 정보를 헤더로 전송
    * 한글 등 비ASCII 문자는 encodeURIComponent로 인코딩
    */
   getAuthHeaders(): Record<string, string> {
-    if (!this.authState) return {};
+    if (!this.authState) {
+      // 로그인 안 된 경우 빈 헤더 (SSO 로그인 필요)
+      return {};
+    }
 
+    // 폐쇄망 모드: 토큰 인증 없이 사용자 정보만 전송
     return {
-      'Authorization': `Bearer ${this.authState.token}`,
       'X-User-Id': encodeURIComponent(this.authState.user.loginid),
       'X-User-Name': encodeURIComponent(this.authState.user.username),
       'X-User-Dept': encodeURIComponent(this.authState.user.deptname),
