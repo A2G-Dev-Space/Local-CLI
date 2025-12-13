@@ -63,7 +63,7 @@ program
         console.log(chalk.gray('Fetching models from Admin Server...'));
       }
       try {
-        await setupNexusModels();
+        await setupNexusModels(options.debug);
         if (options.verbose || options.debug) {
           console.log(chalk.green('✓ Models loaded from Admin Server\n'));
         }
