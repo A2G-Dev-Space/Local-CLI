@@ -1,5 +1,5 @@
 {
-  "name": "nexus-coder-cli",
+  "name": "nexus-coder",
   "version": "2.2.0",
   "description": "Nexus Coder - Enterprise AI Coding Assistant",
   "type": "module",
