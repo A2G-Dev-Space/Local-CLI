@@ -736,18 +736,23 @@ adminRoutes.get('/stats/model-user-trend', async (req: AuthenticatedRequest, res
     // Process into date-keyed structure
     const dateMap = new Map<string, Record<string, number>>();
 
-    // Initialize all dates in range
+    // Initialize all dates in range with 0 for all top users
     for (let d = new Date(startDate); d <= new Date(); d.setDate(d.getDate() + 1)) {
       const dateStr = d.toISOString().split('T')[0]!;
-      dateMap.set(dateStr, {});
+      const initialData: Record<string, number> = {};
+      for (const userId of topUserIds) {
+        initialData[userId] = 0;
+      }
+      dateMap.set(dateStr, initialData);
     }
 
-    // Populate with actual data
+    // Populate with actual data (overwrite 0s)
     for (const stat of dailyStats) {
       const dateStr = formatDateToString(stat.date);
-      const existing = dateMap.get(dateStr) || {};
-      existing[stat.user_id] = Number(stat.total_tokens);
-      dateMap.set(dateStr, existing);
+      const existing = dateMap.get(dateStr);
+      if (existing) {
+        existing[stat.user_id] = Number(stat.total_tokens);
+      }
     }
 
     // Convert to array format
