@@ -3,11 +3,11 @@
  *
  * CLI 시작 시 Admin Server에서 모델 목록을 가져와서
  * 기존 endpoint 형식으로 자동 설정
+ * 폐쇄망 환경: 인증 없이 사용 가능
  */
 
 import axios from 'axios';
 import { ADMIN_SERVER_URL } from '../constants.js';
-import { authManager } from './auth/index.js';
 import { configManager } from './config/config-manager.js';
 import { EndpointConfig, ModelInfo } from '../types/index.js';
 
@@ -35,13 +35,10 @@ interface NexusModelResponse {
  * Admin Server에서 모델 목록을 가져와서 endpoint 형식으로 설정
  */
 export async function setupNexusModels(): Promise<void> {
-  const authHeaders = authManager.getAuthHeaders();
-
-  // Admin Server에서 모델 목록 가져오기
+  // Admin Server에서 모델 목록 가져오기 (인증 없음)
   const response = await axios.get<NexusModelResponse>(`${ADMIN_SERVER_URL}/v1/models`, {
     headers: {
       'Content-Type': 'application/json',
-      ...authHeaders,
     },
     timeout: 10000,
   });

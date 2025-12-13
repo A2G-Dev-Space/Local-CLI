@@ -17,7 +17,6 @@ import { configManager } from './core/config/config-manager.js';
 import { createLLMClient } from './core/llm/llm-client.js';
 import { PlanExecuteApp } from './ui/components/PlanExecuteApp.js';
 import { setupLogging } from './utils/logger.js';
-import { authManager, AuthenticationRequiredError } from './core/auth/index.js';
 import { setupNexusModels } from './core/nexus-setup.js';
 
 // Read version from package.json (single source of truth)
@@ -36,41 +35,7 @@ program
   .helpOption(false);  // -h, --help 비활성화 (/help 사용)
 
 /**
- * SSO 자동 로그인 수행
- */
-async function performAutoLogin(): Promise<boolean> {
-  console.log(chalk.cyan('\n🔐 Nexus Coder - SSO 로그인 필요\n'));
-  console.log(chalk.gray('브라우저에서 SSO 로그인을 완료해주세요...'));
-  console.log(chalk.gray('로그인 창이 자동으로 열립니다.\n'));
-
-  try {
-    // Dynamic import for 'open' package (ESM)
-    const open = (await import('open')).default;
-
-    // Start login flow
-    const authState = await authManager.login(async (url) => {
-      await open(url);
-    });
-
-    console.log(chalk.green('\n✓ 로그인 성공!\n'));
-    console.log(chalk.white(`  사용자:  ${authState.user.username}`));
-    console.log(chalk.white(`  ID:      ${authState.user.loginid}`));
-    console.log(chalk.white(`  부서:    ${authState.user.deptname}`));
-    console.log(chalk.gray(`  만료:    ${authState.expiresAt.toLocaleString()}\n`));
-
-    return true;
-  } catch (error) {
-    console.error(chalk.red('\n❌ 로그인 실패:'));
-    if (error instanceof Error) {
-      console.error(chalk.red(`  ${error.message}`));
-    }
-    console.log();
-    return false;
-  }
-}
-
-/**
- * 기본 명령어: 대화형 모드 시작 (인증 필수, 자동 로그인)
+ * 기본 명령어: 대화형 모드 시작
  */
 program
   .option('--verbose', 'Enable verbose logging')
@@ -89,23 +54,6 @@ program
         llmLog: options.llmLog,
       });
       cleanup = loggingSetup.cleanup;
-
-      // Initialize auth manager
-      await authManager.initialize();
-
-      // Check authentication - Auto-login if not authenticated
-      if (!authManager.isAuthenticated()) {
-        const loginSuccess = await performAutoLogin();
-        if (!loginSuccess) {
-          process.exit(1);
-        }
-      }
-
-      const currentUser = authManager.getCurrentUser();
-      if (options.verbose || options.debug) {
-        console.log(chalk.green(`✓ Logged in as: ${currentUser?.username} (${currentUser?.loginid})`));
-        console.log(chalk.gray(`  Department: ${currentUser?.deptname}\n`));
-      }
 
       // ConfigManager 초기화
       await configManager.initialize();
@@ -159,14 +107,6 @@ program
         process.exit(1);
       }
     } catch (error) {
-      if (error instanceof AuthenticationRequiredError) {
-        // This should not happen now with auto-login, but keep as fallback
-        const loginSuccess = await performAutoLogin();
-        if (!loginSuccess) {
-          process.exit(1);
-        }
-      }
-
       console.error(chalk.red('\n❌ 에러 발생:'));
       if (error instanceof Error) {
         console.error(chalk.red(error.message));
@@ -198,7 +138,6 @@ program.configureOutput({
 program.on('command:*', () => {
   console.error(chalk.red('⚠️  알 수 없는 명령어입니다.'));
   console.log(chalk.white('사용법: nexus [--verbose] [--debug]\n'));
-  console.log(chalk.white('실행하면 자동으로 SSO 로그인이 진행됩니다.\n'));
   process.exit(1);
 });
 

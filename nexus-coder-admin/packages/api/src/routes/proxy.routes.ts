@@ -2,31 +2,20 @@
  * LLM Proxy Routes
  *
  * Proxies /v1/* requests to actual LLM endpoints
- * Records usage in database before returning response
+ * 폐쇄망 환경: 인증 없이 사용 가능
  */
 
-import { Router, Response } from 'express';
+import { Router, Request, Response } from 'express';
 import { prisma } from '../index.js';
-import { redis } from '../index.js';
-import { authenticateToken, AuthenticatedRequest } from '../middleware/auth.js';
-import { incrementUsage, trackActiveUser } from '../services/redis.service.js';
 
 export const proxyRoutes = Router();
-
-// All proxy routes require authentication
-proxyRoutes.use(authenticateToken);
 
 /**
  * GET /v1/models
  * Returns list of available models from Admin Server
  */
-proxyRoutes.get('/models', async (req: AuthenticatedRequest, res: Response) => {
+proxyRoutes.get('/models', async (_req: Request, res: Response) => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Authentication required' });
-      return;
-    }
-
     const models = await prisma.model.findMany({
       where: { enabled: true },
       select: {
@@ -67,13 +56,8 @@ proxyRoutes.get('/models', async (req: AuthenticatedRequest, res: Response) => {
  * POST /v1/chat/completions
  * Proxy chat completion request to actual LLM
  */
-proxyRoutes.post('/chat/completions', async (req: AuthenticatedRequest, res: Response) => {
+proxyRoutes.post('/chat/completions', async (req: Request, res: Response) => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Authentication required' });
-      return;
-    }
-
     const { model: modelName, messages, stream, ...otherParams } = req.body;
 
     if (!modelName || !messages) {
@@ -97,19 +81,6 @@ proxyRoutes.post('/chat/completions', async (req: AuthenticatedRequest, res: Res
       return;
     }
 
-    // Get user from database
-    const user = await prisma.user.findUnique({
-      where: { loginid: req.user.loginid },
-    });
-
-    if (!user) {
-      res.status(404).json({ error: 'User not found' });
-      return;
-    }
-
-    // Track active user
-    await trackActiveUser(redis, req.user.loginid);
-
     // Prepare request to actual LLM
     const llmRequestBody = {
       model: model.name,
@@ -128,9 +99,9 @@ proxyRoutes.post('/chat/completions', async (req: AuthenticatedRequest, res: Res
 
     // Handle streaming
     if (stream) {
-      await handleStreamingRequest(req, res, model, user, llmRequestBody, headers);
+      await handleStreamingRequest(res, model, llmRequestBody, headers);
     } else {
-      await handleNonStreamingRequest(req, res, model, user, llmRequestBody, headers);
+      await handleNonStreamingRequest(res, model, llmRequestBody, headers);
     }
 
   } catch (error) {
@@ -143,10 +114,8 @@ proxyRoutes.post('/chat/completions', async (req: AuthenticatedRequest, res: Res
  * Handle non-streaming chat completion
  */
 async function handleNonStreamingRequest(
-  req: AuthenticatedRequest,
   res: Response,
   model: { id: string; name: string; endpointUrl: string; apiKey: string | null },
-  user: { id: string; loginid: string },
   requestBody: any,
   headers: Record<string, string>
 ) {
@@ -164,16 +133,7 @@ async function handleNonStreamingRequest(
       return;
     }
 
-    const data = await response.json() as { usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } };
-
-    // Extract usage from response
-    const usage = data.usage || {};
-    const inputTokens = usage.prompt_tokens || 0;
-    const outputTokens = usage.completion_tokens || 0;
-    const totalTokens = usage.total_tokens || inputTokens + outputTokens;
-
-    // Record usage in database
-    await recordUsage(user.id, model.id, inputTokens, outputTokens, totalTokens, req.user!.loginid);
+    const data = await response.json();
 
     // Return response to client
     res.json(data);
@@ -188,10 +148,8 @@ async function handleNonStreamingRequest(
  * Handle streaming chat completion
  */
 async function handleStreamingRequest(
-  req: AuthenticatedRequest,
   res: Response,
   model: { id: string; name: string; endpointUrl: string; apiKey: string | null },
-  user: { id: string; loginid: string },
   requestBody: any,
   headers: Record<string, string>
 ) {
@@ -222,12 +180,6 @@ async function handleStreamingRequest(
 
     const decoder = new TextDecoder();
     let buffer = '';
-    let totalInputTokens = 0;
-    let totalOutputTokens = 0;
-
-    // Estimate input tokens from messages (rough estimate)
-    const messagesText = JSON.stringify(requestBody.messages);
-    totalInputTokens = Math.ceil(messagesText.length / 4); // Rough estimate: 4 chars per token
 
     try {
       while (true) {
@@ -253,26 +205,7 @@ async function handleStreamingRequest(
               continue;
             }
 
-            try {
-              const data = JSON.parse(dataStr);
-
-              // Extract usage if present (some providers include it)
-              if (data.usage) {
-                totalInputTokens = data.usage.prompt_tokens || totalInputTokens;
-                totalOutputTokens = data.usage.completion_tokens || totalOutputTokens;
-              }
-
-              // Estimate output tokens from content
-              const content = data.choices?.[0]?.delta?.content || '';
-              if (content) {
-                totalOutputTokens += Math.ceil(content.length / 4); // Rough estimate
-              }
-
-              res.write(`data: ${dataStr}\n\n`);
-            } catch {
-              // Forward unparseable data as-is
-              res.write(`data: ${dataStr}\n\n`);
-            }
+            res.write(`data: ${dataStr}\n\n`);
           } else if (line.trim()) {
             res.write(`${line}\n`);
           }
@@ -288,10 +221,6 @@ async function handleStreamingRequest(
       reader.releaseLock();
     }
 
-    // Record usage after stream completes
-    const totalTokens = totalInputTokens + totalOutputTokens;
-    await recordUsage(user.id, model.id, totalInputTokens, totalOutputTokens, totalTokens, req.user!.loginid);
-
     res.end();
 
   } catch (error) {
@@ -301,50 +230,10 @@ async function handleStreamingRequest(
 }
 
 /**
- * Record usage in database and Redis
- */
-async function recordUsage(
-  userId: string,
-  modelId: string,
-  inputTokens: number,
-  outputTokens: number,
-  totalTokens: number,
-  loginid: string
-) {
-  try {
-    // Create usage log in database
-    await prisma.usageLog.create({
-      data: {
-        userId,
-        modelId,
-        inputTokens,
-        outputTokens,
-        totalTokens,
-      },
-    });
-
-    // Update Redis counters
-    await incrementUsage(redis, userId, modelId, inputTokens, outputTokens);
-
-    // Update user's last active
-    await prisma.user.update({
-      where: { id: userId },
-      data: { lastActive: new Date() },
-    });
-
-    console.log(`Usage recorded: user=${loginid}, model=${modelId}, tokens=${totalTokens}`);
-  } catch (error) {
-    console.error('Failed to record usage:', error);
-    // Don't throw - usage recording failure shouldn't break the response
-  }
-}
-
-/**
  * POST /v1/completions
  * Proxy legacy completion request (non-chat)
  */
-proxyRoutes.post('/completions', async (_req: AuthenticatedRequest, res: Response) => {
-  // Similar to chat/completions but for legacy format
+proxyRoutes.post('/completions', async (_req: Request, res: Response) => {
   res.status(501).json({ error: 'Legacy completions endpoint not implemented. Use /v1/chat/completions instead.' });
 });
 
@@ -352,21 +241,14 @@ proxyRoutes.post('/completions', async (_req: AuthenticatedRequest, res: Respons
  * GET /v1/health
  * Health check endpoint for CLI
  */
-proxyRoutes.get('/health', async (_req: AuthenticatedRequest, res: Response) => {
+proxyRoutes.get('/health', async (_req: Request, res: Response) => {
   try {
     // Check database connection
     await prisma.$queryRaw`SELECT 1`;
 
-    // Check Redis connection
-    await redis.ping();
-
     res.json({
       status: 'healthy',
       timestamp: new Date().toISOString(),
-      services: {
-        database: 'ok',
-        redis: 'ok',
-      },
     });
   } catch (error) {
     console.error('Health check failed:', error);
@@ -382,13 +264,8 @@ proxyRoutes.get('/health', async (_req: AuthenticatedRequest, res: Response) => 
  * GET /v1/models/:model
  * Get specific model info
  */
-proxyRoutes.get('/models/:modelName', async (req: AuthenticatedRequest, res: Response) => {
+proxyRoutes.get('/models/:modelName', async (req: Request, res: Response) => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Authentication required' });
-      return;
-    }
-
     const { modelName } = req.params;
 
     const model = await prisma.model.findFirst({
