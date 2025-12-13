@@ -30,10 +30,10 @@ export const CONFIG_FILE_PATH = path.join(NEXUS_HOME_DIR, 'config.json');
 export const AUTH_FILE_PATH = path.join(NEXUS_HOME_DIR, 'auth.json');
 
 /**
- * 인증서 디렉토리
- * ~/.nexus-coder/cert/
+ * 인증서 디렉토리 (레포에 번들됨)
+ * 설치 시 자동으로 포함됨
  */
-export const CERT_DIR = path.join(NEXUS_HOME_DIR, 'cert');
+export const CERT_DIR = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'cert');
 
 /**
  * 엔드포인트 설정 파일 경로

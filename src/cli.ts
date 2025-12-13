@@ -35,7 +35,41 @@ program
   .helpOption(false);  // -h, --help 비활성화 (/help 사용)
 
 /**
- * 기본 명령어: 대화형 모드 시작
+ * SSO 자동 로그인 수행
+ */
+async function performAutoLogin(): Promise<boolean> {
+  console.log(chalk.cyan('\n🔐 Nexus Coder - SSO 로그인 필요\n'));
+  console.log(chalk.gray('브라우저에서 SSO 로그인을 완료해주세요...'));
+  console.log(chalk.gray('로그인 창이 자동으로 열립니다.\n'));
+
+  try {
+    // Dynamic import for 'open' package (ESM)
+    const open = (await import('open')).default;
+
+    // Start login flow
+    const authState = await authManager.login(async (url) => {
+      await open(url);
+    });
+
+    console.log(chalk.green('\n✓ 로그인 성공!\n'));
+    console.log(chalk.white(`  사용자:  ${authState.user.username}`));
+    console.log(chalk.white(`  ID:      ${authState.user.loginid}`));
+    console.log(chalk.white(`  부서:    ${authState.user.deptname}`));
+    console.log(chalk.gray(`  만료:    ${authState.expiresAt.toLocaleString()}\n`));
+
+    return true;
+  } catch (error) {
+    console.error(chalk.red('\n❌ 로그인 실패:'));
+    if (error instanceof Error) {
+      console.error(chalk.red(`  ${error.message}`));
+    }
+    console.log();
+    return false;
+  }
+}
+
+/**
+ * 기본 명령어: 대화형 모드 시작 (인증 필수, 자동 로그인)
  */
 program
   .option('--verbose', 'Enable verbose logging')
@@ -58,12 +92,12 @@ program
       // Initialize auth manager
       await authManager.initialize();
 
-      // Check authentication - REQUIRED
+      // Check authentication - Auto-login if not authenticated
       if (!authManager.isAuthenticated()) {
-        console.log(chalk.red('\n❌ Authentication required'));
-        console.log(chalk.yellow('\nPlease login first:'));
-        console.log(chalk.cyan('  ncli login\n'));
-        process.exit(1);
+        const loginSuccess = await performAutoLogin();
+        if (!loginSuccess) {
+          process.exit(1);
+        }
       }
 
       const currentUser = authManager.getCurrentUser();
@@ -161,10 +195,11 @@ program
       }
     } catch (error) {
       if (error instanceof AuthenticationRequiredError) {
-        console.log(chalk.red('\n❌ Authentication required'));
-        console.log(chalk.yellow('\nPlease login first:'));
-        console.log(chalk.cyan('  ncli login\n'));
-        process.exit(1);
+        // This should not happen now with auto-login, but keep as fallback
+        const loginSuccess = await performAutoLogin();
+        if (!loginSuccess) {
+          process.exit(1);
+        }
       }
 
       console.error(chalk.red('\n❌ 에러 발생:'));
@@ -178,124 +213,6 @@ program
       if (cleanup) {
         await cleanup();
       }
-    }
-  });
-
-/**
- * login 명령어: SSO 로그인
- */
-program
-  .command('login')
-  .description('Login via SSO')
-  .action(async () => {
-    try {
-      console.log(chalk.cyan('\n🔐 Nexus Coder SSO Login\n'));
-
-      // Initialize auth manager
-      await authManager.initialize();
-
-      // Check if already logged in
-      if (authManager.isAuthenticated()) {
-        const user = authManager.getCurrentUser();
-        console.log(chalk.green(`✓ Already logged in as: ${user?.username} (${user?.loginid})`));
-        console.log(chalk.gray(`  Department: ${user?.deptname}`));
-        console.log(chalk.yellow('\n  Use "ncli logout" to logout first.\n'));
-        return;
-      }
-
-      console.log(chalk.gray('Opening browser for SSO login...'));
-      console.log(chalk.gray('Please complete the login in your browser.\n'));
-
-      // Dynamic import for 'open' package (ESM)
-      const open = (await import('open')).default;
-
-      // Start login flow
-      const authState = await authManager.login(async (url) => {
-        await open(url);
-      });
-
-      console.log(chalk.green('\n✓ Login successful!\n'));
-      console.log(chalk.white(`  User:       ${authState.user.username}`));
-      console.log(chalk.white(`  ID:         ${authState.user.loginid}`));
-      console.log(chalk.white(`  Department: ${authState.user.deptname}`));
-      console.log(chalk.gray(`  Expires:    ${authState.expiresAt.toLocaleString()}\n`));
-
-      console.log(chalk.cyan('You can now use: ncli\n'));
-    } catch (error) {
-      console.error(chalk.red('\n❌ Login failed:'));
-      if (error instanceof Error) {
-        console.error(chalk.red(`  ${error.message}`));
-      }
-      console.log();
-      process.exit(1);
-    }
-  });
-
-/**
- * logout 명령어: 로그아웃
- */
-program
-  .command('logout')
-  .description('Logout and clear credentials')
-  .action(async () => {
-    try {
-      console.log(chalk.cyan('\n🔓 Logging out...\n'));
-
-      // Initialize auth manager
-      await authManager.initialize();
-
-      if (!authManager.isAuthenticated()) {
-        console.log(chalk.yellow('  Not currently logged in.\n'));
-        return;
-      }
-
-      const user = authManager.getCurrentUser();
-      await authManager.logout();
-
-      console.log(chalk.green(`✓ Logged out: ${user?.username} (${user?.loginid})\n`));
-    } catch (error) {
-      console.error(chalk.red('\n❌ Logout failed:'));
-      if (error instanceof Error) {
-        console.error(chalk.red(`  ${error.message}`));
-      }
-      console.log();
-      process.exit(1);
-    }
-  });
-
-/**
- * whoami 명령어: 현재 로그인 상태 확인
- */
-program
-  .command('whoami')
-  .description('Show current user information')
-  .action(async () => {
-    try {
-      // Initialize auth manager
-      await authManager.initialize();
-
-      if (!authManager.isAuthenticated()) {
-        console.log(chalk.yellow('\nNot logged in.'));
-        console.log(chalk.cyan('  Use "ncli login" to authenticate.\n'));
-        return;
-      }
-
-      const authState = authManager.getAuthState();
-      const user = authState?.user;
-
-      console.log(chalk.cyan('\n👤 Current User\n'));
-      console.log(chalk.white(`  User:       ${user?.username}`));
-      console.log(chalk.white(`  ID:         ${user?.loginid}`));
-      console.log(chalk.white(`  Department: ${user?.deptname}`));
-      console.log(chalk.gray(`  Expires:    ${authState?.expiresAt.toLocaleString()}`));
-      console.log(chalk.gray(`  Server:     ${authState?.serverUrl}\n`));
-    } catch (error) {
-      console.error(chalk.red('\n❌ Error:'));
-      if (error instanceof Error) {
-        console.error(chalk.red(`  ${error.message}`));
-      }
-      console.log();
-      process.exit(1);
     }
   });
 
@@ -315,12 +232,8 @@ program.configureOutput({
 
 program.on('command:*', () => {
   console.error(chalk.red('⚠️  알 수 없는 명령어입니다.'));
-  console.log(chalk.white('사용법: ncli [--verbose] [--debug]\n'));
-  console.log(chalk.white('명령어:'));
-  console.log(chalk.white('  ncli          대화형 모드 시작'));
-  console.log(chalk.white('  ncli login    SSO 로그인'));
-  console.log(chalk.white('  ncli logout   로그아웃'));
-  console.log(chalk.white('  ncli whoami   현재 사용자 확인\n'));
+  console.log(chalk.white('사용법: nexus [--verbose] [--debug]\n'));
+  console.log(chalk.white('실행하면 자동으로 SSO 로그인이 진행됩니다.\n'));
   process.exit(1);
 });
 

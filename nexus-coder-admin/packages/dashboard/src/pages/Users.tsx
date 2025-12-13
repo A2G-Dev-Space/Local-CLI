@@ -91,13 +91,13 @@ export default function Users() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search by name, ID, or department..."
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-nexus-500 focus:border-transparent"
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-samsung-blue focus:border-transparent"
           />
         </div>
       </div>
 
       {/* Users Table */}
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-card overflow-hidden">
         <table className="w-full">
           <thead className="bg-gray-50">
             <tr>
@@ -123,8 +123,8 @@ export default function Users() {
               <tr key={user.id} className="hover:bg-gray-50">
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-nexus-100 rounded-full flex items-center justify-center">
-                      <User className="w-5 h-5 text-nexus-600" />
+                    <div className="w-10 h-10 bg-samsung-blue/10 rounded-full flex items-center justify-center">
+                      <User className="w-5 h-5 text-samsung-blue" />
                     </div>
                     <div>
                       <p className="font-medium text-gray-900">{user.username}</p>

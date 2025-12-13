@@ -12,20 +12,24 @@
 ### CLI 설치 (개인 사용자)
 
 ```bash
-# 1. 설치
+# 1. 저장소 클론 (인증서 포함)
 git clone https://github.com/your-org/nexus-coder.git
 cd nexus-coder
+
+# 2. 설치
 npm install && npm run build
 
-# 2. 전역 링크 (선택)
+# 3. 전역 링크 (선택)
 npm link
 
-# 3. 로그인
-ncli login
-
-# 4. 실행
-ncli
+# 4. 실행 (첫 실행 시 자동 SSO 로그인)
+nexus
 ```
+
+**인증서 관련:**
+- `cert/cert.cer` 파일이 레포에 포함되어 있습니다
+- 사용자가 별도로 인증서를 배치할 필요 없습니다
+- 첫 실행 시 자동으로 SSO 로그인 창이 열립니다
 
 ### Admin Server 배포
 
@@ -50,7 +54,7 @@ nexus --debug      # 디버그 모드
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
 │   ┌──────────────┐              ┌──────────────────────┐       │
-│   │   Samsung    │◄────────────►│    ncli (CLI Tool)   │       │
+│   │   Samsung    │◄────────────►│   nexus (CLI Tool)   │       │
 │   │  SSO Server  │  JWT Token   │                      │       │
 │   └──────────────┘              └──────────┬───────────┘       │
 │                                            │                   │
@@ -103,12 +107,15 @@ nexus --debug      # 디버그 모드
 ## CLI Commands
 
 ```bash
-ncli              # 대화형 모드 시작
-ncli login        # SSO 로그인
-ncli logout       # 로그아웃
-ncli --verbose    # Verbose 로깅
-ncli --debug      # Debug 모드
+nexus              # 대화형 모드 시작 (첫 실행 시 자동 SSO 로그인)
+nexus --verbose    # Verbose 로깅
+nexus --debug      # Debug 모드
 ```
+
+**인증 방식:**
+- 첫 실행 시 자동으로 브라우저에서 SSO 로그인
+- 로그인 후 세션은 `~/.nexus-coder/auth.json`에 저장됨
+- 세션 만료 시 자동으로 재로그인
 
 ### Slash Commands (대화형 모드 내)
 
@@ -133,14 +140,22 @@ ncli --debug      # Debug 모드
 
 ## 문제 해결
 
+**사용자 데이터 (`~/.nexus-coder/`):**
 ```
 ~/.nexus-coder/
 ├── config.json        # 설정 파일
-├── auth.json          # 인증 정보
-├── cert/              # SSO 인증서
-│   └── cert.cer
+├── auth.json          # 인증 정보 (자동 저장)
 ├── docs/              # 다운로드된 문서
 └── projects/          # 프로젝트별 세션
+```
+
+**레포지토리 (설치 시 포함):**
+```
+nexus-coder/
+├── cert/
+│   └── cert.cer       # SSO 인증서 (번들됨)
+├── src/
+└── ...
 ```
 
 ---

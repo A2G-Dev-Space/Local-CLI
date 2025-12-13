@@ -105,7 +105,7 @@ export default function UserStatsChart() {
 
   if (loading) {
     return (
-      <div className="bg-white rounded-xl shadow-sm p-6">
+      <div className="bg-white rounded-2xl shadow-card p-6">
         <div className="flex items-center justify-center h-80">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-nexus-600"></div>
         </div>
@@ -114,7 +114,7 @@ export default function UserStatsChart() {
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-sm p-6">
+    <div className="bg-white rounded-2xl shadow-card p-6">
       <div className="flex flex-col gap-4 mb-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -143,7 +143,7 @@ export default function UserStatsChart() {
                 onClick={() => setDays(option.value)}
                 className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
                   days === option.value
-                    ? 'bg-nexus-600 text-white'
+                    ? 'bg-samsung-blue text-white'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >

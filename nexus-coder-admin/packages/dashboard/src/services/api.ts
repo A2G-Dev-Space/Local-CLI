@@ -36,6 +36,9 @@ export const authApi = {
   callback: (token: string) => api.post('/auth/callback', {}, {
     headers: { Authorization: `Bearer ${token}` }
   }),
+  adminLogin: (username: string, password: string) =>
+    api.post('/auth/admin-login', { username, password }),
+  adminCheck: () => api.get('/auth/admin-check'),
 };
 
 export const modelsApi = {

@@ -44,39 +44,43 @@ export default function Dashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-nexus-600"></div>
+        <div className="w-10 h-10 border-4 border-samsung-blue border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
   }
 
   const stats = [
     {
-      label: 'Active Users',
+      label: '활성 사용자',
       value: overview?.activeUsers || 0,
       icon: Activity,
-      color: 'bg-green-500',
-      description: 'Last 30 minutes',
+      color: 'bg-emerald-500',
+      bgLight: 'bg-emerald-50',
+      description: '최근 30분',
     },
     {
-      label: 'Total Users',
+      label: '전체 사용자',
       value: overview?.totalUsers || 0,
       icon: Users,
-      color: 'bg-blue-500',
-      description: 'Registered users',
+      color: 'bg-samsung-blue',
+      bgLight: 'bg-blue-50',
+      description: '등록된 사용자',
     },
     {
-      label: 'Active Models',
+      label: '활성 모델',
       value: overview?.totalModels || 0,
       icon: Server,
-      color: 'bg-purple-500',
-      description: 'Enabled models',
+      color: 'bg-violet-500',
+      bgLight: 'bg-violet-50',
+      description: '사용 가능한 모델',
     },
     {
-      label: 'Today\'s Requests',
+      label: '오늘 요청',
       value: overview?.todayUsage.requestCount || 0,
       icon: Zap,
-      color: 'bg-orange-500',
-      description: 'API calls today',
+      color: 'bg-amber-500',
+      bgLight: 'bg-amber-50',
+      description: 'API 호출 수',
     },
   ];
 
@@ -85,24 +89,22 @@ export default function Dashboard() {
     : 0;
 
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-500 mt-1">Overview of Nexus Coder usage and statistics</p>
-      </div>
-
+    <div className="space-y-6">
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {stats.map(({ label, value, icon: Icon, color, description }) => (
-          <div key={label} className="bg-white rounded-xl shadow-sm p-6">
-            <div className="flex items-center gap-4">
-              <div className={`p-3 rounded-lg ${color}`}>
-                <Icon className="w-6 h-6 text-white" />
-              </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+        {stats.map(({ label, value, icon: Icon, color, bgLight, description }) => (
+          <div
+            key={label}
+            className="bg-white rounded-2xl shadow-card p-5 hover:shadow-soft transition-shadow duration-300"
+          >
+            <div className="flex items-start justify-between">
               <div>
-                <p className="text-2xl font-bold text-gray-900">{formatNumber(value)}</p>
-                <p className="text-sm font-medium text-gray-600">{label}</p>
-                <p className="text-xs text-gray-400">{description}</p>
+                <p className="text-sm font-medium text-gray-500">{label}</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">{formatNumber(value)}</p>
+                <p className="text-xs text-gray-400 mt-1">{description}</p>
+              </div>
+              <div className={`p-3 rounded-xl ${bgLight}`}>
+                <Icon className={`w-5 h-5 ${color.replace('bg-', 'text-')}`} />
               </div>
             </div>
           </div>
@@ -110,44 +112,38 @@ export default function Dashboard() {
       </div>
 
       {/* Today's Token Usage */}
-      <div className="bg-white rounded-xl shadow-sm p-6 mb-8">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Today's Token Usage</h2>
-        <div className="grid grid-cols-3 gap-4">
-          <div className="text-center p-4 bg-gray-50 rounded-lg">
-            <p className="text-2xl font-bold text-nexus-600">
+      <div className="bg-white rounded-2xl shadow-card p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">오늘의 토큰 사용량</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="text-center p-4 bg-gray-50 rounded-xl">
+            <p className="text-2xl font-bold text-samsung-blue">
               {formatNumber(overview?.todayUsage.inputTokens || 0)}
             </p>
-            <p className="text-sm text-gray-500">Input Tokens</p>
+            <p className="text-sm text-gray-500 mt-1">입력 토큰</p>
           </div>
-          <div className="text-center p-4 bg-gray-50 rounded-lg">
-            <p className="text-2xl font-bold text-nexus-600">
+          <div className="text-center p-4 bg-gray-50 rounded-xl">
+            <p className="text-2xl font-bold text-samsung-blue">
               {formatNumber(overview?.todayUsage.outputTokens || 0)}
             </p>
-            <p className="text-sm text-gray-500">Output Tokens</p>
+            <p className="text-sm text-gray-500 mt-1">출력 토큰</p>
           </div>
-          <div className="text-center p-4 bg-nexus-50 rounded-lg">
-            <p className="text-2xl font-bold text-nexus-700">
+          <div className="text-center p-4 bg-samsung-blue/5 rounded-xl border border-samsung-blue/20">
+            <p className="text-2xl font-bold text-samsung-blue-dark">
               {formatNumber(todayTokens)}
             </p>
-            <p className="text-sm text-gray-500">Total Tokens</p>
+            <p className="text-sm text-gray-500 mt-1">총 토큰</p>
           </div>
         </div>
       </div>
 
       {/* User Stats Chart (Cumulative + Daily Active) */}
-      <div className="mb-8">
-        <UserStatsChart />
-      </div>
+      <UserStatsChart />
 
       {/* Model Usage Chart */}
-      <div className="mb-8">
-        <ModelUsageChart />
-      </div>
+      <ModelUsageChart />
 
       {/* Users by Model Chart */}
-      <div className="mb-8">
-        <UsersByModelChart />
-      </div>
+      <UsersByModelChart />
     </div>
   );
 }

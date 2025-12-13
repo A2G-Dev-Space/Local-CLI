@@ -227,7 +227,7 @@ class AuthManager {
  */
 export class AuthenticationRequiredError extends Error {
   constructor() {
-    super('Authentication required. Please run: ncli login');
+    super('Authentication required. Please run: nexus');
     this.name = 'AuthenticationRequiredError';
   }
 }

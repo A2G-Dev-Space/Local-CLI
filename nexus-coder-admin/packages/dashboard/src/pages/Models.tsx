@@ -83,7 +83,7 @@ export default function Models() {
         </div>
         <button
           onClick={handleCreate}
-          className="flex items-center gap-2 px-4 py-2 bg-nexus-600 text-white rounded-lg hover:bg-nexus-700 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-samsung-blue text-white rounded-xl hover:bg-samsung-blue-dark transition-colors"
         >
           <Plus className="w-5 h-5" />
           Add Model
@@ -91,7 +91,7 @@ export default function Models() {
       </div>
 
       {/* Models Table */}
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-card overflow-hidden">
         <table className="w-full">
           <thead className="bg-gray-50">
             <tr>
@@ -117,8 +117,8 @@ export default function Models() {
               <tr key={model.id} className="hover:bg-gray-50">
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-nexus-100 rounded-lg">
-                      <Server className="w-5 h-5 text-nexus-600" />
+                    <div className="p-2 bg-samsung-blue/10 rounded-xl">
+                      <Server className="w-5 h-5 text-samsung-blue" />
                     </div>
                     <div>
                       <p className="font-medium text-gray-900">{model.displayName}</p>
@@ -162,7 +162,7 @@ export default function Models() {
                 <td className="px-6 py-4 text-right">
                   <button
                     onClick={() => handleEdit(model)}
-                    className="p-2 text-gray-400 hover:text-nexus-600 transition-colors"
+                    className="p-2 text-gray-400 hover:text-samsung-blue transition-colors"
                     title="Edit"
                   >
                     <Edit2 className="w-4 h-4" />
@@ -264,7 +264,7 @@ function ModelModal({ model, onClose, onSave }: ModelModalProps) {
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-nexus-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-samsung-blue focus:border-transparent"
               placeholder="e.g., gpt-4"
               required
             />
@@ -278,7 +278,7 @@ function ModelModal({ model, onClose, onSave }: ModelModalProps) {
               type="text"
               value={formData.displayName}
               onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-nexus-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-samsung-blue focus:border-transparent"
               placeholder="e.g., GPT-4 Turbo"
               required
             />
@@ -292,7 +292,7 @@ function ModelModal({ model, onClose, onSave }: ModelModalProps) {
               type="url"
               value={formData.endpointUrl}
               onChange={(e) => setFormData({ ...formData, endpointUrl: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-nexus-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-samsung-blue focus:border-transparent"
               placeholder="https://api.openai.com/v1/chat/completions"
               required
             />
@@ -306,7 +306,7 @@ function ModelModal({ model, onClose, onSave }: ModelModalProps) {
               type="password"
               value={formData.apiKey}
               onChange={(e) => setFormData({ ...formData, apiKey: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-nexus-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-samsung-blue focus:border-transparent"
               placeholder="sk-..."
             />
           </div>
@@ -319,7 +319,7 @@ function ModelModal({ model, onClose, onSave }: ModelModalProps) {
               type="number"
               value={formData.maxTokens}
               onChange={(e) => setFormData({ ...formData, maxTokens: parseInt(e.target.value) })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-nexus-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-samsung-blue focus:border-transparent"
               min={1}
               max={1000000}
             />
@@ -331,7 +331,7 @@ function ModelModal({ model, onClose, onSave }: ModelModalProps) {
               id="enabled"
               checked={formData.enabled}
               onChange={(e) => setFormData({ ...formData, enabled: e.target.checked })}
-              className="w-4 h-4 text-nexus-600 rounded focus:ring-nexus-500"
+              className="w-4 h-4 text-samsung-blue rounded focus:ring-samsung-blue"
             />
             <label htmlFor="enabled" className="text-sm text-gray-700">
               Enable this model
@@ -355,7 +355,7 @@ function ModelModal({ model, onClose, onSave }: ModelModalProps) {
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-2 bg-nexus-600 text-white rounded-lg hover:bg-nexus-700 disabled:opacity-50 transition-colors"
+              className="px-4 py-2 bg-samsung-blue text-white rounded-xl hover:bg-samsung-blue-dark disabled:opacity-50 transition-colors"
             >
               {loading ? 'Saving...' : 'Save'}
             </button>

@@ -5,7 +5,7 @@ import Dashboard from './pages/Dashboard';
 import Models from './pages/Models';
 import Users from './pages/Users';
 import Login from './pages/Login';
-import { api } from './services/api';
+import { authApi } from './services/api';
 
 interface User {
   id: string;
@@ -31,7 +31,7 @@ function App() {
         return;
       }
 
-      const response = await api.get('/auth/me');
+      const response = await authApi.adminCheck();
       setUser(response.data.user);
       setIsAdmin(response.data.isAdmin);
     } catch {
@@ -55,8 +55,11 @@ function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-nexus-600"></div>
+      <div className="min-h-screen flex items-center justify-center bg-samsung-gray-light">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-samsung-blue border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="mt-4 text-sm text-gray-500">로딩 중...</p>
+        </div>
       </div>
     );
   }
