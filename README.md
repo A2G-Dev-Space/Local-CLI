@@ -1,205 +1,227 @@
-# LOCAL-CLI v2.2.0
+# Nexus Coder v2.2.0
 
-[![GitHub release](https://img.shields.io/github/v/release/A2G-Dev-Space/Local-CLI)](https://github.com/A2G-Dev-Space/Local-CLI/releases)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node.js](https://img.shields.io/badge/Node.js-20%2B-green)](https://nodejs.org/)
+**Enterprise AI Coding Assistant**
 
-**OpenAI-Compatible Local CLI Coding Agent**
-
-> Standalone AI coding agent for local LLM environments.
-> Works with vLLM, Ollama, LM Studio, and any OpenAI-compatible API.
+> SSO 인증 기반 사내 AI 코딩 어시스턴트
+> Admin 대시보드를 통한 중앙집중식 모델 관리 및 사용량 모니터링
 
 ---
 
-## Quick Start
+## 설치
+
+### CLI 설치 (개인 사용자)
 
 ```bash
-# 1. Install
-git clone https://github.com/A2G-Dev-Space/Local-CLI.git
-cd Local-CLI
+# 1. 설치
+git clone https://github.com/your-org/nexus-coder.git
+cd nexus-coder
 npm install && npm run build
 
-# 2. Run
-node dist/cli.js       # or use 'lcli' command after npm link
+# 2. 전역 링크 (선택)
+npm link
+
+# 3. 로그인
+ncli login
+
+# 4. 실행
+ncli
 ```
 
-The LLM endpoint setup wizard will automatically run on first launch.
+### Admin Server 배포
+
+```bash
+cd nexus-coder-admin
+cp .env.example .env
+# .env 파일 수정 (DB 비밀번호, JWT 시크릿 등)
+docker-compose up -d
+```
 
 ---
 
-## Key Features
+## Architecture
 
-### Supervised Mode
-Request user approval before executing file modification tools.
-
+```bash
+nexus              # 대화형 모드 시작
+nexus --verbose    # 상세 로깅
+nexus --debug      # 디버그 모드
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  🔧 create_file                                              │
-│  ─────────────────────────────────────────────────────────   │
-│  📁 file_path: /src/utils/helper.ts                          │
-│  📝 content: export function helper() { ... }                │
-│  ─────────────────────────────────────────────────────────   │
-│  ▸ [1] ✅ Approve                                            │
-│    [2] ❌ Reject                                             │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                     NEXUS CODER ARCHITECTURE                     │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│   ┌──────────────┐              ┌──────────────────────┐       │
+│   │   Samsung    │◄────────────►│    ncli (CLI Tool)   │       │
+│   │  SSO Server  │  JWT Token   │                      │       │
+│   └──────────────┘              └──────────┬───────────┘       │
+│                                            │                   │
+│                            API calls (Bearer token)            │
+│                                            │                   │
+│                                            ▼                   │
+│   ┌────────────────────────────────────────────────────────┐   │
+│   │              ADMIN SERVER (Docker Compose)              │   │
+│   │  ┌─────────────┐    ┌─────────────┐    ┌────────────┐  │   │
+│   │  │   Express   │    │  PostgreSQL │    │   Redis    │  │   │
+│   │  │     API     │◄──►│     DB      │◄──►│   Cache    │  │   │
+│   │  └─────────────┘    └─────────────┘    └────────────┘  │   │
+│   │         │                                               │   │
+│   │         ▼                                               │   │
+│   │  ┌─────────────────────────────────────────────────┐   │   │
+│   │  │           React Admin Dashboard                  │   │   │
+│   │  │  - Model Management (CRUD)                       │   │   │
+│   │  │  - User Management                               │   │   │
+│   │  │  - Usage Analytics (Real-time Graphs)            │   │   │
+│   │  └─────────────────────────────────────────────────┘   │   │
+│   └────────────────────────────────────────────────────────┘   │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-- **Tab key** - Toggle Auto ↔ Supervised mode
-- **Only file modification tools** require approval (read_file, list_files, etc. run automatically)
-- **On Reject** - Enter comment → AI retries with feedback
+---
 
-### Plan & Execute Architecture
-Automatically breaks down user requests into TODO lists and executes them sequentially.
+## Features
 
+### For Users (CLI)
+
+- **SSO 로그인**: Samsung DS GenAI Portal SSO 연동
+- **중앙집중식 모델**: Admin이 등록한 LLM 모델 사용
+- **Plan & Execute**: 자동 작업 분해 및 순차 실행
+- **Supervised Mode**: 파일 수정 전 승인 요청
+- **Session 관리**: 대화 히스토리 저장/복원
+
+### For Admins (Dashboard)
+
+- **모델 관리**: LLM 엔드포인트 CRUD
+- **사용자 관리**: 사용자 목록 및 상태 관리
+- **사용량 분석**: 실시간 사용량 그래프
+  - 일별/주별/월별 누적 그래프
+  - 사용자별 사용량
+  - 모델별 사용량
+  - 부서별 사용량
+
+---
+
+## CLI Commands
+
+```bash
+ncli              # 대화형 모드 시작
+ncli login        # SSO 로그인
+ncli logout       # 로그아웃
+ncli --verbose    # Verbose 로깅
+ncli --debug      # Debug 모드
 ```
-You: Add a logging system to the project
 
-✶ Planning... (esc to interrupt · 5s · ↑ 1.2k tokens)
+### Slash Commands (대화형 모드 내)
 
-📋 3 tasks created:
-  1. Create logger.ts file
-  2. Add logger import to existing files
-  3. Apply logger to error handling
-```
-
-### Static Log UI
-Claude Code-style scrollable log history:
-- Tool-specific icons (📖 read, 📝 create, ✏️ edit, 📂 list, 🔍 find, 🔧 bash, 💬 message)
-- Diff format for file changes (blue: added, red: deleted)
-- Real-time progress display
-
-### LLM Tools
-| Tool | Description | Requires Approval |
-|------|-------------|-------------------|
-| `read_file` | Read file | ❌ |
-| `create_file` | Create new file | ✅ |
-| `edit_file` | Edit existing file (line-by-line) | ✅ |
-| `list_files` | List directory | ❌ |
-| `find_files` | Search files (glob pattern) | ❌ |
-| `bash` | Execute shell commands (v2.2.0) | ✅ |
-| `tell_to_user` | Send message to user | ❌ |
-| `ask_user` | Ask user a question | ❌ |
-
-### Slash Commands
 | Command | Description |
 |---------|-------------|
-| `/help` | Show help |
-| `/clear` | Reset conversation |
-| `/compact` | Compress conversation (save context) |
-| `/load` | Load saved session |
-| `/model` | Switch LLM model |
-| `/settings` | Settings menu |
-| `/usage` | Token usage statistics |
+| `/help` | 도움말 표시 |
+| `/clear` | 대화 초기화 |
+| `/compact` | 대화 압축 (컨텍스트 절약) |
+| `/model` | 모델 선택 |
+| `/settings` | 설정 메뉴 |
+| `/usage` | 토큰 사용량 통계 |
 
 ### Keyboard Shortcuts
-- `Ctrl+C` - Exit
-- `ESC` - Interrupt current execution
-- `Tab` - Toggle Auto ↔ Supervised mode
-- `@` - File browser
-- `/` - Command autocomplete
+
+- `Ctrl+C` - 종료
+- `ESC` - 현재 작업 중단
+- `Tab` - Auto ↔ Supervised 모드 전환
+- `@` - 파일 브라우저
+- `/` - 명령어 자동완성
 
 ---
 
-## Main Features
+## 문제 해결
 
-### v2.2.0 New Features
-
-| Feature | Description |
-|---------|-------------|
-| **Unified Execution Loop** | Planning and Direct mode now share the same execution pattern |
-| **TODO Context Injection** | TODO state injected per-invoke, not stored in history (prevents context pollution) |
-| **Bash Tool** | Execute shell commands (git, npm, build, test) with security validation |
-| **Language Priority** | AI responds in the same language as user input (Korean → Korean, English → English) |
-| **Auto-Compact Enhancement** | Preserves last 2 messages when compacting for better continuity |
-| **Error Retry** | Auto-retry failed tool calls up to 3 times before giving up |
-
-### Supervised Mode
-- Request user approval before file modification
-- Toggle Auto/Supervised mode with Tab key
-- Provide feedback via comments on Reject
-
-### Session Management
-- Auto-save/restore conversation history between TODO tasks
-- Preserve full context including tool calls/responses
-- History only resets on `/compact`
-
-### Context Usage Display
-- Status bar shows `Context (1.3K / 13%)` format
-- Auto-Compact runs automatically at 80% usage
-
-### Single Tool Execution
-- `parallel_tool_calls: false` API parameter enforced
-- LLM calls only one tool at a time for stable execution
+```
+~/.nexus-coder/
+├── config.json        # 설정 파일
+├── auth.json          # 인증 정보
+├── cert/              # SSO 인증서
+│   └── cert.cer
+├── docs/              # 다운로드된 문서
+└── projects/          # 프로젝트별 세션
+```
 
 ---
 
-## Configuration
+## Admin Server Setup
 
-### Add LLM Endpoint
+### Environment Variables
+
+```env
+# Database
+POSTGRES_USER=nexus
+POSTGRES_PASSWORD=your-secure-password
+POSTGRES_DB=nexus_coder
+DATABASE_URL=postgresql://nexus:password@postgres:5432/nexus_coder
+
+# Redis
+REDIS_URL=redis://redis:6379
+
+# JWT
+JWT_SECRET=your-jwt-secret
+
+# SSO
+SSO_BASE_URL=https://genai.samsungds.net:36810
+SSO_CERT_PATH=/app/cert/cert.cer
+
+# Server
+PORT=4090
+```
+
+### Docker Compose
 
 ```bash
-# Run setup wizard
-lcli    # First run auto-launches wizard
+cd nexus-coder-admin
+docker-compose up -d
 
-# Or via settings
-/settings
+# 로그 확인
+docker-compose logs -f api
+
+# 중지
+docker-compose down
 ```
 
-Compatible with any OpenAI-compatible API server:
-- vLLM, Ollama, LM Studio
-- Azure OpenAI, Google Gemini (OpenAI Compatible)
-- Internal LLM servers
+---
 
-### CLI Options
+## Development
+
+### CLI 개발
 
 ```bash
-lcli              # Default run
-lcli --verbose    # Verbose logging
-lcli --debug      # Debug mode
+npm install
+npm run build
+npm run dev       # 개발 모드
+```
+
+### Admin Server 개발
+
+```bash
+cd nexus-coder-admin/packages/api
+npm install
+npx prisma migrate dev    # DB 마이그레이션
+npm run dev               # API 서버 시작
+
+cd ../dashboard
+npm install
+npm run dev               # Dashboard 개발 서버
 ```
 
 ---
 
-## Directory Structure
-
-```
-~/.local-cli/
-├── config.json        # Configuration file
-├── endpoints.json     # Endpoint settings
-├── usage.json         # Usage statistics
-├── docs/              # Downloaded docs
-└── projects/          # Project-specific sessions
-```
-
----
-
-## Requirements
+## 요구사항
 
 - Node.js v20+
 - npm v10+
-- Git (for doc downloads)
-
----
-
-## Documentation
-
-- [Developer Guide](docs/01_DEVELOPMENT.md)
-- [Logging System](docs/02_LOGGING.md)
-- [Testing Guide](docs/03_TESTING.md)
-- [Roadmap](docs/04_ROADMAP.md)
+- Docker & Docker Compose (Admin Server)
 
 ---
 
 ## License
 
-MIT License
+Internal Use Only - Samsung DS
 
 ---
 
-## Keywords
-
-`AI coding assistant` `local LLM` `offline AI` `CLI tool` `vLLM` `Ollama` `LM Studio` `OpenAI compatible` `code generation` `developer tools` `TypeScript` `Node.js` `coding agent`
-
----
-
-**GitHub**: https://github.com/A2G-Dev-Space/Local-CLI
+**Authors**: syngha.han, byeongju.lee, young87.kim
