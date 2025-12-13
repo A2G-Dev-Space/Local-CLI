@@ -120,11 +120,12 @@ program
           console.log(chalk.green('✓ Models loaded from Admin Server\n'));
         }
       } catch (error) {
-        console.error(chalk.yellow('\n⚠️  Admin Server에서 모델 목록을 가져올 수 없습니다.'));
+        console.error(chalk.red('\n❌ Admin Server에서 모델 목록을 가져올 수 없습니다.'));
         if (error instanceof Error) {
-          console.error(chalk.gray(`  ${error.message}`));
+          console.error(chalk.red(`   ${error.message}`));
         }
-        console.log(chalk.gray('  기존 설정을 사용합니다.\n'));
+        console.log(chalk.yellow('\n서버 연결 상태를 확인하거나 관리자에게 문의하세요.\n'));
+        process.exit(1);
       }
 
       // LLMClient 생성 (엔드포인트가 없으면 null)
