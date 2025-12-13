@@ -1,5 +1,15 @@
 version: '3.8'
 
+# 사내 네트워크 프록시 설정
+x-proxy-env: &proxy-env
+  HTTP_PROXY: ""
+  HTTPS_PROXY: ""
+  NO_PROXY: "localhost,127.0.0.1,.samsungds.net,postgres,redis,api,dashboard,nginx"
+  http_proxy: ""
+  https_proxy: ""
+  no_proxy: "localhost,127.0.0.1,.samsungds.net,postgres,redis,api,dashboard,nginx"
+  NODE_TLS_REJECT_UNAUTHORIZED: "0"
+
 services:
   # PostgreSQL Database
   postgres:
@@ -41,9 +51,12 @@ services:
     build:
       context: ./packages/api
       dockerfile: Dockerfile
+      args:
+        <<: *proxy-env
     container_name: nexus-coder-api
     restart: unless-stopped
     environment:
+      <<: *proxy-env
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER:-nexuscoder}:${POSTGRES_PASSWORD:-nexuscoder123}@postgres:5432/${POSTGRES_DB:-nexuscoder}
       REDIS_URL: redis://redis:6379
@@ -68,9 +81,12 @@ services:
     build:
       context: ./packages/dashboard
       dockerfile: Dockerfile
+      args:
+        <<: *proxy-env
     container_name: nexus-coder-dashboard
     restart: unless-stopped
     environment:
+      <<: *proxy-env
       VITE_API_URL: /api
     # No external port - accessed via Nginx only
     expose:
