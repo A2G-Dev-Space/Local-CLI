@@ -39,13 +39,13 @@ const READ_FILE_DEFINITION: ToolDefinition = {
       properties: {
         reason: {
           type: 'string',
-          description: `A natural, conversational explanation for the user about what you're doing (in user's language).
-Write as if you're talking to the user directly.
+          description: `A natural, conversational explanation for the user about what you're doing.
+Write as if you're talking to the user directly. Use the same language as the user.
 Examples:
-- "현재 인증 로직이 어떻게 구현되어 있는지 확인해볼게요"
-- "에러가 발생한 파일을 열어서 문제를 찾아볼게요"
-- "프로젝트 설정을 파악하기 위해 package.json을 확인해볼게요"
-- "수정하기 전에 기존 코드가 어떻게 되어있는지 먼저 볼게요"`,
+- "Checking how the current authentication logic is implemented"
+- "Opening the file where the error occurred to find the problem"
+- "Checking package.json to understand the project setup"
+- "Looking at the existing code before making changes"`,
         },
         file_path: {
           type: 'string',
@@ -80,17 +80,17 @@ async function _executeReadFile(args: Record<string, unknown>): Promise<ToolResu
     if (err.code === 'ENOENT') {
       return {
         success: false,
-        error: `파일을 찾을 수 없습니다: ${displayPath}`,
+        error: `File not found: ${displayPath}`,
       };
     } else if (err.code === 'EACCES') {
       return {
         success: false,
-        error: `파일 읽기 권한이 없습니다: ${displayPath}`,
+        error: `Permission denied reading file: ${displayPath}`,
       };
     } else {
       return {
         success: false,
-        error: `파일 읽기 실패: ${err.message}`,
+        error: `Failed to read file: ${err.message}`,
       };
     }
   }
@@ -123,13 +123,13 @@ If the file already exists, this tool will fail.`,
       properties: {
         reason: {
           type: 'string',
-          description: `A natural, conversational explanation for the user about what you're doing (in user's language).
-Write as if you're talking to the user directly.
+          description: `A natural, conversational explanation for the user about what you're doing.
+Write as if you're talking to the user directly. Use the same language as the user.
 Examples:
-- "인증 서비스를 담당할 새 파일을 만들게요"
-- "테스트 설정 파일이 없어서 새로 생성할게요"
-- "API 라우터를 분리하기 위해 새 파일을 만들게요"
-- "컴포넌트를 새로 작성해서 추가할게요"`,
+- "Creating a new file for the authentication service"
+- "Creating a new test config file since one doesn't exist"
+- "Creating a new file to separate the API router"
+- "Adding a new component file"`,
         },
         file_path: {
           type: 'string',
@@ -162,7 +162,7 @@ async function _executeCreateFile(args: Record<string, unknown>): Promise<ToolRe
       await fs.access(resolvedPath);
       return {
         success: false,
-        error: `파일이 이미 존재합니다: ${displayPath}. 기존 파일을 수정하려면 edit_file을 사용하세요.`,
+        error: `File already exists: ${displayPath}. Use edit_file to modify existing files.`,
       };
     } catch {
       // File doesn't exist, which is what we want
@@ -256,13 +256,13 @@ IMPORTANT:
       properties: {
         reason: {
           type: 'string',
-          description: `A natural, conversational explanation for the user about what you're doing (in user's language).
-Write as if you're talking to the user directly.
+          description: `A natural, conversational explanation for the user about what you're doing.
+Write as if you're talking to the user directly. Use the same language as the user.
 Examples:
-- "버그가 있는 부분을 수정할게요"
-- "요청하신 대로 함수 이름을 변경할게요"
-- "import 구문을 추가해서 의존성을 연결할게요"
-- "타입 에러가 나는 부분을 고쳐볼게요"`,
+- "Fixing the buggy section"
+- "Changing the function name as requested"
+- "Adding the import statement to connect the dependency"
+- "Fixing the type error"`,
         },
         file_path: {
           type: 'string',
@@ -314,7 +314,7 @@ async function _executeEditFile(args: Record<string, unknown>): Promise<ToolResu
     } catch {
       return {
         success: false,
-        error: `파일이 존재하지 않습니다: ${displayPath}. 새 파일을 만들려면 create_file을 사용하세요.`,
+        error: `File does not exist: ${displayPath}. Use create_file to create new files.`,
       };
     }
 
@@ -339,7 +339,7 @@ async function _executeEditFile(args: Record<string, unknown>): Promise<ToolResu
       if (lineIdx < 0 || lineIdx >= lines.length) {
         return {
           success: false,
-          error: `줄 번호가 범위를 벗어났습니다: ${edit.line_number} (파일은 ${lines.length}줄)\n\n💡 read_file로 파일 내용을 확인한 후 다시 시도하세요.`,
+          error: `Line number out of range: ${edit.line_number} (file has ${lines.length} lines)\n\n💡 Use read_file to check file content and try again.`,
         };
       }
 
@@ -347,7 +347,7 @@ async function _executeEditFile(args: Record<string, unknown>): Promise<ToolResu
       if (currentLine !== edit.original_text) {
         return {
           success: false,
-          error: `줄 ${edit.line_number}의 내용이 일치하지 않습니다.\n예상: "${edit.original_text}"\n실제: "${currentLine}"\n\n💡 read_file로 파일 내용을 확인한 후 다시 시도하세요.`,
+          error: `Line ${edit.line_number} content does not match.\nExpected: "${edit.original_text}"\nActual: "${currentLine}"\n\n💡 Use read_file to check file content and try again.`,
         };
       }
 
@@ -436,13 +436,13 @@ const LIST_FILES_DEFINITION: ToolDefinition = {
       properties: {
         reason: {
           type: 'string',
-          description: `A natural, conversational explanation for the user about what you're doing (in user's language).
-Write as if you're talking to the user directly.
+          description: `A natural, conversational explanation for the user about what you're doing.
+Write as if you're talking to the user directly. Use the same language as the user.
 Examples:
-- "프로젝트 구조를 파악하기 위해 폴더를 살펴볼게요"
-- "어떤 파일들이 있는지 확인해볼게요"
-- "src 폴더 안에 뭐가 있는지 볼게요"
-- "관련 파일을 찾기 위해 디렉토리를 확인할게요"`,
+- "Looking at the folder structure to understand the project"
+- "Checking what files are available"
+- "Seeing what's inside the src folder"
+- "Checking the directory to find related files"`,
         },
         directory_path: {
           type: 'string',
@@ -557,12 +557,12 @@ async function _executeListFilesInternal(args: Record<string, unknown>): Promise
     if (err.code === 'ENOENT') {
       return {
         success: false,
-        error: `디렉토리를 찾을 수 없습니다: ${directoryPath}`,
+        error: `Directory not found: ${directoryPath}`,
       };
     } else {
       return {
         success: false,
-        error: `디렉토리 읽기 실패: ${err.message}`,
+        error: `Failed to read directory: ${err.message}`,
       };
     }
   }
@@ -594,10 +594,10 @@ const FIND_FILES_DEFINITION: ToolDefinition = {
           description: `A natural, conversational explanation for the user about what you're doing (in user's language).
 Write as if you're talking to the user directly.
 Examples:
-- "설정 파일이 어디 있는지 찾아볼게요"
-- "테스트 파일들을 검색해볼게요"
-- "TypeScript 파일들이 어디에 있는지 확인할게요"
-- "관련된 컴포넌트 파일을 찾아볼게요"`,
+- "Looking for where the config files are located"
+- "Searching for test files"
+- "Checking where TypeScript files are"
+- "Finding related component files"`,
         },
         pattern: {
           type: 'string',
@@ -692,7 +692,7 @@ async function _executeFindFilesInternal(args: Record<string, unknown>): Promise
     if (matchedFiles.length === 0) {
       return {
         success: true,
-        result: `패턴 "${pattern}"과 일치하는 파일을 찾지 못했습니다.`,
+        result: `No files found matching pattern "${pattern}".`,
       };
     }
 
@@ -704,7 +704,7 @@ async function _executeFindFilesInternal(args: Record<string, unknown>): Promise
     const err = error as NodeJS.ErrnoException;
     return {
       success: false,
-      error: `파일 검색 실패: ${err.message}`,
+      error: `File search failed: ${err.message}`,
     };
   }
 }
@@ -737,10 +737,10 @@ The message will be displayed immediately in the UI.`,
           type: 'string',
           description: `A natural, conversational message for the user (in user's language).
 Examples:
-- "파일들을 분석하고 있어요, 잠시만 기다려주세요"
-- "설정 파일을 찾았어요! 이제 수정해볼게요"
-- "테스트를 실행해봤는데 2개가 실패했네요. 원인을 찾아볼게요"
-- "작업이 거의 끝나가요, 마무리 중이에요"`,
+- "Analyzing the files, please wait a moment"
+- "Found the config file! Let me modify it now"
+- "Ran the tests and 2 failed. Let me find the cause"
+- "Almost done, wrapping up the work"`,
         },
       },
       required: ['message'],
