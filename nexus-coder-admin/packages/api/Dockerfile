@@ -28,9 +28,13 @@ FROM node:20-alpine AS production
 
 WORKDIR /app
 
+# SSL 인증서 검증 비활성화 (사내 네트워크)
+ENV NODE_TLS_REJECT_UNAUTHORIZED=0
+RUN npm config set strict-ssl false
+
 # Copy package files and install production dependencies
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm ci --omit=dev
 
 # Copy Prisma schema and generated client
 COPY --from=builder /app/prisma ./prisma
