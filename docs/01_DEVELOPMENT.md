@@ -1,7 +1,7 @@
 # 개발자 종합 가이드 (Development Guide)
 
-> **문서 버전**: 7.0.0 (v1.2.3)
-> **최종 수정일**: 2025-12-12
+> **문서 버전**: 8.0.0 (v2.2.0)
+> **최종 수정일**: 2025-12-13
 
 이 문서는 **LOCAL-CLI** 프로젝트의 전체 구조, 아키텍처, 핵심 기능, 개발 규칙을 설명합니다.
 
@@ -31,23 +31,27 @@
 - AI가 직접 파일을 읽고, 쓰고, 검색하고, 코드를 실행
 - 터미널에서 Interactive UI로 AI와 대화
 
-### 핵심 기능 (v1.2.3)
+### 핵심 기능 (v2.2.0)
 
 | 기능 | 설명 |
 |------|------|
 | **Supervised Mode** | 파일 수정 도구 실행 전 사용자 승인 (Tab 키 토글) |
-| Plan & Execute | 복잡한 작업을 자동으로 분해하여 순차 실행 |
+| **Plan & Execute** | 복잡한 작업을 자동으로 분해하여 순차 실행 |
+| **Unified Execution Loop** | Planning/Direct 모드 통합 실행 루프 (v2.2.0) |
+| **TODO Context Injection** | TODO 상태를 매 호출마다 LLM에 주입 (히스토리 오염 방지) |
+| **Bash Tool** | Shell 명령어 실행 (git, npm, build 등) 보안 검증 포함 |
+| **Language Priority** | 사용자 입력 언어와 동일한 언어로 응답 |
 | 요청 분류 | simple_response vs requires_todo 자동 분류 |
 | ask-to-user Tool | LLM이 사용자에게 질문 (2-4 선택지 + Other) |
 | tell_to_user Tool | LLM이 사용자에게 진행 상황 메시지 전달 |
 | 사용량 추적 | 세션/일별/월별 토큰 통계 |
 | 문서 다운로드 | /docs download agno, adk |
-| Auto-Compact | Context 80% 도달 시 자동 대화 압축 |
+| **Auto-Compact** | Context 80% 도달 시 자동 대화 압축 (마지막 2개 메시지 보존) |
 | Context 표시 | `Context (1.3K / 13%)` 형식으로 토큰/비율 표시 |
 | 단일 Tool 실행 | `parallel_tool_calls: false` API 파라미터로 강제 |
 | Claude Code 스타일 상태바 | `✶ ~하는 중… (esc to interrupt · 2m 7s · ↑ 3.6k tokens)` |
 | Static Log 시스템 | 스크롤 가능한 로그 이력 (Ink Static 컴포넌트) |
-| Tool 아이콘 표시 | 각 도구별 이모지 아이콘 (📖📝✏️📂🔍💬) |
+| Tool 아이콘 표시 | 각 도구별 이모지 아이콘 (📖📝✏️📂🔍🔧💬) |
 
 ---
 
@@ -126,6 +130,7 @@ src/
 │   ├── llm/                        # LLM이 tool_call로 호출하는 도구
 │   │   ├── simple/                 # Sub-LLM 없는 단순 도구
 │   │   │   ├── file-tools.ts       # 파일 도구 + 콜백 시스템
+│   │   │   ├── bash-tool.ts        # Bash 명령 실행 도구 (v2.2.0)
 │   │   │   ├── todo-tools.ts       # TODO 관리 도구
 │   │   │   ├── ask-user-tool.ts    # ask-to-user 도구
 │   │   │   └── index.ts

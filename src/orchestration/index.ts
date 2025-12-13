@@ -34,8 +34,8 @@
  * ```
  */
 
-// Main orchestrator
-export { PlanExecuteOrchestrator } from './orchestrator.js';
+// Main orchestrator - DEPRECATED: Now using unified execution loop in usePlanExecution
+// export { PlanExecuteOrchestrator } from './orchestrator.js';
 
 // State management
 export { PlanExecuteStateManager } from './state-manager.js';

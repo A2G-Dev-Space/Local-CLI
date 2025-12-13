@@ -113,10 +113,10 @@ IMPORTANT:
           description: `A natural, conversational explanation for the user about what you're doing (in user's language).
 Write as if you're talking to the user directly.
 Examples:
-- "프로젝트의 의존성을 설치해볼게요"
-- "테스트를 실행해서 결과를 확인해볼게요"
-- "git 상태를 확인해볼게요"
-- "빌드를 실행해볼게요"`,
+- "Installing project dependencies"
+- "Running tests to check the results"
+- "Checking git status"
+- "Running the build"`,
         },
         command: {
           type: 'string',

@@ -1,4 +1,4 @@
-# LOCAL-CLI v2.1.2
+# LOCAL-CLI v2.2.0
 
 [![GitHub release](https://img.shields.io/github/v/release/A2G-Dev-Space/Local-CLI)](https://github.com/A2G-Dev-Space/Local-CLI/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -64,7 +64,7 @@ You: Add a logging system to the project
 
 ### Static Log UI
 Claude Code-style scrollable log history:
-- Tool-specific icons (📖 read, 📝 create, ✏️ edit, 📂 list, 🔍 find, 💬 message)
+- Tool-specific icons (📖 read, 📝 create, ✏️ edit, 📂 list, 🔍 find, 🔧 bash, 💬 message)
 - Diff format for file changes (blue: added, red: deleted)
 - Real-time progress display
 
@@ -76,6 +76,7 @@ Claude Code-style scrollable log history:
 | `edit_file` | Edit existing file (line-by-line) | ✅ |
 | `list_files` | List directory | ❌ |
 | `find_files` | Search files (glob pattern) | ❌ |
+| `bash` | Execute shell commands (v2.2.0) | ✅ |
 | `tell_to_user` | Send message to user | ❌ |
 | `ask_user` | Ask user a question | ❌ |
 
@@ -100,6 +101,17 @@ Claude Code-style scrollable log history:
 ---
 
 ## Main Features
+
+### v2.2.0 New Features
+
+| Feature | Description |
+|---------|-------------|
+| **Unified Execution Loop** | Planning and Direct mode now share the same execution pattern |
+| **TODO Context Injection** | TODO state injected per-invoke, not stored in history (prevents context pollution) |
+| **Bash Tool** | Execute shell commands (git, npm, build, test) with security validation |
+| **Language Priority** | AI responds in the same language as user input (Korean → Korean, English → English) |
+| **Auto-Compact Enhancement** | Preserves last 2 messages when compacting for better continuity |
+| **Error Retry** | Auto-retry failed tool calls up to 3 times before giving up |
 
 ### Supervised Mode
 - Request user approval before file modification
