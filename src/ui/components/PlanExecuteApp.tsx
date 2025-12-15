@@ -960,6 +960,13 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
     // Handle slash commands
     if (isSlashCommand(userMessage)) {
       logger.flow('Executing slash command');
+
+      // Add user input to log for slash commands
+      addLog({
+        type: 'user_input',
+        content: userMessage,
+      });
+
       const commandContext: CommandHandlerContext = {
         planningMode,
         messages,
