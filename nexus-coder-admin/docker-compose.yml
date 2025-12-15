@@ -1,0 +1,112 @@
+version: '3.8'
+
+# 사내 네트워크 프록시 설정
+x-proxy-env: &proxy-env
+  HTTP_PROXY: ""
+  HTTPS_PROXY: ""
+  NO_PROXY: "localhost,127.0.0.1,.samsungds.net,postgres,redis,api,dashboard,nginx"
+  http_proxy: ""
+  https_proxy: ""
+  no_proxy: "localhost,127.0.0.1,.samsungds.net,postgres,redis,api,dashboard,nginx"
+  NODE_TLS_REJECT_UNAUTHORIZED: "0"
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: nexus-coder-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-nexuscoder}
+      POSTGRES_USER: ${POSTGRES_USER:-nexuscoder}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nexuscoder123}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "4091:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nexuscoder}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: nexus-coder-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "4092:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # API Server (internal only, accessed via Nginx)
+  api:
+    build:
+      context: ./packages/api
+      dockerfile: Dockerfile
+      args:
+        <<: *proxy-env
+    container_name: nexus-coder-api
+    restart: unless-stopped
+    environment:
+      <<: *proxy-env
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-nexuscoder}:${POSTGRES_PASSWORD:-nexuscoder123}@postgres:5432/${POSTGRES_DB:-nexuscoder}
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-your-jwt-secret-change-in-production}
+      SSO_CERT_PATH: /app/cert/cert.cer
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-aidivn}
+      PORT: 3000
+    volumes:
+      - ./cert:/app/cert:ro
+    # No external port - accessed via Nginx only
+    expose:
+      - "3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # React Dashboard (internal only, accessed via Nginx)
+  dashboard:
+    build:
+      context: ./packages/dashboard
+      dockerfile: Dockerfile
+      args:
+        <<: *proxy-env
+    container_name: nexus-coder-dashboard
+    restart: unless-stopped
+    environment:
+      <<: *proxy-env
+      VITE_API_URL: /api
+    # No external port - accessed via Nginx only
+    expose:
+      - "80"
+    depends_on:
+      - api
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: nexus-coder-proxy
+    restart: unless-stopped
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "4090:4090"
+    depends_on:
+      - api
+      - dashboard
+
+volumes:
+  postgres_data:
+  redis_data:
