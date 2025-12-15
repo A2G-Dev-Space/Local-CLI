@@ -1,7 +1,7 @@
 # 개발자 종합 가이드 (Development Guide)
 
-> **문서 버전**: 8.0.0 (v2.2.0)
-> **최종 수정일**: 2025-12-13
+> **문서 버전**: 9.0.0 (v2.4.0)
+> **최종 수정일**: 2025-12-15
 
 이 문서는 **LOCAL-CLI** 프로젝트의 전체 구조, 아키텍처, 핵심 기능, 개발 규칙을 설명합니다.
 
@@ -31,13 +31,18 @@
 - AI가 직접 파일을 읽고, 쓰고, 검색하고, 코드를 실행
 - 터미널에서 Interactive UI로 AI와 대화
 
-### 핵심 기능 (v2.2.0)
+### 핵심 기능 (v2.4.0)
 
 | 기능 | 설명 |
 |------|------|
+| **LLM-based Docs Search** | 폴더 구조 기반 LLM 결정으로 문서 검색 트리거 (v2.4.0) |
+| **Hierarchical Docs Navigation** | 폴더 탐색 기반 문서 검색 (list_directory, read_docs_file, preview_file) |
+| **Docs Search Progress UI** | 문서 검색 중 실시간 진행 상황 표시 (v2.4.0) |
+| **Centralized Prompts** | 모든 프롬프트 `src/prompts/`로 중앙 집중화 (v2.4.0) |
+| **Restructured Agents** | `src/agents/`에 base class 기반 에이전트 구조화 (v2.4.0) |
 | **Supervised Mode** | 파일 수정 도구 실행 전 사용자 승인 (Tab 키 토글) |
 | **Plan & Execute** | 복잡한 작업을 자동으로 분해하여 순차 실행 |
-| **Unified Execution Loop** | Planning/Direct 모드 통합 실행 루프 (v2.2.0) |
+| **Unified Execution Loop** | Planning/Direct 모드 통합 실행 루프 |
 | **TODO Context Injection** | TODO 상태를 매 호출마다 LLM에 주입 (히스토리 오염 방지) |
 | **Bash Tool** | Shell 명령어 실행 (git, npm, build 등) 보안 검증 포함 |
 | **Language Priority** | 사용자 입력 언어와 동일한 언어로 응답 |
@@ -112,9 +117,31 @@ src/
 │   ├── slash-command-handler.ts    # 슬래시 명령 처리
 │   ├── bash-command-tool.ts        # Bash 명령 실행 (보안 검증)
 │   ├── todo-executor.ts            # TODO 실행기
-│   ├── agent-framework-handler.ts  # 에이전트 프레임워크 핸들러
 │   ├── auto-updater.ts             # GitHub 자동 업데이트
 │   └── git-auto-updater.ts         # Git 기반 자동 업데이트
+│
+├── prompts/                        # 프롬프트 중앙 관리 (v2.4.0)
+│   ├── shared/                     # 공유 규칙
+│   │   ├── language-rules.ts       # 언어 우선순위 규칙
+│   │   ├── tool-usage.ts           # 도구 사용 가이드
+│   │   └── codebase-rules.ts       # 코드베이스 규칙
+│   ├── system/                     # 시스템 프롬프트
+│   │   ├── default.ts              # 기본 시스템 프롬프트
+│   │   ├── plan-execute.ts         # Plan & Execute 프롬프트
+│   │   └── compact.ts              # 압축 프롬프트
+│   ├── agents/                     # 에이전트 프롬프트
+│   │   ├── planning.ts             # 플래닝 LLM 프롬프트
+│   │   ├── classifier.ts           # 분류기 프롬프트
+│   │   ├── docs-search.ts          # 문서 검색 에이전트 프롬프트
+│   │   └── docs-search-decision.ts # 문서 검색 결정 프롬프트 (v2.4.0)
+│   └── index.ts
+│
+├── agents/                         # LLM 에이전트 (v2.4.0)
+│   ├── base/                       # 기본 에이전트
+│   │   └── base-agent.ts           # 추상 베이스 클래스
+│   ├── docs-search/                # 문서 검색 에이전트
+│   │   └── index.ts                # DocsSearchAgent 구현
+│   └── index.ts
 │
 ├── orchestration/                  # Plan & Execute 오케스트레이션
 │   ├── orchestrator.ts             # 메인 오케스트레이터
@@ -142,7 +169,7 @@ src/
 │   │   ├── simple/                 # Sub-LLM 없는 시스템 도구
 │   │   │   └── index.ts
 │   │   ├── agents/                 # Sub-LLM 사용 시스템 도구
-│   │   │   ├── docs-search.ts      # 로컬 RAG 문서 검색
+│   │   │   ├── docs-search.ts      # LLM 기반 문서 검색 결정 + 실행 (v2.4.0)
 │   │   │   └── index.ts
 │   │   └── index.ts
 │   │
@@ -519,6 +546,15 @@ User Input (터미널 메시지)
 ┌─────────────────────────────────────────────────────────────────┐
 │                   Auto-Compact Check                             │
 │              Context 80% 이상이면 압축 먼저 실행                   │
+└──────────────────────────┬──────────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────────────┐
+│              Docs Search Decision (v2.4.0 신규)                   │
+│         src/tools/system/agents/docs-search.ts                   │
+│                                                                  │
+│  1. 폴더 구조를 LLM에게 보여줌                                     │
+│  2. LLM이 Yes/No로 검색 필요 여부 결정                             │
+│  3. Yes → DocsSearchAgent 실행                                   │
 └──────────────────────────┬──────────────────────────────────────┘
                            ↓
 ┌─────────────────────────────────────────────────────────────────┐
