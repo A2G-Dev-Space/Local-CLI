@@ -11,7 +11,7 @@ import { LLMClient } from '../../core/llm/llm-client.js';
 import { RequestClassifier } from '../../core/llm/request-classifier.js';
 // PlanExecuteOrchestrator removed - now using unified execution loop
 import { sessionManager } from '../../core/session/session-manager.js';
-import { performDocsSearchIfNeeded } from '../../tools/system/agents/docs-search.js';
+import { performDocsSearchIfNeeded } from '../../core/agent-framework-handler.js';
 import { BaseError } from '../../errors/base.js';
 import { logger } from '../../utils/logger.js';
 import {
@@ -359,18 +359,24 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
         throw new Error('INTERRUPTED');
       }
 
-      // Note: Docs search is now handled in executeAutoMode before classification
-      // messages parameter already includes docs search results if performed
+      setCurrentActivity('문서 검색 중');
+      const { messages: messagesWithDocs } =
+        await performDocsSearchIfNeeded(llmClient, userMessage, messages);
+
+      // Check for interrupt
+      if (isInterruptedRef.current) {
+        throw new Error('INTERRUPTED');
+      }
 
       setCurrentActivity('응답 생성 중');
 
       const { FILE_TOOLS } = await import('../../tools/llm/simple/file-tools.js');
 
       // Prepare messages with system prompt if not already present
-      const hasSystemMessage = messages.some(m => m.role === 'system');
+      const hasSystemMessage = messagesWithDocs.some(m => m.role === 'system');
       const messagesWithSystem = hasSystemMessage
-        ? messages
-        : [{ role: 'system' as const, content: DEFAULT_SYSTEM_PROMPT }, ...messages];
+        ? messagesWithDocs
+        : [{ role: 'system' as const, content: DEFAULT_SYSTEM_PROMPT }, ...messagesWithDocs];
 
       const result = await llmClient.chatCompletionWithTools(
         messagesWithSystem.concat({ role: 'user', content: userMessage }),
@@ -444,11 +450,21 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
         throw new Error('INTERRUPTED');
       }
 
-      // Note: Docs search is now handled in executeAutoMode before classification
-      // messages parameter already includes docs search results if performed
-      let currentMessages = messages;
+      // 1. Docs search (same as direct mode)
+      setCurrentActivity('Searching docs');
+      const { messages: messagesWithDocs, performed: docsSearchPerformed } =
+        await performDocsSearchIfNeeded(llmClient, userMessage, messages);
 
-      // 1. Generate TODO list using PlanningLLM
+      if (isInterruptedRef.current) {
+        throw new Error('INTERRUPTED');
+      }
+
+      let currentMessages = docsSearchPerformed ? messagesWithDocs : messages;
+      if (docsSearchPerformed) {
+        setMessages(messagesWithDocs);
+      }
+
+      // 2. Generate TODO list using PlanningLLM
       setCurrentActivity('Creating plan');
       const planningLLM = new PlanningLLM(llmClient);
       const planResult = await planningLLM.generateTODOList(userMessage);
@@ -658,25 +674,6 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
         throw new Error('INTERRUPTED');
       }
 
-      // 1. Docs search decision (before classification)
-      setCurrentActivity('문서 검색 결정 중');
-      const { messages: messagesWithDocs, performed: docsSearchPerformed } =
-        await performDocsSearchIfNeeded(llmClient, userMessage, messages);
-
-      // Check for interrupt after docs search
-      if (isInterruptedRef.current) {
-        throw new Error('INTERRUPTED');
-      }
-
-      // Update messages if docs search was performed
-      let currentMessages = messages;
-      if (docsSearchPerformed) {
-        currentMessages = messagesWithDocs;
-        setMessages(messagesWithDocs);
-      }
-
-      // 2. Request classification
-      setCurrentActivity('요청 분류 중');
       const classifier = new RequestClassifier(llmClient);
       const classification = await classifier.classify(userMessage);
 
@@ -687,21 +684,19 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
 
       logger.vars(
         { name: 'classificationType', value: classification.type },
-        { name: 'confidence', value: classification.confidence },
-        { name: 'docsSearchPerformed', value: docsSearchPerformed }
+        { name: 'confidence', value: classification.confidence }
       );
 
-      // 3. Execute based on classification (pass updated messages)
       if (classification.type === 'simple_response') {
         logger.flow('Executing as simple response');
         setExecutionPhase('idle');
-        await executeDirectMode(userMessage, llmClient, currentMessages, setMessages);
+        await executeDirectMode(userMessage, llmClient, messages, setMessages);
       } else {
         logger.flow('Executing as TODO-based task');
-        await executePlanMode(userMessage, llmClient, currentMessages, setMessages);
+        await executePlanMode(userMessage, llmClient, messages, setMessages);
       }
 
-      logger.exit('executeAutoMode', { classificationType: classification.type, docsSearchPerformed });
+      logger.exit('executeAutoMode', { classificationType: classification.type });
     } catch (error) {
       // Handle interrupt specially
       if (error instanceof Error && error.message === 'INTERRUPTED') {

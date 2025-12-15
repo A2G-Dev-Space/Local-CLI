@@ -31,7 +31,7 @@ import {
 // Import all tools
 import { FILE_SIMPLE_TOOLS } from './llm/simple/file-tools.js';
 import { LLM_AGENT_TOOLS } from './llm/agents/index.js';
-// DOCS_SYSTEM_AGENT_TOOLS removed - now using LLM-based decision in performDocsSearchIfNeeded
+import { DOCS_SYSTEM_AGENT_TOOLS } from './system/agents/docs-search.js';
 import { SYSTEM_SIMPLE_TOOLS } from './system/simple/index.js';
 import { USER_COMMANDS } from './user/index.js';
 import { MCP_TOOLS } from './mcp/index.js';
@@ -209,8 +209,8 @@ export function initializeToolRegistry(): void {
   // System Simple Tools (auto-triggered, no Sub-LLM)
   toolRegistry.registerAll(SYSTEM_SIMPLE_TOOLS as AnyTool[]);
 
-  // System Agent Tools - currently none (docs search uses LLM-based decision)
-  // toolRegistry.registerAll(DOCS_SYSTEM_AGENT_TOOLS);
+  // System Agent Tools (auto-triggered with Sub-LLM)
+  toolRegistry.registerAll(DOCS_SYSTEM_AGENT_TOOLS);
 
   // User Commands (/slash commands)
   toolRegistry.registerAll(USER_COMMANDS);
