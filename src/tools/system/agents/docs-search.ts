@@ -9,7 +9,7 @@
 
 import { LLMClient } from '../../../core/llm/llm-client.js';
 import { SystemAgentTool, SystemContext, ToolResult, ToolCategory } from '../../types.js';
-import { executeDocsSearchAgent, initializeDocsDirectory, addDocumentationFile } from '../../../core/knowledge/docs-search-agent.js';
+import { executeDocsSearchAgent, initializeDocsDirectory, addDocumentationFile } from '../../../agents/docs-search/index.js';
 
 /**
  * Keywords that trigger documentation search

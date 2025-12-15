@@ -44,7 +44,7 @@ import { LLMClient, createLLMClient } from '../../core/llm/llm-client.js';
 import { Message } from '../../types/index.js';
 import { TodoPanel, TodoStatusBar } from '../TodoPanel.js';
 import { sessionManager } from '../../core/session/session-manager.js';
-import { initializeDocsDirectory } from '../../core/knowledge/docs-search-agent.js';
+import { initializeDocsDirectory } from '../../agents/docs-search/index.js';
 import { FileBrowser } from './FileBrowser.js';
 import { SessionBrowser } from './panels/SessionPanel.js';
 import { SettingsBrowser } from './dialogs/SettingsDialog.js';

@@ -9,7 +9,7 @@
 
 import { LLMClient } from './llm/llm-client.js';
 import { Message } from '../types/index.js';
-import { executeDocsSearchAgent } from './knowledge/docs-search-agent.js';
+import { executeDocsSearchAgent } from '../agents/docs-search/index.js';
 import { logger } from '../utils/logger.js';
 
 /**
