@@ -681,13 +681,13 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         // First ESC - pause
         addLog({
           type: 'interrupt',
-          content: '⏸️ 일시정지됨 (메시지 입력으로 재개, ESC로 완전 중단)',
+          content: '⏸️ Paused (type message to resume, ESC to stop completely)',
         });
       } else if (result === 'stopped') {
         // Second ESC - complete stop
         addLog({
           type: 'interrupt',
-          content: '⏹️ 실행 중단됨',
+          content: '⏹️ Stopped - TODO list cleared',
         });
       }
 
@@ -1332,16 +1332,23 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
           </Box>
         );
 
-      case 'docs_search':
+      case 'docs_search': {
+        // Truncate content if more than 5 lines (UI only)
+        let displayContent = entry.content;
+        const lines = entry.content.split('\n');
+        if (lines.length > 5) {
+          displayContent = lines.slice(0, 5).join('\n') + `\n... (${lines.length - 5} more lines)`;
+        }
         return (
           <Box key={entry.id} marginTop={1} flexDirection="column">
             <Text color="yellow" bold>📚 Document Search Complete</Text>
             {entry.details && <Text color="gray" dimColor>   {entry.details}</Text>}
             <Box paddingLeft={3} marginTop={0}>
-              <Text color="gray">{entry.content}</Text>
+              <Text color="gray">{displayContent}</Text>
             </Box>
           </Box>
         );
+      }
 
       case 'tool_start': {
         // Tool별 아이콘 매핑
@@ -1449,8 +1456,8 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         // Tool별 결과 축약
         let displayText = entry.details || '';
 
-        // read_file: 5줄 넘으면 축약
-        if (entry.content === 'read_file') {
+        // read_file, read_docs_file, preview_file, submit_findings: 5줄 넘으면 축약
+        if (entry.content === 'read_file' || entry.content === 'read_docs_file' || entry.content === 'preview_file' || entry.content === 'submit_findings') {
           const lines = displayText.split('\n');
           if (lines.length > 5) {
             displayText = lines.slice(0, 5).join('\n') + `\n... (${lines.length - 5} more lines)`;
@@ -1465,8 +1472,8 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
           }
         }
 
-        // list_files, find_files: 개수와 미리보기
-        if (entry.content === 'list_files' || entry.content === 'find_files') {
+        // list_files, find_files, list_directory: 개수와 미리보기
+        if (entry.content === 'list_files' || entry.content === 'find_files' || entry.content === 'list_directory') {
           try {
             const parsed = JSON.parse(displayText);
             if (Array.isArray(parsed)) {

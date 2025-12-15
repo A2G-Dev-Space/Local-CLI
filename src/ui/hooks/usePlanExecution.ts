@@ -330,28 +330,28 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
     logger.enter('handleInterrupt', { executionPhase, isInterrupted });
 
     // If already paused (interrupted), second ESC = complete stop
-    if (isInterrupted && executionPhase !== 'idle') {
+    // Check: isInterrupted AND (still executing OR has pending todos)
+    const hasPendingTodos = todos.some(t => t.status === 'pending' || t.status === 'in_progress');
+    if (isInterrupted && (executionPhase !== 'idle' || hasPendingTodos)) {
       logger.flow('Second ESC - stopping execution completely');
 
-      // Mark any in_progress todos as failed
-      setTodos(prev => prev.map(todo =>
-        todo.status === 'in_progress'
-          ? { ...todo, status: 'failed' as const, error: 'Stopped by user' }
-          : todo
-      ));
+      // Clear all todos completely
+      setTodos([]);
 
       // Reset to idle state
       setExecutionPhase('idle');
       setCurrentTodoId(undefined);
-      setCurrentActivity('Stopped');
+      setCurrentActivity('Idle');
+      setIsInterrupted(false);
+      isInterruptedRef.current = false;
 
-      logger.debug('Execution stopped completely');
+      logger.debug('Execution stopped completely, all todos cleared');
       logger.exit('handleInterrupt', { result: 'stopped' });
       return 'stopped';
     }
 
-    // First ESC = pause
-    if (executionPhase !== 'idle') {
+    // First ESC = pause (only when actively executing or has pending todos)
+    if (executionPhase !== 'idle' || hasPendingTodos) {
       logger.flow('First ESC - pausing execution');
       setIsInterrupted(true);
       isInterruptedRef.current = true;
@@ -364,7 +364,7 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
 
     logger.exit('handleInterrupt', { result: 'none' });
     return 'none';
-  }, [executionPhase, isInterrupted]);
+  }, [executionPhase, isInterrupted, todos]);
 
   /**
    * Execute direct mode (simple response, no TODO)
