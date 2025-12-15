@@ -22,18 +22,30 @@ export class PlanningLLM {
 
   /**
    * Convert user request to TODO list
+   * @param userRequest The user's request
+   * @param contextMessages Optional context messages (e.g., docs search results)
    */
-  async generateTODOList(userRequest: string): Promise<PlanningResult> {
+  async generateTODOList(userRequest: string, contextMessages?: Message[]): Promise<PlanningResult> {
     const messages: Message[] = [
       {
         role: 'system',
         content: PLANNING_SYSTEM_PROMPT,
       },
-      {
-        role: 'user',
-        content: `Break down this request into a TODO list:\n\n${userRequest}`,
-      },
     ];
+
+    // Include context messages (like docs search results) if provided
+    if (contextMessages && contextMessages.length > 0) {
+      // Filter to only include assistant messages with context (not system messages)
+      const contextToInclude = contextMessages.filter(
+        m => m.role === 'assistant' && m.content.includes('[Documentation Search')
+      );
+      messages.push(...contextToInclude);
+    }
+
+    messages.push({
+      role: 'user',
+      content: `Break down this request into a TODO list:\n\n${userRequest}`,
+    });
 
     try {
       const response = await this.llmClient.chatCompletion({

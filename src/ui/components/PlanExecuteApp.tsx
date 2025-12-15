@@ -665,23 +665,31 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
       setShowTodoDetails(prev => !prev);
       logger.debug('TODO details toggled', { showTodoDetails: !showTodoDetails });
     }
-    // ESC: Interrupt current execution immediately (same as Ctrl+C when processing)
-    if (key.escape && isProcessing) {
-      logger.flow('ESC pressed - interrupting execution immediately');
+    // ESC: First = pause, Second = complete stop
+    if (key.escape && (isProcessing || planExecutionState.isInterrupted)) {
+      logger.flow('ESC pressed');
 
       // Abort any active LLM request
       if (llmClient) {
         llmClient.abort();
       }
 
-      // Set interrupt flag
-      planExecutionState.handleInterrupt();
+      // Handle interrupt (returns 'paused', 'stopped', or 'none')
+      const result = planExecutionState.handleInterrupt();
 
-      // Add red "Interrupted" message to log immediately
-      addLog({
-        type: 'interrupt',
-        content: '⎿ Interrupted',
-      });
+      if (result === 'paused') {
+        // First ESC - pause
+        addLog({
+          type: 'interrupt',
+          content: '⏸️ 일시정지됨 (메시지 입력으로 재개, ESC로 완전 중단)',
+        });
+      } else if (result === 'stopped') {
+        // Second ESC - complete stop
+        addLog({
+          type: 'interrupt',
+          content: '⏹️ 실행 중단됨',
+        });
+      }
 
       // Force stop processing state
       setIsProcessing(false);
@@ -1065,28 +1073,45 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
       const queuedMessage = pendingUserMessage;
       setPendingUserMessage(null);
 
-      // Add the queued message to messages and trigger new LLM call
-      const updatedMessages: Message[] = [...messages, { role: 'user' as const, content: queuedMessage }];
-      setMessages(updatedMessages);
+      // Check if we have pending TODOs to resume
+      const hasPendingTodos = planExecutionState.todos.some(
+        t => t.status === 'pending' || t.status === 'in_progress'
+      );
 
-      // Add to log (replacing the "(대기 중)" entry)
+      // Add to log
       addLog({
         type: 'user_input',
         content: queuedMessage.replace('[Request interrupted by user]\n', '📩 '),
       });
 
-      // Start new processing
+      // Start processing
       setIsProcessing(true);
       setActivityStartTime(Date.now());
 
-      // Execute the queued message
-      planExecutionState.executeAutoMode(queuedMessage, llmClient, updatedMessages, setMessages)
-        .catch((error) => {
-          logger.error('Queued message processing failed', error as Error);
-        })
-        .finally(() => {
-          setIsProcessing(false);
-        });
+      if (hasPendingTodos) {
+        // Resume TODO execution with the new message
+        logger.flow('Resuming TODO execution with user message');
+        planExecutionState.resumeTodoExecution(queuedMessage, llmClient, messages, setMessages)
+          .catch((error) => {
+            logger.error('Resume execution failed', error as Error);
+          })
+          .finally(() => {
+            setIsProcessing(false);
+          });
+      } else {
+        // No pending TODOs - start fresh with executeAutoMode
+        logger.flow('No pending TODOs - starting fresh execution');
+        const updatedMessages: Message[] = [...messages, { role: 'user' as const, content: queuedMessage }];
+        setMessages(updatedMessages);
+
+        planExecutionState.executeAutoMode(queuedMessage, llmClient, updatedMessages, setMessages)
+          .catch((error) => {
+            logger.error('Queued message processing failed', error as Error);
+          })
+          .finally(() => {
+            setIsProcessing(false);
+          });
+      }
     }
   }, [isProcessing, pendingUserMessage, llmClient, messages, planExecutionState, addLog]);
 
