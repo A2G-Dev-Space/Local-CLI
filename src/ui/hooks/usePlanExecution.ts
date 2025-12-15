@@ -191,8 +191,18 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
     resolve: (response: AskUserResponse) => void;
   } | null>(null);
 
-  // Setup TODO tool callbacks
+  // Ref to track if executePlanMode has set its own callbacks
+  // This prevents useEffect from overwriting executePlanMode's callbacks
+  const isPlanModeActiveRef = useRef(false);
+
+  // Setup TODO tool callbacks (only when NOT in plan mode)
   useEffect(() => {
+    // Skip if executePlanMode has set its own callbacks
+    if (isPlanModeActiveRef.current) {
+      logger.flow('Skipping TODO callback setup - plan mode is active');
+      return;
+    }
+
     logger.flow('Setting up TODO tool callbacks');
 
     // Callback for updating TODO status
@@ -427,6 +437,9 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
     setExecutionPhase('planning');
     setCurrentActivity('Planning tasks');
 
+    // Mark plan mode as active to prevent useEffect from overwriting callbacks
+    isPlanModeActiveRef.current = true;
+
     // Local TODO state for this execution
     let currentTodos: TodoItem[] = [];
     const startTime = Date.now();
@@ -633,6 +646,8 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
     } finally {
       setExecutionPhase('idle');
       clearTodoCallbacks();
+      // Reset plan mode flag so useEffect can manage callbacks again
+      isPlanModeActiveRef.current = false;
     }
   }, []);
 

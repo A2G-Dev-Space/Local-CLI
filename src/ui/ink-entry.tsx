@@ -22,7 +22,8 @@ import { configManager } from '../core/config/config-manager.js';
     const modelInfo = llmClient.getModelInfo();
 
     // Ink UI 렌더링 (PlanExecuteApp supports both direct and plan-execute modes)
-    render(<PlanExecuteApp llmClient={llmClient} modelInfo={modelInfo} />);
+    // exitOnCtrlC: false - Ctrl+C is handled manually in PlanExecuteApp for smart behavior
+    render(<PlanExecuteApp llmClient={llmClient} modelInfo={modelInfo} />, { exitOnCtrlC: false });
   } catch (error) {
     console.error('❌ 에러 발생:', error instanceof Error ? error.message : String(error));
     process.exit(1);

@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Text, useStdin } from 'ink';
+import { Box, Text, useStdin } from 'ink';
 
 interface CustomTextInputProps {
   value: string;
@@ -96,6 +96,15 @@ export const CustomTextInput: React.FC<CustomTextInputProps> = ({
     // Handle different key sequences
     // Check for special escape sequences first
     if (str.startsWith('\x1b')) {
+      // Alt + Enter - insert newline (multi-line input)
+      // Alt+Enter sends ESC + CR (\x1b\r) or ESC + LF (\x1b\n)
+      if (str === '\x1b\r' || str === '\x1b\n') {
+        const newValue = currentValue.slice(0, currentCursor) + '\n' + currentValue.slice(currentCursor);
+        onChangeRef.current(newValue);
+        setCursorPosition(currentCursor + 1);
+        return;
+      }
+
       // ESC sequences (arrow keys, home, end, etc.)
       if (str === '\x1b[H' || str === '\x1b[1~') {
         // Home key
@@ -204,7 +213,7 @@ export const CustomTextInput: React.FC<CustomTextInputProps> = ({
     };
   }, [focus, stdin, setRawMode]); // handleDataRef.current is stable
 
-  // Render the input with cursor
+  // Render the input with cursor (supports multi-line)
   const renderValue = () => {
     if (value.length === 0) {
       return (
@@ -219,13 +228,64 @@ export const CustomTextInput: React.FC<CustomTextInputProps> = ({
     const atCursor = value[cursorPosition] || ' ';
     const afterCursor = value.slice(cursorPosition + 1);
 
+    // Check if content has multiple lines
+    const hasNewlines = value.includes('\n');
+
+    if (!hasNewlines) {
+      // Single line rendering (original behavior)
+      return (
+        <Text>
+          {beforeCursor}
+          {focus && <Text inverse>{atCursor}</Text>}
+          {!focus && atCursor !== ' ' && <Text>{atCursor}</Text>}
+          {afterCursor}
+        </Text>
+      );
+    }
+
+    // Multi-line rendering
+    // Split by newlines and render each line, placing cursor correctly
+    const lines = value.split('\n');
+    let charCount = 0;
+    let cursorLineIndex = 0;
+    let cursorPosInLine = 0;
+
+    // Find which line the cursor is on
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i] ?? '';
+      const lineLength = line.length;
+      if (charCount + lineLength >= cursorPosition) {
+        cursorLineIndex = i;
+        cursorPosInLine = cursorPosition - charCount;
+        break;
+      }
+      charCount += lineLength + 1; // +1 for the newline character
+    }
+
     return (
-      <Text>
-        {beforeCursor}
-        {focus && <Text inverse>{atCursor}</Text>}
-        {!focus && atCursor !== ' ' && <Text>{atCursor}</Text>}
-        {afterCursor}
-      </Text>
+      <Box flexDirection="column">
+        {lines.map((line, lineIndex) => {
+          const isCursorLine = lineIndex === cursorLineIndex;
+
+          if (!isCursorLine) {
+            return <Text key={lineIndex}>{line || ' '}</Text>;
+          }
+
+          // Render line with cursor
+          const beforeCursorInLine = line.slice(0, cursorPosInLine);
+          const atCursorChar = line[cursorPosInLine] || ' ';
+          const afterCursorInLine = line.slice(cursorPosInLine + 1);
+
+          return (
+            <Text key={lineIndex}>
+              {beforeCursorInLine}
+              {focus && <Text inverse>{atCursorChar}</Text>}
+              {!focus && atCursorChar !== ' ' && <Text>{atCursorChar}</Text>}
+              {afterCursorInLine}
+            </Text>
+          );
+        })}
+      </Box>
     );
   };
 

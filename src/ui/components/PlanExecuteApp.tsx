@@ -189,6 +189,10 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
   // Pending user message queue (for messages entered during LLM processing)
   const [pendingUserMessage, setPendingUserMessage] = useState<string | null>(null);
 
+  // Ctrl+C double-tap tracking for exit
+  const lastCtrlCTimeRef = React.useRef<number>(0);
+  const DOUBLE_TAP_THRESHOLD = 1500; // 1.5 seconds
+
   // Helper: add log entry
   const addLog = useCallback((entry: Omit<LogEntry, 'id'>) => {
     const id = `log-${++logIdCounter.current}`;
@@ -554,16 +558,66 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
 
   // Keyboard shortcuts
   useInput((inputChar: string, key: { ctrl: boolean; shift: boolean; meta: boolean; escape: boolean; tab?: boolean }) => {
-    // Ctrl+C: Exit application
+    // Ctrl+C: Smart handling (clear input / cancel task / double-tap exit)
     if (key.ctrl && inputChar === 'c') {
-      handleExit().catch(console.error);
+      const now = Date.now();
+      const timeSinceLastCtrlC = now - lastCtrlCTimeRef.current;
+
+      // Case 1: AI is processing - interrupt the task
+      if (isProcessing) {
+        logger.flow('Ctrl+C pressed - interrupting execution');
+
+        // Abort any active LLM request
+        if (llmClient) {
+          llmClient.abort();
+        }
+
+        // Set interrupt flag
+        planExecutionState.handleInterrupt();
+
+        // Add red "Interrupted" message to log immediately
+        addLog({
+          type: 'interrupt',
+          content: '⎿ Interrupted',
+        });
+
+        // Force stop processing state
+        setIsProcessing(false);
+        lastCtrlCTimeRef.current = now;
+        return;
+      }
+
+      // Case 2: Input has content - clear the input
+      if (input.length > 0) {
+        logger.debug('Ctrl+C pressed - clearing input');
+        setInput('');
+        lastCtrlCTimeRef.current = now;
+        return;
+      }
+
+      // Case 3: Input is empty - check for double-tap to exit
+      if (timeSinceLastCtrlC < DOUBLE_TAP_THRESHOLD) {
+        // Double-tap detected - exit
+        logger.flow('Ctrl+C double-tap detected - exiting');
+        handleExit().catch(console.error);
+        return;
+      }
+
+      // First tap with empty input - show exit hint
+      lastCtrlCTimeRef.current = now;
+      addLog({
+        type: 'assistant_message',
+        content: '^C again to exit',
+      });
+      logger.debug('Ctrl+C pressed - waiting for double-tap to exit');
+      return;
     }
     // Ctrl+T: Toggle TODO details
     if (key.ctrl && inputChar === 't') {
       setShowTodoDetails(prev => !prev);
       logger.debug('TODO details toggled', { showTodoDetails: !showTodoDetails });
     }
-    // ESC: Interrupt current execution immediately
+    // ESC: Interrupt current execution immediately (same as Ctrl+C when processing)
     if (key.escape && isProcessing) {
       logger.flow('ESC pressed - interrupting execution immediately');
 
@@ -1508,7 +1562,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
       {/* Input Area */}
       <Box borderStyle="single" borderColor="gray" paddingX={1} flexDirection="column">
         <Box>
-          <Text color="green">👤 </Text>
+          <Text color="green" bold>&gt; </Text>
           <Box flexGrow={1}>
             <CustomTextInput
               value={input}

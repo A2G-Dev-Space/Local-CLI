@@ -992,13 +992,14 @@ export async function setupLogging(options: {
   };
 
   // Ensure cleanup on exit (prevent duplicate handlers with once flag)
+  // Note: SIGINT is handled by ink/PlanExecuteApp for smart Ctrl+C behavior
+  // Only SIGTERM triggers automatic exit (for system shutdown signals)
   const exitHandler = async (signal: string) => {
     logger.debug(`Received ${signal}, cleaning up...`);
     await cleanup();
     process.exit(0);
   };
 
-  process.once('SIGINT', () => exitHandler('SIGINT'));
   process.once('SIGTERM', () => exitHandler('SIGTERM'));
 
   return { cleanup, jsonLogger };
