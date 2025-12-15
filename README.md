@@ -1,4 +1,4 @@
-# Nexus Coder v2.4.1
+# Nexus Coder v2.4.3
 
 **Enterprise AI Coding Assistant**
 
@@ -201,14 +201,14 @@ nexus --debug      # Debug 모드
 
 | Command | Description |
 |---------|-------------|
-| `/help` | 도움말 표시 |
-| `/clear` | 대화 초기화 |
-| `/compact` | 대화 압축 (컨텍스트 절약) |
-| `/model` | 모델 선택 |
-| `/settings` | 설정 메뉴 |
-| `/usage` | 토큰 사용량 통계 |
-| `/load` | 저장된 세션 로드 |
-| `/docs` | 문서 관리 |
+| `/help` | Show help |
+| `/clear` | Reset conversation |
+| `/compact` | Compress conversation (save context) |
+| `/load` | Load saved session |
+| `/model` | Switch LLM model |
+| `/settings` | Settings menu |
+| `/usage` | Token usage statistics |
+| `/docs` | Documentation management |
 
 ### Keyboard Shortcuts
 
@@ -223,6 +223,17 @@ nexus --debug      # Debug 모드
 ## 문제 해결
 
 ### v2.4.x New Features
+
+| Feature | Description |
+|---------|-------------|
+| **Markdown Rendering** | Assistant responses render markdown (bold, italic, code blocks, lists) in CLI |
+| **LLM-based Docs Search** | Intelligent documentation search - LLM decides when to search based on folder structure |
+| **Hierarchical Docs Navigation** | New docs search agent with folder-based navigation (list_directory, read_docs_file, preview_file) |
+| **Docs Search Progress UI** | Real-time progress display during documentation search |
+| **Centralized Prompts** | All prompts moved to `src/prompts/` for better organization |
+| **Restructured Agents** | Agents reorganized under `src/agents/` with base class |
+
+### v2.2.0 New Features
 
 | Feature | Description |
 |---------|-------------|

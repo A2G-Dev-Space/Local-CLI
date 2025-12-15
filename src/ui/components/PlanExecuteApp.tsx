@@ -665,23 +665,31 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
       setShowTodoDetails(prev => !prev);
       logger.debug('TODO details toggled', { showTodoDetails: !showTodoDetails });
     }
-    // ESC: Interrupt current execution immediately (same as Ctrl+C when processing)
-    if (key.escape && isProcessing) {
-      logger.flow('ESC pressed - interrupting execution immediately');
+    // ESC: First = pause, Second = complete stop
+    if (key.escape && (isProcessing || planExecutionState.isInterrupted)) {
+      logger.flow('ESC pressed');
 
       // Abort any active LLM request
       if (llmClient) {
         llmClient.abort();
       }
 
-      // Set interrupt flag
-      planExecutionState.handleInterrupt();
+      // Handle interrupt (returns 'paused', 'stopped', or 'none')
+      const result = planExecutionState.handleInterrupt();
 
-      // Add red "Interrupted" message to log immediately
-      addLog({
-        type: 'interrupt',
-        content: '⎿ Interrupted',
-      });
+      if (result === 'paused') {
+        // First ESC - pause
+        addLog({
+          type: 'interrupt',
+          content: '⏸️ Paused (type message to resume, ESC to stop completely)',
+        });
+      } else if (result === 'stopped') {
+        // Second ESC - complete stop
+        addLog({
+          type: 'interrupt',
+          content: '⏹️ Stopped - TODO list cleared',
+        });
+      }
 
       // Force stop processing state
       setIsProcessing(false);
@@ -1021,17 +1029,30 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         }
       }
 
-      // Phase 1: Use auto mode with LLM-based request classification
-      setActivityType('thinking');
-      setActivityDetail('Analyzing request...');
-
-      logger.vars(
-        { name: 'planningMode', value: planningMode },
-        { name: 'messageLength', value: userMessage.length }
+      // Check if we should resume TODO execution instead of starting fresh
+      const hasPendingTodos = planExecutionState.todos.some(
+        t => t.status === 'pending' || t.status === 'in_progress'
       );
 
-      // Use executeAutoMode which handles classification internally
-      await planExecutionState.executeAutoMode(userMessage, llmClient!, updatedMessages, setMessages);
+      if (hasPendingTodos && planExecutionState.isInterrupted) {
+        // Resume TODO execution with the new message
+        logger.flow('Resuming TODO execution after pause');
+        setActivityType('executing');
+        setActivityDetail('Resuming...');
+        await planExecutionState.resumeTodoExecution(userMessage, llmClient!, messages, setMessages);
+      } else {
+        // Phase 1: Use auto mode with LLM-based request classification
+        setActivityType('thinking');
+        setActivityDetail('Analyzing request...');
+
+        logger.vars(
+          { name: 'planningMode', value: planningMode },
+          { name: 'messageLength', value: userMessage.length }
+        );
+
+        // Use executeAutoMode which handles classification internally
+        await planExecutionState.executeAutoMode(userMessage, llmClient!, updatedMessages, setMessages);
+      }
 
     } catch (error) {
       logger.error('Message processing failed', error as Error);
@@ -1065,28 +1086,45 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
       const queuedMessage = pendingUserMessage;
       setPendingUserMessage(null);
 
-      // Add the queued message to messages and trigger new LLM call
-      const updatedMessages: Message[] = [...messages, { role: 'user' as const, content: queuedMessage }];
-      setMessages(updatedMessages);
+      // Check if we have pending TODOs to resume
+      const hasPendingTodos = planExecutionState.todos.some(
+        t => t.status === 'pending' || t.status === 'in_progress'
+      );
 
-      // Add to log (replacing the "(대기 중)" entry)
+      // Add to log
       addLog({
         type: 'user_input',
         content: queuedMessage.replace('[Request interrupted by user]\n', '📩 '),
       });
 
-      // Start new processing
+      // Start processing
       setIsProcessing(true);
       setActivityStartTime(Date.now());
 
-      // Execute the queued message
-      planExecutionState.executeAutoMode(queuedMessage, llmClient, updatedMessages, setMessages)
-        .catch((error) => {
-          logger.error('Queued message processing failed', error as Error);
-        })
-        .finally(() => {
-          setIsProcessing(false);
-        });
+      if (hasPendingTodos) {
+        // Resume TODO execution with the new message
+        logger.flow('Resuming TODO execution with user message');
+        planExecutionState.resumeTodoExecution(queuedMessage, llmClient, messages, setMessages)
+          .catch((error) => {
+            logger.error('Resume execution failed', error as Error);
+          })
+          .finally(() => {
+            setIsProcessing(false);
+          });
+      } else {
+        // No pending TODOs - start fresh with executeAutoMode
+        logger.flow('No pending TODOs - starting fresh execution');
+        const updatedMessages: Message[] = [...messages, { role: 'user' as const, content: queuedMessage }];
+        setMessages(updatedMessages);
+
+        planExecutionState.executeAutoMode(queuedMessage, llmClient, updatedMessages, setMessages)
+          .catch((error) => {
+            logger.error('Queued message processing failed', error as Error);
+          })
+          .finally(() => {
+            setIsProcessing(false);
+          });
+      }
     }
   }, [isProcessing, pendingUserMessage, llmClient, messages, planExecutionState, addLog]);
 
@@ -1238,6 +1276,17 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
             <Text bold color="blue"> ███████╗╚██████╔╝╚██████╗██║  ██║███████╗    ╚██████╗███████╗██║</Text>
             <Text bold color="blueBright"> ╚══════╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝     ╚═════╝╚══════╝╚═╝</Text>
             <Text color="gray">                      {entry.content}</Text>
+            <Text>{' '}</Text>
+            <Box>
+              <Text color="gray"> 📚 Local RAG documents available. Use </Text>
+              <Text color="cyan">/docs</Text>
+              <Text color="gray"> to configure offline documentation.</Text>
+            </Box>
+            <Box>
+              <Text color="gray">    로컬 RAG 문서를 구성할 수 있습니다. </Text>
+              <Text color="cyan">/docs</Text>
+              <Text color="gray"> 명령어를 사용해보세요.</Text>
+            </Box>
           </Box>
         );
 
@@ -1274,16 +1323,30 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
           </Box>
         );
 
-      case 'docs_search':
+      case 'docs_search': {
+        // Truncate both content and details if more than 5 lines (UI only)
+        // Handle both actual newlines and literal \n strings
+        const truncateText = (text: string, maxLines: number = 5): string => {
+          const lines = text.split(/\\n|\n/);
+          if (lines.length > maxLines) {
+            return lines.slice(0, maxLines).join('\n') + `\n... (${lines.length - maxLines} more lines)`;
+          }
+          return lines.join('\n');
+        };
+
+        const displayContent = truncateText(entry.content);
+        const displayDetails = entry.details ? truncateText(entry.details) : undefined;
+
         return (
           <Box key={entry.id} marginTop={1} flexDirection="column">
             <Text color="yellow" bold>📚 Document Search Complete</Text>
-            {entry.details && <Text color="gray" dimColor>   {entry.details}</Text>}
+            {displayDetails && <Text color="gray" dimColor>   {displayDetails}</Text>}
             <Box paddingLeft={3} marginTop={0}>
-              <Text color="gray">{entry.content}</Text>
+              <Text color="gray">{displayContent}</Text>
             </Box>
           </Box>
         );
+      }
 
       case 'tool_start': {
         // Tool별 아이콘 매핑
@@ -1391,8 +1454,8 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         // Tool별 결과 축약
         let displayText = entry.details || '';
 
-        // read_file: 5줄 넘으면 축약
-        if (entry.content === 'read_file') {
+        // read_file, read_docs_file, preview_file, submit_findings: 5줄 넘으면 축약
+        if (entry.content === 'read_file' || entry.content === 'read_docs_file' || entry.content === 'preview_file' || entry.content === 'submit_findings') {
           const lines = displayText.split('\n');
           if (lines.length > 5) {
             displayText = lines.slice(0, 5).join('\n') + `\n... (${lines.length - 5} more lines)`;
@@ -1407,8 +1470,8 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
           }
         }
 
-        // list_files, find_files: 개수와 미리보기
-        if (entry.content === 'list_files' || entry.content === 'find_files') {
+        // list_files, find_files, list_directory: 개수와 미리보기
+        if (entry.content === 'list_files' || entry.content === 'find_files' || entry.content === 'list_directory') {
           try {
             const parsed = JSON.parse(displayText);
             if (Array.isArray(parsed)) {
