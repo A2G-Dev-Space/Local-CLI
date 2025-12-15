@@ -930,13 +930,17 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
     }
   }, [executeDirectMode, executePlanMode]);
 
-  // Reset interrupt flag when execution completes
+  // Reset interrupt flag when execution completes (but NOT if paused with pending todos)
   useEffect(() => {
     if (executionPhase === 'idle' && isInterrupted) {
-      setIsInterrupted(false);
-      isInterruptedRef.current = false;
+      // Don't reset if there are pending todos - we're in "paused" state
+      const hasPendingTodos = todos.some(t => t.status === 'pending' || t.status === 'in_progress');
+      if (!hasPendingTodos) {
+        setIsInterrupted(false);
+        isInterruptedRef.current = false;
+      }
     }
-  }, [executionPhase, isInterrupted]);
+  }, [executionPhase, isInterrupted, todos]);
 
   /**
    * Perform conversation compaction
