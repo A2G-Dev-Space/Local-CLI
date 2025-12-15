@@ -1274,15 +1274,24 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
           </Box>
         );
 
-      case 'assistant_message':
+      case 'assistant_message': {
+        // Truncate docs search results if more than 5 lines
+        let displayContent = entry.content;
+        if (entry.content.includes('[Documentation Search Complete]')) {
+          const lines = entry.content.split('\n');
+          if (lines.length > 5) {
+            displayContent = lines.slice(0, 5).join('\n') + `\n... (${lines.length - 5} more lines)`;
+          }
+        }
         return (
           <Box key={entry.id} marginTop={1} flexDirection="column">
             <Text color="magenta" bold>● Assistant</Text>
             <Box paddingLeft={2}>
-              <MarkdownRenderer content={entry.content} />
+              <MarkdownRenderer content={displayContent} />
             </Box>
           </Box>
         );
+      }
 
       case 'interrupt':
         return (
