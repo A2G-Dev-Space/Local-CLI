@@ -77,7 +77,11 @@ program
       // Ink UI를 같은 프로세스에서 직접 렌더링 (stdin raw mode 유지)
       try {
         // Use PlanExecuteApp for enhanced functionality
-        const { waitUntilExit } = render(React.createElement(PlanExecuteApp, { llmClient, modelInfo }));
+        // exitOnCtrlC: false - Ctrl+C is handled manually in PlanExecuteApp for smart behavior
+        const { waitUntilExit } = render(
+          React.createElement(PlanExecuteApp, { llmClient, modelInfo }),
+          { exitOnCtrlC: false }
+        );
 
         // Wait until the UI exits before cleanup
         await waitUntilExit();

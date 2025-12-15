@@ -607,7 +607,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
       lastCtrlCTimeRef.current = now;
       addLog({
         type: 'assistant_message',
-        content: 'Press Ctrl+C again to exit',
+        content: '^C again to exit',
       });
       logger.debug('Ctrl+C pressed - waiting for double-tap to exit');
       return;
