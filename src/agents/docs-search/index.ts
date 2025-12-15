@@ -1,30 +1,24 @@
 /**
  * Documentation Search Agent
  *
- * Uses LLM with bash tools to intelligently search documentation.
- * Refactored from src/core/knowledge/docs-search-agent.ts
+ * Redesigned agent that navigates hierarchical documentation structure.
+ * Uses explicit termination via submit_findings tool.
  */
 
 import { BaseAgent, AgentContext, AgentResult, AgentConfig } from '../base/base-agent.js';
 import { LLMClient } from '../../core/llm/llm-client.js';
 import { Message, ToolDefinition } from '../../types/index.js';
-import { executeBashCommand, isCommandSafe, sanitizeCommand } from '../../core/bash-command-tool.js';
-import { detectFrameworkPath, TERM_MAPPING } from '../../core/agent-framework-handler.js';
-import { buildDocsSearchPrompt, DOCS_SEARCH_CONFIG } from '../../prompts/agents/docs-search.js';
+import { DOCS_SEARCH_SYSTEM_PROMPT, buildDocsSearchUserMessage } from '../../prompts/agents/docs-search.js';
+import { DOCS_SEARCH_TOOLS, createDocsToolExecutor } from '../../tools/llm/agents/docs-search-tools.js';
 import { logger } from '../../utils/logger.js';
-import { RUN_BASH_TOOL } from './tools.js';
 
 /**
- * Progress log types for docs search
- */
-export type DocsSearchLogType = 'command' | 'file' | 'info' | 'result' | 'complete';
-
-/**
- * Progress callback for docs search
+ * Progress callback for docs search (for UI updates)
  */
 export type DocsSearchProgressCallback = (
-  type: DocsSearchLogType,
-  message: string
+  type: 'info' | 'tell_user' | 'complete',
+  message: string,
+  data?: { summary?: string; findings?: string; sources?: string[] }
 ) => void;
 
 /**
@@ -40,125 +34,104 @@ export function setDocsSearchProgressCallback(callback: DocsSearchProgressCallba
 }
 
 /**
- * Get the current progress callback
+ * Default configuration
  */
-export function getDocsSearchProgressCallback(): DocsSearchProgressCallback | null {
-  return globalProgressCallback;
-}
+const DEFAULT_CONFIG: AgentConfig = {
+  temperature: 0.3,
+  maxTokens: 4000,
+  // No maxIterations - agent terminates via submit_findings
+};
 
 /**
- * Stop words for keyword extraction
+ * Safety limits
  */
-const STOP_WORDS = new Set([
-  'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with',
-  'by', 'from', 'as', 'is', 'was', 'are', 'were', 'been', 'be', 'have', 'has', 'had',
-  'do', 'does', 'did', 'will', 'would', 'should', 'could', 'may', 'might', 'must',
-  'can', 'how', 'what', 'when', 'where', 'why', 'which', 'who', 'whom', 'this', 'that',
-  'these', 'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they', 'me', 'him', 'her',
-  'us', 'them', 'my', 'your', 'his', 'its', 'our', 'their', 'use', 'using', 'create', 'make',
-]);
-
-/**
- * Extract keywords from query with term mapping support
- */
-function extractKeywords(query: string): string[] {
-  const expandedKeywords = new Set<string>();
-
-  const words = query
-    .replace(/[^\w\s가-힣]/g, ' ')
-    .split(/\s+/)
-    .filter(word => word.length > 1);
-
-  for (const word of words) {
-    const lowerWord = word.toLowerCase();
-
-    if (STOP_WORDS.has(lowerWord)) {
-      continue;
-    }
-
-    for (const [key, values] of Object.entries(TERM_MAPPING)) {
-      if (word.includes(key) || lowerWord === key) {
-        values.forEach(v => expandedKeywords.add(v));
-      }
-    }
-
-    if (word.length > 2 || /[가-힣]/.test(word)) {
-      expandedKeywords.add(lowerWord);
-    }
-  }
-
-  return [...expandedKeywords];
-}
+const SOFT_ITERATION_LIMIT = 50;  // Warn after this many iterations
+const HARD_ITERATION_LIMIT = 100; // Force stop after this many
 
 /**
  * Documentation Search Agent
  */
 export class DocsSearchAgent extends BaseAgent {
   readonly name = 'DocsSearchAgent';
-  readonly description = 'Searches ~/.local-cli/docs for documentation using bash tools';
+  readonly description = 'Searches ~/.local-cli/docs using hierarchical navigation';
 
-  private executedCommands = new Set<string>();
-
-  constructor(llmClient: LLMClient, config?: AgentConfig) {
-    super(llmClient, {
-      maxIterations: config?.maxIterations ?? DOCS_SEARCH_CONFIG.MAX_ITERATIONS,
-      temperature: config?.temperature ?? DOCS_SEARCH_CONFIG.LLM_TEMPERATURE,
-      maxTokens: config?.maxTokens ?? DOCS_SEARCH_CONFIG.LLM_MAX_TOKENS,
-    });
+  constructor(llmClient: LLMClient, config?: Partial<AgentConfig>) {
+    super(llmClient, { ...DEFAULT_CONFIG, ...config });
   }
 
   protected getTools(): ToolDefinition[] {
-    return [RUN_BASH_TOOL];
+    return DOCS_SEARCH_TOOLS;
   }
 
   protected buildSystemPrompt(_context?: AgentContext): string {
-    // Note: Context is not used here since we build prompt in execute()
-    return '';
+    return DOCS_SEARCH_SYSTEM_PROMPT;
   }
 
   async execute(input: string, _context?: AgentContext): Promise<AgentResult> {
     logger.enter('DocsSearchAgent.execute', { query: input });
     logger.startTimer('docs-search-total');
 
-    this.executedCommands.clear();
-
-    // Notify progress start
     const progressCallback = globalProgressCallback;
-    progressCallback?.('info', `Searching for: "${input.slice(0, 50)}${input.length > 50 ? '...' : ''}"`);
+    progressCallback?.('info', `Searching: "${input.slice(0, 50)}${input.length > 50 ? '...' : ''}"`);
+
+    // Result container for submit_findings
+    let finalResult: {
+      summary: string;
+      findings: string;
+      sources: string[];
+    } | null = null;
+
+    // Create tool executor with callbacks
+    const toolExecutor = createDocsToolExecutor(
+      // onTellUser callback
+      (message: string) => {
+        progressCallback?.('tell_user', message);
+        logger.debug('tell_to_user', { message });
+      },
+      // onComplete callback (submit_findings)
+      (summary: string, findings: string, sources: string[]) => {
+        finalResult = { summary, findings, sources };
+        progressCallback?.('complete', summary, { summary, findings, sources });
+        logger.debug('submit_findings', { summary, sourcesCount: sources.length });
+      }
+    );
 
     try {
-      const frameworkDetection = detectFrameworkPath(input);
-      const keywords = extractKeywords(input);
-
-      logger.debug('Documentation Search Agent Started', {
-        query: input,
-        framework: frameworkDetection.framework || 'none',
-        basePath: frameworkDetection.basePath,
-        keywords: keywords.join(', ') || 'none',
-      });
-
-      if (frameworkDetection.framework) {
-        progressCallback?.('info', `Framework detected: ${frameworkDetection.framework.toUpperCase()}`);
-      }
-
-      const systemPrompt = buildDocsSearchPrompt(frameworkDetection, keywords);
-
       const messages: Message[] = [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: `Find this information in the documentation:\n\n${input}` },
+        { role: 'system', content: DOCS_SEARCH_SYSTEM_PROMPT },
+        { role: 'user', content: buildDocsSearchUserMessage(input) },
       ];
 
       let iterations = 0;
-      let finalResult = '';
-      const maxIterations = this.config.maxIterations ?? DOCS_SEARCH_CONFIG.MAX_ITERATIONS;
 
-      while (iterations < maxIterations) {
+      // Main execution loop - terminates when submit_findings is called
+      while (!finalResult) {
         iterations++;
-        logger.flow(`Search iteration ${iterations}/${maxIterations}`);
 
+        // Soft limit warning
+        if (iterations === SOFT_ITERATION_LIMIT) {
+          messages.push({
+            role: 'system',
+            content: `You have made ${SOFT_ITERATION_LIMIT} tool calls. Please wrap up your search and call submit_findings soon.`,
+          });
+          logger.warn('Docs search soft limit reached', { iterations });
+        }
+
+        // Hard limit - force stop
+        if (iterations > HARD_ITERATION_LIMIT) {
+          logger.error('Docs search hard limit exceeded', { iterations });
+          return {
+            success: false,
+            error: `Search exceeded maximum iterations (${HARD_ITERATION_LIMIT}). Please try a more specific query.`,
+          };
+        }
+
+        logger.flow(`Search iteration ${iterations}`);
+
+        // Call LLM
         const response = await this.llmClient.chatCompletion({
           messages,
-          tools: [RUN_BASH_TOOL],
+          tools: DOCS_SEARCH_TOOLS,
           temperature: this.config.temperature,
           max_tokens: this.config.maxTokens,
         });
@@ -170,48 +143,58 @@ export class DocsSearchAgent extends BaseAgent {
 
         messages.push(assistantMessage);
 
+        // Process tool calls
         if (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
           for (const toolCall of assistantMessage.tool_calls) {
-            if (toolCall.function.name === 'run_bash') {
-              const result = await this.executeBashTool(toolCall);
+            const toolName = toolCall.function.name;
+            let args: Record<string, unknown>;
+
+            try {
+              args = JSON.parse(toolCall.function.arguments);
+            } catch {
+              logger.warn('Failed to parse tool arguments', { toolName });
               messages.push({
                 role: 'tool',
-                content: result,
+                content: 'Error: Invalid tool arguments',
                 tool_call_id: toolCall.id,
               });
+              continue;
+            }
+
+            // Log tool call for UI
+            progressCallback?.('info', `${toolName}: ${this.formatToolArgs(toolName, args)}`);
+
+            // Execute tool
+            const result = await toolExecutor(toolName, args);
+
+            messages.push({
+              role: 'tool',
+              content: result.success ? (result.result || 'Success') : `Error: ${result.error}`,
+              tool_call_id: toolCall.id,
+            });
+
+            // Check if this was the termination tool
+            if (result.terminate) {
+              break;
             }
           }
         } else {
-          finalResult = assistantMessage.content || '';
-          break;
+          // No tool calls - LLM responded with text only
+          // This shouldn't happen with proper prompting, but handle it
+          logger.warn('LLM responded without tool calls');
+          messages.push({
+            role: 'system',
+            content: 'You must use tools to search documentation. Call list_directory to explore, or submit_findings to complete.',
+          });
         }
       }
 
-      if (!finalResult) {
-        messages.push({
-          role: 'user',
-          content: 'Please summarize what you found so far.',
-        });
-
-        const summaryResponse = await this.llmClient.chatCompletion({
-          messages,
-          temperature: 0.3,
-          max_tokens: 1000,
-        });
-
-        finalResult = summaryResponse.choices[0]?.message.content ||
-          `Search completed but exceeded maximum iterations (${maxIterations}).`;
-      }
-
       const totalElapsed = logger.endTimer('docs-search-total');
-      logger.exit('DocsSearchAgent.execute', { success: true, resultLength: finalResult.length });
-
-      // Notify completion
-      progressCallback?.('complete', finalResult.slice(0, 200) + (finalResult.length > 200 ? '...' : ''));
+      logger.exit('DocsSearchAgent.execute', { success: true, iterations });
 
       return {
         success: true,
-        result: finalResult,
+        result: this.formatFinalResult(finalResult),
         metadata: {
           iterations,
           duration: totalElapsed,
@@ -220,9 +203,7 @@ export class DocsSearchAgent extends BaseAgent {
     } catch (error) {
       logger.endTimer('docs-search-total');
       logger.error('Documentation Search Failed', error instanceof Error ? error : new Error(String(error)));
-
-      // Notify completion with error
-      progressCallback?.('complete', `Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      progressCallback?.('complete', 'Search failed', { summary: 'Error occurred', findings: '', sources: [] });
 
       return {
         success: false,
@@ -231,138 +212,52 @@ export class DocsSearchAgent extends BaseAgent {
     }
   }
 
-  private async executeBashTool(toolCall: { id: string; function: { arguments: string } }): Promise<string> {
-    const progressCallback = globalProgressCallback;
+  /**
+   * Format tool arguments for display
+   * Uses the reason if provided, otherwise falls back to path
+   */
+  private formatToolArgs(toolName: string, args: Record<string, unknown>): string {
+    const reason = args['reason'] as string | undefined;
 
-    let args: { command: string };
-    try {
-      args = JSON.parse(toolCall.function.arguments);
-    } catch {
-      logger.warn('Failed to parse tool arguments');
-      return 'Error: Invalid tool arguments';
-    }
-
-    const sanitized = sanitizeCommand(args.command);
-
-    if (!isCommandSafe(sanitized)) {
-      logger.warn('Unsafe command blocked', { command: sanitized });
-      return `Error: Command not allowed for security reasons: ${sanitized}`;
-    }
-
-    if (this.executedCommands.has(sanitized)) {
-      logger.warn('Duplicate command detected - blocking', { command: sanitized });
-      return `⚠️ STOP: This exact command was already executed. Based on the information you've gathered, provide your final answer NOW. Do not repeat the same search.`;
-    }
-
-    // Report command execution to UI
-    const shortCommand = this.formatCommandForDisplay(sanitized);
-    progressCallback?.('command', shortCommand);
-
-    logger.debug('Executing bash command', { command: sanitized });
-
-    const result = await executeBashCommand(sanitized);
-
-    if (result.formattedDisplay) {
-      logger.bashExecution(result.formattedDisplay);
-    }
-
-    if (result.success) {
-      this.executedCommands.add(sanitized);
-      let toolResult = result.result || 'Command executed successfully (no output)';
-
-      // Report results to UI
-      this.reportResultsToUI(sanitized, toolResult, progressCallback);
-
-      if (toolResult.length > DOCS_SEARCH_CONFIG.MAX_OUTPUT_LENGTH) {
-        logger.warn('Output truncated due to length', {
-          originalLength: toolResult.length,
-          maxLength: DOCS_SEARCH_CONFIG.MAX_OUTPUT_LENGTH,
-        });
-        toolResult = toolResult.substring(0, DOCS_SEARCH_CONFIG.MAX_OUTPUT_LENGTH - 100) +
-          '\n... (output truncated - too many files, consider loading specific subset)';
-      }
-
-      return toolResult;
-    } else {
-      progressCallback?.('info', `Command failed: ${result.error?.slice(0, 50)}`);
-      return `Error: ${result.error}`;
+    switch (toolName) {
+      case 'list_directory':
+        return reason || (args['path'] ? `"${args['path']}"` : '(root)');
+      case 'read_docs_file':
+      case 'preview_file':
+        return reason || `"${args['path']}"`;
+      case 'tell_to_user':
+        return (args['message'] as string)?.slice(0, 50) || '';
+      case 'submit_findings':
+        return 'Submitting report...';
+      default:
+        return JSON.stringify(args).slice(0, 50);
     }
   }
 
   /**
-   * Format command for display (shorten long commands)
+   * Format final result for display
    */
-  private formatCommandForDisplay(command: string): string {
-    // Extract the main command type
-    if (command.startsWith('find ')) {
-      const nameMatch = command.match(/-name\s+"?\*?([^"*]+)/);
-      return nameMatch?.[1] ? `find ... -name "*${nameMatch[1]}*"` : 'find ...';
-    }
-    if (command.startsWith('grep ')) {
-      const patternMatch = command.match(/grep\s+(?:-\w+\s+)*"?([^"]+)"/);
-      return patternMatch?.[1] ? `grep "${patternMatch[1].slice(0, 30)}"` : 'grep ...';
-    }
-    if (command.startsWith('cat ')) {
-      const files = command.substring(4).split(/\s+/).filter(f => f);
-      if (files.length === 1) {
-        const fileName = files[0]?.split('/').pop() || files[0];
-        return `cat ${fileName}`;
-      }
-      return `cat ${files.length} files`;
-    }
-    if (command.startsWith('head ')) {
-      const fileMatch = command.match(/head\s+-n\s+\d+\s+(.+)/);
-      if (fileMatch) {
-        const fileName = fileMatch[1]?.split('/').pop() || fileMatch[1];
-        return `head ${fileName}`;
-      }
-    }
-    if (command.startsWith('ls ') || command === 'ls') {
-      return 'ls (listing files)';
-    }
-    // Default: truncate
-    return command.length > 50 ? command.slice(0, 47) + '...' : command;
-  }
+  private formatFinalResult(result: { summary: string; findings: string; sources: string[] }): string {
+    const parts: string[] = [];
 
-  /**
-   * Report search results to UI
-   */
-  private reportResultsToUI(
-    command: string,
-    result: string,
-    callback: DocsSearchProgressCallback | null
-  ): void {
-    if (!callback) return;
+    parts.push(`## Summary\n${result.summary}`);
+    parts.push(`\n## Findings\n${result.findings}`);
 
-    // For find commands, report number of files found
-    if (command.startsWith('find ') && result.includes('.md')) {
-      const files = result.trim().split('\n').filter(line => line.includes('.md'));
-      if (files.length > 0) {
-        callback('result', `Found ${files.length} file(s)`);
-      }
+    if (result.sources.length > 0) {
+      parts.push(`\n## Sources`);
+      result.sources.forEach(source => {
+        parts.push(`- ${source}`);
+      });
     }
-    // For grep commands, report matches
-    else if (command.includes('grep')) {
-      const matches = result.trim().split('\n').filter(line => line.length > 0);
-      if (matches.length > 0) {
-        callback('result', `Found ${matches.length} match(es)`);
-      }
-    }
-    // For cat commands, report file being read
-    else if (command.startsWith('cat ')) {
-      const files = command.substring(4).split(/\s+/).filter(f => f && f.endsWith('.md'));
-      if (files.length > 0) {
-        const fileNames = files.map(f => f.split('/').pop()).join(', ');
-        callback('file', `Reading: ${fileNames.slice(0, 60)}${fileNames.length > 60 ? '...' : ''}`);
-      }
-    }
+
+    return parts.join('\n');
   }
 }
 
 /**
  * Factory function to create DocsSearchAgent
  */
-export function createDocsSearchAgent(llmClient: LLMClient, config?: AgentConfig): DocsSearchAgent {
+export function createDocsSearchAgent(llmClient: LLMClient, config?: Partial<AgentConfig>): DocsSearchAgent {
   return new DocsSearchAgent(llmClient, config);
 }
 
@@ -406,19 +301,30 @@ This directory contains local documentation that can be searched by the AI assis
 
 Simply place your markdown (.md) files in this directory. The AI will be able to search and reference them.
 
-## Supported File Types
+## Folder Structure
 
-- Markdown files (.md)
-- Text files (.txt)
-- JSON files (.json)
-- YAML files (.yaml, .yml)
+Organize your documentation hierarchically:
+- Create folders for major categories
+- Use sub-folders for specific topics
+- Place .md files at appropriate levels
 
-## Organization Tips
-
-- Use descriptive filenames
-- Organize files in subdirectories by topic
-- Include a table of contents in longer documents
-- Use consistent formatting
+Example:
+\`\`\`
+~/.local-cli/docs/
+├── README.md
+├── tutorials/
+│   ├── getting-started.md
+│   └── advanced-usage.md
+├── reference/
+│   ├── api.md
+│   └── configuration.md
+└── agent_framework/
+    ├── agno/
+    │   ├── overview.md
+    │   └── examples.md
+    └── langchain/
+        └── setup.md
+\`\`\`
 `;
       await fs.writeFile(readmePath, sampleReadme, 'utf-8');
     }

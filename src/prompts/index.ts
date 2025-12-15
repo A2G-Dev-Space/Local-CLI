@@ -22,4 +22,4 @@ export { COMPACT_SYSTEM_PROMPT } from './system/compact.js';
 // Agent prompts
 export { PLANNING_SYSTEM_PROMPT } from './agents/planning.js';
 export { CLASSIFIER_SYSTEM_PROMPT } from './agents/classifier.js';
-export { buildDocsSearchPrompt, DOCS_SEARCH_CONFIG } from './agents/docs-search.js';
+export { DOCS_SEARCH_SYSTEM_PROMPT, buildDocsSearchUserMessage } from './agents/docs-search.js';

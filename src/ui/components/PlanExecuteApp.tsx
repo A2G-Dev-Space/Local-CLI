@@ -45,7 +45,7 @@ import { LLMClient, createLLMClient } from '../../core/llm/llm-client.js';
 import { Message } from '../../types/index.js';
 import { TodoPanel, TodoStatusBar } from '../TodoPanel.js';
 import { sessionManager } from '../../core/session/session-manager.js';
-import { initializeDocsDirectory, setDocsSearchProgressCallback, type DocsSearchLogType } from '../../agents/docs-search/index.js';
+import { initializeDocsDirectory, setDocsSearchProgressCallback } from '../../agents/docs-search/index.js';
 import { DocsSearchProgress, type DocsSearchLog } from './DocsSearchProgress.js';
 import { FileBrowser } from './FileBrowser.js';
 import { SessionBrowser } from './panels/SessionPanel.js';
@@ -370,13 +370,14 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
 
   // Setup docs search progress callback
   useEffect(() => {
-    setDocsSearchProgressCallback((type: DocsSearchLogType, message: string) => {
+    setDocsSearchProgressCallback((type, message, data) => {
       // Handle completion
       if (type === 'complete') {
-        // Add result to static log
+        // Add result to static log with summary
         addLog({
           type: 'docs_search',
-          content: message,
+          content: data?.summary || message,
+          details: data?.findings,
         });
 
         // Clear progress state
@@ -388,10 +389,13 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
       // Start docs search on first log
       setIsDocsSearching(true);
 
+      // Map callback type to log type
+      const logType: DocsSearchLog['type'] = type === 'tell_user' ? 'result' : 'info';
+
       // Add log entry (max 8, remove oldest if exceeding)
       setDocsSearchLogs(prev => {
         const newLog: DocsSearchLog = {
-          type: type as DocsSearchLog['type'],
+          type: logType,
           message,
           timestamp: Date.now(),
         };

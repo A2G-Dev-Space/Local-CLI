@@ -1,106 +1,84 @@
 /**
  * Documentation Search Agent Prompt
  *
- * Used for searching ~/.local-cli/docs directory.
- * Builds dynamic prompts based on framework detection.
+ * Redesigned for hierarchical folder navigation approach.
+ * Uses list_directory, read_docs_file, preview_file, tell_to_user, submit_findings tools.
  */
-
-import { FrameworkDetection, getFrameworkPathsForDocs } from '../../core/agent-framework-handler.js';
 
 /**
- * Configuration constants
+ * System prompt for documentation search agent
  */
-export const DOCS_SEARCH_CONFIG = {
-  MAX_ITERATIONS: 15,
-  MAX_OUTPUT_LENGTH: 50000,
-  LLM_TEMPERATURE: 0.3,
-  LLM_MAX_TOKENS: 4000,
-};
+export const DOCS_SEARCH_SYSTEM_PROMPT = `You are a documentation search expert. Your task is to find relevant information in ~/.local-cli/docs by navigating its hierarchical folder structure.
+
+## Documentation Structure
+
+The docs folder is organized hierarchically:
+- **Top-level folders** = Major categories (e.g., agent_framework/, tutorials/, reference/)
+- **Sub-folders** = Specific topics or frameworks (e.g., agno/, langchain/)
+- **Files** = Documentation in markdown format (.md)
+
+Navigate by exploring folder names to understand what's available, then drill down to find relevant content.
+
+## Available Tools
+
+1. **list_directory** - List contents of a folder
+   - Use this to explore the folder structure
+   - Start from root ("") and navigate deeper based on folder names
+
+2. **read_docs_file** - Read entire file content
+   - Use after identifying a relevant file
+   - Good for smaller files or when you need full context
+
+3. **preview_file** - Read first N lines of a file
+   - Use to quickly check if a file is relevant before reading fully
+   - Saves time on large documents
+
+4. **tell_to_user** - Send progress update to user
+   - Keep the user informed about what you're doing
+   - Use for significant progress (found relevant folder, reading important file, etc.)
+
+5. **submit_findings** - Submit final report and terminate
+   - Call this when you have gathered enough information
+   - This is the ONLY way to complete the search
+   - Include summary, detailed findings, and source files
+
+## Search Strategy
+
+1. **Start broad**: List root directory to understand available categories
+2. **Navigate by relevance**: Choose folders whose names match the query topic
+3. **Read multiple files**: Information may be spread across several documents
+4. **Preview before reading**: For large files, preview first to check relevance
+5. **Keep user informed**: Use tell_to_user for significant findings
+6. **Submit when ready**: Call submit_findings when you have enough information
+
+## Important Rules
+
+- **No iteration limit**: Take as many steps as needed to find good information
+- **Be thorough**: Check 2-5 potentially relevant documents when possible
+- **Must call submit_findings**: This is the only way to complete the search
+- **Respond in user's language**: Match the language of the user's query
+
+## Example Flow
+
+1. list_directory("") → See top-level categories
+2. list_directory("agent_framework") → Explore relevant category
+3. tell_to_user("Found agent_framework folder, exploring...")
+4. list_directory("agent_framework/agno") → Drill down
+5. preview_file("agent_framework/agno/overview.md", 30) → Check relevance
+6. read_docs_file("agent_framework/agno/overview.md") → Read full content
+7. read_docs_file("agent_framework/agno/examples.md") → Read related file
+8. submit_findings(summary, findings, sources) → Complete search
+`;
 
 /**
- * Build 4-tier search strategy for all frameworks
+ * Build user message for docs search
  */
-function build4TierSearchStrategy(specificPath: string, broadPath: string, keywords: string[]): string {
-  const keywordExamples = keywords.length > 0 ? keywords.slice(0, 5).join(', ') : 'reasoning, streaming, agent';
+export function buildDocsSearchUserMessage(query: string): string {
+  return `Find information about the following topic in the documentation:
 
-  return `
-4-Tier Search Strategy (follow in order, stop when found):
-1. find ${specificPath} -name "*keyword*.md" (filename in specific dir)
-2. find ${broadPath} -name "*keyword*.md" (filename in broad dir)
-3. grep -ril "keyword" ${specificPath} --include="*.md" (content search)
-4. grep -ril "keyword" ${broadPath} --include="*.md" (broad content)
+${query}
 
-Multi-Keyword Search Strategy:
-When searching, ALWAYS consider synonyms AND word separator variations:
-- Use OR patterns in find: find path \\( -name "*term1*.md" -o -name "*term2*.md" \\)
-- Use regex in grep: grep -ril "term1\\|term2" path --include="*.md"
-- For multi-word terms: try space, hyphen (-), underscore (_) variations
-
-Examples:
-- Inference/reasoning: find \\( -name "*reasoning*.md" -o -name "*inference*.md" \\)
-- Agentic RAG: grep -ril "agentic.rag\\|agentic_rag\\|agentic-rag" path
-- Stream/streaming: grep -ril "stream\\|streaming" path
-
-Detected Keywords: ${keywordExamples}
--> Consider expanding with synonyms and related terms when searching`;
+Start by listing the root directory to understand the available documentation structure.`;
 }
 
-/**
- * Build framework-specific search hints and instructions
- */
-function buildFrameworkHints(frameworkDetection: FrameworkDetection): {
-  searchHint: string;
-  searchStrategy: string;
-} {
-  let searchHint = '';
-  let searchStrategy = '';
-
-  if (frameworkDetection.framework) {
-    const frameworkName = frameworkDetection.framework.toUpperCase();
-    const categoryInfo = frameworkDetection.category
-      ? ` (category: ${frameworkDetection.category})`
-      : '';
-
-    searchHint = `\n\n**FRAMEWORK DETECTED**: ${frameworkName}${categoryInfo}\n**Target Path**: ${frameworkDetection.basePath}`;
-
-    const specificPath = frameworkDetection.basePath;
-    const broadPath = frameworkDetection.category
-      ? frameworkDetection.basePath.replace(`/${frameworkDetection.category}`, '')
-      : frameworkDetection.basePath;
-
-    searchStrategy = build4TierSearchStrategy(specificPath, broadPath, []);
-  } else {
-    searchStrategy = build4TierSearchStrategy('agent_framework', 'agent_framework', []);
-  }
-
-  return { searchHint, searchStrategy };
-}
-
-/**
- * Build system prompt for documentation search
- */
-export function buildDocsSearchPrompt(frameworkDetection: FrameworkDetection, keywords: string[]): string {
-  const { searchHint, searchStrategy } = buildFrameworkHints(frameworkDetection);
-  const keywordHint = keywords.length > 0 ? ` Keywords: ${keywords.join(', ')}` : '';
-  const frameworkPaths = getFrameworkPathsForDocs().map(({ name, path }) => `${name}: ${path}`).join(', ');
-
-  return `Docs search expert for ~/.local-cli/docs.${searchHint}${keywordHint}
-
-Tools: run_bash (find/grep/cat/head/ls)
-${searchStrategy}
-Paths: ${frameworkPaths}
-
-NEVER use non-English in find -name (filenames are English only!)
-Translate first, then use OR patterns: find \\( -name "*reasoning*.md" -o -name "*inference*.md" \\)
-
-Rules:
-- Translate non-English -> search ALL synonyms with OR patterns
-- Multi-word terms -> include space/hyphen/underscore variations (e.g., "agentic rag" -> "agentic.rag\\|agentic_rag\\|agentic-rag")
-- STOP after cat loads docs - answer immediately
-- Max ${DOCS_SEARCH_CONFIG.MAX_ITERATIONS} calls
-- Cite: [file.md] path/to/file.md
-
-CWD: ~/.local-cli/docs`;
-}
-
-export default buildDocsSearchPrompt;
+export default DOCS_SEARCH_SYSTEM_PROMPT;
