@@ -980,6 +980,16 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
       const result = await executeSlashCommand(userMessage, commandContext);
 
       if (result.handled) {
+        // If the command added an assistant message, display it in the log
+        if (result.updatedContext?.messages) {
+          const lastMessage = result.updatedContext.messages[result.updatedContext.messages.length - 1];
+          if (lastMessage && lastMessage.role === 'assistant') {
+            addLog({
+              type: 'assistant_message',
+              content: lastMessage.content,
+            });
+          }
+        }
         logger.exit('handleSubmit', { handled: true });
         return;
       }
