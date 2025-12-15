@@ -1276,6 +1276,17 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
             <Text bold color="blue"> ███████╗╚██████╔╝╚██████╗██║  ██║███████╗    ╚██████╗███████╗██║</Text>
             <Text bold color="blueBright"> ╚══════╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝     ╚═════╝╚══════╝╚═╝</Text>
             <Text color="gray">                      {entry.content}</Text>
+            <Text>{' '}</Text>
+            <Box>
+              <Text color="gray"> 📚 Local RAG documents available. Use </Text>
+              <Text color="cyan">/docs</Text>
+              <Text color="gray"> to configure offline documentation.</Text>
+            </Box>
+            <Box>
+              <Text color="gray">    로컬 RAG 문서를 구성할 수 있습니다. </Text>
+              <Text color="cyan">/docs</Text>
+              <Text color="gray"> 명령어를 사용해보세요.</Text>
+            </Box>
           </Box>
         );
 
