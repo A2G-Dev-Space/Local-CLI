@@ -58,6 +58,7 @@ import { DocsBrowser } from './dialogs/DocsBrowser.js';
 import { CommandBrowser } from './CommandBrowser.js';
 // ChatView removed - using Static log instead
 import { Logo } from './Logo.js';
+import { MarkdownRenderer } from './MarkdownRenderer.js';
 import { ActivityIndicator, type ActivityType, type SubActivity } from './ActivityIndicator.js';
 import { useFileBrowserState } from '../hooks/useFileBrowserState.js';
 import { useCommandBrowserState } from '../hooks/useCommandBrowserState.js';
@@ -1250,9 +1251,11 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
 
       case 'assistant_message':
         return (
-          <Box key={entry.id} marginTop={1}>
-            <Text color="magenta" bold>● </Text>
-            <Text>{entry.content}</Text>
+          <Box key={entry.id} marginTop={1} flexDirection="column">
+            <Text color="magenta" bold>● Assistant</Text>
+            <Box paddingLeft={2}>
+              <MarkdownRenderer content={entry.content} />
+            </Box>
           </Box>
         );
 
