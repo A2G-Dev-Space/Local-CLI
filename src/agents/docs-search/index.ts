@@ -194,7 +194,7 @@ export class DocsSearchAgent extends BaseAgent {
 
       return {
         success: true,
-        result: this.formatFinalResult(finalResult),
+        result: finalResult ? this.formatFinalResult(finalResult) : 'Error: Search completed without findings.',
         metadata: {
           iterations,
           duration: totalElapsed,

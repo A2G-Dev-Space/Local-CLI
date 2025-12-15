@@ -98,7 +98,7 @@ export abstract class BaseAgent {
 
     logger.enter(`${this.name}.runToolLoop`);
 
-    while (iterations < (this.config.maxIterations ?? 10)) {
+    while (iterations < this.config.maxIterations!) {
       iterations++;
       logger.flow(`${this.name} iteration ${iterations}`);
 
@@ -122,10 +122,11 @@ export abstract class BaseAgent {
           let args: Record<string, unknown>;
           try {
             args = JSON.parse(toolCall.function.arguments);
-          } catch {
+          } catch (error) {
+            logger.warn('Failed to parse tool arguments', { error, arguments: toolCall.function.arguments });
             messages.push({
               role: 'tool',
-              content: 'Error: Invalid tool arguments',
+              content: 'Error: Invalid tool arguments. The arguments must be a valid JSON object.',
               tool_call_id: toolCall.id,
             });
             continue;
