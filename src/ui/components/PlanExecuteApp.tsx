@@ -64,6 +64,7 @@ import { useFileBrowserState } from '../hooks/useFileBrowserState.js';
 import { useCommandBrowserState } from '../hooks/useCommandBrowserState.js';
 import { usePlanExecution } from '../hooks/usePlanExecution.js';
 import { isValidCommand } from '../hooks/slashCommandProcessor.js';
+import { processFileReferences } from '../hooks/atFileProcessor.js';
 import {
   executeSlashCommand,
   isSlashCommand,
@@ -1002,14 +1003,26 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
       }
     }
 
-    // Add user input to Static log
+    // Add user input to Static log (show original message)
     addLog({
       type: 'user_input',
       content: userMessage,
     });
 
-    // Add user message to messages immediately
-    const updatedMessages: Message[] = [...messages, { role: 'user' as const, content: userMessage }];
+    // Process @file references - read file contents and include in message
+    const processedResult = await processFileReferences(userMessage);
+    const processedMessage = processedResult.content;
+
+    // Log if files were included
+    if (processedResult.includedFiles.length > 0) {
+      logger.debug('Files included in message', {
+        files: processedResult.includedFiles,
+        failedFiles: processedResult.failedFiles,
+      });
+    }
+
+    // Add processed message to messages (with file contents for LLM)
+    const updatedMessages: Message[] = [...messages, { role: 'user' as const, content: processedMessage }];
     setMessages(updatedMessages);
 
     setIsProcessing(true);
@@ -1056,7 +1069,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         logger.flow('Resuming TODO execution after pause');
         setActivityType('executing');
         setActivityDetail('Resuming...');
-        await planExecutionState.resumeTodoExecution(userMessage, llmClient!, messages, setMessages);
+        await planExecutionState.resumeTodoExecution(processedMessage, llmClient!, messages, setMessages);
       } else {
         // Phase 1: Use auto mode with LLM-based request classification
         setActivityType('thinking');
@@ -1064,11 +1077,11 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
 
         logger.vars(
           { name: 'planningMode', value: planningMode },
-          { name: 'messageLength', value: userMessage.length }
+          { name: 'messageLength', value: processedMessage.length }
         );
 
         // Use executeAutoMode which handles classification internally
-        await planExecutionState.executeAutoMode(userMessage, llmClient!, updatedMessages, setMessages);
+        await planExecutionState.executeAutoMode(processedMessage, llmClient!, updatedMessages, setMessages);
       }
 
     } catch (error) {
@@ -1108,40 +1121,42 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         t => t.status === 'pending' || t.status === 'in_progress'
       );
 
-      // Add to log
+      // Add to log (show original message)
       addLog({
         type: 'user_input',
         content: queuedMessage.replace('[Request interrupted by user]\n', '📩 '),
       });
 
-      // Start processing
-      setIsProcessing(true);
-      setActivityStartTime(Date.now());
+      // Process @file references and then execute
+      const processAndExecute = async () => {
+        // Process file references
+        const processedResult = await processFileReferences(queuedMessage);
+        const processedMessage = processedResult.content;
 
-      if (hasPendingTodos) {
-        // Resume TODO execution with the new message
-        logger.flow('Resuming TODO execution with user message');
-        planExecutionState.resumeTodoExecution(queuedMessage, llmClient, messages, setMessages)
-          .catch((error) => {
-            logger.error('Resume execution failed', error as Error);
-          })
-          .finally(() => {
-            setIsProcessing(false);
-          });
-      } else {
-        // No pending TODOs - start fresh with executeAutoMode
-        logger.flow('No pending TODOs - starting fresh execution');
-        const updatedMessages: Message[] = [...messages, { role: 'user' as const, content: queuedMessage }];
-        setMessages(updatedMessages);
+        // Start processing
+        setIsProcessing(true);
+        setActivityStartTime(Date.now());
 
-        planExecutionState.executeAutoMode(queuedMessage, llmClient, updatedMessages, setMessages)
-          .catch((error) => {
-            logger.error('Queued message processing failed', error as Error);
-          })
-          .finally(() => {
-            setIsProcessing(false);
-          });
-      }
+        try {
+          if (hasPendingTodos) {
+            // Resume TODO execution with the new message
+            logger.flow('Resuming TODO execution with user message');
+            await planExecutionState.resumeTodoExecution(processedMessage, llmClient, messages, setMessages);
+          } else {
+            // No pending TODOs - start fresh with executeAutoMode
+            logger.flow('No pending TODOs - starting fresh execution');
+            const updatedMessages: Message[] = [...messages, { role: 'user' as const, content: processedMessage }];
+            setMessages(updatedMessages);
+            await planExecutionState.executeAutoMode(processedMessage, llmClient, updatedMessages, setMessages);
+          }
+        } catch (error) {
+          logger.error('Queued message processing failed', error as Error);
+        } finally {
+          setIsProcessing(false);
+        }
+      };
+
+      processAndExecute();
     }
   }, [isProcessing, pendingUserMessage, llmClient, messages, planExecutionState, addLog]);
 

@@ -491,6 +491,11 @@ async function getFilesRecursively(
       break;
     }
 
+    // Skip hidden files/directories (starting with .)
+    if (entry.name.startsWith('.')) {
+      continue;
+    }
+
     const fullPath = path.join(dirPath, entry.name);
     const relativePath = path.relative(baseDir, fullPath);
 
@@ -645,6 +650,11 @@ async function findFilesRecursively(
   for (const entry of entries) {
     if (fileCount.count >= MAX_FILES) {
       break;
+    }
+
+    // Skip hidden files/directories (starting with .)
+    if (entry.name.startsWith('.')) {
+      continue;
     }
 
     const fullPath = path.join(dirPath, entry.name);
