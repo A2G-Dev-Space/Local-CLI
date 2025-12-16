@@ -7,8 +7,8 @@
 
 import { Message, TodoItem } from '../types/index.js';
 import { LLMClient } from '../core/llm/llm-client.js';
-import { RequestClassifier } from '../core/llm/request-classifier.js';
-import { PlanningLLM } from '../core/llm/planning-llm.js';
+import { RequestClassifier } from '../agents/classifier/index.js';
+import { PlanningLLM } from '../agents/planner/index.js';
 import { sessionManager } from '../core/session/session-manager.js';
 import { performDocsSearchIfNeeded } from '../agents/docs-search/executor.js';
 import {

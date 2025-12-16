@@ -1,10 +1,10 @@
 /**
- * Planning LLM for Plan-and-Execute Architecture
+ * Planning Agent
  *
  * Converts user requests into executable TODO lists
  */
 
-import { LLMClient } from './llm-client.js';
+import { LLMClient } from '../../core/llm/llm-client.js';
 import { Message, TodoItem, PlanningResult, TodoStatus } from '../../types/index.js';
 import { logger } from '../../utils/logger.js';
 import { PLANNING_SYSTEM_PROMPT } from '../../prompts/agents/planning.js';

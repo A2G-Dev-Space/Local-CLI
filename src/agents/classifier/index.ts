@@ -1,12 +1,12 @@
 /**
- * Request Classifier
+ * Request Classifier Agent
  *
  * Classifies user requests into:
  * - simple_response: Direct response without TODO
  * - requires_todo: Requires TODO list generation
  */
 
-import { LLMClient } from './llm-client.js';
+import { LLMClient } from '../../core/llm/llm-client.js';
 import { Message } from '../../types/index.js';
 import { logger } from '../../utils/logger.js';
 import { CLASSIFIER_SYSTEM_PROMPT } from '../../prompts/agents/classifier.js';

@@ -12,6 +12,16 @@ export {
   type AgentConfig,
 } from './base/base-agent.js';
 
+// Request classifier agent
+export {
+  RequestClassifier,
+  type RequestType,
+  type ClassificationResult,
+} from './classifier/index.js';
+
+// Planning agent
+export { PlanningLLM } from './planner/index.js';
+
 // Documentation search agent
 export {
   DocsSearchAgent,

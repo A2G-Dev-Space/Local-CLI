@@ -3,5 +3,6 @@
  */
 
 export * from './llm-client.js';
-export * from './planning-llm.js';
-export * from './request-classifier.js';
+
+// Note: RequestClassifier moved to src/agents/classifier/
+// Note: PlanningLLM moved to src/agents/planner/
