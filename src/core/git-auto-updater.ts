@@ -9,6 +9,7 @@
 
 import { spawn } from 'child_process';
 import fs from 'fs';
+import { rm } from 'fs/promises';
 import path from 'path';
 import os from 'os';
 import { logger } from '../utils/logger.js';
@@ -183,9 +184,10 @@ export class GitAutoUpdater {
       this.emitStatus({ type: 'complete', needsRestart: true, message: 'Setup complete! Please restart.' });
       return true;
 
-    } catch (error: any) {
-      logger.error('Initial setup failed', error);
-      this.emitStatus({ type: 'error', message: `Setup failed: ${error.message}` });
+    } catch (error: unknown) {
+      logger.error('Initial setup failed', error as Error);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.emitStatus({ type: 'error', message: `Setup failed: ${message}` });
       return false;
     }
   }
@@ -198,31 +200,67 @@ export class GitAutoUpdater {
     logger.debug('Checking for updates', { repoDir: this.repoDir });
 
     try {
-      // Check git status first
-      const statusResult = await execAsync('git status --porcelain', { cwd: this.repoDir });
+      // Try fetch + reset approach (handles force pushes and rebases)
+      await execAsync('git fetch origin main', { cwd: this.repoDir });
 
-      if (statusResult.stdout.trim() !== '') {
-        logger.warn('Local changes detected in repo directory');
-        this.emitStatus({ type: 'skipped', reason: 'Local changes detected' });
-        return false;
-      }
+      // Check if we're already up to date
+      const currentResult = await execAsync('git rev-parse HEAD', { cwd: this.repoDir });
+      const latestResult = await execAsync('git rev-parse origin/main', { cwd: this.repoDir });
 
-      // Pull latest changes
-      const pullResult = await execAsync('git pull origin main', { cwd: this.repoDir });
-      const pullOutput = pullResult.stdout;
+      const currentCommit = currentResult.stdout.trim();
+      const latestCommit = latestResult.stdout.trim();
 
-      // Check if there were any changes
-      if (pullOutput.includes('Already up to date') || pullOutput.includes('Already up-to-date')) {
+      if (currentCommit === latestCommit) {
         logger.debug('Already up to date, no rebuild needed');
         this.emitStatus({ type: 'no_update' });
         return false;
       }
 
+      // Reset to latest (handles diverged history)
+      logger.debug('Resetting to latest commit...', { from: currentCommit.slice(0, 7), to: latestCommit.slice(0, 7) });
+      await execAsync('git reset --hard origin/main', { cwd: this.repoDir });
+
       // Changes detected - rebuild
-      logger.debug('Changes detected, rebuilding...', { pullOutput });
+      return await this.rebuildAndLink();
 
-      const totalSteps = 3;
+    } catch (error: unknown) {
+      logger.error('Pull/reset failed, attempting fresh clone', error as Error);
 
+      // If fetch/reset fails, try fresh clone (preserves user data, only deletes repo)
+      return await this.freshClone();
+    }
+  }
+
+  /**
+   * Delete repo and re-clone (preserves user config and data)
+   */
+  private async freshClone(): Promise<boolean> {
+    logger.flow('Performing fresh clone');
+
+    try {
+      this.emitStatus({ type: 'updating', step: 1, totalSteps: 4, message: 'Removing old repository...' });
+
+      // Remove repo directory (force: true prevents error if not exists)
+      await rm(this.repoDir, { recursive: true, force: true });
+
+      // Re-run initial setup (clone, install, build, link)
+      return await this.initialSetup();
+
+    } catch (error: unknown) {
+      logger.error('Fresh clone failed', error as Error);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.emitStatus({ type: 'error', message: `Fresh clone failed: ${message}` });
+      return false;
+    }
+  }
+
+  /**
+   * Rebuild and link after update
+   */
+  private async rebuildAndLink(): Promise<boolean> {
+    const totalSteps = 3;
+
+    try {
       // Step 1: Install dependencies
       this.emitStatus({ type: 'updating', step: 1, totalSteps, message: 'Updating dependencies...' });
       await execAsync('npm install', { cwd: this.repoDir });
@@ -238,19 +276,12 @@ export class GitAutoUpdater {
       this.emitStatus({ type: 'complete', needsRestart: true, message: 'Update complete! Please restart.' });
       return true;
 
-    } catch (buildError: any) {
-      logger.error('Build/link failed after pull', buildError);
-
-      // Try to rollback
-      try {
-        await execAsync('git reset --hard HEAD@{1}', { cwd: this.repoDir });
-        this.emitStatus({ type: 'error', message: 'Update failed, rolled back to previous version' });
-      } catch (rollbackError) {
-        logger.error('Rollback failed', rollbackError);
-        this.emitStatus({ type: 'error', message: 'Update and rollback both failed' });
-      }
+    } catch (buildError: unknown) {
+      logger.error('Build/link failed', buildError as Error);
+      const message = buildError instanceof Error ? buildError.message : 'Unknown error';
+      this.emitStatus({ type: 'error', message: `Build failed: ${message}` });
+      return false;
     }
-    return false;
   }
 
   /**

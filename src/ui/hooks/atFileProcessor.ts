@@ -4,6 +4,9 @@
  * Utilities for detecting @ triggers and processing file selections
  */
 
+import * as fs from 'fs/promises';
+import * as path from 'path';
+
 export interface AtTriggerInfo {
   detected: boolean;
   position: number;
@@ -59,4 +62,106 @@ export function insertFilePaths(
     // No text after cursor - add space for continued typing
     return `${before}${formattedPaths} `;
   }
+}
+
+/**
+ * Result of processing @file references
+ */
+export interface ProcessedMessage {
+  /** The processed message with file contents included */
+  content: string;
+  /** List of files that were successfully read */
+  includedFiles: string[];
+  /** List of files that failed to read */
+  failedFiles: string[];
+}
+
+/**
+ * Extract @path references from a message
+ * Matches patterns like @/path/to/file.ts or @relative/path.js
+ */
+export function extractFileReferences(input: string): string[] {
+  // Match @followed by a path (absolute or relative, with optional extension)
+  // Stops at whitespace or end of string
+  const regex = /@([^\s@]+)/g;
+  const matches: string[] = [];
+  let match;
+
+  while ((match = regex.exec(input)) !== null) {
+    const filePath = match[1];
+    // Filter out obvious non-paths (single characters, etc.)
+    if (filePath && filePath.length > 1 && (filePath.includes('/') || filePath.includes('.'))) {
+      matches.push(filePath);
+    }
+  }
+
+  return matches;
+}
+
+/**
+ * Process a message by reading @file references and including their contents
+ * Returns the processed message with file contents appended
+ */
+export async function processFileReferences(input: string): Promise<ProcessedMessage> {
+  const fileRefs = extractFileReferences(input);
+
+  if (fileRefs.length === 0) {
+    return {
+      content: input,
+      includedFiles: [],
+      failedFiles: [],
+    };
+  }
+
+  const includedFiles: string[] = [];
+  const failedFiles: string[] = [];
+  const fileContents: string[] = [];
+
+  for (const filePath of fileRefs) {
+    try {
+      // Resolve path (relative to cwd)
+      const resolvedPath = path.resolve(process.cwd(), filePath);
+
+      // Security: Prevent path traversal attacks
+      if (!resolvedPath.startsWith(process.cwd())) {
+        failedFiles.push(filePath);
+        continue;
+      }
+
+      // Check if file exists
+      const stat = await fs.stat(resolvedPath);
+
+      if (stat.isDirectory()) {
+        // For directories, list contents instead
+        const entries = await fs.readdir(resolvedPath);
+        fileContents.push(`\n--- Directory: ${filePath} ---\n${entries.join('\n')}\n---`);
+        includedFiles.push(filePath);
+      } else {
+        // Read file content
+        const content = await fs.readFile(resolvedPath, 'utf-8');
+        const ext = path.extname(filePath).slice(1) || 'txt';
+        fileContents.push(`\n--- File: ${filePath} ---\n\`\`\`${ext}\n${content}\n\`\`\`\n---`);
+        includedFiles.push(filePath);
+      }
+    } catch (error) {
+      failedFiles.push(filePath);
+    }
+  }
+
+  // Build final message
+  // Remove @path references from original message and append file contents
+  let cleanedInput = input;
+  for (const filePath of new Set(fileRefs)) {
+    cleanedInput = cleanedInput.replaceAll(`@${filePath}`, `[${filePath}]`);
+  }
+
+  const finalContent = fileContents.length > 0
+    ? `${cleanedInput}\n\n<attached_files>${fileContents.join('\n')}</attached_files>`
+    : cleanedInput;
+
+  return {
+    content: finalContent,
+    includedFiles,
+    failedFiles,
+  };
 }
