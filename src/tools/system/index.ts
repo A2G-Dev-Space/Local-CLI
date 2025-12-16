@@ -7,5 +7,4 @@
 // Simple Tools (No Sub-LLM)
 export * from './simple/index.js';
 
-// Agent Tools (With Sub-LLM)
-export * from './agents/index.js';
+// Note: Agent tools moved to src/agents/ folder

@@ -1,28 +1,26 @@
 /**
- * Documentation Search System Agent Tool
+ * Documentation Search Executor
  *
  * LLM-based decision for triggering documentation search.
  * Shows folder structure to LLM and asks Yes/No for search decision.
- *
- * Category: System Agent Tool
  */
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
-import { LLMClient } from '../../../core/llm/llm-client.js';
-import { Message } from '../../../types/index.js';
+import { LLMClient } from '../../core/llm/llm-client.js';
+import { Message } from '../../types/index.js';
 import {
   executeDocsSearchAgent,
   initializeDocsDirectory,
   addDocumentationFile,
-} from '../../../agents/docs-search/index.js';
+} from './index.js';
 import {
   buildDocsSearchDecisionPrompt,
   parseDocsSearchDecision,
   DOCS_SEARCH_DECISION_RETRY_PROMPT,
-} from '../../../prompts/agents/docs-search-decision.js';
-import { logger } from '../../../utils/logger.js';
+} from '../../prompts/agents/docs-search-decision.js';
+import { logger } from '../../utils/logger.js';
 
 /**
  * Base path for documentation

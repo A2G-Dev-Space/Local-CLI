@@ -22,3 +22,6 @@ export {
   setDocsSearchProgressCallback,
   type DocsSearchProgressCallback,
 } from './docs-search/index.js';
+
+// Documentation search executor (decision + execution)
+export { performDocsSearchIfNeeded } from './docs-search/executor.js';
