@@ -208,7 +208,7 @@ export class GitAutoUpdater {
       }
 
       // Pull latest changes
-      const pullResult = await execAsync('git pull origin main', { cwd: this.repoDir });
+      const pullResult = await execAsync('git pull origin nexus-coder', { cwd: this.repoDir });
       const pullOutput = pullResult.stdout;
 
       // Check if there were any changes
@@ -263,10 +263,10 @@ export class GitAutoUpdater {
 
     try {
       // Fetch without merge
-      await execAsync('git fetch origin main', { cwd: this.repoDir });
+      await execAsync('git fetch origin nexus-coder', { cwd: this.repoDir });
 
       const currentResult = await execAsync('git rev-parse HEAD', { cwd: this.repoDir });
-      const latestResult = await execAsync('git rev-parse origin/main', { cwd: this.repoDir });
+      const latestResult = await execAsync('git rev-parse origin/nexus-coder', { cwd: this.repoDir });
 
       const currentCommit = currentResult.stdout.trim();
       const latestCommit = latestResult.stdout.trim();
