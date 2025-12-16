@@ -16,17 +16,9 @@
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
     "format": "prettier --write \"src/**/*.ts\"",
-    "test": "NODE_OPTIONS='--experimental-vm-modules' jest --config jest.config.mjs",
-    "test:watch": "NODE_OPTIONS='--experimental-vm-modules' jest --config jest.config.mjs --watch",
-    "test:coverage": "NODE_OPTIONS='--experimental-vm-modules' jest --config jest.config.mjs --coverage",
-    "test:e2e": "node --max-old-space-size=512 --expose-gc node_modules/tsx/dist/cli.mjs test/e2e/run-e2e.ts",
-    "test:e2e:verbose": "node --max-old-space-size=512 --expose-gc node_modules/tsx/dist/cli.mjs test/e2e/run-e2e.ts --verbose",
-    "test:e2e:live": "node --max-old-space-size=512 --expose-gc node_modules/tsx/dist/cli.mjs test/e2e/run-e2e.ts --live",
-    "test:e2e:list": "npx tsx test/e2e/run-e2e.ts --list",
-    "test:all": "npm run test && npm run test:e2e",
-    "prepr": "npm run lint && npm run test:e2e",
-    "evaluate": "npx tsx evaluation/run-evaluation.ts",
-    "evaluate:quick": "npx tsx evaluation/run-evaluation.ts -- --test 1,2,3 --format both"
+    "test": "cd tests && python -m pytest test_eval.py -v",
+    "test:quick": "cd tests && python -m pytest test_eval.py -v -m 'not slow'",
+    "prepr": "npm run lint && npm run build"
   },
   "keywords": [
     "cli",
@@ -61,7 +53,6 @@
   },
   "devDependencies": {
     "@types/inquirer": "^9.0.7",
-    "@types/jest": "^30.0.0",
     "@types/node": "^20.10.5",
     "@types/react": "^19.2.2",
     "@types/semver": "^7.7.1",
@@ -69,11 +60,8 @@
     "@typescript-eslint/parser": "^6.15.0",
     "esbuild": "^0.25.12",
     "eslint": "^8.56.0",
-    "jest": "^30.2.0",
     "prettier": "^3.1.1",
-    "ts-jest": "^29.4.5",
     "ts-node": "^10.9.2",
-    "tsx": "^4.20.6",
     "typescript": "^5.3.3"
   }
 }

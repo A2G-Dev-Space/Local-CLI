@@ -16,6 +16,7 @@ import { configManager } from './core/config/config-manager.js';
 import { createLLMClient } from './core/llm/llm-client.js';
 import { PlanExecuteApp } from './ui/components/PlanExecuteApp.js';
 import { setupLogging } from './utils/logger.js';
+import { runEvalMode } from './eval/index.js';
 
 // Read version from package.json (single source of truth)
 const require = createRequire(import.meta.url);
@@ -39,7 +40,14 @@ program
   .option('--verbose', 'Enable verbose logging')
   .option('--debug', 'Enable debug logging')
   .option('--llm-log', 'Enable LLM logging')
-  .action(async (options: { verbose?: boolean; debug?: boolean; llmLog?: boolean }) => {
+  .option('--eval', 'Evaluation mode: read JSON from stdin, output NDJSON events')
+  .action(async (options: { verbose?: boolean; debug?: boolean; llmLog?: boolean; eval?: boolean }) => {
+    // --eval 모드: stdin JSON 입력, stdout NDJSON 이벤트 출력
+    if (options.eval) {
+      await runEvalMode();
+      return;
+    }
+
     let cleanup: (() => Promise<void>) | null = null;
     try {
       // Clear terminal on start
