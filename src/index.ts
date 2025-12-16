@@ -1,5 +1,5 @@
 /**
- * LOCAL-CLI Main Export
+ * Nexus Coder Main Export
  *
  * 이 파일은 라이브러리로 사용될 때의 진입점입니다.
  * CLI 실행은 src/cli.ts를 사용합니다.

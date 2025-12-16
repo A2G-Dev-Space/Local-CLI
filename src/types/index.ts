@@ -1,5 +1,5 @@
 /**
- * LOCAL-CLI Type Definitions
+ * Nexus Coder Type Definitions
  *
  * 프로젝트 전체에서 사용되는 TypeScript 타입 정의
  */

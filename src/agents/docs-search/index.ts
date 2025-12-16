@@ -53,7 +53,7 @@ const HARD_ITERATION_LIMIT = 100; // Force stop after this many
  */
 export class DocsSearchAgent extends BaseAgent {
   readonly name = 'DocsSearchAgent';
-  readonly description = 'Searches ~/.local-cli/docs using hierarchical navigation';
+  readonly description = 'Searches ~/.nexus-coder/docs using hierarchical navigation';
 
   constructor(llmClient: LLMClient, config?: Partial<AgentConfig>) {
     super(llmClient, { ...DEFAULT_CONFIG, ...config });
@@ -280,7 +280,7 @@ export async function initializeDocsDirectory(): Promise<void> {
   const path = await import('path');
   const os = await import('os');
 
-  const docsPath = path.join(os.homedir(), '.local-cli', 'docs');
+  const docsPath = path.join(os.homedir(), '.nexus-coder', 'docs');
 
   try {
     await fs.mkdir(docsPath, { recursive: true });
@@ -289,9 +289,9 @@ export async function initializeDocsDirectory(): Promise<void> {
     try {
       await fs.access(readmePath);
     } catch {
-      const sampleReadme = `# LOCAL-CLI Documentation
+      const sampleReadme = `# Nexus Coder Documentation
 
-Welcome to the LOCAL-CLI documentation directory!
+Welcome to the Nexus Coder documentation directory!
 
 ## Overview
 
@@ -310,7 +310,7 @@ Organize your documentation hierarchically:
 
 Example:
 \`\`\`
-~/.local-cli/docs/
+~/.nexus-coder/docs/
 ├── README.md
 ├── tutorials/
 │   ├── getting-started.md
@@ -345,7 +345,7 @@ export async function addDocumentationFile(
     const pathModule = await import('path');
     const os = await import('os');
 
-    const docsPath = pathModule.join(os.homedir(), '.local-cli', 'docs');
+    const docsPath = pathModule.join(os.homedir(), '.nexus-coder', 'docs');
     await fs.mkdir(docsPath, { recursive: true });
 
     const sanitizedFilename = pathModule.basename(filename);

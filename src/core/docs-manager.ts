@@ -16,7 +16,7 @@ import * as http from 'http';
 import * as os from 'os';
 import { logger } from '../utils/logger.js';
 
-const DOCS_DIR = path.join(os.homedir(), '.local-cli', 'docs');
+const DOCS_DIR = path.join(os.homedir(), '.nexus-coder', 'docs');
 const CONCURRENT_DOWNLOADS = 20;
 const MAX_RETRIES = 3;
 

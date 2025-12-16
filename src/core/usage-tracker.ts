@@ -83,7 +83,7 @@ export interface SessionUsage {
   lastPromptTokens: number;
 }
 
-const DATA_DIR = path.join(process.env['HOME'] || '.', '.local-cli');
+const DATA_DIR = path.join(process.env['HOME'] || '.', '.nexus-coder');
 const USAGE_FILE = path.join(DATA_DIR, 'usage.json');
 
 /**

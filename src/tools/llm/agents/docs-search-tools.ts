@@ -19,7 +19,7 @@ export { setTellToUserCallback } from '../simple/file-tools.js';
 /**
  * Base path for documentation
  */
-const DOCS_BASE_PATH = path.join(os.homedir(), '.local-cli', 'docs');
+const DOCS_BASE_PATH = path.join(os.homedir(), '.nexus-coder', 'docs');
 
 /**
  * list_directory Tool Definition
@@ -29,7 +29,7 @@ export const LIST_DIRECTORY_TOOL: ToolDefinition = {
   type: 'function',
   function: {
     name: 'list_directory',
-    description: `List contents of a directory in ~/.local-cli/docs.
+    description: `List contents of a directory in ~/.nexus-coder/docs.
 Returns folder names (directories) and file names with their types.
 Use this to navigate the hierarchical documentation structure.`,
     parameters: {
@@ -45,7 +45,7 @@ Examples:
         },
         path: {
           type: 'string',
-          description: 'Relative path from ~/.local-cli/docs. Use "" or "/" for root.',
+          description: 'Relative path from ~/.nexus-coder/docs. Use "" or "/" for root.',
         },
       },
       required: ['reason', 'path'],
@@ -76,7 +76,7 @@ Examples:
         },
         path: {
           type: 'string',
-          description: 'Relative path to the file from ~/.local-cli/docs',
+          description: 'Relative path to the file from ~/.nexus-coder/docs',
         },
       },
       required: ['reason', 'path'],
@@ -107,7 +107,7 @@ Examples:
         },
         path: {
           type: 'string',
-          description: 'Relative path to the file from ~/.local-cli/docs',
+          description: 'Relative path to the file from ~/.nexus-coder/docs',
         },
         lines: {
           type: 'number',

@@ -25,7 +25,7 @@ import { logger } from '../../utils/logger.js';
 /**
  * Base path for documentation
  */
-const DOCS_BASE_PATH = path.join(os.homedir(), '.local-cli', 'docs');
+const DOCS_BASE_PATH = path.join(os.homedir(), '.nexus-coder', 'docs');
 
 /**
  * Maximum retries for invalid Yes/No response

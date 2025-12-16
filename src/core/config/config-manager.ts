@@ -1,8 +1,8 @@
 /**
  * Configuration Manager
  *
- * LOCAL-CLI 설정 관리 시스템
- * ~/.local-cli/ 디렉토리 및 설정 파일 관리
+ * Nexus Coder 설정 관리 시스템
+ * ~/.nexus-coder/ 디렉토리 및 설정 파일 관리
  */
 
 import { OpenConfig, EndpointConfig, ModelInfo } from '../../types/index.js';
@@ -46,8 +46,8 @@ export class ConfigManager {
   private initialized = false;
 
   /**
-   * LOCAL-CLI 초기화
-   * ~/.local-cli/ 디렉토리 및 설정 파일 생성
+   * Nexus Coder 초기화
+   * ~/.nexus-coder/ 디렉토리 및 설정 파일 생성
    */
   async initialize(): Promise<void> {
     if (this.initialized) {
