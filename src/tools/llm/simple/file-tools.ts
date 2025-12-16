@@ -1024,6 +1024,28 @@ export function emitAssistantResponse(content: string): void {
 }
 
 /**
+ * Callback for reasoning/thinking events (extended thinking from o1 models)
+ */
+type ReasoningCallback = (content: string, isStreaming: boolean) => void;
+let reasoningCallback: ReasoningCallback | null = null;
+
+/**
+ * Set callback for reasoning/thinking events
+ */
+export function setReasoningCallback(callback: ReasoningCallback | null): void {
+  reasoningCallback = callback;
+}
+
+/**
+ * Emit reasoning/thinking event
+ */
+export function emitReasoning(content: string, isStreaming: boolean = false): void {
+  if (reasoningCallback) {
+    reasoningCallback(content, isStreaming);
+  }
+}
+
+/**
  * Execute tool by name (includes file tools + TODO tools)
  */
 export async function executeFileTool(

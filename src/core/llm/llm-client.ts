@@ -39,7 +39,9 @@ export interface LLMResponse {
   model: string;
   choices: Array<{
     index: number;
-    message: Message;
+    message: Message & {
+      reasoning?: string;
+    };
     finish_reason: string | null;
   }>;
   usage?: {
@@ -62,6 +64,7 @@ export interface LLMStreamChunk {
     delta: {
       role?: string;
       content?: string;
+      reasoning?: string;
     };
     finish_reason: string | null;
   }>;
@@ -121,7 +124,7 @@ export class LLMClient {
             const toolNames = msg.tool_calls.map(tc => tc.function.name).join(', ');
             return {
               ...msg,
-              content: (msg as any).reasoning_content || `Calling tools: ${toolNames}`,
+              content: (msg as any).reasoning || `Calling tools: ${toolNames}`,
             };
           }
         }
@@ -228,6 +231,20 @@ export class LLMClient {
         const responseContent = response.data.choices[0]?.message?.content || '';
         const toolCalls = response.data.choices[0]?.message?.tool_calls;
         logger.llmResponse(responseContent, toolCalls);
+      }
+
+      // Emit reasoning if present (extended thinking from o1 models)
+      // Only emit for user-facing responses (skip internal classifier calls)
+      const reasoningContent = response.data.choices[0]?.message?.reasoning;
+      const maxTokens = options.max_tokens;
+      const isInternalCall = maxTokens && maxTokens < 500; // Internal calls use small max_tokens
+
+      if (reasoningContent && !isInternalCall) {
+        const { emitReasoning } = await import('../../tools/llm/simple/file-tools.js');
+        emitReasoning(reasoningContent, false);
+        logger.debug('Reasoning content emitted', { length: reasoningContent.length });
+      } else if (reasoningContent && isInternalCall) {
+        logger.debug('Reasoning skipped (internal call)', { maxTokens, length: reasoningContent.length });
       }
 
       // Track token usage (Phase 3) + context tracking for auto-compact
@@ -347,6 +364,13 @@ export class LLMClient {
       let buffer = '';
       let chunkCount = 0;
 
+      // Check if this is an internal call (skip reasoning for classifier calls)
+      const maxTokens = options.max_tokens;
+      const isInternalCall = maxTokens && maxTokens < 500;
+
+      // Import emitReasoning once before loop
+      const { emitReasoning } = await import('../../tools/llm/simple/file-tools.js');
+
       for await (const chunk of stream) {
         buffer += chunk.toString();
         const lines = buffer.split('\n');
@@ -361,6 +385,17 @@ export class LLMClient {
               const jsonStr = trimmed.slice(6);
               const data = JSON.parse(jsonStr) as LLMStreamChunk;
               chunkCount++;
+
+              // Emit reasoning if present in stream (extended thinking)
+              // Skip for internal classifier calls
+              const reasoningDelta = data.choices[0]?.delta?.reasoning;
+              if (reasoningDelta && !isInternalCall) {
+                emitReasoning(reasoningDelta, true);
+                logger.debug('Reasoning delta emitted', { length: reasoningDelta.length });
+              } else if (reasoningDelta && isInternalCall) {
+                logger.debug('Reasoning delta skipped (internal call)', { maxTokens });
+              }
+
               yield data;
             } catch (parseError) {
               // JSON 파싱 에러 무시 (불완전한 청크)

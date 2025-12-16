@@ -98,8 +98,24 @@ export class PlanExecutor {
         ? messages
         : [{ role: 'system' as const, content: DEFAULT_SYSTEM_PROMPT }, ...messages];
 
+      // Check if userMessage is already in messages (avoid duplicate)
+      const lastMessage = messagesWithSystem[messagesWithSystem.length - 1];
+      const needsUserMessage = !lastMessage || lastMessage.role !== 'user' || lastMessage.content !== userMessage;
+
+      logger.debug('Direct mode message check', {
+        messagesCount: messagesWithSystem.length,
+        lastMessageRole: lastMessage?.role,
+        lastMessageContent: lastMessage?.content?.substring(0, 50),
+        userMessage: userMessage.substring(0, 50),
+        needsUserMessage,
+      });
+
+      const finalMessages = needsUserMessage
+        ? messagesWithSystem.concat({ role: 'user', content: userMessage })
+        : messagesWithSystem;
+
       const result = await llmClient.chatCompletionWithTools(
-        messagesWithSystem.concat({ role: 'user', content: userMessage }),
+        finalMessages,
         tools
       );
 
@@ -114,11 +130,15 @@ export class PlanExecutor {
     } catch (error) {
       if (error instanceof Error && error.message === 'INTERRUPTED') {
         logger.flow('Direct mode interrupted by user');
-        const interruptedMessages: Message[] = [
-          ...messages,
-          { role: 'user', content: userMessage },
-          { role: 'assistant', content: '⚠️ 실행이 중단되었습니다.' }
-        ];
+
+        // Check if userMessage is already in messages
+        const lastMessage = messages[messages.length - 1];
+        const hasUserMessage = lastMessage?.role === 'user' && lastMessage.content === userMessage;
+
+        const interruptedMessages: Message[] = hasUserMessage
+          ? [...messages, { role: 'assistant', content: '⚠️ 실행이 중단되었습니다.' }]
+          : [...messages, { role: 'user', content: userMessage }, { role: 'assistant', content: '⚠️ 실행이 중단되었습니다.' }];
+
         callbacks.setMessages(interruptedMessages);
         sessionManager.autoSaveCurrentSession(interruptedMessages);
         return;
@@ -126,12 +146,15 @@ export class PlanExecutor {
 
       logger.error('Direct mode execution failed', error as Error);
 
+      // Check if userMessage is already in messages
+      const lastMessage = messages[messages.length - 1];
+      const hasUserMessage = lastMessage?.role === 'user' && lastMessage.content === userMessage;
+
       const errorMessage = formatErrorMessage(error);
-      const updatedMessages: Message[] = [
-        ...messages,
-        { role: 'user', content: userMessage },
-        { role: 'assistant', content: errorMessage }
-      ];
+      const updatedMessages: Message[] = hasUserMessage
+        ? [...messages, { role: 'assistant', content: errorMessage }]
+        : [...messages, { role: 'user', content: userMessage }, { role: 'assistant', content: errorMessage }];
+
       callbacks.setMessages(updatedMessages);
       sessionManager.autoSaveCurrentSession(updatedMessages);
     }
@@ -483,11 +506,14 @@ export class PlanExecutor {
       if (error instanceof Error && error.message === 'INTERRUPTED') {
         logger.flow('Auto mode interrupted by user');
         callbacks.setMessages((prev: Message[]) => {
-          const updatedMessages: Message[] = [
-            ...prev,
-            { role: 'user' as const, content: userMessage },
-            { role: 'assistant' as const, content: '⚠️ 실행이 중단되었습니다.' }
-          ];
+          // Check if userMessage is already in messages
+          const lastMessage = prev[prev.length - 1];
+          const hasUserMessage = lastMessage?.role === 'user' && lastMessage.content === userMessage;
+
+          const updatedMessages: Message[] = hasUserMessage
+            ? [...prev, { role: 'assistant' as const, content: '⚠️ 실행이 중단되었습니다.' }]
+            : [...prev, { role: 'user' as const, content: userMessage }, { role: 'assistant' as const, content: '⚠️ 실행이 중단되었습니다.' }];
+
           sessionManager.autoSaveCurrentSession(updatedMessages);
           return updatedMessages;
         });

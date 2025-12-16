@@ -28,7 +28,8 @@ export type LogEntryType =
   | 'approval_response'
   | 'interrupt'
   | 'session_restored'
-  | 'docs_search';
+  | 'docs_search'
+  | 'reasoning';
 
 export interface LogEntry {
   id: string;
@@ -87,6 +88,7 @@ import {
   setCompactCallback,
   setAssistantResponseCallback,
   setToolApprovalCallback,
+  setReasoningCallback,
   type ToolApprovalResult,
 } from '../../tools/llm/simple/file-tools.js';
 import { createRequire } from 'module';
@@ -326,6 +328,55 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
       setAssistantResponseCallback(null);
     };
   }, [addLog]);
+
+  // Setup reasoning callback - adds to Static log
+  const reasoningLogIdRef = React.useRef<string | null>(null);
+  const accumulatedReasoningRef = React.useRef<string>('');
+
+  useEffect(() => {
+    setReasoningCallback((content, isStreaming) => {
+      if (isStreaming) {
+        // Accumulate streaming reasoning
+        accumulatedReasoningRef.current += content;
+
+        // Update or create reasoning log entry
+        if (reasoningLogIdRef.current) {
+          setLogEntries(prev => prev.map(entry =>
+            entry.id === reasoningLogIdRef.current
+              ? { ...entry, content: accumulatedReasoningRef.current }
+              : entry
+          ));
+        } else {
+          // Create new reasoning log entry
+          reasoningLogIdRef.current = `log-${++logIdCounter.current}`;
+          setLogEntries(prev => [...prev, {
+            id: reasoningLogIdRef.current!,
+            type: 'reasoning',
+            content: accumulatedReasoningRef.current,
+          }]);
+        }
+      } else {
+        // Non-streaming: add complete reasoning
+        addLog({
+          type: 'reasoning',
+          content,
+        });
+      }
+      logger.debug('Reasoning received', { contentLength: content.length, isStreaming });
+    });
+
+    return () => {
+      setReasoningCallback(null);
+    };
+  }, [addLog]);
+
+  // Reset reasoning refs when processing starts
+  useEffect(() => {
+    if (isProcessing) {
+      reasoningLogIdRef.current = null;
+      accumulatedReasoningRef.current = '';
+    }
+  }, [isProcessing]);
 
   // Setup tool approval callback (Supervised Mode)
   useEffect(() => {
@@ -1662,6 +1713,16 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
                 ✗ 거부됨{entry.details && entry.details !== 'rejected' ? `: ${entry.details}` : ''}
               </Text>
             )}
+          </Box>
+        );
+
+      case 'reasoning':
+        return (
+          <Box key={entry.id} marginTop={1} flexDirection="column">
+            <Text color="gray">Thinking...</Text>
+            <Box marginLeft={2}>
+              <Text color="gray">{entry.content}</Text>
+            </Box>
           </Box>
         );
 
