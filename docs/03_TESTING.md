@@ -91,7 +91,7 @@ def eval_lcli(prompt: str) -> dict:
         timeout=120
     )
 
-    events = [json.loads(line) for line in result.stdout.strip().split('\n')]
+    events = [json.loads(line) for line in result.stdout.strip().split('\n') if line]
     return events
 
 # 사용 예시
