@@ -5,7 +5,8 @@
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "lcli": "dist/cli.js"
+    "lcli": "dist/cli.js",
+    "lcli-dev": "dist/cli.js"
   },
   "scripts": {
     "build": "tsc",
