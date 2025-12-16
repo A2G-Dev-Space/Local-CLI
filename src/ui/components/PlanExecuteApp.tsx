@@ -1190,7 +1190,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
 
     // Authors component with cycling highlight animation
     const AuthorsDisplay = () => {
-      const authors = ['syngha.han', 'byeongju.lee', 'youngsub.kim'];
+      const authors = ['syngha.han', 'byeongju.lee', 'young87.kim'];
       const [highlightIndex, setHighlightIndex] = useState(0);
 
       useEffect(() => {

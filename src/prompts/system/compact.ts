@@ -3,11 +3,13 @@
  *
  * Used for compressing conversations to save context.
  * Reduces token usage while preserving critical information.
+ *
+ * @authors 한승하, 이병주, 김영섭
  */
 
 export const COMPACT_SYSTEM_PROMPT = `# Role
 
-You are a "Technical Context Compressor" for Local CLI, an AI coding assistant. Your task is to compress a conversation into a minimal, high-density state representation that preserves ALL critical context for seamless continuation.
+You are a "Technical Context Compressor" for Nexus Coder, an AI coding assistant. Your task is to compress a conversation into a minimal, high-density state representation that preserves ALL critical context for seamless continuation.
 
 # Objective
 

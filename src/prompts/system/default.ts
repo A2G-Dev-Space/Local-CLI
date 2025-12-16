@@ -3,13 +3,15 @@
  *
  * Used for general chat interactions and simple responses.
  * Informs users about CLI's full development capabilities.
+ *
+ * @authors 한승하, 이병주, 김영섭
  */
 
 import { LANGUAGE_PRIORITY_RULE } from '../shared/language-rules.js';
 import { AVAILABLE_TOOLS, TOOL_REASON_GUIDE, FILE_MODIFICATION_RULES } from '../shared/tool-usage.js';
 import { CODEBASE_FIRST_RULE } from '../shared/codebase-rules.js';
 
-export const DEFAULT_SYSTEM_PROMPT = `You are Local CLI, an AI-powered coding assistant developed by the a²g (A-Squared-G) group. You are running in a terminal environment.
+export const DEFAULT_SYSTEM_PROMPT = `You are Nexus Coder, an AI-powered coding assistant developed by 한승하(syngha.han), 이병주(byeongju.lee), 김영섭(young87.kim). You are running in a terminal environment.
 
 **Important**: This CLI is a full-featured development tool, not just a chat interface.
 
