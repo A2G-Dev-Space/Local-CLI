@@ -5,7 +5,7 @@
  * file-tools.ts에서 분리된 모듈
  */
 
-import { LLMSimpleTool, ToolResult } from '../../types.js';
+import { ToolResult, isLLMSimpleTool } from '../../types.js';
 
 /**
  * Callback for tool execution events (reason display to user)
@@ -192,12 +192,12 @@ export async function executeSimpleTool(
 ): Promise<ToolResult> {
   // Dynamic import to avoid circular dependency
   const { toolRegistry } = await import('../../registry.js');
-  const tool = toolRegistry.get(toolName) as LLMSimpleTool | undefined;
+  const tool = toolRegistry.get(toolName);
 
-  if (!tool || !('execute' in tool)) {
+  if (!tool || !isLLMSimpleTool(tool)) {
     return {
       success: false,
-      error: `Unknown tool: ${toolName}`,
+      error: `Unknown or not a simple tool: ${toolName}`,
     };
   }
 

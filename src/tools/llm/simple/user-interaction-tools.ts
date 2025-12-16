@@ -147,7 +147,7 @@ Use this tool when you need to:
 - Confirm important actions before proceeding
 - Offer multiple implementation approaches
 
-The user will always have an "Other" option to provide custom input,
+The user will always have an "Other (custom input)" option to provide custom input,
 so you only need to provide the main choices.
 
 RULES:
@@ -165,7 +165,7 @@ RULES:
         options: {
           type: 'array',
           items: { type: 'string' },
-          description: 'List of main options for the user to choose from. Provide 2-4 options.',
+          description: 'List of main options for the user to choose from. Provide 2-4 options. An "Other" option for custom input is automatically added.',
           minItems: 2,
           maxItems: 4,
         },
