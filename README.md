@@ -1,4 +1,4 @@
-# LOCAL-CLI v2.4.3
+# LOCAL-CLI v2.5.1
 
 [![GitHub release](https://img.shields.io/github/v/release/A2G-Dev-Space/Local-CLI)](https://github.com/A2G-Dev-Space/Local-CLI/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -103,16 +103,33 @@ Claude Code-style scrollable log history:
 
 ## Main Features
 
+### v2.5.x New Features
+
+| Feature | Description |
+|---------|-------------|
+| **--eval 모드** | Python 자동화 테스트용 평가 모드 (stdin JSON → stdout NDJSON) |
+| **Python 테스트** | pytest 기반 테스트 스위트 (`npm run test`) |
+| **NDJSON 이벤트 스트림** | start, tool_call, tool_result, response, end 이벤트 |
+
+```bash
+# --eval 모드 사용
+echo '{"prompt": "1+1은?"}' | lcli --eval
+
+# Python 테스트 실행
+npm run test        # 전체 테스트
+npm run test:quick  # 빠른 테스트
+```
+
 ### v2.4.x New Features
 
 | Feature | Description |
 |---------|-------------|
 | **Markdown Rendering** | Assistant responses render markdown (bold, italic, code blocks, lists) in CLI |
 | **LLM-based Docs Search** | Intelligent documentation search - LLM decides when to search based on folder structure |
-| **Hierarchical Docs Navigation** | New docs search agent with folder-based navigation (list_directory, read_docs_file, preview_file) |
+| **Hierarchical Docs Navigation** | New docs search agent with folder-based navigation |
 | **Docs Search Progress UI** | Real-time progress display during documentation search |
-| **Centralized Prompts** | All prompts moved to `src/prompts/` for better organization |
-| **Restructured Agents** | Agents reorganized under `src/agents/` with base class |
+| **Centralized Prompts** | All prompts moved to `src/prompts/` |
+| **Restructured Agents** | Agents reorganized under `src/agents/` |
 
 ### v2.2.0 New Features
 
