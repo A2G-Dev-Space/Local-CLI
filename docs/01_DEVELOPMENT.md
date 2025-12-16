@@ -1,7 +1,7 @@
 # 개발자 종합 가이드 (Development Guide)
 
-> **문서 버전**: 9.0.0 (v2.4.0)
-> **최종 수정일**: 2025-12-15
+> **문서 버전**: 10.0.0 (v2.5.0)
+> **최종 수정일**: 2025-12-16
 
 이 문서는 **LOCAL-CLI** 프로젝트의 전체 구조, 아키텍처, 핵심 기능, 개발 규칙을 설명합니다.
 
@@ -31,15 +31,17 @@
 - AI가 직접 파일을 읽고, 쓰고, 검색하고, 코드를 실행
 - 터미널에서 Interactive UI로 AI와 대화
 
-### 핵심 기능 (v2.4.0)
+### 핵심 기능 (v2.5.0)
 
 | 기능 | 설명 |
 |------|------|
-| **LLM-based Docs Search** | 폴더 구조 기반 LLM 결정으로 문서 검색 트리거 (v2.4.0) |
+| **LLM-based Docs Search** | 폴더 구조 기반 LLM 결정으로 문서 검색 트리거 |
 | **Hierarchical Docs Navigation** | 폴더 탐색 기반 문서 검색 (list_directory, read_docs_file, preview_file) |
-| **Docs Search Progress UI** | 문서 검색 중 실시간 진행 상황 표시 (v2.4.0) |
-| **Centralized Prompts** | 모든 프롬프트 `src/prompts/`로 중앙 집중화 (v2.4.0) |
-| **Restructured Agents** | `src/agents/`에 base class 기반 에이전트 구조화 (v2.4.0) |
+| **Docs Search Progress UI** | 문서 검색 중 실시간 진행 상황 표시 |
+| **Centralized Prompts** | 모든 프롬프트 `src/prompts/`로 중앙 집중화 |
+| **Unified Agents** | `src/agents/`에 모든 에이전트 통합 (classifier, planner, docs-search) (v2.5.0) |
+| **Simplified Tools** | `src/tools/`에서 미사용 폴더 제거, registry 패턴 적용 (v2.5.0) |
+| **Orchestration Refactor** | `src/orchestration/`에서 비즈니스 로직 분리, usePlanExecution을 thin wrapper로 (v2.5.0) |
 | **Supervised Mode** | 파일 수정 도구 실행 전 사용자 승인 (Tab 키 토글) |
 | **Plan & Execute** | 복잡한 작업을 자동으로 분해하여 순차 실행 |
 | **Unified Execution Loop** | Planning/Direct 모드 통합 실행 루프 |
@@ -79,15 +81,13 @@
 
 ```
 src/
-├── cli.ts                          # CLI 진입점 (open 명령)
+├── cli.ts                          # CLI 진입점 (lcli 명령)
 ├── index.ts                        # 라이브러리 진입점
 ├── constants.ts                    # 상수 정의
 │
-├── core/                           # 핵심 비즈니스 로직
-│   ├── llm/                        # LLM 관련 모듈
-│   │   ├── llm-client.ts           # LLM API 통신 클라이언트
-│   │   ├── planning-llm.ts         # TODO 리스트 생성 LLM
-│   │   ├── request-classifier.ts   # 요청 분류기 (simple/todo)
+├── core/                           # 핵심 인프라 로직
+│   ├── llm/                        # LLM 통신
+│   │   ├── llm-client.ts           # LLM API 클라이언트
 │   │   └── index.ts
 │   │
 │   ├── config/                     # 설정 관리
@@ -98,29 +98,36 @@ src/
 │   │   ├── session-manager.ts      # 세션 저장/복구
 │   │   └── index.ts
 │   │
-│   ├── knowledge/                  # 지식 관리 (RAG)
-│   │   ├── docs-search-agent.ts    # 로컬 문서 검색 에이전트
-│   │   ├── document-manager.ts     # 문서 인덱싱 관리
-│   │   └── index.ts
-│   │
 │   ├── compact/                    # 대화 압축 (Auto-Compact)
 │   │   ├── context-tracker.ts      # Context 사용량 추적
 │   │   ├── compact-prompts.ts      # 압축 프롬프트 템플릿
 │   │   ├── compact-manager.ts      # 압축 실행 로직
 │   │   └── index.ts
 │   │
-│   ├── __tests__/                  # 테스트 파일
-│   │   └── auto-updater.test.ts
-│   │
 │   ├── docs-manager.ts             # 문서 다운로드 관리 (/docs)
 │   ├── usage-tracker.ts            # 사용량 추적 (/usage)
 │   ├── slash-command-handler.ts    # 슬래시 명령 처리
-│   ├── bash-command-tool.ts        # Bash 명령 실행 (보안 검증)
-│   ├── todo-executor.ts            # TODO 실행기
-│   ├── auto-updater.ts             # GitHub 자동 업데이트
 │   └── git-auto-updater.ts         # Git 기반 자동 업데이트
 │
-├── prompts/                        # 프롬프트 중앙 관리 (v2.4.0)
+├── agents/                         # LLM 에이전트 (v2.5.0)
+│   ├── base/                       # 기본 에이전트
+│   │   └── base-agent.ts           # 추상 베이스 클래스
+│   ├── classifier/                 # 요청 분류기
+│   │   └── index.ts                # simple_response vs requires_todo
+│   ├── planner/                    # 플래닝 에이전트
+│   │   └── index.ts                # TODO 리스트 생성
+│   ├── docs-search/                # 문서 검색 에이전트
+│   │   ├── index.ts                # DocsSearchAgent 구현
+│   │   └── executor.ts             # LLM 기반 문서 검색 결정 + 실행
+│   └── index.ts
+│
+├── orchestration/                  # Plan & Execute 오케스트레이션 (v2.5.0)
+│   ├── plan-executor.ts            # 메인 실행 로직 (핵심!)
+│   ├── types.ts                    # 타입 정의
+│   ├── utils.ts                    # 헬퍼 함수
+│   └── index.ts
+│
+├── prompts/                        # 프롬프트 중앙 관리
 │   ├── shared/                     # 공유 규칙
 │   │   ├── language-rules.ts       # 언어 우선순위 규칙
 │   │   ├── tool-usage.ts           # 도구 사용 가이드
@@ -133,56 +140,28 @@ src/
 │   │   ├── planning.ts             # 플래닝 LLM 프롬프트
 │   │   ├── classifier.ts           # 분류기 프롬프트
 │   │   ├── docs-search.ts          # 문서 검색 에이전트 프롬프트
-│   │   └── docs-search-decision.ts # 문서 검색 결정 프롬프트 (v2.4.0)
+│   │   └── docs-search-decision.ts # 문서 검색 결정 프롬프트
 │   └── index.ts
 │
-├── agents/                         # LLM 에이전트 (v2.4.0)
-│   ├── base/                       # 기본 에이전트
-│   │   └── base-agent.ts           # 추상 베이스 클래스
-│   ├── docs-search/                # 문서 검색 에이전트
-│   │   └── index.ts                # DocsSearchAgent 구현
-│   └── index.ts
-│
-├── orchestration/                  # Plan & Execute 오케스트레이션
-│   ├── orchestrator.ts             # 메인 오케스트레이터
-│   ├── state-manager.ts            # 실행 상태 관리
-│   ├── llm-schemas.ts              # LLM 입출력 스키마
-│   ├── types.ts                    # 타입 정의
-│   └── index.ts
-│
-├── tools/                          # AI 도구 (6가지 분류 시스템)
+├── tools/                          # AI 도구 (v2.5.0 - 간소화)
 │   ├── types.ts                    # 도구 타입 인터페이스
 │   ├── registry.ts                 # 도구 중앙 등록 시스템
 │   │
 │   ├── llm/                        # LLM이 tool_call로 호출하는 도구
 │   │   ├── simple/                 # Sub-LLM 없는 단순 도구
 │   │   │   ├── file-tools.ts       # 파일 도구 + 콜백 시스템
-│   │   │   ├── bash-tool.ts        # Bash 명령 실행 도구 (v2.2.0)
+│   │   │   ├── bash-tool.ts        # Bash 명령 실행 도구
 │   │   │   ├── todo-tools.ts       # TODO 관리 도구
 │   │   │   ├── ask-user-tool.ts    # ask-to-user 도구
 │   │   │   └── index.ts
 │   │   ├── agents/                 # Sub-LLM 사용 에이전트 도구
+│   │   │   ├── docs-search-tools.ts # 문서 검색 도구
 │   │   │   └── index.ts
-│   │   └── index.ts
-│   │
-│   ├── system/                     # 로직에서 자동 호출되는 도구
-│   │   ├── simple/                 # Sub-LLM 없는 시스템 도구
-│   │   │   └── index.ts
-│   │   ├── agents/                 # Sub-LLM 사용 시스템 도구
-│   │   │   ├── docs-search.ts      # LLM 기반 문서 검색 결정 + 실행 (v2.4.0)
-│   │   │   └── index.ts
-│   │   └── index.ts
-│   │
-│   ├── user/                       # 사용자 /슬래시 명령어
-│   │   └── index.ts
-│   │
-│   ├── mcp/                        # MCP (Model Context Protocol)
 │   │   └── index.ts
 │   │
 │   └── index.ts
 │
 ├── ui/                             # UI 컴포넌트 (React/Ink)
-│   ├── ink-entry.tsx               # Ink 렌더링 진입점
 │   ├── index.ts
 │   │
 │   ├── components/
@@ -222,7 +201,7 @@ src/
 │   │   └── TokenContext.tsx        # 토큰 사용량 추적
 │   │
 │   ├── hooks/                      # React 커스텀 훅
-│   │   ├── usePlanExecution.ts     # Plan 실행 상태 관리
+│   │   ├── usePlanExecution.ts     # Plan 실행 상태 관리 (thin wrapper)
 │   │   ├── useFileBrowserState.ts  # 파일 브라우저 상태
 │   │   ├── useCommandBrowserState.ts # 명령 브라우저 상태
 │   │   ├── useFileList.ts          # 파일 목록 로드
@@ -230,7 +209,6 @@ src/
 │   │   ├── atFileProcessor.ts      # @파일 처리
 │   │   └── index.ts
 │   │
-│   ├── PlanExecuteView.tsx         # (legacy)
 │   ├── TodoPanel.tsx               # TODO 패널
 │   └── UpdateNotification.tsx      # 업데이트 알림
 │
@@ -238,11 +216,9 @@ src/
 │   └── index.ts
 │
 ├── utils/                          # 유틸리티
-│   ├── logger.ts                   # 로깅 시스템
+│   ├── logger.ts                   # 로깅 시스템 (전역 logger)
 │   ├── json-stream-logger.ts       # JSON 로그 스트림
-│   ├── cache.ts                    # 캐싱
-│   ├── file-system.ts              # 파일 시스템 헬퍼
-│   └── retry.ts                    # 재시도 로직
+│   └── file-system.ts              # 파일 시스템 헬퍼
 │
 └── errors/                         # 에러 클래스
     ├── base.ts                     # 기본 에러
@@ -278,7 +254,7 @@ src/
 
 ### 4.1 요청 분류 시스템
 
-**위치**: `src/core/llm/request-classifier.ts`
+**위치**: `src/agents/classifier/index.ts`
 
 사용자 요청을 자동으로 분류하여 적절한 처리 방식을 결정합니다.
 
@@ -502,10 +478,9 @@ AVAILABLE_SOURCES = [
 
 | 파일 | 역할 |
 |------|------|
-| `orchestrator.ts` | 전체 워크플로우 조율 |
-| `state-manager.ts` | 실행 상태 관리 |
-| `llm-schemas.ts` | LLM 입출력 형식 |
-| `types.ts` | 타입 정의 |
+| `plan-executor.ts` | 메인 실행 로직 (핵심!) |
+| `types.ts` | 타입 정의 (ExecutionPhase, PlanExecutionState 등) |
+| `utils.ts` | 헬퍼 함수 (formatErrorMessage, buildTodoContext 등) |
 
 ### 4.12 슬래시 명령어
 
@@ -549,8 +524,8 @@ User Input (터미널 메시지)
 └──────────────────────────┬──────────────────────────────────────┘
                            ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│              Docs Search Decision (v2.4.0 신규)                   │
-│         src/tools/system/agents/docs-search.ts                   │
+│              Docs Search Decision (v2.5.0)                        │
+│         src/agents/docs-search/executor.ts                        │
 │                                                                  │
 │  1. 폴더 구조를 LLM에게 보여줌                                     │
 │  2. LLM이 Yes/No로 검색 필요 여부 결정                             │
@@ -559,7 +534,7 @@ User Input (터미널 메시지)
                            ↓
 ┌─────────────────────────────────────────────────────────────────┐
 │                   Request Classifier                             │
-│              src/core/llm/request-classifier.ts                  │
+│              src/agents/classifier/index.ts                      │
 │                                                                  │
 │              simple_response  ←→  requires_todo                  │
 └──────────────────────────┬──────────────────────────────────────┘
@@ -575,11 +550,14 @@ User Input (터미널 메시지)
 │                   Tool Execution Layer                           │
 │                     src/tools/                                   │
 │                                                                  │
-│  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌────────────┐   │
-│  │ LLM Tools  │ │ System     │ │ User       │ │ MCP        │   │
-│  │ (Simple/   │ │ Tools      │ │ Commands   │ │ Tools      │   │
-│  │  Agent)    │ │            │ │ (/slash)   │ │            │   │
-│  └────────────┘ └────────────┘ └────────────┘ └────────────┘   │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │              LLM Tools (tool_call 호출)                   │    │
+│  │  ┌────────────────┐  ┌────────────────────────────┐     │    │
+│  │  │ Simple Tools   │  │ Agent Tools                │     │    │
+│  │  │ (file, bash,   │  │ (docs-search with Sub-LLM) │     │    │
+│  │  │  todo, ask)    │  │                            │     │    │
+│  │  └────────────────┘  └────────────────────────────┘     │    │
+│  └─────────────────────────────────────────────────────────┘    │
 │                                                                  │
 │  Tool Callbacks → PlanExecuteApp → Static Log                   │
 └──────────────────────────┬──────────────────────────────────────┘
