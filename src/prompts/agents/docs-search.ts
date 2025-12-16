@@ -3,12 +3,14 @@
  *
  * Redesigned for hierarchical folder navigation approach.
  * Uses list_directory, read_docs_file, preview_file, tell_to_user, submit_findings tools.
+ *
+ * @authors 한승하, 이병주, 김영섭
  */
 
 /**
  * System prompt for documentation search agent
  */
-export const DOCS_SEARCH_SYSTEM_PROMPT = `You are a documentation search expert. Your task is to find relevant information in ~/.local-cli/docs by navigating its hierarchical folder structure.
+export const DOCS_SEARCH_SYSTEM_PROMPT = `You are a documentation search expert. Your task is to find relevant information in ~/.nexus-coder/docs by navigating its hierarchical folder structure.
 
 ## Documentation Structure
 
