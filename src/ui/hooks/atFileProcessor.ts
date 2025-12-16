@@ -120,9 +120,13 @@ export async function processFileReferences(input: string): Promise<ProcessedMes
   for (const filePath of fileRefs) {
     try {
       // Resolve path (relative to cwd)
-      const resolvedPath = path.isAbsolute(filePath)
-        ? filePath
-        : path.resolve(process.cwd(), filePath);
+      const resolvedPath = path.resolve(process.cwd(), filePath);
+
+      // Security: Prevent path traversal attacks
+      if (!resolvedPath.startsWith(process.cwd())) {
+        failedFiles.push(filePath);
+        continue;
+      }
 
       // Check if file exists
       const stat = await fs.stat(resolvedPath);
@@ -147,8 +151,8 @@ export async function processFileReferences(input: string): Promise<ProcessedMes
   // Build final message
   // Remove @path references from original message and append file contents
   let cleanedInput = input;
-  for (const filePath of fileRefs) {
-    cleanedInput = cleanedInput.replace(`@${filePath}`, `[${filePath}]`);
+  for (const filePath of new Set(fileRefs)) {
+    cleanedInput = cleanedInput.replaceAll(`@${filePath}`, `[${filePath}]`);
   }
 
   const finalContent = fileContents.length > 0

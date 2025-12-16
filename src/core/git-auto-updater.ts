@@ -9,6 +9,7 @@
 
 import { spawn } from 'child_process';
 import fs from 'fs';
+import { rm } from 'fs/promises';
 import path from 'path';
 import os from 'os';
 import { logger } from '../utils/logger.js';
@@ -183,9 +184,10 @@ export class GitAutoUpdater {
       this.emitStatus({ type: 'complete', needsRestart: true, message: 'Setup complete! Please restart.' });
       return true;
 
-    } catch (error: any) {
-      logger.error('Initial setup failed', error);
-      this.emitStatus({ type: 'error', message: `Setup failed: ${error.message}` });
+    } catch (error: unknown) {
+      logger.error('Initial setup failed', error as Error);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.emitStatus({ type: 'error', message: `Setup failed: ${message}` });
       return false;
     }
   }
@@ -221,8 +223,8 @@ export class GitAutoUpdater {
       // Changes detected - rebuild
       return await this.rebuildAndLink();
 
-    } catch (error: any) {
-      logger.error('Pull/reset failed, attempting fresh clone', error);
+    } catch (error: unknown) {
+      logger.error('Pull/reset failed, attempting fresh clone', error as Error);
 
       // If fetch/reset fails, try fresh clone (preserves user data, only deletes repo)
       return await this.freshClone();
@@ -238,17 +240,16 @@ export class GitAutoUpdater {
     try {
       this.emitStatus({ type: 'updating', step: 1, totalSteps: 4, message: 'Removing old repository...' });
 
-      // Remove repo directory
-      if (fs.existsSync(this.repoDir)) {
-        fs.rmSync(this.repoDir, { recursive: true, force: true });
-      }
+      // Remove repo directory (force: true prevents error if not exists)
+      await rm(this.repoDir, { recursive: true, force: true });
 
       // Re-run initial setup (clone, install, build, link)
       return await this.initialSetup();
 
-    } catch (error: any) {
-      logger.error('Fresh clone failed', error);
-      this.emitStatus({ type: 'error', message: `Fresh clone failed: ${error.message}` });
+    } catch (error: unknown) {
+      logger.error('Fresh clone failed', error as Error);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.emitStatus({ type: 'error', message: `Fresh clone failed: ${message}` });
       return false;
     }
   }
@@ -275,9 +276,10 @@ export class GitAutoUpdater {
       this.emitStatus({ type: 'complete', needsRestart: true, message: 'Update complete! Please restart.' });
       return true;
 
-    } catch (buildError: any) {
-      logger.error('Build/link failed', buildError);
-      this.emitStatus({ type: 'error', message: `Build failed: ${buildError.message}` });
+    } catch (buildError: unknown) {
+      logger.error('Build/link failed', buildError as Error);
+      const message = buildError instanceof Error ? buildError.message : 'Unknown error';
+      this.emitStatus({ type: 'error', message: `Build failed: ${message}` });
       return false;
     }
   }
