@@ -22,6 +22,7 @@ import {
 
 // Import active tools
 import { FILE_SIMPLE_TOOLS } from './llm/simple/file-tools.js';
+import { TODO_TOOLS } from './llm/simple/todo-tools.js';
 import { LLM_AGENT_TOOLS } from './llm/agents/index.js';
 
 /**
@@ -147,14 +148,16 @@ export const toolRegistry = new ToolRegistry();
  * Initialize registry with all built-in tools
  */
 export function initializeToolRegistry(): void {
-  // LLM Simple Tools (file operations, bash, todo, ask-user)
+  // LLM Simple Tools - File operations
   toolRegistry.registerAll(FILE_SIMPLE_TOOLS);
+
+  // LLM Simple Tools - TODO management
+  toolRegistry.registerAll(TODO_TOOLS);
 
   // LLM Agent Tools (docs-search tools)
   toolRegistry.registerAll(LLM_AGENT_TOOLS);
 
   // Future: User Commands, MCP Tools, System Tools
-  // These will be added as they are implemented
 }
 
 // Auto-initialize on import

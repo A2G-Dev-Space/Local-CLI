@@ -812,17 +812,13 @@ export const FILE_SIMPLE_TOOLS: LLMSimpleTool[] = [
 ];
 
 /**
- * All tools including TODO management
+ * All LLM Simple tools (file operations + TODO management)
+ * Used by executeFileTool for tool execution
  */
 export const ALL_SIMPLE_TOOLS: LLMSimpleTool[] = [
   ...FILE_SIMPLE_TOOLS,
   ...TODO_TOOLS,
 ];
-
-/**
- * Tool definitions for LLM (includes file + TODO tools)
- */
-export const FILE_TOOLS: ToolDefinition[] = ALL_SIMPLE_TOOLS.map((tool) => tool.definition);
 
 /**
  * Callback for tool execution events (reason display to user)
