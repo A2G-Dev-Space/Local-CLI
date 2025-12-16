@@ -53,6 +53,7 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
   // Refs
   const isInterruptedRef = useRef(false);
   const isPlanModeActiveRef = useRef(false);
+  const todosRef = useRef<TodoItem[]>([]);
 
   // Memoized executor instance
   const executor = useMemo(() => new PlanExecutor(), []);
@@ -71,7 +72,13 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
     setAskUserRequest,
   }), []);
 
+  // Keep todosRef in sync with todos state
+  useEffect(() => {
+    todosRef.current = todos;
+  }, [todos]);
+
   // Setup TODO tool callbacks (only when NOT in plan mode)
+  // Note: Using todosRef instead of todos in dependency to avoid cleanup issues during plan mode
   useEffect(() => {
     if (isPlanModeActiveRef.current) {
       logger.flow('Skipping TODO callback setup - plan mode is active');
@@ -120,9 +127,10 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
       return true;
     };
 
+    // Use todosRef.current to get latest todos without causing effect re-runs
     const listCallback = () => {
       logger.flow('Getting TODO list for LLM');
-      return todos.map(t => ({
+      return todosRef.current.map(t => ({
         id: t.id,
         title: t.title,
         description: t.description,
@@ -137,7 +145,7 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
       logger.flow('Cleaning up TODO tool callbacks');
       clearTodoCallbacks();
     };
-  }, [todos]);
+  }, [executionPhase]); // Re-run when execution phase changes to restore callbacks after plan execution
 
   // Setup ask-user callback
   useEffect(() => {

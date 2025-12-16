@@ -192,8 +192,16 @@ export const bashTool: LLMSimpleTool = {
 
       logger.exit('bashTool.execute', { exitCode: execResult.exitCode, outputLength: output.length });
 
+      // Return with error field when command fails
+      if (execResult.exitCode !== 0) {
+        return {
+          success: false,
+          error: output || '(no output)',
+        };
+      }
+
       return {
-        success: execResult.exitCode === 0,
+        success: true,
         result: output || '(no output)',
       };
     } catch (error) {
