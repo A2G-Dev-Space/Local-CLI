@@ -9,7 +9,6 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { ToolDefinition } from '../../../types/index.js';
 import { LLMSimpleTool, ToolResult, ToolCategory } from '../../types.js';
-import { TODO_TOOLS } from './todo-tools.js';
 import { bashTool } from './bash-tool.js';
 
 // Safety limits
@@ -730,355 +729,69 @@ export const findFilesTool: LLMSimpleTool = {
 };
 
 /**
- * tell_to_user Tool Definition
- * Used for sending status messages to the user during task execution
+ * File operation tools (read, create, edit, list, find)
  */
-const TELL_TO_USER_DEFINITION: ToolDefinition = {
-  type: 'function',
-  function: {
-    name: 'tell_to_user',
-    description: `Send a message directly to the user to explain what you're doing or provide status updates.
-Use this tool to communicate with the user during task execution.
-The message will be displayed immediately in the UI.`,
-    parameters: {
-      type: 'object',
-      properties: {
-        message: {
-          type: 'string',
-          description: `A natural, conversational message for the user (in user's language).
-Examples:
-- "Analyzing the files, please wait a moment"
-- "Found the config file! Let me modify it now"
-- "Ran the tests and 2 failed. Let me find the cause"
-- "Almost done, wrapping up the work"`,
-        },
-      },
-      required: ['message'],
-    },
-  },
-};
-
-/**
- * Callback for tell_to_user messages
- */
-type TellToUserCallback = (message: string) => void;
-let tellToUserCallback: TellToUserCallback | null = null;
-
-/**
- * Set callback for tell_to_user messages
- */
-export function setTellToUserCallback(callback: TellToUserCallback | null): void {
-  tellToUserCallback = callback;
-}
-
-/**
- * Internal: Execute tell_to_user
- */
-async function _executeTellToUser(args: Record<string, unknown>): Promise<ToolResult> {
-  const message = args['message'] as string;
-
-  // Call the callback to display message in UI
-  if (tellToUserCallback) {
-    tellToUserCallback(message);
-  }
-
-  return {
-    success: true,
-    result: `Message sent to user: ${message}`,
-  };
-}
-
-/**
- * tell_to_user LLM Simple Tool
- */
-export const tellToUserTool: LLMSimpleTool = {
-  definition: TELL_TO_USER_DEFINITION,
-  execute: _executeTellToUser,
-  categories: ['llm-simple'] as ToolCategory[],
-  description: 'Send message to user',
-};
-
-/**
- * All file tools
- */
-export const FILE_SIMPLE_TOOLS: LLMSimpleTool[] = [
+export const FILE_TOOLS: LLMSimpleTool[] = [
   readFileTool,
   createFileTool,
   editFileTool,
   listFilesTool,
   findFilesTool,
-  tellToUserTool,
+];
+
+/**
+ * System utility tools (bash)
+ */
+export const SYSTEM_TOOLS: LLMSimpleTool[] = [
   bashTool,
 ];
 
-/**
- * All LLM Simple tools (file operations + TODO management)
- * Used by executeFileTool for tool execution
- */
-export const ALL_SIMPLE_TOOLS: LLMSimpleTool[] = [
-  ...FILE_SIMPLE_TOOLS,
-  ...TODO_TOOLS,
-];
+// Re-export user interaction tools
+export {
+  USER_INTERACTION_TOOLS,
+  tellToUserTool,
+  askToUserTool,
+  setTellToUserCallback,
+  setAskUserCallback,
+  clearAskUserCallback,
+  hasAskUserCallback,
+  type AskUserRequest,
+  type AskUserResponse,
+  type AskUserCallback,
+} from './user-interaction-tools.js';
 
 /**
- * Callback for tool execution events (reason display to user)
+ * @deprecated Use FILE_TOOLS, USER_INTERACTION_TOOLS, SYSTEM_TOOLS separately
  */
-type ToolExecutionCallback = (toolName: string, reason: string, args: Record<string, unknown>) => void;
-let toolExecutionCallback: ToolExecutionCallback | null = null;
+export { FILE_TOOLS as FILE_SIMPLE_TOOLS };
 
-/**
- * Callback for tool response events
- */
-type ToolResponseCallback = (toolName: string, success: boolean, result: string) => void;
-let toolResponseCallback: ToolResponseCallback | null = null;
-
-/**
- * Callback for plan created events
- */
-type PlanCreatedCallback = (todoTitles: string[]) => void;
-let planCreatedCallback: PlanCreatedCallback | null = null;
-
-/**
- * Callback for todo start events
- */
-type TodoStartCallback = (title: string) => void;
-let todoStartCallback: TodoStartCallback | null = null;
-
-/**
- * Callback for todo complete events
- */
-type TodoCompleteCallback = (title: string) => void;
-let todoCompleteCallback: TodoCompleteCallback | null = null;
-
-/**
- * Callback for todo fail events
- */
-type TodoFailCallback = (title: string) => void;
-let todoFailCallback: TodoFailCallback | null = null;
-
-/**
- * Callback for tool approval (Supervised Mode)
- * Returns: 'approve' | 'always' | { reject: true; comment: string }
- */
-export type ToolApprovalResult = 'approve' | 'always' | { reject: true; comment: string };
-type ToolApprovalCallback = (
-  toolName: string,
-  args: Record<string, unknown>,
-  reason?: string
-) => Promise<ToolApprovalResult>;
-let toolApprovalCallback: ToolApprovalCallback | null = null;
-
-/**
- * Set callback for tool execution events
- */
-export function setToolExecutionCallback(callback: ToolExecutionCallback | null): void {
-  toolExecutionCallback = callback;
-}
-
-/**
- * Set callback for tool response events
- */
-export function setToolResponseCallback(callback: ToolResponseCallback | null): void {
-  toolResponseCallback = callback;
-}
-
-/**
- * Set callback for plan created events
- */
-export function setPlanCreatedCallback(callback: PlanCreatedCallback | null): void {
-  planCreatedCallback = callback;
-}
-
-/**
- * Set callback for todo start events
- */
-export function setTodoStartCallback(callback: TodoStartCallback | null): void {
-  todoStartCallback = callback;
-}
-
-/**
- * Set callback for todo complete events
- */
-export function setTodoCompleteCallback(callback: TodoCompleteCallback | null): void {
-  todoCompleteCallback = callback;
-}
-
-/**
- * Set callback for todo fail events
- */
-export function setTodoFailCallback(callback: TodoFailCallback | null): void {
-  todoFailCallback = callback;
-}
-
-/**
- * Set callback for tool approval (Supervised Mode)
- */
-export function setToolApprovalCallback(callback: ToolApprovalCallback | null): void {
-  toolApprovalCallback = callback;
-}
-
-/**
- * Request tool approval from user (Supervised Mode)
- * Returns approval result or null if no callback is set
- */
-export async function requestToolApproval(
-  toolName: string,
-  args: Record<string, unknown>,
-  reason?: string
-): Promise<ToolApprovalResult | null> {
-  if (!toolApprovalCallback) {
-    return null;
-  }
-  return toolApprovalCallback(toolName, args, reason);
-}
-
-/**
- * Get current tool execution callback
- */
-export function getToolExecutionCallback(): ToolExecutionCallback | null {
-  return toolExecutionCallback;
-}
-
-/**
- * Emit plan created event
- */
-export function emitPlanCreated(todoTitles: string[]): void {
-  if (planCreatedCallback) {
-    planCreatedCallback(todoTitles);
-  }
-}
-
-/**
- * Emit todo start event
- */
-export function emitTodoStart(title: string): void {
-  if (todoStartCallback) {
-    todoStartCallback(title);
-  }
-}
-
-/**
- * Emit todo complete event
- */
-export function emitTodoComplete(title: string): void {
-  if (todoCompleteCallback) {
-    todoCompleteCallback(title);
-  }
-}
-
-/**
- * Emit todo fail event
- */
-export function emitTodoFail(title: string): void {
-  if (todoFailCallback) {
-    todoFailCallback(title);
-  }
-}
-
-/**
- * Callback for compact events
- */
-type CompactCallback = (originalCount: number, newCount: number) => void;
-let compactCallback: CompactCallback | null = null;
-
-/**
- * Set callback for compact events
- */
-export function setCompactCallback(callback: CompactCallback | null): void {
-  compactCallback = callback;
-}
-
-/**
- * Emit compact event
- */
-export function emitCompact(originalCount: number, newCount: number): void {
-  if (compactCallback) {
-    compactCallback(originalCount, newCount);
-  }
-}
-
-/**
- * Callback for assistant response events (final LLM response)
- */
-type AssistantResponseCallback = (content: string) => void;
-let assistantResponseCallback: AssistantResponseCallback | null = null;
-
-/**
- * Set callback for assistant response events
- */
-export function setAssistantResponseCallback(callback: AssistantResponseCallback | null): void {
-  assistantResponseCallback = callback;
-}
-
-/**
- * Emit assistant response event
- */
-export function emitAssistantResponse(content: string): void {
-  if (assistantResponseCallback) {
-    assistantResponseCallback(content);
-  }
-}
-
-/**
- * Callback for reasoning/thinking events (extended thinking from o1 models)
- */
-type ReasoningCallback = (content: string, isStreaming: boolean) => void;
-let reasoningCallback: ReasoningCallback | null = null;
-
-/**
- * Set callback for reasoning/thinking events
- */
-export function setReasoningCallback(callback: ReasoningCallback | null): void {
-  reasoningCallback = callback;
-}
-
-/**
- * Emit reasoning/thinking event
- */
-export function emitReasoning(content: string, isStreaming: boolean = false): void {
-  if (reasoningCallback) {
-    reasoningCallback(content, isStreaming);
-  }
-}
-
-/**
- * Execute tool by name (includes file tools + TODO tools)
- */
-export async function executeFileTool(
-  toolName: string,
-  args: Record<string, unknown>
-): Promise<ToolResult> {
-  const tool = ALL_SIMPLE_TOOLS.find((t) => t.definition.function.name === toolName);
-
-  if (!tool) {
-    return {
-      success: false,
-      error: `알 수 없는 도구: ${toolName}`,
-    };
-  }
-
-  // Extract reason from args (not required for TODO tools)
-  const reason = args['reason'] as string | undefined;
-
-  // Call the callback to notify UI about tool execution (pass all args)
-  // Skip for TODO tools which don't have reason parameter
-  if (toolExecutionCallback && reason) {
-    toolExecutionCallback(toolName, reason, args);
-  }
-
-  // Execute the tool
-  const result = await tool.execute(args);
-
-  // Call the response callback to notify UI about tool result (전체 내용 전달)
-  // Skip response callback for TODO tools to avoid cluttering UI
-  const isTodoTool = ['update_todos', 'get_todo_list'].includes(toolName);
-  if (toolResponseCallback && !isTodoTool) {
-    const resultText = result.success
-      ? (result.result || '')
-      : (result.error || 'Unknown error');
-    toolResponseCallback(toolName, result.success, resultText);
-  }
-
-  return result;
-}
+// Re-export from simple-tool-executor for backward compatibility
+export {
+  // Callback setters
+  setToolExecutionCallback,
+  setToolResponseCallback,
+  setPlanCreatedCallback,
+  setTodoStartCallback,
+  setTodoCompleteCallback,
+  setTodoFailCallback,
+  setToolApprovalCallback,
+  setCompactCallback,
+  setAssistantResponseCallback,
+  setReasoningCallback,
+  // Callback getters & emitters
+  getToolExecutionCallback,
+  requestToolApproval,
+  emitPlanCreated,
+  emitTodoStart,
+  emitTodoComplete,
+  emitTodoFail,
+  emitCompact,
+  emitAssistantResponse,
+  emitReasoning,
+  // Tool executor
+  executeSimpleTool,
+  executeFileTool,
+  // Types
+  type ToolApprovalResult,
+} from './simple-tool-executor.js';
 

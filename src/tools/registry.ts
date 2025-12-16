@@ -21,7 +21,8 @@ import {
 } from './types.js';
 
 // Import active tools
-import { FILE_SIMPLE_TOOLS } from './llm/simple/file-tools.js';
+import { FILE_TOOLS, SYSTEM_TOOLS } from './llm/simple/file-tools.js';
+import { USER_INTERACTION_TOOLS } from './llm/simple/user-interaction-tools.js';
 import { TODO_TOOLS } from './llm/simple/todo-tools.js';
 import { LLM_AGENT_TOOLS } from './llm/agents/index.js';
 
@@ -148,8 +149,14 @@ export const toolRegistry = new ToolRegistry();
  * Initialize registry with all built-in tools
  */
 export function initializeToolRegistry(): void {
-  // LLM Simple Tools - File operations
-  toolRegistry.registerAll(FILE_SIMPLE_TOOLS);
+  // LLM Simple Tools - File operations (read, create, edit, list, find)
+  toolRegistry.registerAll(FILE_TOOLS);
+
+  // LLM Simple Tools - User interaction (tell_to_user, ask_to_user)
+  toolRegistry.registerAll(USER_INTERACTION_TOOLS);
+
+  // LLM Simple Tools - System utilities (bash)
+  toolRegistry.registerAll(SYSTEM_TOOLS);
 
   // LLM Simple Tools - TODO management
   toolRegistry.registerAll(TODO_TOOLS);
