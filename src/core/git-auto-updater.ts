@@ -78,7 +78,7 @@ export class GitAutoUpdater {
   private onStatus: StatusCallback | null = null;
 
   constructor(options?: { repoUrl?: string; enabled?: boolean; onStatus?: StatusCallback }) {
-    this.repoDir = path.join(os.homedir(), '.local-cli', 'repo');
+    this.repoDir = path.join(os.homedir(), '.nexus-coder', 'repo');
 
     if (options?.repoUrl) {
       this.repoUrl = options.repoUrl;
