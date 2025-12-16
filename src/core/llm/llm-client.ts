@@ -28,6 +28,7 @@ import {
 } from '../../errors/llm.js';
 import { logger, isLLMLogEnabled } from '../../utils/logger.js';
 import { usageTracker } from '../usage-tracker.js';
+import { authManager } from '../auth/index.js';
 
 /**
  * LLM 응답 인터페이스 (OpenAI Compatible)
@@ -93,12 +94,13 @@ export class LLMClient {
     this.model = currentModel.id;
     this.modelName = currentModel.name;
 
-    // Axios 인스턴스 생성
+    // Axios 인스턴스 생성 (Auth headers 포함 - Admin Server 사용자 추적용)
     this.axiosInstance = axios.create({
       baseURL: this.baseUrl,
       headers: {
         'Content-Type': 'application/json',
         ...(this.apiKey && { Authorization: `Bearer ${this.apiKey}` }),
+        ...authManager.getAuthHeaders(),
       },
       timeout: 600000, // 600초 (10분)
     });

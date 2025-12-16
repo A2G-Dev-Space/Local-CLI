@@ -272,9 +272,16 @@ export async function executeSlashCommand(
 
       let resultMessage: string;
       if (result.success) {
-        resultMessage = `✅ ${result.message}\n`;
-        resultMessage += `파일 수: ${result.downloadedFiles}개\n`;
-        resultMessage += `경로: ${result.targetPath}`;
+        resultMessage = `✅ ${result.message}\n\n`;
+        resultMessage += `📊 다운로드 결과:\n`;
+        resultMessage += `  • 신규 다운로드: ${result.downloadedFiles ?? 0}개\n`;
+        if (result.skippedFiles && result.skippedFiles > 0) {
+          resultMessage += `  • 이미 존재 (스킵): ${result.skippedFiles}개\n`;
+        }
+        if (result.failedFiles && result.failedFiles > 0) {
+          resultMessage += `  • 실패: ${result.failedFiles}개\n`;
+        }
+        resultMessage += `\n📁 경로: ${result.targetPath}`;
       } else {
         resultMessage = `❌ ${result.message}`;
       }

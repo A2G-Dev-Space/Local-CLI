@@ -370,9 +370,10 @@ export class E2ETestRunner {
     const client = new LLMClient();
 
     if (useTools) {
-      const { FILE_TOOLS } = await import('../../src/tools/llm/simple/file-tools.js');
+      const { toolRegistry } = await import('../../src/tools/registry.js');
+      const tools = toolRegistry.getLLMToolDefinitions();
       // sendMessageWithTools는 { response, toolCalls } 객체를 반환
-      const result = await client.sendMessageWithTools(prompt, FILE_TOOLS);
+      const result = await client.sendMessageWithTools(prompt, tools);
       return result.response;
     }
 

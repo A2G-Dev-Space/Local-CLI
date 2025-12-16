@@ -137,45 +137,7 @@ export interface OpenConfig {
     debugMode: boolean;
     streamResponse: boolean;
     autoSave: boolean;
-    autoUpdate?: AutoUpdateConfig;
   };
-}
-
-/**
- * GitHub Release information
- */
-export interface ReleaseInfo {
-  version: string;
-  releaseDate: string;
-  downloadUrl: string;
-  changelog: string;
-  assets: {
-    name: string;
-    url: string;
-    size: number;
-  }[];
-}
-
-/**
- * Update check result
- */
-export interface UpdateCheckResult {
-  hasUpdate: boolean;
-  currentVersion: string;
-  latestVersion?: string;
-  releaseInfo?: ReleaseInfo;
-  error?: string;
-}
-
-/**
- * Auto-update configuration
- */
-export interface AutoUpdateConfig {
-  enabled: boolean;
-  checkOnStartup: boolean;
-  autoInstall: boolean;
-  channel: 'stable' | 'beta' | 'nightly';
-  skipVersion?: string;
 }
 
 /**

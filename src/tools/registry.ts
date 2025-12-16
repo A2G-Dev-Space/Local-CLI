@@ -16,25 +16,13 @@ import {
   ToolCategory,
   LLMSimpleTool,
   LLMAgentTool,
-  SystemSimpleTool,
-  SystemAgentTool,
-  UserCommand,
-  MCPTool,
   isLLMSimpleTool,
   isLLMAgentTool,
-  isSystemSimpleTool,
-  isSystemAgentTool,
-  isUserCommand,
-  isMCPTool,
 } from './types.js';
 
-// Import all tools
+// Import active tools
 import { FILE_SIMPLE_TOOLS } from './llm/simple/file-tools.js';
 import { LLM_AGENT_TOOLS } from './llm/agents/index.js';
-import { DOCS_SYSTEM_AGENT_TOOLS } from './system/agents/docs-search.js';
-import { SYSTEM_SIMPLE_TOOLS } from './system/simple/index.js';
-import { USER_COMMANDS } from './user/index.js';
-import { MCP_TOOLS } from './mcp/index.js';
 
 /**
  * Tool Registry class
@@ -44,14 +32,10 @@ class ToolRegistry {
   private categoryIndex: Map<ToolCategory, Set<string>> = new Map();
 
   constructor() {
-    // Initialize category index
+    // Initialize category index for active categories
     const categories: ToolCategory[] = [
       'llm-simple',
       'llm-agent',
-      'system-simple',
-      'system-agent',
-      'user-command',
-      'mcp',
     ];
     for (const category of categories) {
       this.categoryIndex.set(category, new Set());
@@ -124,34 +108,6 @@ class ToolRegistry {
   }
 
   /**
-   * Get all System Simple tools
-   */
-  getSystemSimpleTools(): SystemSimpleTool[] {
-    return this.getByCategory('system-simple').filter(isSystemSimpleTool);
-  }
-
-  /**
-   * Get all System Agent tools
-   */
-  getSystemAgentTools(): SystemAgentTool[] {
-    return this.getByCategory('system-agent').filter(isSystemAgentTool);
-  }
-
-  /**
-   * Get all User Commands
-   */
-  getUserCommands(): UserCommand[] {
-    return this.getByCategory('user-command').filter(isUserCommand);
-  }
-
-  /**
-   * Get all MCP tools
-   */
-  getMCPTools(): MCPTool[] {
-    return this.getByCategory('mcp').filter(isMCPTool);
-  }
-
-  /**
    * Get all LLM tool definitions (for chatCompletion)
    * Includes both LLM Simple and LLM Agent tools
    */
@@ -166,20 +122,11 @@ class ToolRegistry {
   /**
    * Get tool count by category
    */
-  getStats(): Record<ToolCategory, number> {
-    const stats: Record<ToolCategory, number> = {
-      'llm-simple': 0,
-      'llm-agent': 0,
-      'system-simple': 0,
-      'system-agent': 0,
-      'user-command': 0,
-      'mcp': 0,
-    };
-
+  getStats(): Record<string, number> {
+    const stats: Record<string, number> = {};
     for (const [category, names] of this.categoryIndex) {
       stats[category] = names.size;
     }
-
     return stats;
   }
 
@@ -200,23 +147,14 @@ export const toolRegistry = new ToolRegistry();
  * Initialize registry with all built-in tools
  */
 export function initializeToolRegistry(): void {
-  // LLM Simple Tools (file operations, etc.)
+  // LLM Simple Tools (file operations, bash, todo, ask-user)
   toolRegistry.registerAll(FILE_SIMPLE_TOOLS);
 
-  // LLM Agent Tools (complex operations with Sub-LLM)
+  // LLM Agent Tools (docs-search tools)
   toolRegistry.registerAll(LLM_AGENT_TOOLS);
 
-  // System Simple Tools (auto-triggered, no Sub-LLM)
-  toolRegistry.registerAll(SYSTEM_SIMPLE_TOOLS as AnyTool[]);
-
-  // System Agent Tools (auto-triggered with Sub-LLM)
-  toolRegistry.registerAll(DOCS_SYSTEM_AGENT_TOOLS);
-
-  // User Commands (/slash commands)
-  toolRegistry.registerAll(USER_COMMANDS);
-
-  // MCP Tools (external servers)
-  toolRegistry.registerAll(MCP_TOOLS);
+  // Future: User Commands, MCP Tools, System Tools
+  // These will be added as they are implemented
 }
 
 // Auto-initialize on import

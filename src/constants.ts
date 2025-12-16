@@ -103,7 +103,7 @@ export const SUPPORTED_TEXT_EXTENSIONS = [
 /**
  * 앱 버전
  */
-export const APP_VERSION = '1.0.0';
+export const APP_VERSION = '2.5.0';
 
 /**
  * 앱 이름
