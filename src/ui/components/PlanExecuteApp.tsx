@@ -170,8 +170,6 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
   // Docs Browser state
   const [showDocsBrowser, setShowDocsBrowser] = useState(false);
 
-  // TODO Panel details toggle state
-  const [showTodoDetails, setShowTodoDetails] = useState(true);
 
   // Execution mode: 'auto' (autonomous) or 'supervised' (requires user approval)
   const [executionMode, setExecutionMode] = useState<'auto' | 'supervised'>('auto');
@@ -711,11 +709,6 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
       });
       logger.debug('Ctrl+C pressed - waiting for double-tap to exit');
       return;
-    }
-    // Ctrl+T: Toggle TODO details
-    if (key.ctrl && inputChar === 't') {
-      setShowTodoDetails(prev => !prev);
-      logger.debug('TODO details toggled', { showTodoDetails: !showTodoDetails });
     }
     // ESC: First = pause, Second = complete stop
     if (key.escape && (isProcessing || planExecutionState.isInterrupted)) {
@@ -1777,8 +1770,6 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
           <TodoPanel
             todos={planExecutionState.todos}
             currentTodoId={planExecutionState.currentTodoId}
-            showDetails={showTodoDetails}
-            modelName={currentModelInfo.model}
             isProcessing={isProcessing}
           />
         </Box>

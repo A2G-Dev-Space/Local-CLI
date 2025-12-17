@@ -1,4 +1,4 @@
-# Nexus Coder v2.5.2
+# Nexus Coder v2.6.0
 
 **Enterprise AI Coding Assistant**
 
@@ -222,13 +222,31 @@ nexus --debug      # Debug 모드
 
 ## Release Notes
 
-### v2.5.2
+### v2.6.0 New Features
 
 | Feature | Description |
 |---------|-------------|
-| **--eval 모드** | Python 자동화 테스트용 평가 모드 (stdin JSON → stdout NDJSON) |
-| **Python 테스트** | pytest 기반 테스트 스위트 (`npm run test`) |
-| **NDJSON 이벤트 스트림** | tool_call, tool_result, response 등 이벤트 스트리밍 |
+| **Planning-Only Mode** | All requests use TODO-based plan mode (classifier removed) |
+| **Simplified TODO** | TodoItem uses `title` only (no `description`) |
+| **write_todos Tool** | Claude Code style - replaces entire TODO list |
+| **Docs Search Optimization** | Stricter rules for offline environment |
+
+### v2.5.x Features
+
+| Feature | Description |
+|---------|-------------|
+| **--eval mode** | Evaluation mode for Python automation tests (stdin JSON → stdout NDJSON) |
+| **Python Tests** | pytest-based test suite (`npm run test`) |
+| **NDJSON Event Stream** | start, tool_call, tool_result, response, end events |
+
+```bash
+# --eval mode usage
+echo '{"prompt": "1+1은?"}' | nexus --eval
+
+# Run Python tests
+npm run test        # Full test
+npm run test:quick  # Quick test
+```
 
 ### v2.5.0
 
