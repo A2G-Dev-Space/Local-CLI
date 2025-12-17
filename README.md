@@ -28,9 +28,20 @@ wget https://github.com/A2G-Dev-Space/Local-CLI/raw/nexus-coder/bin/yoga.wasm
 
 > **wget 대신 curl 사용:**
 > ```bash
-> curl -LO https://github.com/A2G-Dev-Space/Local-CLI/raw/nexus-coder/bin/nexus.gz
-> curl -LO https://github.com/A2G-Dev-Space/Local-CLI/raw/nexus-coder/bin/yoga.wasm
+> curl -kLO https://github.com/A2G-Dev-Space/Local-CLI/raw/nexus-coder/bin/nexus.gz
+> curl -kLO https://github.com/A2G-Dev-Space/Local-CLI/raw/nexus-coder/bin/yoga.wasm
 > ```
+
+> **다운로드가 안 될 경우:**
+> - 프록시 설정 확인 (`http_proxy`, `https_proxy` 환경변수)
+> - SSL 인증서 오류 시 우회 옵션 사용:
+>   - wget: `--no-check-certificate`
+>   - curl: `-k`
+>
+> **수동 다운로드 (브라우저):**
+> 1. https://github.com/A2G-Dev-Space/Local-CLI/tree/nexus-coder/bin 접속
+> 2. `nexus.gz`와 `yoga.wasm` 파일 각각 다운로드
+> 3. 두 파일을 같은 폴더에 저장 (예: `~/nexus-download/`)
 
 ### 2. 압축 해제 및 실행 권한 부여
 
