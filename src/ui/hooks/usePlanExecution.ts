@@ -231,19 +231,7 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
     return 'none';
   }, [executionPhase, isInterrupted, todos]);
 
-  // Execute Direct Mode
-  const executeDirectMode = useCallback(async (
-    userMessage: string,
-    llmClient: LLMClient,
-    messages: Message[],
-    setMessages: React.Dispatch<React.SetStateAction<Message[]>>
-  ) => {
-    const callbacks: StateCallbacks = {
-      ...stateCallbacks,
-      setMessages: setMessages as StateCallbacks['setMessages'],
-    };
-    await executor.executeDirectMode(userMessage, llmClient, messages, todos, isInterruptedRef, callbacks);
-  }, [executor, stateCallbacks, todos]);
+  // executeDirectMode removed - all requests now use Plan Mode
 
   // Execute Plan Mode
   const executePlanMode = useCallback(async (
@@ -355,7 +343,7 @@ export function usePlanExecution(): PlanExecutionState & AskUserState & PlanExec
     executeAutoMode,
     executePlanMode,
     resumeTodoExecution,
-    executeDirectMode,
+    // executeDirectMode removed - all requests now use Plan Mode
     performCompact,
     shouldAutoCompact,
     getContextRemainingPercent,
