@@ -70,11 +70,30 @@ program
       await configManager.initialize();
 
       // Auto-update 체크 (최우선: 로그인 전에 실행)
-      const updater = new GitAutoUpdater();
-      console.log(chalk.gray('Checking for updates...'));
+      const updater = new GitAutoUpdater({
+        onStatus: (status) => {
+          switch (status.type) {
+            case 'checking':
+              console.log(chalk.gray('Checking for updates...'));
+              break;
+            case 'first_run':
+            case 'updating':
+              console.log(chalk.cyan(`  [${status.step}/${status.totalSteps}] ${status.message}`));
+              break;
+            case 'complete':
+              console.log(chalk.green(`\n✓ ${status.message}\n`));
+              break;
+            case 'error':
+              console.log(chalk.red(`\n✗ ${status.message}\n`));
+              break;
+            case 'no_update':
+              // Silent - no message needed
+              break;
+          }
+        }
+      });
       const needsRestart = await updater.run();
       if (needsRestart) {
-        console.log(chalk.green('\n✓ Update complete! Please restart nexus.\n'));
         process.exit(0);
       }
 
