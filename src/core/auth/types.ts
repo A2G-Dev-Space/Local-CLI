@@ -37,12 +37,22 @@ export interface AuthFileData {
 }
 
 /**
- * SSO callback response
+ * SSO callback response (data param contains JSON string)
  */
 export interface SSOCallbackResponse {
   success: boolean;
-  token?: string;
+  data?: string;  // JSON string with user info
   error?: string;
+}
+
+/**
+ * SSO data JSON structure (parsed from data param)
+ */
+export interface SSODataPayload {
+  loginid: string;
+  username: string;
+  deptname: string;
+  [key: string]: unknown;  // Allow other fields
 }
 
 /**

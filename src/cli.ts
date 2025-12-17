@@ -21,6 +21,7 @@ import { setupLogging } from './utils/logger.js';
 import { setupNexusModels } from './core/nexus-setup.js';
 import { authManager } from './core/auth/index.js';
 import { runEvalMode } from './eval/index.js';
+import { GitAutoUpdater } from './core/git-auto-updater.js';
 
 // Read version from package.json (single source of truth)
 const require = createRequire(import.meta.url);
@@ -67,6 +68,15 @@ program
 
       // ConfigManager 초기화
       await configManager.initialize();
+
+      // Auto-update 체크 (최우선: 로그인 전에 실행)
+      const updater = new GitAutoUpdater();
+      console.log(chalk.gray('Checking for updates...'));
+      const needsRestart = await updater.run();
+      if (needsRestart) {
+        console.log(chalk.green('\n✓ Update complete! Please restart nexus.\n'));
+        process.exit(0);
+      }
 
       // AuthManager 초기화 및 SSO 로그인 체크
       await authManager.initialize();

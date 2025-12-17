@@ -6,16 +6,15 @@
  * Flow:
  * 1. Start local callback server on random port
  * 2. Open browser to SSO URL with redirect_url
- * 3. Receive encrypted JWT token on callback
- * 4. Decode JWT using PEM certificate
+ * 3. Receive JSON data on callback (?data=JSON_STRING)
+ * 4. Parse JSON and extract user info
  * 5. Return user information
  */
 
 import http from 'http';
 import { URL } from 'url';
 import { SSO_CONFIG } from '../../constants.js';
-import { SSOUser, SSOCallbackResponse } from './types.js';
-import { verifyAndDecodeToken, decodeTokenPayload } from './jwt-decoder.js';
+import { SSOUser, SSOCallbackResponse, SSODataPayload } from './types.js';
 import { logger } from '../../utils/logger.js';
 
 /**
@@ -59,22 +58,22 @@ export class SSOClient {
   }
 
   /**
-   * Start local callback server and wait for token
+   * Start local callback server and wait for data
    */
   async startCallbackServer(): Promise<{
     port: number;
     callbackUrl: string;
-    waitForToken: () => Promise<SSOCallbackResponse>;
+    waitForData: () => Promise<SSOCallbackResponse>;
     close: () => void;
   }> {
     const port = await getRandomPort();
     const callbackUrl = `http://localhost:${port}/callback`;
 
-    let resolveToken: (response: SSOCallbackResponse) => void;
+    let resolveData: (response: SSOCallbackResponse) => void;
     let timeoutId: NodeJS.Timeout;
 
-    const tokenPromise = new Promise<SSOCallbackResponse>((resolve) => {
-      resolveToken = resolve;
+    const dataPromise = new Promise<SSOCallbackResponse>((resolve) => {
+      resolveData = resolve;
 
       // Timeout after 5 minutes
       timeoutId = setTimeout(() => {
@@ -86,7 +85,8 @@ export class SSOClient {
       const url = new URL(req.url || '/', `http://localhost:${port}`);
 
       if (url.pathname === '/callback') {
-        const token = url.searchParams.get('token');
+        // Get data param (JSON string)
+        const data = url.searchParams.get('data');
 
         // Send response to browser
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
@@ -122,11 +122,11 @@ export class SSOClient {
           </head>
           <body>
             <div class="container">
-              ${token
+              ${data
                 ? `<h1 class="success">✓ Login Successful</h1>
                    <p>You can close this window and return to the terminal.</p>`
                 : `<h1 class="error">✗ Login Failed</h1>
-                   <p>No token received. Please try again.</p>`
+                   <p>No data received. Please try again.</p>`
               }
             </div>
           </body>
@@ -135,10 +135,10 @@ export class SSOClient {
 
         clearTimeout(timeoutId);
 
-        if (token) {
-          resolveToken({ success: true, token });
+        if (data) {
+          resolveData({ success: true, data });
         } else {
-          resolveToken({ success: false, error: 'No token received' });
+          resolveData({ success: false, error: 'No data received' });
         }
       } else {
         res.writeHead(404);
@@ -153,7 +153,7 @@ export class SSOClient {
         resolve({
           port,
           callbackUrl,
-          waitForToken: () => tokenPromise,
+          waitForData: () => dataPromise,
           close: () => {
             clearTimeout(timeoutId);
             server.close();
@@ -168,6 +168,30 @@ export class SSOClient {
   }
 
   /**
+   * Parse SSO data JSON string to user info
+   */
+  parseDataPayload(dataString: string): SSOUser {
+    try {
+      const payload: SSODataPayload = JSON.parse(dataString);
+
+      if (!payload.loginid || !payload.username || !payload.deptname) {
+        throw new Error('Missing required user fields in SSO data');
+      }
+
+      return {
+        loginid: payload.loginid,
+        username: payload.username,
+        deptname: payload.deptname,
+      };
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        throw new Error('Invalid JSON format in SSO data');
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Start the SSO login flow
    * Returns the user information after successful login
    */
@@ -178,7 +202,7 @@ export class SSOClient {
     logger.enter('SSOClient.startLoginFlow');
 
     // Start callback server
-    const { callbackUrl, waitForToken, close } = await this.startCallbackServer();
+    const { callbackUrl, waitForData, close } = await this.startCallbackServer();
 
     // Build SSO URL
     const ssoUrl = this.buildSSOUrl(callbackUrl);
@@ -188,33 +212,25 @@ export class SSOClient {
       // Open browser
       await openBrowser(ssoUrl);
 
-      // Wait for token
+      // Wait for data
       logger.debug('Waiting for SSO callback...');
-      const response = await waitForToken();
+      const response = await waitForData();
 
-      if (!response.success || !response.token) {
+      if (!response.success || !response.data) {
         throw new Error(response.error || 'Login failed');
       }
 
-      // Decode token
-      logger.debug('Decoding JWT token');
-      const user = await verifyAndDecodeToken(response.token);
+      // Parse data JSON
+      logger.debug('Parsing SSO data');
+      const user = this.parseDataPayload(response.data);
 
-      logger.exit('SSOClient.startLoginFlow', { user });
-      return { user, token: response.token };
+      // Generate session token (data-based, no JWT)
+      const token = `sso_${Date.now()}_${user.loginid}`;
+
+      logger.exit('SSOClient.startLoginFlow', { user: user.loginid });
+      return { user, token };
     } finally {
       close();
-    }
-  }
-
-  /**
-   * Validate an existing token
-   */
-  async validateToken(token: string): Promise<SSOUser | null> {
-    try {
-      return decodeTokenPayload(token);
-    } catch {
-      return null;
     }
   }
 }

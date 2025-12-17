@@ -8,12 +8,10 @@
  */
 
 import fs from 'fs';
-import path from 'path';
 import axios from 'axios';
-import { NEXUS_HOME_DIR, AUTH_FILE_PATH, ADMIN_SERVER_URL, CERT_DIR, SSO_CONFIG } from '../../constants.js';
+import { NEXUS_HOME_DIR, AUTH_FILE_PATH, ADMIN_SERVER_URL } from '../../constants.js';
 import { AuthState, AuthFileData, SSOUser } from './types.js';
 import { ssoClient } from './sso-client.js';
-import { isTokenExpired, getTokenExpiration } from './jwt-decoder.js';
 import { logger } from '../../utils/logger.js';
 
 const AUTH_FILE_VERSION = '1.0';
@@ -50,10 +48,6 @@ class AuthManager {
     if (!fs.existsSync(NEXUS_HOME_DIR)) {
       fs.mkdirSync(NEXUS_HOME_DIR, { recursive: true });
     }
-
-    if (!fs.existsSync(CERT_DIR)) {
-      fs.mkdirSync(CERT_DIR, { recursive: true });
-    }
   }
 
   /**
@@ -76,9 +70,9 @@ class AuthManager {
         return;
       }
 
-      // Check if token is expired
-      if (isTokenExpired(data.token)) {
-        logger.info('Token expired, clearing auth');
+      // Check if session is expired
+      if (new Date(data.expiresAt) < new Date()) {
+        logger.info('Session expired, clearing auth');
         await this.clearAuth();
         return;
       }
@@ -135,7 +129,7 @@ class AuthManager {
    */
   isAuthenticated(): boolean {
     if (!this.authState) return false;
-    if (isTokenExpired(this.authState.token)) return false;
+    if (this.authState.expiresAt < new Date()) return false;
     return true;
   }
 
@@ -180,16 +174,7 @@ class AuthManager {
   async login(openBrowser: (url: string) => Promise<void>): Promise<AuthState> {
     logger.enter('AuthManager.login');
 
-    // Check certificate exists
-    const certPath = path.join(CERT_DIR, SSO_CONFIG.certFileName);
-    if (!fs.existsSync(certPath)) {
-      throw new Error(
-        `SSO certificate not found: ${certPath}\n` +
-        `Please place your certificate file at this location.`
-      );
-    }
-
-    // Start SSO flow - get SSO token
+    // Start SSO flow - get user info from data JSON
     const { user, token: ssoToken } = await ssoClient.startLoginFlow(openBrowser);
 
     // Exchange SSO token for session token from Admin Server
@@ -222,7 +207,8 @@ class AuthManager {
       // If Admin Server is not available, use SSO token directly
       logger.warn('Failed to get session token from Admin Server, using SSO token directly');
       sessionToken = ssoToken;
-      expiresAt = getTokenExpiration(ssoToken) || new Date(Date.now() + 24 * 60 * 60 * 1000);
+      // Default expiration: 24 hours
+      expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
     }
 
     // Create auth state
