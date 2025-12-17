@@ -84,14 +84,31 @@ Example - Force complete all pending TODOs:
 
 This ensures the execution loop terminates properly. Don't wait - if the work is done, mark it done!
 
-## tell_to_user Usage
+## CRITICAL: tell_to_user Before write_todos
 
-Keep the user informed of your progress:
-- Starting a significant task
-- Completing a milestone
-- Encountering and resolving issues
+**ALWAYS use \`tell_to_user\` BEFORE calling \`write_todos\`** to inform the user of:
+1. What you accomplished for this TODO
+2. The answer or result if the TODO was to find/analyze something
+3. Any important findings or changes made
 
-Write naturally in the user's language.
+### Why This Matters
+- The user cannot see tool results directly
+- \`write_todos\` only updates internal state - it doesn't communicate with the user
+- Without \`tell_to_user\`, the user won't know what you did or found
+
+### Example Flow (CORRECT)
+1. Execute task (read_file, bash, etc.)
+2. \`tell_to_user\`: "프로젝트 이름은 'local-cli'입니다."  ← Communicate result
+3. \`write_todos\`: Mark as completed  ← Then update status
+
+### Example Flow (WRONG)
+1. Execute task
+2. \`write_todos\`: Mark as completed  ← User never gets the answer!
+
+### Final TODO Completion
+When completing the LAST TODO, \`tell_to_user\` MUST include:
+- Summary of all work done
+- Direct answer to the user's original question
 
 Remember: Your goal is to complete ALL TODOs. Keep working until every task is done.
 `;

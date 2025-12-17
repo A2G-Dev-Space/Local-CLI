@@ -1,7 +1,7 @@
 # 개발자 종합 가이드 (Development Guide)
 
-> **문서 버전**: 10.0.0 (v2.5.0)
-> **최종 수정일**: 2025-12-16
+> **문서 버전**: 11.0.0 (v2.6.0)
+> **최종 수정일**: 2025-12-17
 
 이 문서는 **LOCAL-CLI** 프로젝트의 전체 구조, 아키텍처, 핵심 기능, 개발 규칙을 설명합니다.
 
@@ -31,24 +31,26 @@
 - AI가 직접 파일을 읽고, 쓰고, 검색하고, 코드를 실행
 - 터미널에서 Interactive UI로 AI와 대화
 
-### 핵심 기능 (v2.5.0)
+### 핵심 기능 (v2.6.0)
 
 | 기능 | 설명 |
 |------|------|
+| **Planning-Only Mode** | 모든 요청이 TODO 기반 플랜 모드로 실행 (classifier 제거) (v2.6.0) |
+| **Simplified TODO** | TodoItem에서 description 제거, title만 사용 (v2.6.0) |
+| **write_todos Tool** | Claude Code 스타일 - 전체 TODO 리스트 교체 (update-todo-list, get-todo-list 대체) (v2.6.0) |
 | **LLM-based Docs Search** | 폴더 구조 기반 LLM 결정으로 문서 검색 트리거 |
 | **Hierarchical Docs Navigation** | 폴더 탐색 기반 문서 검색 (list_directory, read_docs_file, preview_file) |
 | **Docs Search Progress UI** | 문서 검색 중 실시간 진행 상황 표시 |
 | **Centralized Prompts** | 모든 프롬프트 `src/prompts/`로 중앙 집중화 |
-| **Unified Agents** | `src/agents/`에 모든 에이전트 통합 (classifier, planner, docs-search) (v2.5.0) |
-| **Simplified Tools** | `src/tools/`에서 미사용 폴더 제거, registry 패턴 적용 (v2.5.0) |
-| **Orchestration Refactor** | `src/orchestration/`에서 비즈니스 로직 분리, usePlanExecution을 thin wrapper로 (v2.5.0) |
+| **Unified Agents** | `src/agents/`에 모든 에이전트 통합 (planner, docs-search) |
+| **Simplified Tools** | `src/tools/`에서 미사용 폴더 제거, registry 패턴 적용 |
+| **Orchestration Refactor** | `src/orchestration/`에서 비즈니스 로직 분리, usePlanExecution을 thin wrapper로 |
 | **Supervised Mode** | 파일 수정 도구 실행 전 사용자 승인 (Tab 키 토글) |
 | **Plan & Execute** | 복잡한 작업을 자동으로 분해하여 순차 실행 |
 | **Unified Execution Loop** | Planning/Direct 모드 통합 실행 루프 |
 | **TODO Context Injection** | TODO 상태를 매 호출마다 LLM에 주입 (히스토리 오염 방지) |
 | **Bash Tool** | Shell 명령어 실행 (git, npm, build 등) 보안 검증 포함 |
 | **Language Priority** | 사용자 입력 언어와 동일한 언어로 응답 |
-| 요청 분류 | simple_response vs requires_todo 자동 분류 |
 | ask-to-user Tool | LLM이 사용자에게 질문 (2-4 선택지 + Other) |
 | tell_to_user Tool | LLM이 사용자에게 진행 상황 메시지 전달 |
 | 사용량 추적 | 세션/일별/월별 토큰 통계 |
@@ -109,19 +111,17 @@ src/
 │   ├── slash-command-handler.ts    # 슬래시 명령 처리
 │   └── git-auto-updater.ts         # Git 기반 자동 업데이트
 │
-├── agents/                         # LLM 에이전트 (v2.5.0)
+├── agents/                         # LLM 에이전트 (v2.6.0)
 │   ├── base/                       # 기본 에이전트
 │   │   └── base-agent.ts           # 추상 베이스 클래스
-│   ├── classifier/                 # 요청 분류기
-│   │   └── index.ts                # simple_response vs requires_todo
 │   ├── planner/                    # 플래닝 에이전트
-│   │   └── index.ts                # TODO 리스트 생성
+│   │   └── index.ts                # TODO 리스트 생성 (description 없이 title만)
 │   ├── docs-search/                # 문서 검색 에이전트
 │   │   ├── index.ts                # DocsSearchAgent 구현
 │   │   └── executor.ts             # LLM 기반 문서 검색 결정 + 실행
 │   └── index.ts
 │
-├── orchestration/                  # Plan & Execute 오케스트레이션 (v2.5.0)
+├── orchestration/                  # Plan & Execute 오케스트레이션 (v2.6.0)
 │   ├── plan-executor.ts            # 메인 실행 로직 (핵심!)
 │   ├── types.ts                    # 타입 정의
 │   ├── utils.ts                    # 헬퍼 함수
@@ -143,7 +143,7 @@ src/
 │   │   └── docs-search-decision.ts # 문서 검색 결정 프롬프트
 │   └── index.ts
 │
-├── tools/                          # AI 도구 (v2.5.0 - 간소화)
+├── tools/                          # AI 도구 (v2.6.0 - 간소화)
 │   ├── types.ts                    # 도구 타입 인터페이스
 │   ├── registry.ts                 # 도구 중앙 등록 시스템
 │   │
@@ -252,25 +252,25 @@ src/
 
 ## 4. 핵심 기능 상세
 
-### 4.1 요청 분류 시스템
+### 4.1 Planning-Only Mode (v2.6.0)
 
-**위치**: `src/agents/classifier/index.ts`
+**v2.6.0부터 모든 요청은 TODO 기반 플랜 모드로 처리됩니다.**
 
-사용자 요청을 자동으로 분류하여 적절한 처리 방식을 결정합니다.
+이전 버전의 classifier(`simple_response` vs `requires_todo` 분류)가 제거되었습니다.
 
-```typescript
-type ClassificationType = 'simple_response' | 'requires_todo';
-
-// 분류 흐름
+```
 User 요청
     ↓
 ┌─────────────────────────────────┐
-│  RequestClassifier.classify()   │
-│  - LLM이 요청 유형 분석         │
+│  Planner Agent                  │
+│  - TODO 리스트 생성 (title만)   │
 └─────────────────────────────────┘
-    ↓                    ↓
-simple_response      requires_todo
-(바로 응답)          (TODO 생성 후 실행)
+    ↓
+┌─────────────────────────────────┐
+│  Plan-Execute Loop              │
+│  - write_todos로 상태 관리      │
+│  - 모든 TODO 완료까지 실행      │
+└─────────────────────────────────┘
 ```
 
 ### 4.2 File-Tools (파일 도구)
@@ -363,14 +363,56 @@ setCompactCallback((originalCount, newCount) => { ... });
 | `edit_file` | diff 형식 (- / + 전체 표시, 빨강/녹색) |
 | `tell_to_user` | tool_result 숨김 (tell_user 로그에서 표시) |
 
-### 4.5 TODO 관리 LLM Tools
+### 4.5 TODO 관리 LLM Tools (v2.6.0)
 
 **위치**: `src/tools/llm/simple/todo-tools.ts`
 
 | 도구 | 설명 |
 |------|------|
-| `update-todo-list` | TODO 상태 업데이트 (in_progress, completed, failed) |
-| `get-todo-list` | 현재 TODO 목록 조회 |
+| `write_todos` | 전체 TODO 리스트 교체 (Claude Code 스타일) |
+
+**v2.6.0 변경사항**:
+- `update-todo-list`, `get-todo-list` 제거
+- `write_todos` 하나로 통합 (전체 리스트 교체 방식)
+- TodoItem에서 `description` 필드 제거, `title`만 사용
+
+```typescript
+// TodoItem 인터페이스 (v2.6.0)
+interface TodoItem {
+  id: string;
+  title: string;  // description 없음
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  result?: string;
+  error?: string;
+}
+
+// write_todos 사용 예시
+{
+  "todos": [
+    { "id": "1", "title": "Setup project", "status": "completed" },
+    { "id": "2", "title": "Implement feature", "status": "in_progress" },
+    { "id": "3", "title": "Write tests", "status": "pending" }
+  ]
+}
+```
+
+**CRITICAL: tell_to_user before write_todos**
+
+LLM은 `write_todos` 호출 전 반드시 `tell_to_user`로 사용자에게 결과를 전달해야 합니다:
+1. 완료한 작업 내용
+2. 찾은 정보나 분석 결과
+3. 중요한 변경 사항
+
+```
+// 올바른 순서
+1. execute task (read_file, bash, etc.)
+2. tell_to_user: "프로젝트 이름은 'local-cli'입니다."
+3. write_todos: mark as completed
+
+// 잘못된 순서 (사용자가 결과를 못 봄)
+1. execute task
+2. write_todos: mark as completed  ← tell_to_user 누락!
+```
 
 ### 4.6 ask-to-user Tool
 
@@ -502,7 +544,7 @@ AVAILABLE_SOURCES = [
 
 ## 5. 데이터 흐름 아키텍처
 
-### 5.1 전체 실행 흐름
+### 5.1 전체 실행 흐름 (v2.6.0)
 
 ```
 User Input (터미널 메시지)
@@ -524,7 +566,7 @@ User Input (터미널 메시지)
 └──────────────────────────┬──────────────────────────────────────┘
                            ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│              Docs Search Decision (v2.5.0)                        │
+│              Docs Search Decision                                 │
 │         src/agents/docs-search/executor.ts                        │
 │                                                                  │
 │  1. 폴더 구조를 LLM에게 보여줌                                     │
@@ -533,17 +575,17 @@ User Input (터미널 메시지)
 └──────────────────────────┬──────────────────────────────────────┘
                            ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│                   Request Classifier                             │
-│              src/agents/classifier/index.ts                      │
+│                   Planner Agent (v2.6.0)                         │
+│              src/agents/planner/index.ts                         │
 │                                                                  │
-│              simple_response  ←→  requires_todo                  │
+│        모든 요청 → TODO 리스트 생성 (title만, description 없음)    │
 └──────────────────────────┬──────────────────────────────────────┘
                            ↓
 ┌─────────────────────────────────────────────────────────────────┐
 │                   Plan-Execute (Orchestration)                   │
 │                     src/orchestration/                           │
 │                                                                  │
-│              Planning → Execution → Debugging                    │
+│      Planning → Execution (write_todos로 상태 관리) → Complete    │
 └──────────────────────────┬──────────────────────────────────────┘
                            ↓
 ┌─────────────────────────────────────────────────────────────────┐
@@ -555,7 +597,7 @@ User Input (터미널 메시지)
 │  │  ┌────────────────┐  ┌────────────────────────────┐     │    │
 │  │  │ Simple Tools   │  │ Agent Tools                │     │    │
 │  │  │ (file, bash,   │  │ (docs-search with Sub-LLM) │     │    │
-│  │  │  todo, ask)    │  │                            │     │    │
+│  │  │  write_todos)  │  │                            │     │    │
 │  │  └────────────────┘  └────────────────────────────┘     │    │
 │  └─────────────────────────────────────────────────────────┘    │
 │                                                                  │

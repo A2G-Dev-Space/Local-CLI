@@ -1,4 +1,4 @@
-# LOCAL-CLI v2.5.2
+# LOCAL-CLI v2.6.0
 
 [![GitHub release](https://img.shields.io/github/v/release/A2G-Dev-Space/Local-CLI)](https://github.com/A2G-Dev-Space/Local-CLI/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -103,21 +103,30 @@ Claude Code-style scrollable log history:
 
 ## Main Features
 
-### v2.5.x New Features
+### v2.6.0 New Features
 
 | Feature | Description |
 |---------|-------------|
-| **--eval 모드** | Python 자동화 테스트용 평가 모드 (stdin JSON → stdout NDJSON) |
-| **Python 테스트** | pytest 기반 테스트 스위트 (`npm run test`) |
-| **NDJSON 이벤트 스트림** | start, tool_call, tool_result, response, end 이벤트 |
+| **Planning-Only Mode** | All requests use TODO-based plan mode (classifier removed) |
+| **Simplified TODO** | TodoItem uses `title` only (no `description`) |
+| **write_todos Tool** | Claude Code style - replaces entire TODO list (replaces `update-todo-list`, `get-todo-list`) |
+| **tell_to_user First** | LLM must communicate results via `tell_to_user` before calling `write_todos` |
+
+### v2.5.x Features
+
+| Feature | Description |
+|---------|-------------|
+| **--eval mode** | Evaluation mode for Python automation tests (stdin JSON → stdout NDJSON) |
+| **Python Tests** | pytest-based test suite (`npm run test`) |
+| **NDJSON Event Stream** | start, tool_call, tool_result, response, end events |
 
 ```bash
-# --eval 모드 사용
+# --eval mode usage
 echo '{"prompt": "1+1은?"}' | lcli --eval
 
-# Python 테스트 실행
-npm run test        # 전체 테스트
-npm run test:quick  # 빠른 테스트
+# Run Python tests
+npm run test        # Full test
+npm run test:quick  # Quick test
 ```
 
 ### v2.4.x New Features
