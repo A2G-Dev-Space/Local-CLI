@@ -617,7 +617,11 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
           try {
             await authManager.login(async (url) => {
               setSsoUrl(url);  // Store URL for manual access (shown in UI)
-              await open(url);
+              // Try to open browser, but don't fail if it doesn't work
+              // User can manually open the URL shown in UI
+              open(url).catch(() => {
+                logger.warn('Failed to open browser - user can use URL shown in UI');
+              });
             });
           } catch (error) {
             const errorMsg = error instanceof Error ? error.message : 'Unknown error';
