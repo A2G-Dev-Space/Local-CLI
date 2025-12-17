@@ -15,7 +15,6 @@ export {
 export { CODEBASE_FIRST_RULE, CODEBASE_FIRST_SHORT } from './shared/codebase-rules.js';
 
 // System prompts
-export { DEFAULT_SYSTEM_PROMPT } from './system/default.js';
 export { PLAN_EXECUTE_SYSTEM_PROMPT } from './system/plan-execute.js';
 export { COMPACT_SYSTEM_PROMPT } from './system/compact.js';
 
