@@ -2,12 +2,28 @@
  * Planning Agent
  *
  * Converts user requests into executable TODO lists
+ * Supports parallel docs search decision
  */
 
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import * as os from 'os';
 import { LLMClient } from '../../core/llm/llm-client.js';
 import { Message, TodoItem, PlanningResult, TodoStatus } from '../../types/index.js';
 import { logger } from '../../utils/logger.js';
 import { PLANNING_SYSTEM_PROMPT } from '../../prompts/agents/planning.js';
+import {
+  buildDocsSearchDecisionPrompt,
+  parseDocsSearchDecision,
+  DOCS_SEARCH_DECISION_RETRY_PROMPT,
+} from '../../prompts/agents/docs-search-decision.js';
+
+/**
+ * Result of parallel planning with docs decision
+ */
+export interface PlanningWithDocsResult extends PlanningResult {
+  docsSearchNeeded: boolean;
+}
 
 /**
  * Planning LLM
@@ -183,6 +199,190 @@ export class PlanningLLM {
     }
 
     return sorted;
+  }
+
+  /**
+   * Generate TODO list with parallel docs search decision
+   * Runs planning and docs decision in parallel, then injects docs search TODO if needed
+   */
+  async generateTODOListWithDocsDecision(
+    userRequest: string,
+    contextMessages?: Message[]
+  ): Promise<PlanningWithDocsResult> {
+    logger.enter('PlanningLLM.generateTODOListWithDocsDecision', { requestLength: userRequest.length });
+    logger.startTimer('parallel-planning');
+
+    // Run planning and docs decision in parallel
+    const [planningResult, docsSearchNeeded] = await Promise.all([
+      this.generateTODOList(userRequest, contextMessages),
+      this.shouldSearchDocs(userRequest),
+    ]);
+
+    logger.vars(
+      { name: 'todoCount', value: planningResult.todos.length },
+      { name: 'docsSearchNeeded', value: docsSearchNeeded }
+    );
+
+    // If docs search is needed, prepend a docs search TODO
+    if (docsSearchNeeded) {
+      const docsSearchTodo: TodoItem = {
+        id: `todo-docs-${Date.now()}`,
+        title: 'Search local documentation',
+        description: `Search ~/.local-cli/docs for relevant information about: ${userRequest.substring(0, 200)}${userRequest.length > 200 ? '...' : ''}
+
+Use call_docs_search_agent tool to search the documentation.
+The search results will help inform the subsequent tasks.`,
+        status: 'pending' as TodoStatus,
+        requiresDocsSearch: true,
+        dependencies: [],
+      };
+
+      // Update dependencies of original first TODO to depend on docs search
+      const updatedTodos = planningResult.todos.map((todo, index) => {
+        if (index === 0 && todo.dependencies.length === 0) {
+          return {
+            ...todo,
+            dependencies: [docsSearchTodo.id],
+          };
+        }
+        return todo;
+      });
+
+      logger.flow('Prepended docs search TODO');
+      logger.endTimer('parallel-planning');
+      logger.exit('PlanningLLM.generateTODOListWithDocsDecision', { docsSearchNeeded: true });
+
+      return {
+        ...planningResult,
+        todos: [docsSearchTodo, ...updatedTodos],
+        docsSearchNeeded: true,
+      };
+    }
+
+    logger.endTimer('parallel-planning');
+    logger.exit('PlanningLLM.generateTODOListWithDocsDecision', { docsSearchNeeded: false });
+
+    return {
+      ...planningResult,
+      docsSearchNeeded: false,
+    };
+  }
+
+  /**
+   * Check if docs search is needed for the given request
+   * Based on available documentation structure
+   */
+  private async shouldSearchDocs(userMessage: string): Promise<boolean> {
+    logger.enter('PlanningLLM.shouldSearchDocs', { messageLength: userMessage.length });
+
+    // Get folder structure
+    const folderStructure = await this.getDocsFolderStructure();
+
+    // If no docs available, skip search
+    if (
+      folderStructure.includes('empty') ||
+      folderStructure.includes('does not exist')
+    ) {
+      logger.flow('No docs available, skipping search decision');
+      logger.exit('PlanningLLM.shouldSearchDocs', { decision: false, reason: 'no-docs' });
+      return false;
+    }
+
+    // Build prompt
+    const prompt = buildDocsSearchDecisionPrompt(folderStructure, userMessage);
+
+    const messages: Message[] = [
+      { role: 'user', content: prompt },
+    ];
+
+    let retries = 0;
+    const maxRetries = 2;
+
+    while (retries <= maxRetries) {
+      logger.flow(`Asking LLM for docs search decision (attempt ${retries + 1})`);
+
+      const response = await this.llmClient.chatCompletion({
+        messages,
+        temperature: 0.1,
+        max_tokens: 10,
+      });
+
+      const content = response.choices[0]?.message?.content || '';
+      logger.debug('LLM decision response', { content });
+
+      const decision = parseDocsSearchDecision(content);
+
+      if (decision !== null) {
+        logger.exit('PlanningLLM.shouldSearchDocs', { decision, attempts: retries + 1 });
+        return decision;
+      }
+
+      // Invalid response, retry
+      retries++;
+      if (retries <= maxRetries) {
+        messages.push({ role: 'assistant', content });
+        messages.push({ role: 'user', content: DOCS_SEARCH_DECISION_RETRY_PROMPT });
+        logger.warn('Invalid decision response, retrying', { response: content });
+      }
+    }
+
+    // Default to false if all retries failed
+    logger.warn('All decision retries failed, defaulting to no search');
+    logger.exit('PlanningLLM.shouldSearchDocs', { decision: false, reason: 'retries-exhausted' });
+    return false;
+  }
+
+  /**
+   * Get top-level folder structure of docs directory
+   */
+  private async getDocsFolderStructure(): Promise<string> {
+    const docsBasePath = path.join(os.homedir(), '.local-cli', 'docs');
+
+    try {
+      const entries = await fs.readdir(docsBasePath, { withFileTypes: true });
+
+      const lines: string[] = [];
+
+      for (const entry of entries) {
+        if (entry.isDirectory()) {
+          lines.push(`[DIR]  ${entry.name}/`);
+
+          // Also list immediate children of directories
+          try {
+            const subPath = path.join(docsBasePath, entry.name);
+            const subEntries = await fs.readdir(subPath, { withFileTypes: true });
+
+            for (const subEntry of subEntries.slice(0, 5)) {
+              if (subEntry.isDirectory()) {
+                lines.push(`       ├── ${subEntry.name}/`);
+              } else {
+                lines.push(`       ├── ${subEntry.name}`);
+              }
+            }
+
+            if (subEntries.length > 5) {
+              lines.push(`       └── ... (${subEntries.length - 5} more)`);
+            }
+          } catch {
+            // Ignore errors reading subdirectories
+          }
+        } else if (entry.isFile()) {
+          lines.push(`[FILE] ${entry.name}`);
+        }
+      }
+
+      if (lines.length === 0) {
+        return '(empty - no documentation available)';
+      }
+
+      return lines.join('\n');
+    } catch (error) {
+      const err = error as NodeJS.ErrnoException;
+      if (err.code === 'ENOENT') {
+        return '(docs directory does not exist)';
+      }
+      return '(error reading docs directory)';
+    }
   }
 }
 

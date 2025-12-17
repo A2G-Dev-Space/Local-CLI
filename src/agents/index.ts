@@ -12,15 +12,13 @@ export {
   type AgentConfig,
 } from './base/base-agent.js';
 
-// Request classifier agent
-export {
-  RequestClassifier,
-  type RequestType,
-  type ClassificationResult,
-} from './classifier/index.js';
+// RequestClassifier removed - all requests now go through planning
 
 // Planning agent
-export { PlanningLLM } from './planner/index.js';
+export {
+  PlanningLLM,
+  type PlanningWithDocsResult,
+} from './planner/index.js';
 
 // Documentation search agent
 export {
@@ -33,5 +31,4 @@ export {
   type DocsSearchProgressCallback,
 } from './docs-search/index.js';
 
-// Documentation search executor (decision + execution)
-export { performDocsSearchIfNeeded } from './docs-search/executor.js';
+// performDocsSearchIfNeeded removed - docs search now integrated into planning

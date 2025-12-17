@@ -24,6 +24,7 @@ import {
 import { FILE_TOOLS, SYSTEM_TOOLS } from './llm/simple/file-tools.js';
 import { USER_INTERACTION_TOOLS } from './llm/simple/user-interaction-tools.js';
 import { TODO_TOOLS } from './llm/simple/todo-tools.js';
+import { docsSearchAgentTool } from './llm/simple/docs-search-agent-tool.js';
 import { LLM_AGENT_TOOLS } from './llm/agents/index.js';
 
 /**
@@ -161,7 +162,10 @@ export function initializeToolRegistry(): void {
   // LLM Simple Tools - TODO management
   toolRegistry.registerAll(TODO_TOOLS);
 
-  // LLM Agent Tools (docs-search tools)
+  // LLM Simple Tools - Docs Search Agent (callable by main LLM)
+  toolRegistry.register(docsSearchAgentTool);
+
+  // LLM Agent Tools (docs-search internal tools)
   toolRegistry.registerAll(LLM_AGENT_TOOLS);
 
   // Future: User Commands, MCP Tools, System Tools
