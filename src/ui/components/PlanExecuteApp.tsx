@@ -74,6 +74,10 @@ import {
 } from '../../core/slash-command-handler.js';
 import { closeJsonStreamLogger } from '../../utils/json-stream-logger.js';
 import { configManager } from '../../core/config/config-manager.js';
+import { GitAutoUpdater, UpdateStatus } from '../../core/git-auto-updater.js';
+import { authManager } from '../../core/auth/index.js';
+import { setupNexusModels } from '../../core/nexus-setup.js';
+import open from 'open';
 import { logger } from '../../utils/logger.js';
 import { usageTracker } from '../../core/usage-tracker.js';
 import {
@@ -98,7 +102,7 @@ const pkg = require('../../../package.json') as { version: string };
 const VERSION = pkg.version;
 
 // Initialization steps for detailed progress display
-type InitStep = 'health' | 'docs' | 'config' | 'done';
+type InitStep = 'git_update' | 'login' | 'models' | 'health' | 'docs' | 'config' | 'done';
 
 // Tools that require user approval in Supervised Mode
 // File-modifying tools and bash commands need approval (read-only and internal tools are auto-approved)
@@ -158,7 +162,9 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
   // LLM Setup Wizard state
   const [showSetupWizard, setShowSetupWizard] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
-  const [initStep, setInitStep] = useState<InitStep>('health');
+  const [initStep, setInitStep] = useState<InitStep>('git_update');
+  const [gitUpdateStatus, setGitUpdateStatus] = useState<UpdateStatus | null>(null);
+  const [loginError, setLoginError] = useState<string | null>(null);
   const [healthStatus, setHealthStatus] = useState<'checking' | 'healthy' | 'unhealthy' | 'unknown'>('checking');
 
   // Model Selector state
@@ -581,15 +587,67 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
     return () => clearInterval(interval);
   }, [isProcessing]);
 
-  // Initialize on startup: health check -> docs -> config
-  // Note: Git auto-update runs in cli.ts before login (highest priority)
+  // Initialize on startup: git_update → login → models → health → docs → config
   useEffect(() => {
     const initialize = async () => {
       logger.flow('Starting initialization');
       logger.startTimer('app-init');
 
       try {
-        // Step 1: Run health check (only if endpoints configured)
+        // Step 1: Git auto-update (highest priority)
+        setInitStep('git_update');
+        logger.flow('Checking for git updates');
+        const updater = new GitAutoUpdater({
+          onStatus: setGitUpdateStatus,
+        });
+        const needsRestart = await updater.run();
+        if (needsRestart) {
+          // Exit immediately so user can restart with new version
+          process.exit(0);
+        }
+
+        // Step 2: SSO Login
+        setInitStep('login');
+        logger.flow('Checking authentication');
+        await authManager.initialize();
+
+        if (!authManager.isAuthenticated()) {
+          logger.flow('Starting SSO login flow');
+          try {
+            await authManager.login(async (url) => {
+              await open(url);
+            });
+          } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+            setLoginError(errorMsg);
+            logger.error('SSO login failed', error as Error);
+            setIsInitializing(false);
+            return;
+          }
+        }
+
+        // Step 3: Fetch models from Admin Server
+        setInitStep('models');
+        logger.flow('Fetching models from Admin Server');
+        try {
+          await setupNexusModels();
+        } catch (error) {
+          logger.error('Failed to fetch models', error as Error);
+          // Continue anyway - will show setup wizard if no endpoints
+        }
+
+        // Step 4: Create LLM Client
+        if (configManager.hasEndpoints()) {
+          try {
+            const newClient = createLLMClient();
+            setLlmClient(newClient);
+            setCurrentModelInfo(newClient.getModelInfo());
+          } catch {
+            // LLMClient 생성 실패 시 null 유지
+          }
+        }
+
+        // Step 5: Run health check (only if endpoints configured)
         setInitStep('health');
         logger.flow('Running health check');
         setHealthStatus('checking');
@@ -618,14 +676,14 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
           setHealthStatus('unknown');
         }
 
-        // Step 3: Initialize docs directory
+        // Step 6: Initialize docs directory
         setInitStep('docs');
         logger.flow('Initializing docs directory');
         await initializeDocsDirectory().catch((err) => {
           logger.warn('Docs directory initialization warning', { error: err });
         });
 
-        // Step 4: Check config (show setup wizard if no endpoints)
+        // Step 7: Check config (show setup wizard if no endpoints)
         setInitStep('config');
         logger.flow('Checking configuration');
         if (!configManager.hasEndpoints()) {
@@ -1209,18 +1267,54 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
   }, [isProcessing, pendingUserMessage, llmClient, messages, planExecutionState, addLog]);
 
   // Show loading screen with logo during initialization
-  // Note: Git auto-update runs in cli.ts before login (highest priority)
   if (isInitializing) {
+    // Get git update status text
+    const getGitStatusText = (): string => {
+      if (!gitUpdateStatus) return 'Checking for updates...';
+      switch (gitUpdateStatus.type) {
+        case 'checking':
+          return 'Checking for updates...';
+        case 'no_update':
+          return 'Up to date';
+        case 'first_run':
+          return `${gitUpdateStatus.message} (${gitUpdateStatus.step}/${gitUpdateStatus.totalSteps})`;
+        case 'updating':
+          return `${gitUpdateStatus.message} (${gitUpdateStatus.step}/${gitUpdateStatus.totalSteps})`;
+        case 'complete':
+          return gitUpdateStatus.message;
+        case 'error':
+          return gitUpdateStatus.message;
+        case 'skipped':
+          return `Skipped: ${gitUpdateStatus.reason}`;
+        default:
+          return (((_: never): string => 'Checking for updates...')(gitUpdateStatus));
+      }
+    };
+
+    // Get login status text
+    const getLoginStatusText = (): string => {
+      if (loginError) return `Login failed: ${loginError}`;
+      const user = authManager.getCurrentUser();
+      if (user) return `Logged in as ${user.username}`;
+      return 'Waiting for SSO login...';
+    };
+
     const getInitStepInfo = () => {
       switch (initStep) {
+        case 'git_update':
+          return { icon: '🔄', text: getGitStatusText(), progress: 1 };
+        case 'login':
+          return { icon: '🔐', text: getLoginStatusText(), progress: 2 };
+        case 'models':
+          return { icon: '🤖', text: 'Loading models from server...', progress: 3 };
         case 'health':
-          return { icon: '🏥', text: 'Checking model health...', progress: 1 };
+          return { icon: '🏥', text: 'Checking model health...', progress: 4 };
         case 'docs':
-          return { icon: '📚', text: 'Initializing docs...', progress: 2 };
+          return { icon: '📚', text: 'Initializing docs...', progress: 5 };
         case 'config':
-          return { icon: '⚙️', text: 'Loading configuration...', progress: 3 };
+          return { icon: '⚙️', text: 'Loading configuration...', progress: 6 };
         default:
-          return { icon: '✓', text: 'Ready!', progress: 4 };
+          return { icon: '✓', text: 'Ready!', progress: 7 };
       }
     };
 

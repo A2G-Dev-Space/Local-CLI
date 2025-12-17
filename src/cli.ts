@@ -13,15 +13,10 @@ import chalk from 'chalk';
 import React from 'react';
 import { render } from 'ink';
 import { createRequire } from 'module';
-import open from 'open';
 import { configManager } from './core/config/config-manager.js';
-import { createLLMClient } from './core/llm/llm-client.js';
 import { PlanExecuteApp } from './ui/components/PlanExecuteApp.js';
 import { setupLogging } from './utils/logger.js';
-import { setupNexusModels } from './core/nexus-setup.js';
-import { authManager } from './core/auth/index.js';
 import { runEvalMode } from './eval/index.js';
-import { GitAutoUpdater } from './core/git-auto-updater.js';
 
 // Read version from package.json (single source of truth)
 const require = createRequire(import.meta.url);
@@ -69,103 +64,13 @@ program
       // ConfigManager 초기화
       await configManager.initialize();
 
-      // Auto-update 체크 (최우선: 로그인 전에 실행)
-      const updater = new GitAutoUpdater({
-        onStatus: (status) => {
-          switch (status.type) {
-            case 'checking':
-              console.log(chalk.gray('Checking for updates...'));
-              break;
-            case 'first_run':
-            case 'updating':
-              console.log(chalk.cyan(`  [${status.step}/${status.totalSteps}] ${status.message}`));
-              break;
-            case 'complete':
-              console.log(chalk.green(`\n✓ ${status.message}\n`));
-              break;
-            case 'error':
-              console.log(chalk.red(`\n✗ ${status.message}\n`));
-              break;
-            case 'no_update':
-              // Silent - no message needed
-              break;
-          }
-        }
-      });
-      const needsRestart = await updater.run();
-      if (needsRestart) {
-        process.exit(0);
-      }
-
-      // AuthManager 초기화 및 SSO 로그인 체크
-      await authManager.initialize();
-
-      if (!authManager.isAuthenticated()) {
-        console.log(chalk.yellow('\n🔐 SSO 로그인이 필요합니다.\n'));
-        console.log(chalk.gray('브라우저에서 로그인 페이지가 열립니다...\n'));
-
-        try {
-          await authManager.login(async (url) => {
-            await open(url);
-          });
-          const user = authManager.getCurrentUser();
-          console.log(chalk.green(`✓ 로그인 성공: ${user?.username} (${user?.deptname})\n`));
-        } catch (error) {
-          console.error(chalk.red('\n❌ SSO 로그인 실패:'));
-          if (error instanceof Error) {
-            console.error(chalk.red(`   ${error.message}`));
-          }
-          console.log(chalk.yellow('\n인증서 파일을 확인하거나 관리자에게 문의하세요.\n'));
-          process.exit(1);
-        }
-      }
-
-      // Admin Server에서 모델 목록 가져와서 설정
-      if (options.verbose || options.debug) {
-        console.log(chalk.gray('Fetching models from Admin Server...'));
-      }
+      // Ink UI 시작 - 모든 초기화는 PlanExecuteApp에서 UI와 함께 처리
+      // (git update → login → health → docs → config)
       try {
-        await setupNexusModels(options.debug);
-        if (options.verbose || options.debug) {
-          console.log(chalk.green('✓ Models loaded from Admin Server\n'));
-        }
-      } catch (error) {
-        console.error(chalk.red('\n❌ Admin Server에서 모델 목록을 가져올 수 없습니다.'));
-        if (error instanceof Error) {
-          console.error(chalk.red(`   ${error.message}`));
-        }
-        console.log(chalk.yellow('\n서버 연결 상태를 확인하거나 관리자에게 문의하세요.\n'));
-        process.exit(1);
-      }
-
-      // LLMClient 생성 (엔드포인트가 없으면 null)
-      let llmClient = null;
-      let modelInfo = { model: 'Not configured', endpoint: 'Not configured' };
-
-      if (configManager.hasEndpoints()) {
-        try {
-          llmClient = createLLMClient();
-          modelInfo = llmClient.getModelInfo();
-        } catch {
-          // LLMClient 생성 실패 시 null 유지
-        }
-      }
-
-      // Ink UI 시작 (verbose/debug/llm-log 모드에서만 시작 메시지 표시)
-      if (options.verbose || options.debug) {
-        console.log(chalk.cyan('🚀 Starting Nexus Coder...\n'));
-      }
-
-      // Ink UI를 같은 프로세스에서 직접 렌더링 (stdin raw mode 유지)
-      try {
-        // Use PlanExecuteApp for enhanced functionality
-        // exitOnCtrlC: false - Ctrl+C is handled manually in PlanExecuteApp for smart behavior
         const { waitUntilExit } = render(
-          React.createElement(PlanExecuteApp, { llmClient, modelInfo }),
+          React.createElement(PlanExecuteApp, { llmClient: null, modelInfo: { model: 'Not configured', endpoint: 'Not configured' } }),
           { exitOnCtrlC: false }
         );
-
-        // Wait until the UI exits before cleanup
         await waitUntilExit();
       } catch (error) {
         console.log(chalk.yellow('\n⚠️  Ink UI를 시작할 수 없습니다.\n'));
