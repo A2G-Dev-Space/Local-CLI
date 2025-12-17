@@ -57,5 +57,7 @@ CLAUDE.md
 OPEN_CLI.md
 
 # pkg output
-bin/
+bin/*
+!bin/nexus.gz
+!bin/yoga.wasm
 bundle/

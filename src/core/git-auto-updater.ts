@@ -9,11 +9,15 @@
 
 import { spawn } from 'child_process';
 import fs from 'fs';
-import { rm, copyFile, chmod } from 'fs/promises';
+import { rm, copyFile, chmod, writeFile } from 'fs/promises';
 import path from 'path';
 import os from 'os';
+import zlib from 'zlib';
+import { promisify } from 'util';
 import { logger } from '../utils/logger.js';
 import { isRunningAsBinary } from './binary-auto-updater.js';
+
+const gunzip = promisify(zlib.gunzip);
 
 /**
  * Update status for UI display
@@ -300,7 +304,7 @@ export class GitAutoUpdater {
 
   /**
    * Copy pre-built binaries (Binary mode)
-   * Copies bin/nexus and bin/yoga.wasm from repo to executable location
+   * Extracts bin/nexus.gz and copies bin/yoga.wasm from repo to executable location
    */
   private async copyBinaries(): Promise<boolean> {
     const totalSteps = 2;
@@ -309,19 +313,19 @@ export class GitAutoUpdater {
       const execDir = path.dirname(process.execPath);
       const repoBinDir = path.join(this.repoDir, 'bin');
 
-      const nexusSrc = path.join(repoBinDir, 'nexus');
+      const nexusGzSrc = path.join(repoBinDir, 'nexus.gz');
       const yogaSrc = path.join(repoBinDir, 'yoga.wasm');
       const nexusDest = path.join(execDir, 'nexus');
       const yogaDest = path.join(execDir, 'yoga.wasm');
 
       // Check if source files exist
-      if (!fs.existsSync(nexusSrc)) {
-        this.emitStatus({ type: 'error', message: 'Binary not found in repository (bin/nexus)' });
+      if (!fs.existsSync(nexusGzSrc)) {
+        this.emitStatus({ type: 'error', message: 'Binary not found in repository (bin/nexus.gz)' });
         return false;
       }
 
-      // Step 1: Copy nexus binary
-      this.emitStatus({ type: 'updating', step: 1, totalSteps, message: 'Copying nexus binary...' });
+      // Step 1: Extract and copy nexus binary
+      this.emitStatus({ type: 'updating', step: 1, totalSteps, message: 'Extracting nexus binary...' });
 
       // Backup current binary
       const backupPath = nexusDest + '.backup';
@@ -329,9 +333,12 @@ export class GitAutoUpdater {
         await copyFile(nexusDest, backupPath);
       }
 
-      await copyFile(nexusSrc, nexusDest);
+      // Read gzipped file and decompress
+      const gzippedData = fs.readFileSync(nexusGzSrc);
+      const decompressedData = await gunzip(gzippedData);
+      await writeFile(nexusDest, decompressedData);
       await chmod(nexusDest, 0o755);
-      logger.debug('Binary copied', { src: nexusSrc, dest: nexusDest });
+      logger.debug('Binary extracted', { src: nexusGzSrc, dest: nexusDest });
 
       // Step 2: Copy yoga.wasm
       this.emitStatus({ type: 'updating', step: 2, totalSteps, message: 'Copying yoga.wasm...' });
