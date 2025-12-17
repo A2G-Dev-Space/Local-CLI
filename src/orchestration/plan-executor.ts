@@ -79,7 +79,6 @@ export class PlanExecutor {
 
     // Local TODO state
     let currentTodos: TodoItem[] = [];
-    const startTime = Date.now();
 
     try {
       if (isInterruptedRef.current) {
@@ -172,18 +171,9 @@ export class PlanExecutor {
         (updated) => { currentMessages = updated; }
       );
 
-      // 4. Completion
-      const duration = Date.now() - startTime;
+      // 4. Completion - LLM's final response is already in currentMessages
       const stats = getTodoStats(currentTodos);
-
-      const completionMessage = `✅ Execution complete\nTotal: ${stats.total} | Completed: ${stats.completed} | Failed: ${stats.failed}\nDuration: ${(duration / 1000).toFixed(2)}s`;
-
-      const finalMessages: Message[] = [
-        ...currentMessages,
-        { role: 'assistant' as const, content: completionMessage }
-      ];
-      callbacks.setMessages(finalMessages);
-      sessionManager.autoSaveCurrentSession(finalMessages);
+      sessionManager.autoSaveCurrentSession(currentMessages);
 
       logger.exit('PlanExecutor.executePlanMode', { success: true, ...stats });
     } catch (error) {
@@ -311,16 +301,8 @@ export class PlanExecutor {
         (updated) => { currentMessages = updated; }
       );
 
-      // Completion
-      const stats = getTodoStats(currentTodos);
-      const completionMessage = `✅ Execution complete\nTotal: ${stats.total} | Completed: ${stats.completed} | Failed: ${stats.failed}`;
-
-      const finalMessages: Message[] = [
-        ...currentMessages,
-        { role: 'assistant' as const, content: completionMessage }
-      ];
-      callbacks.setMessages(finalMessages);
-      sessionManager.autoSaveCurrentSession(finalMessages);
+      // Completion - LLM's final response is already in currentMessages
+      sessionManager.autoSaveCurrentSession(currentMessages);
 
       logger.exit('PlanExecutor.resumeTodoExecution', { success: true });
     } catch (error) {

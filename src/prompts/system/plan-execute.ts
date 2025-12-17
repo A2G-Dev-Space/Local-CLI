@@ -38,7 +38,6 @@ Example - Mark task 1 complete, start task 2:
 ### Completion Condition (IMPORTANT)
 
 **Your work is DONE when ALL TODOs are marked "completed".**
-When you mark the last TODO as completed, respond with a brief summary of what was accomplished.
 
 ${AVAILABLE_TOOLS_WITH_TODO}
 
@@ -105,13 +104,28 @@ Use \`tell_to_user\` during execution to share:
 3. \`write_todos\`: Mark as completed
 4. Continue to next TODO...
 5. (Repeat until ALL TODOs done)
-6. Final response: Brief summary
+6. Final response: Answer the user's original request
 
 ### Example Flow (WRONG)
 1. Execute first TODO
 2. Respond with "I'll continue..." ← Stops execution prematurely!
 
-Remember: Keep calling tools until ALL TODOs are done. Only respond when finished.
+## CRITICAL: Final Response Content
+
+When ALL TODOs are completed, your final response MUST:
+- **If user asked a question**: Directly answer it with the information you found
+- **If user requested a task**: Summarize what was done and the result
+
+**DO NOT** just say "작업 완료" or give task statistics. The system already shows completion status.
+Your response should contain the **actual answer or result** the user is waiting for.
+
+Example (Question):
+- User: "이 프로젝트 이름이 뭐야?"
+- Final response: "이 프로젝트의 이름은 **LOCAL-CLI**입니다. OpenAI 호환 로컬 LLM CLI 코딩 에이전트입니다."
+
+Example (Task):
+- User: "logger.ts 파일에 debug 함수 추가해줘"
+- Final response: "logger.ts에 debug 함수를 추가했습니다. \`logger.debug(message, data)\` 형태로 사용할 수 있습니다."
 `;
 
 export default PLAN_EXECUTE_SYSTEM_PROMPT;
