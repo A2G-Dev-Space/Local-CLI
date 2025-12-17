@@ -224,7 +224,7 @@ export class PlanningLLM {
   }
 
   /**
-   * Get top-level folder structure of docs directory
+   * Get folder structure of docs directory (depth 1 only: root + immediate subdirs)
    */
   private async getDocsFolderStructure(): Promise<string> {
     const docsBasePath = path.join(os.homedir(), '.local-cli', 'docs');
@@ -236,30 +236,24 @@ export class PlanningLLM {
 
       for (const entry of entries) {
         if (entry.isDirectory()) {
-          lines.push(`[DIR]  ${entry.name}/`);
+          // Depth 0: Show top-level directory
+          lines.push(`📁 ${entry.name}/`);
 
-          // Also list immediate children of directories
+          // Depth 1: Show only immediate subdirectory names
           try {
             const subPath = path.join(docsBasePath, entry.name);
             const subEntries = await fs.readdir(subPath, { withFileTypes: true });
+            const subDirs = subEntries.filter(e => e.isDirectory());
 
-            for (const subEntry of subEntries.slice(0, 5)) {
-              if (subEntry.isDirectory()) {
-                lines.push(`       ├── ${subEntry.name}/`);
-              } else {
-                lines.push(`       ├── ${subEntry.name}`);
-              }
-            }
-
-            if (subEntries.length > 5) {
-              lines.push(`       └── ... (${subEntries.length - 5} more)`);
+            if (subDirs.length > 0) {
+              const subDirNames = subDirs.map(d => d.name).join(', ');
+              lines.push(`   └── [${subDirNames}]`);
             }
           } catch {
             // Ignore errors reading subdirectories
           }
-        } else if (entry.isFile()) {
-          lines.push(`[FILE] ${entry.name}`);
         }
+        // Skip files at root level - only show directories
       }
 
       if (lines.length === 0) {

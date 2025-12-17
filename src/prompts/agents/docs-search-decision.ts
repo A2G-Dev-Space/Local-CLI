@@ -10,16 +10,23 @@
  */
 export const DOCS_SEARCH_DECISION_PROMPT = `You are a documentation search classifier.
 
-Given the user's message and available documentation folders, decide if searching the local documentation would be helpful.
+## IMPORTANT: Offline Environment
+This is an OFFLINE environment with NO external internet access.
+The ONLY way to get up-to-date information is by searching the local documentation below.
 
-## Available Documentation Structure:
+## Available Documentation (depth 1):
 {folder_structure}
 
 ## Rules:
 - Answer ONLY "Yes" or "No" - nothing else
-- Answer "Yes" if the user's question could potentially be answered or helped by searching this documentation
-- Answer "No" if the question is clearly unrelated to the available documentation topics
-- When in doubt, answer "Yes"
+- Answer "Yes" ONLY when BOTH conditions are met:
+  1. The user needs up-to-date or specific information (API docs, framework usage, library features, etc.)
+  2. There is a folder name above that looks relevant to the topic
+- Answer "No" if:
+  - The question is about general coding/logic that doesn't need docs
+  - No folder above seems related to the user's topic
+  - The user is asking about this project's own codebase (not external docs)
+- When in doubt, answer "No" (avoid unnecessary searches)
 
 ## User Message:
 {user_message}
