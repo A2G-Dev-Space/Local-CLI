@@ -511,7 +511,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
 
       addLog({
         type: 'plan_created',
-        content: `${todoTitles.length}개의 작업을 생성했습니다`,
+        content: `Created ${todoTitles.length} task${todoTitles.length > 1 ? 's' : ''}`,
         items: todoTitles,
       });
     });

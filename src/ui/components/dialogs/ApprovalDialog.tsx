@@ -95,9 +95,9 @@ export const ApprovalDialog: React.FC<ApprovalDialogProps> = ({
   logger.enter('ApprovalDialog', { toolName, argsKeys: Object.keys(args) });
 
   const options = [
-    { label: 'Approve', description: '이 Tool 실행 승인', icon: '✅' },
-    { label: `Always Approve (${toolName})`, description: '이 세션에서 항상 승인', icon: '✅' },
-    { label: 'Reject', description: '거부 + 코멘트 입력', icon: '❌' },
+    { label: 'Approve', description: 'Approve this tool execution', icon: '✅' },
+    { label: `Always Approve (${toolName})`, description: 'Always approve in this session', icon: '✅' },
+    { label: 'Reject', description: 'Reject + add comment', icon: '❌' },
   ];
 
   const handleSelect = useCallback(() => {
@@ -167,10 +167,10 @@ export const ApprovalDialog: React.FC<ApprovalDialogProps> = ({
     return (
       <Box flexDirection="column" borderStyle="round" borderColor="red" paddingX={1} paddingY={0}>
         <Box marginBottom={1}>
-          <Text color="red" bold>❌ Tool 실행 거부: {toolName}</Text>
+          <Text color="red" bold>❌ Reject Tool: {toolName}</Text>
         </Box>
         <Box>
-          <Text color="gray">AI에게 전달할 코멘트 (ESC: 취소, Enter: 전송): </Text>
+          <Text color="gray">Comment for AI (ESC: cancel, Enter: send): </Text>
         </Box>
         <Box>
           <Text color="yellow">&gt; </Text>
@@ -178,7 +178,7 @@ export const ApprovalDialog: React.FC<ApprovalDialogProps> = ({
             value={rejectComment}
             onChange={setRejectComment}
             onSubmit={handleRejectSubmit}
-            placeholder="이유나 대안을 입력하세요..."
+            placeholder="Enter reason or alternative..."
             focus={true}
           />
         </Box>
@@ -191,7 +191,7 @@ export const ApprovalDialog: React.FC<ApprovalDialogProps> = ({
     <Box flexDirection="column" borderStyle="round" borderColor="yellow" paddingX={1} paddingY={0}>
       {/* Header */}
       <Box marginBottom={1}>
-        <Text color="yellow" bold>🔧 Tool 실행 승인 요청</Text>
+        <Text color="yellow" bold>🔧 Tool Execution Approval</Text>
       </Box>
 
       {/* Tool name */}

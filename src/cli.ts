@@ -121,7 +121,7 @@ program.showHelpAfterError(false);
 program.configureOutput({
   outputError: (str, write) => {
     if (str.includes('--help') || str.includes('-h')) {
-      write(chalk.yellow('💡 도움말은 앱 실행 후 /help 명령어를 사용하세요.\n'));
+      write(chalk.yellow('💡 For help, use /help command after starting the app.\n'));
     } else {
       write(chalk.red(str));
     }
@@ -129,9 +129,9 @@ program.configureOutput({
 });
 
 program.on('command:*', () => {
-  console.error(chalk.red('⚠️  알 수 없는 명령어입니다.'));
-  console.log(chalk.white('사용법: lcli [--verbose] [--debug]\n'));
-  console.log(chalk.white('대화형 모드에서 /help를 사용하여 도움말을 확인하세요.\n'));
+  console.error(chalk.red('⚠️  Unknown command.'));
+  console.log(chalk.white('Usage: lcli [--verbose] [--debug]\n'));
+  console.log(chalk.white('Use /help in interactive mode for help.\n'));
   process.exit(1);
 });
 

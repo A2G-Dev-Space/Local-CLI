@@ -112,12 +112,12 @@ export const AskUserDialog: React.FC<AskUserDialogProps> = ({ request, onRespons
           <Text color="yellow" bold>💬 {request.question}</Text>
         </Box>
         <Box>
-          <Text color="gray">직접 입력 (ESC: 취소): </Text>
+          <Text color="gray">Custom input (ESC: cancel): </Text>
           <CustomTextInput
             value={customText}
             onChange={setCustomText}
             onSubmit={handleOtherSubmit}
-            placeholder="응답을 입력하세요..."
+            placeholder="Enter your response..."
             focus={true}
           />
         </Box>
