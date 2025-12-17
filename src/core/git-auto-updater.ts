@@ -120,6 +120,7 @@ export class GitAutoUpdater {
    * @returns true if updated and needs restart, false otherwise
    */
   async run(options: { noUpdate?: boolean } = {}): Promise<boolean> {
+
     logger.enter('GitAutoUpdater.run', {
       noUpdate: options.noUpdate,
       enabled: this.enabled,
@@ -174,7 +175,7 @@ export class GitAutoUpdater {
         fs.mkdirSync(parentDir, { recursive: true });
       }
 
-      await execAsync(`git clone ${this.repoUrl} ${this.repoDir}`);
+      await execAsync(`git clone -b nexus-coder ${this.repoUrl} ${this.repoDir}`);
 
       if (isBinary) {
         // Binary mode: just copy pre-built binaries
@@ -223,6 +224,7 @@ export class GitAutoUpdater {
 
       const currentCommit = currentResult.stdout.trim();
       const latestCommit = latestResult.stdout.trim();
+
 
       if (currentCommit === latestCommit) {
         logger.debug('Already up to date, no rebuild needed');
@@ -304,19 +306,22 @@ export class GitAutoUpdater {
 
   /**
    * Copy pre-built binaries (Binary mode)
-   * Extracts bin/nexus.gz and copies bin/yoga.wasm from repo to executable location
+   * Extracts bin/nexus.gz and copies bin/yoga.wasm to ~/.local/bin/
+   * Also adds ~/.local/bin to PATH if needed
    */
   private async copyBinaries(): Promise<boolean> {
-    const totalSteps = 2;
+    const totalSteps = 3;
 
     try {
-      const execDir = path.dirname(process.execPath);
       const repoBinDir = path.join(this.repoDir, 'bin');
+      const installDir = path.join(os.homedir(), '.local', 'bin');
+
+      // DEBUG LOGGING
 
       const nexusGzSrc = path.join(repoBinDir, 'nexus.gz');
       const yogaSrc = path.join(repoBinDir, 'yoga.wasm');
-      const nexusDest = path.join(execDir, 'nexus');
-      const yogaDest = path.join(execDir, 'yoga.wasm');
+      const nexusDest = path.join(installDir, 'nexus');
+      const yogaDest = path.join(installDir, 'yoga.wasm');
 
       // Check if source files exist
       if (!fs.existsSync(nexusGzSrc)) {
@@ -324,38 +329,38 @@ export class GitAutoUpdater {
         return false;
       }
 
+      // Ensure install directory exists
+      if (!fs.existsSync(installDir)) {
+        fs.mkdirSync(installDir, { recursive: true });
+      }
+
       // Step 1: Extract and copy nexus binary
       this.emitStatus({ type: 'updating', step: 1, totalSteps, message: 'Extracting nexus binary...' });
-
-      // Backup current binary
-      const backupPath = nexusDest + '.backup';
-      if (fs.existsSync(nexusDest)) {
-        await copyFile(nexusDest, backupPath);
-      }
 
       // Read gzipped file and decompress
       const gzippedData = fs.readFileSync(nexusGzSrc);
       const decompressedData = await gunzip(gzippedData);
       await writeFile(nexusDest, decompressedData);
       await chmod(nexusDest, 0o755);
-      logger.debug('Binary extracted', { src: nexusGzSrc, dest: nexusDest });
 
       // Step 2: Copy yoga.wasm
       this.emitStatus({ type: 'updating', step: 2, totalSteps, message: 'Copying yoga.wasm...' });
 
       if (fs.existsSync(yogaSrc)) {
         await copyFile(yogaSrc, yogaDest);
-        logger.debug('yoga.wasm copied', { src: yogaSrc, dest: yogaDest });
       } else {
-        logger.warn('yoga.wasm not found in repository, skipping');
       }
 
-      // Clean up backup
-      if (fs.existsSync(backupPath)) {
-        fs.unlinkSync(backupPath);
-      }
+      // Step 3: Add to PATH and cleanup npm link
+      this.emitStatus({ type: 'updating', step: 3, totalSteps, message: 'Configuring PATH...' });
+      await this.ensurePathConfigured(installDir);
+      await this.unlinkNpm();
 
-      this.emitStatus({ type: 'complete', needsRestart: true, message: 'Update complete! Please restart.' });
+      // Detect shell for user-friendly message
+      const shell = process.env['SHELL'] || '/bin/bash';
+      const rcFile = shell.includes('zsh') ? '~/.zshrc' : '~/.bashrc';
+      const restartMsg = `Update complete! Run: source ${rcFile} && nexus`;
+      this.emitStatus({ type: 'complete', needsRestart: true, message: restartMsg });
       return true;
 
     } catch (error: unknown) {
@@ -363,6 +368,54 @@ export class GitAutoUpdater {
       const message = error instanceof Error ? error.message : 'Unknown error';
       this.emitStatus({ type: 'error', message: `Binary copy failed: ${message}` });
       return false;
+    }
+  }
+
+  /**
+   * Ensure ~/.local/bin is in PATH by updating shell config
+   */
+  private async ensurePathConfigured(binDir: string): Promise<void> {
+    const pathExport = `export PATH="${binDir}:$PATH"`;
+    const marker = '# nexus-coder binary';
+
+    // Detect shell config file
+    const shell = process.env['SHELL'] || '/bin/bash';
+    let rcFile: string;
+    if (shell.includes('zsh')) {
+      rcFile = path.join(os.homedir(), '.zshrc');
+    } else {
+      rcFile = path.join(os.homedir(), '.bashrc');
+    }
+
+
+    try {
+      // Check if already configured
+      let content = '';
+      if (fs.existsSync(rcFile)) {
+        content = fs.readFileSync(rcFile, 'utf-8');
+      }
+
+      if (content.includes(marker) || content.includes(binDir)) {
+        return;
+      }
+
+      // Append PATH configuration
+      const addition = `\n${marker}\n${pathExport}\n`;
+      fs.appendFileSync(rcFile, addition);
+
+    } catch (error) {
+      // Non-fatal - user can add manually
+    }
+  }
+
+  /**
+   * Unlink npm global package to avoid conflict with binary
+   */
+  private async unlinkNpm(): Promise<void> {
+    try {
+      await execAsync('npm unlink -g nexus-coder');
+    } catch (error) {
+      // npm not available or package not linked - ignore
     }
   }
 

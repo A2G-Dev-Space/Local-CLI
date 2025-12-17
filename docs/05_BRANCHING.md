@@ -12,6 +12,7 @@
 4. [Cherry-pick 가이드](#4-cherry-pick-가이드)
 5. [충돌 해결](#5-충돌-해결)
 6. [주의사항](#6-주의사항)
+7. [바이너리 배포](#7-바이너리-배포)
 
 ---
 
@@ -267,6 +268,84 @@ git merge nexus-coder-dev  # SSO 등 엔터프라이즈 코드가 들어감!
 | 브랜딩 수정 | 각 브랜치에서 독립 수정 |
 | main 변경 반영 | `git cherry-pick <commit>` |
 | 충돌 시 브랜딩 파일 | `git checkout --ours <file>` |
+
+---
+
+---
+
+## 7. 바이너리 배포
+
+### 7.1 개요
+
+NEXUS CODER는 Node.js 없이 실행 가능한 독립 바이너리로 배포됩니다.
+
+| 파일 | 설명 | 위치 |
+|------|------|------|
+| `bin/nexus.gz` | Bun 컴파일된 바이너리 (gzip 압축) | 레포지토리 |
+| `bin/yoga.wasm` | ink UI 레이아웃 엔진 | 레포지토리 |
+
+### 7.2 빌드 방법
+
+```bash
+# 바이너리 빌드 (nexus + yoga.wasm)
+npm run bun:build
+
+# 결과물
+# - bin/nexus (102MB)
+# - bin/nexus.gz (39MB, 배포용)
+# - bin/yoga.wasm (87KB)
+```
+
+### 7.3 자동 업데이트 흐름
+
+바이너리 실행 시 자동 업데이트가 다음과 같이 동작합니다:
+
+```
+1. git clone -b nexus-coder → ~/.nexus-coder/repo/
+2. bin/nexus.gz 압축 해제 → ~/.local/bin/nexus
+3. bin/yoga.wasm 복사 → ~/.local/bin/yoga.wasm
+4. ~/.bashrc 또는 ~/.zshrc에 PATH 추가
+5. npm unlink -g nexus-coder (기존 npm link 제거)
+```
+
+### 7.4 사용자 설치 방법
+
+**첫 설치:**
+
+```bash
+# 1. 바이너리 다운로드 (또는 직접 복사)
+./nexus
+
+# 2. 자동 설치 완료 후 표시되는 명령어 실행
+source ~/.bashrc && nexus
+```
+
+**이후 실행:**
+
+```bash
+nexus
+```
+
+### 7.5 바이너리 배포 시 커밋 순서
+
+```bash
+# 1. 코드 변경 후 빌드
+npm run bun:build
+
+# 2. gzip 압축 (bun:build에 포함됨)
+gzip -c bin/nexus > bin/nexus.gz
+
+# 3. 커밋 & 푸시
+git add bin/nexus.gz bin/yoga.wasm
+git commit -m "chore: Update binary"
+git push origin nexus-coder
+```
+
+### 7.6 주의사항
+
+- `bin/nexus` (비압축)는 `.gitignore`에 포함되어 커밋되지 않음
+- `bin/nexus.gz`와 `bin/yoga.wasm`만 레포지토리에 커밋
+- 바이너리 업데이트 시 반드시 `npm run bun:build` 후 커밋
 
 ---
 
