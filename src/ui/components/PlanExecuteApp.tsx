@@ -165,6 +165,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
   const [initStep, setInitStep] = useState<InitStep>('git_update');
   const [gitUpdateStatus, setGitUpdateStatus] = useState<UpdateStatus | null>(null);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [ssoUrl, setSsoUrl] = useState<string | null>(null);
   const [healthStatus, setHealthStatus] = useState<'checking' | 'healthy' | 'unhealthy' | 'unknown'>('checking');
 
   // Model Selector state
@@ -615,6 +616,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
           logger.flow('Starting SSO login flow');
           try {
             await authManager.login(async (url) => {
+              setSsoUrl(url);  // Store URL for manual access (shown in UI)
               await open(url);
             });
           } catch (error) {
@@ -1360,6 +1362,14 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
             <Spinner type="dots" />
             <Text color="yellow"> {stepInfo.icon} {stepInfo.text}</Text>
           </Box>
+
+          {/* Show SSO URL for manual access during login step */}
+          {initStep === 'login' && ssoUrl && (
+            <Box marginTop={1} flexDirection="column" alignItems="center">
+              <Text color="gray">브라우저가 열리지 않으면 아래 URL로 접속하세요:</Text>
+              <Text color="cyan" wrap="truncate-end">{ssoUrl}</Text>
+            </Box>
+          )}
 
           {/* Progress indicator */}
           <Box marginTop={1}>
