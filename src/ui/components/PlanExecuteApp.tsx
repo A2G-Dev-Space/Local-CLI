@@ -75,7 +75,7 @@ import {
 import { closeJsonStreamLogger } from '../../utils/json-stream-logger.js';
 import { configManager } from '../../core/config/config-manager.js';
 import { GitAutoUpdater, UpdateStatus } from '../../core/git-auto-updater.js';
-import { BinaryAutoUpdater, isRunningAsBinary, BinaryUpdateStatus } from '../../core/binary-auto-updater.js';
+import { isRunningAsBinary } from '../../core/binary-auto-updater.js';
 import { authManager } from '../../core/auth/index.js';
 import { setupNexusModels } from '../../core/nexus-setup.js';
 import open from 'open';
@@ -162,8 +162,6 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
   const [isInitializing, setIsInitializing] = useState(true);
   const [initStep, setInitStep] = useState<InitStep>('git_update');
   const [gitUpdateStatus, setGitUpdateStatus] = useState<UpdateStatus | null>(null);
-  const [binaryUpdateStatus, setBinaryUpdateStatus] = useState<BinaryUpdateStatus | null>(null);
-  const [isBinaryMode] = useState(() => isRunningAsBinary());
   const [loginError, setLoginError] = useState<string | null>(null);
   const [ssoUrl, setSsoUrl] = useState<string | null>(null);
   const [healthStatus, setHealthStatus] = useState<'checking' | 'healthy' | 'unhealthy' | 'unknown'>('checking');
@@ -600,19 +598,14 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         setInitStep('git_update');
         let needsRestart = false;
 
-        if (isRunningAsBinary()) {
-          logger.flow('Running as binary - checking for binary updates');
-          const binaryUpdater = new BinaryAutoUpdater({
-            onStatus: setBinaryUpdateStatus,
-          });
-          needsRestart = await binaryUpdater.run();
-        } else {
-          logger.flow('Running in Node.js - checking for git updates');
-          const gitUpdater = new GitAutoUpdater({
-            onStatus: setGitUpdateStatus,
-          });
-          needsRestart = await gitUpdater.run();
-        }
+        // Always use GitAutoUpdater - it handles both Node.js and binary modes
+        // Binary mode: git pull → copy bin/nexus, bin/yoga.wasm
+        // Node.js mode: git pull → npm install → build → link
+        logger.flow('Checking for git updates', { isBinaryMode: isRunningAsBinary() });
+        const gitUpdater = new GitAutoUpdater({
+          onStatus: setGitUpdateStatus,
+        });
+        needsRestart = await gitUpdater.run();
 
         if (needsRestart) {
           // Exit immediately so user can restart with new version
@@ -1286,32 +1279,8 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
 
   // Show loading screen with logo during initialization
   if (isInitializing) {
-    // Get update status text (binary or git based on mode)
+    // Get update status text (git-based for both Node.js and binary modes)
     const getUpdateStatusText = (): string => {
-      // Binary mode
-      if (isBinaryMode) {
-        if (!binaryUpdateStatus) return 'Checking for updates...';
-        switch (binaryUpdateStatus.type) {
-          case 'checking':
-            return 'Checking for updates...';
-          case 'no_update':
-            return `Up to date (v${binaryUpdateStatus.currentVersion})`;
-          case 'downloading':
-            return `Downloading v${binaryUpdateStatus.version}... ${binaryUpdateStatus.progress}%`;
-          case 'installing':
-            return `Installing v${binaryUpdateStatus.version}...`;
-          case 'complete':
-            return `Updated to v${binaryUpdateStatus.version}`;
-          case 'error':
-            return binaryUpdateStatus.message;
-          case 'not_binary':
-            return 'Up to date';
-          default:
-            return 'Checking for updates...';
-        }
-      }
-
-      // Git mode
       if (!gitUpdateStatus) return 'Checking for updates...';
       switch (gitUpdateStatus.type) {
         case 'checking':
