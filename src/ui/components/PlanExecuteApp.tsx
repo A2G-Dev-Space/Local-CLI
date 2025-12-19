@@ -1762,7 +1762,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
 
       {/* Activity Indicator (shown when processing, but NOT when TODO panel is visible) */}
       {isProcessing && planExecutionState.todos.length === 0 && !pendingToolApproval && !isDocsSearching && (
-        <Box marginY={0}>
+        <Box marginY={1}>
           <ActivityIndicator
             activity={getCurrentActivityType()}
             startTime={activityStartTime}

@@ -95,13 +95,14 @@ export class PlanExecutor {
       // Check for direct response (no planning needed)
       if (planResult.directResponse) {
         logger.flow('Direct response - no execution needed');
-        currentMessages = [
+        const updatedMessages: Message[] = [
           ...currentMessages,
           { role: 'user' as const, content: userMessage },
           { role: 'assistant' as const, content: planResult.directResponse }
         ];
-        callbacks.setMessages(currentMessages);
-        sessionManager.autoSaveCurrentSession(currentMessages);
+        // Use spread to create new array reference for React state update
+        callbacks.setMessages([...updatedMessages]);
+        sessionManager.autoSaveCurrentSession(updatedMessages);
         callbacks.setExecutionPhase('idle');
         logger.exit('PlanExecutor.executePlanMode', { directResponse: true });
         return;
