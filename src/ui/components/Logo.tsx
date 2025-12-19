@@ -11,14 +11,11 @@ import { APP_VERSION } from '../../constants.js';
 
 const VERSION = APP_VERSION;
 
-// ASCII Art Logo for NEXUS CODER
+// ASCII Art Logo for NEXUS CODER (Terminal Style)
 const LOGO_LINES = [
-  '███╗   ██╗███████╗██╗  ██╗██╗   ██╗███████╗     ██████╗ ██████╗ ██████╗ ███████╗██████╗ ',
-  '████╗  ██║██╔════╝╚██╗██╔╝██║   ██║██╔════╝    ██╔════╝██╔═══██╗██╔══██╗██╔════╝██╔══██╗',
-  '██╔██╗ ██║█████╗   ╚███╔╝ ██║   ██║███████╗    ██║     ██║   ██║██║  ██║█████╗  ██████╔╝',
-  '██║╚██╗██║██╔══╝   ██╔██╗ ██║   ██║╚════██║    ██║     ██║   ██║██║  ██║██╔══╝  ██╔══██╗',
-  '██║ ╚████║███████╗██╔╝ ██╗╚██████╔╝███████║    ╚██████╗╚██████╔╝██████╔╝███████╗██║  ██║',
-  '╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝     ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝╚═╝  ╚═╝',
+  '▛▀▀▀▀▀▀▜',
+  '▌ ▶ ▁  ▐',
+  '▙▄▄▄▄▄▄▟',
 ];
 
 // Gradient colors (cycle through these)
@@ -29,6 +26,8 @@ interface LogoProps {
   showVersion?: boolean;
   showTagline?: boolean;
   animate?: boolean;
+  modelName?: string;
+  workingDirectory?: string;
 }
 
 export const Logo: React.FC<LogoProps> = ({
@@ -36,6 +35,8 @@ export const Logo: React.FC<LogoProps> = ({
   showVersion = true,
   showTagline = true,
   animate = true,
+  modelName,
+  workingDirectory,
 }) => {
   // variant reserved for future use (compact, animated modes)
   void _variant;
@@ -76,31 +77,42 @@ export const Logo: React.FC<LogoProps> = ({
   };
 
   return (
-    <Box flexDirection="column" alignItems="center">
-      {/* Logo */}
-      <Box flexDirection="column">
-        {LOGO_LINES.map((line, idx) => (
-          <Text key={idx} color={animate ? getLineColor(idx) : 'cyan'} bold>
-            {line}
-          </Text>
-        ))}
-      </Box>
+    <Box flexDirection="column" marginTop={2}>
+      {/* Logo with info on the right - Claude Code style */}
+      <Box flexDirection="row">
+        {/* Logo column */}
+        <Box flexDirection="column" marginRight={2}>
+          {LOGO_LINES.map((line, idx) => (
+            <Text key={idx} color={animate ? getLineColor(idx) : 'cyan'} bold>
+              {line}
+            </Text>
+          ))}
+        </Box>
 
-      {/* Version and Tagline */}
-      <Box marginTop={1} flexDirection="column" alignItems="center">
-        {showVersion && (
-          <Text color="gray">
-            v{VERSION} - Nexus Coder
-          </Text>
-        )}
-        {showTagline && (
-          <Text color="magenta" dimColor>
-            {animate ? tagline.slice(0, taglineIndex) : tagline}
-            {animate && taglineIndex < tagline.length && (
-              <Text color="white">_</Text>
-            )}
-          </Text>
-        )}
+        {/* Info column */}
+        <Box flexDirection="column" justifyContent="center">
+          {showVersion && (
+            <Text color="white" bold>
+              NEXUS-CODER v{VERSION}
+            </Text>
+          )}
+          {modelName && (
+            <Text color="gray" dimColor>
+              {modelName}
+            </Text>
+          )}
+          {workingDirectory && (
+            <Text color="cyan" dimColor>
+              {workingDirectory}
+            </Text>
+          )}
+          {showTagline && !modelName && !workingDirectory && (
+            <Text color="magenta" dimColor>
+              {animate ? tagline.slice(0, taglineIndex) : tagline}
+              {animate && taglineIndex < tagline.length && <Text color="white">_</Text>}
+            </Text>
+          )}
+        </Box>
       </Box>
     </Box>
   );

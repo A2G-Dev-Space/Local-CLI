@@ -8,6 +8,7 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Box, Text, useInput, useApp, Static } from 'ink';
 import Spinner from 'ink-spinner';
+import os from 'os';
 
 /**
  * Log entry types for Static scrollable output
@@ -105,6 +106,15 @@ type InitStep = 'git_update' | 'login' | 'models' | 'health' | 'docs' | 'config'
 // Tools that require user approval in Supervised Mode
 // File-modifying tools and bash commands need approval (read-only and internal tools are auto-approved)
 const TOOLS_REQUIRING_APPROVAL = new Set(['create_file', 'edit_file', 'bash']);
+
+// Helper function to shorten path with ~ for home directory
+function shortenPath(fullPath: string): string {
+  const homeDir = os.homedir();
+  if (fullPath.startsWith(homeDir)) {
+    return fullPath.replace(homeDir, '~');
+  }
+  return fullPath;
+}
 
 // Helper functions for status bar
 function formatElapsedTime(seconds: number): string {
@@ -1453,16 +1463,13 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
       case 'logo':
         return (
           <Box key={entry.id} flexDirection="column" marginBottom={1}>
-            <Text>{' '}</Text>
-            <Text>{' '}</Text>
-            <Text>{' '}</Text>
-            <Text bold color="cyanBright"> ██╗      ██████╗  ██████╗ █████╗ ██╗          ██████╗██╗     ██╗</Text>
-            <Text bold color="cyan"> ██║     ██╔═══██╗██╔════╝██╔══██╗██║         ██╔════╝██║     ██║</Text>
-            <Text bold color="cyan"> ██║     ██║   ██║██║     ███████║██║         ██║     ██║     ██║</Text>
-            <Text bold color="blue"> ██║     ██║   ██║██║     ██╔══██║██║         ██║     ██║     ██║</Text>
-            <Text bold color="blue"> ███████╗╚██████╔╝╚██████╗██║  ██║███████╗    ╚██████╗███████╗██║</Text>
-            <Text bold color="blueBright"> ╚══════╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝     ╚═════╝╚══════╝╚═╝</Text>
-            <Text color="gray">                      {entry.content}</Text>
+            <Logo
+              showVersion={true}
+              showTagline={false}
+              animate={false}
+              modelName={currentModelInfo.model}
+              workingDirectory={shortenPath(process.cwd())}
+            />
             <Text>{' '}</Text>
             <Box>
               <Text color="gray"> 📚 Local RAG documents available. Use </Text>
@@ -1755,15 +1762,13 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
       case 'compact':
         return (
           <Box key={entry.id} flexDirection="column" marginTop={1}>
-            <Text>{' '}</Text>
-            <Text>{' '}</Text>
-            <Text>{' '}</Text>
-            <Text bold color="cyanBright"> ██╗      ██████╗  ██████╗ █████╗ ██╗          ██████╗██╗     ██╗</Text>
-            <Text bold color="cyan"> ██║     ██╔═══██╗██╔════╝██╔══██╗██║         ██╔════╝██║     ██║</Text>
-            <Text bold color="cyan"> ██║     ██║   ██║██║     ███████║██║         ██║     ██║     ██║</Text>
-            <Text bold color="blue"> ██║     ██║   ██║██║     ██╔══██║██║         ██║     ██║     ██║</Text>
-            <Text bold color="blue"> ███████╗╚██████╔╝╚██████╗██║  ██║███████╗    ╚██████╗███████╗██║</Text>
-            <Text bold color="blueBright"> ╚══════╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝     ╚═════╝╚══════╝╚═╝</Text>
+            <Logo
+              showVersion={true}
+              showTagline={false}
+              animate={false}
+              modelName={currentModelInfo.model}
+              workingDirectory={shortenPath(process.cwd())}
+            />
             <Text color="gray">── {entry.content} ──</Text>
           </Box>
         );
