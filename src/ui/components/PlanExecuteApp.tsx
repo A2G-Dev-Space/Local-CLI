@@ -1896,48 +1896,56 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
 
       {/* Status Bar - Claude Code style when processing */}
       <Box justifyContent="space-between" paddingX={1}>
-        {isProcessing ? (
-          // Claude Code style with pulsing star animation
+        {isProcessing || planExecutionState.executionPhase === 'compacting' ? (
+          // Claude Code style with pulsing star animation (shark for compacting)
           <>
-            <Box>
-              <Text color="magenta">
-                <Spinner type="star" />
-              </Text>
-              <Text color="white">{' '}
-                {(() => {
-                  const phase = planExecutionState.executionPhase;
-                  const todos = planExecutionState.todos;
-                  const completedCount = todos.filter(t => t.status === 'completed').length;
-                  const totalCount = todos.length;
-                  const allTodosCompleted = totalCount > 0 && todos.every(t => t.status === 'completed' || t.status === 'failed');
+            <Box flexDirection="column">
+              {planExecutionState.executionPhase === 'compacting' ? (
+                // Shark spinner for compacting (full width)
+                <Box>
+                  <Text color="cyan"><Spinner type="shark" /></Text>
+                </Box>
+              ) : null}
+              <Box>
+                <Text color="magenta">
+                  <Spinner type="star" />
+                </Text>
+                <Text color="white">{' '}
+                  {(() => {
+                    const phase = planExecutionState.executionPhase;
+                    const todos = planExecutionState.todos;
+                    const completedCount = todos.filter(t => t.status === 'completed').length;
+                    const totalCount = todos.length;
+                    const allTodosCompleted = totalCount > 0 && todos.every(t => t.status === 'completed' || t.status === 'failed');
 
-                  // Build progress prefix (only show when tasks exist)
-                  const progressPrefix = totalCount > 0 ? `${completedCount}/${totalCount} tasks · ` : '';
+                    // Build progress prefix (only show when tasks exist)
+                    const progressPrefix = totalCount > 0 ? `${completedCount}/${totalCount} tasks · ` : '';
 
-                  // Compacting
-                  if (phase === 'compacting') {
-                    return 'Compacting conversation';
-                  }
-                  // All TODOs completed, generating final response
-                  if (phase === 'executing' && allTodosCompleted) {
-                    return `${progressPrefix}Generating response`;
-                  }
-                  // Planning/Thinking
-                  if (phase === 'planning') {
-                    return 'Thinking';
-                  }
-                  // Tool is running - show tool name
-                  if (currentToolName) {
-                    return `${progressPrefix}${currentToolName}`;
-                  }
-                  // Default: processing
-                  return `${progressPrefix}Processing`;
-                })()}…
-              </Text>
-              <Text color="gray">
-                {' '}(esc to interrupt · {formatElapsedTime(sessionElapsed)}
-                {sessionTokens > 0 && ` · ↑ ${formatTokensCompact(sessionTokens)} tokens`})
-              </Text>
+                    // Compacting
+                    if (phase === 'compacting') {
+                      return 'Compacting conversation';
+                    }
+                    // All TODOs completed, generating final response
+                    if (phase === 'executing' && allTodosCompleted) {
+                      return `${progressPrefix}Generating response`;
+                    }
+                    // Planning/Thinking
+                    if (phase === 'planning') {
+                      return 'Thinking';
+                    }
+                    // Tool is running - show tool name
+                    if (currentToolName) {
+                      return `${progressPrefix}${currentToolName}`;
+                    }
+                    // Default: processing
+                    return `${progressPrefix}Processing`;
+                  })()}…
+                </Text>
+                <Text color="gray">
+                  {' '}(esc to interrupt · {formatElapsedTime(sessionElapsed)}
+                  {sessionTokens > 0 && ` · ↑ ${formatTokensCompact(sessionTokens)} tokens`})
+                </Text>
+              </Box>
             </Box>
             <Box>
               {/* Context usage indicator (tokens / percent) */}
