@@ -13,6 +13,7 @@ export {
   FILE_MODIFICATION_RULES,
 } from './shared/tool-usage.js';
 export { CODEBASE_FIRST_RULE, CODEBASE_FIRST_SHORT } from './shared/codebase-rules.js';
+export { GIT_COMMIT_RULES } from './shared/git-rules.js';
 
 // System prompts
 export { PLAN_EXECUTE_SYSTEM_PROMPT } from './system/plan-execute.js';
