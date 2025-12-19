@@ -17,6 +17,12 @@ ${LANGUAGE_PRIORITY_RULE}
 2. Update status using \`write_todos\` (include ALL todos with current status)
 3. **DONE when ALL TODOs are "completed"**
 
+**CRITICAL: Keep TODO status in sync with your actual progress!**
+- When starting a task → mark it "in_progress" IMMEDIATELY
+- When finishing a task → mark it "completed" IMMEDIATELY
+- The user sees the TODO list in real-time - mismatched status is confusing
+- Call \`write_todos\` FREQUENTLY, not just at the end
+
 ${AVAILABLE_TOOLS_WITH_TODO}
 
 ${TOOL_REASON_GUIDE}

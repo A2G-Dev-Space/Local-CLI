@@ -122,9 +122,9 @@ function formatTokensCompact(count: number): string {
   return `${(count / 1000000).toFixed(2)}M`;
 }
 
-// Pulsing star animation component
+// Pulsing star animation hook
 const STAR_FRAMES = ['✦', '✧', '✦', '✷', '✦', '✸', '✦', '✹'];
-const PulsingStar: React.FC = () => {
+const usePulsingStar = () => {
   const [frame, setFrame] = useState(0);
 
   useEffect(() => {
@@ -134,7 +134,7 @@ const PulsingStar: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  return <Text color="magenta" bold>{STAR_FRAMES[frame]}{'  '}</Text>;
+  return STAR_FRAMES[frame];
 };
 
 interface PlanExecuteAppProps {
@@ -1978,32 +1978,35 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
           // Claude Code style with pulsing star animation
           <>
             <Box>
-              <PulsingStar />
-              <Text color="white">
-                {(() => {
-                  const phase = planExecutionState.executionPhase;
-                  const todos = planExecutionState.todos;
-                  const allTodosCompleted = todos.length > 0 && todos.every(t => t.status === 'completed' || t.status === 'failed');
+              <Text>
+                <Text color="magenta" bold>{usePulsingStar()}</Text>
+                {'  '}
+                <Text color="white">
+                  {(() => {
+                    const phase = planExecutionState.executionPhase;
+                    const todos = planExecutionState.todos;
+                    const allTodosCompleted = todos.length > 0 && todos.every(t => t.status === 'completed' || t.status === 'failed');
 
-                  // Compacting
-                  if (phase === 'compacting') {
-                    return 'Compacting conversation';
-                  }
-                  // All TODOs completed, generating final response
-                  if (phase === 'executing' && allTodosCompleted) {
-                    return 'Generating response';
-                  }
-                  // Planning/Thinking
-                  if (phase === 'planning') {
-                    return 'Thinking';
-                  }
-                  // Default: use currentActivity
-                  return planExecutionState.currentActivity || 'Processing';
-                })()}…
-              </Text>
-              <Text color="gray">
-                {' '}(esc to interrupt · {formatElapsedTime(sessionElapsed)}
-                {sessionTokens > 0 && ` · ↑ ${formatTokensCompact(sessionTokens)} tokens`})
+                    // Compacting
+                    if (phase === 'compacting') {
+                      return 'Compacting conversation';
+                    }
+                    // All TODOs completed, generating final response
+                    if (phase === 'executing' && allTodosCompleted) {
+                      return 'Generating response';
+                    }
+                    // Planning/Thinking
+                    if (phase === 'planning') {
+                      return 'Thinking';
+                    }
+                    // Default: use currentActivity
+                    return planExecutionState.currentActivity || 'Processing';
+                  })()}…
+                </Text>
+                <Text color="gray">
+                  {' '}(esc to interrupt · {formatElapsedTime(sessionElapsed)}
+                  {sessionTokens > 0 && ` · ↑ ${formatTokensCompact(sessionTokens)} tokens`})
+                </Text>
               </Text>
             </Box>
             <Box>
