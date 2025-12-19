@@ -250,8 +250,12 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       continue;
     }
 
-    // Empty line
+    // Empty line - collapse consecutive empty lines into one
     if (line.trim() === '') {
+      // Skip consecutive empty lines
+      while (i + 1 < lines.length && (lines[i + 1] ?? '').trim() === '') {
+        i++;
+      }
       elements.push(<Box key={elementKey++} height={1} />);
       i++;
       continue;
