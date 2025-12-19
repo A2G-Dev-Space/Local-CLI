@@ -21,54 +21,30 @@ interface TodoPanelProps {
   isProcessing?: boolean;
 }
 
-// Status configuration
+// Notion-style checkbox icons
 const STATUS_CONFIG = {
-  pending: { emoji: '○', color: 'gray' as const },
-  in_progress: { emoji: '●', color: 'yellow' as const },
-  completed: { emoji: '✓', color: 'green' as const },
-  failed: { emoji: '✗', color: 'red' as const },
+  pending: { icon: '☐', color: 'gray' as const },
+  in_progress: { icon: '☐', color: 'white' as const },
+  completed: { icon: '☑', color: 'gray' as const },
+  failed: { icon: '☒', color: 'red' as const },
 };
 
 /**
- * Progress bar component
+ * Notion-style slim progress bar
  */
 const ProgressBar: React.FC<{ completed: number; total: number; width?: number }> = ({
   completed,
   total,
   width = 20,
 }) => {
-  const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
-  const filled = Math.round((completed / total) * width) || 0;
+  const filled = total > 0 ? Math.round((completed / total) * width) : 0;
   const empty = width - filled;
 
   return (
     <Box>
-      <Text color="green">{'█'.repeat(filled)}</Text>
-      <Text color="gray">{'░'.repeat(empty)}</Text>
-      <Text color="gray"> {percentage}%</Text>
-    </Box>
-  );
-};
-
-/**
- * Mini-map style progress indicator
- * Shows each task as a single character
- */
-const MiniMap: React.FC<{ todos: TodoItem[] }> = ({ todos }) => {
-  if (todos.length === 0) return null;
-
-  return (
-    <Box>
-      <Text color="gray">[</Text>
-      {todos.map((todo, idx) => {
-        const config = STATUS_CONFIG[todo.status] || STATUS_CONFIG.pending;
-        return (
-          <Text key={idx} color={config.color}>
-            {todo.status === 'in_progress' ? '▶' : config.emoji}
-          </Text>
-        );
-      })}
-      <Text color="gray">]</Text>
+      <Text color="greenBright">{'▓'.repeat(filled)}</Text>
+      <Text color="gray" dimColor>{'░'.repeat(empty)}</Text>
+      <Text color="gray" dimColor> {completed} of {total}</Text>
     </Box>
   );
 };
@@ -125,8 +101,6 @@ export const TodoPanel: React.FC<TodoPanelProps> = ({
 
   // Calculate stats
   const completedCount = todos.filter(t => t.status === 'completed').length;
-  const failedCount = todos.filter(t => t.status === 'failed').length;
-  const inProgressCount = todos.filter(t => t.status === 'in_progress').length;
 
   // Format elapsed time as mm:ss or hh:mm:ss
   const formatElapsedTime = (seconds: number): string => {
@@ -140,70 +114,48 @@ export const TodoPanel: React.FC<TodoPanelProps> = ({
   };
 
   return (
-    <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={1}>
-      {/* Header with progress bar and mini-map */}
-      <Box flexDirection="column" marginBottom={1}>
-        <Box justifyContent="space-between">
-          <Box>
-            <Text bold color="cyan">📋 TODO </Text>
-            <MiniMap todos={todos} />
-          </Box>
-          <Box>
-            <Text color="gray">
-              {completedCount}/{todos.length}
-            </Text>
-            {failedCount > 0 && <Text color="red"> ({failedCount} failed)</Text>}
-          </Box>
-        </Box>
-        <Box marginTop={0} justifyContent="space-between">
-          <ProgressBar completed={completedCount} total={todos.length} width={30} />
-          {isProcessing && (
-            <Text color="yellow">({formatElapsedTime(elapsedTime)})</Text>
-          )}
-        </Box>
-      </Box>
-
-      {/* TODO Items */}
+    <Box flexDirection="column" paddingX={1}>
+      {/* TODO Items - Notion style */}
       <Box flexDirection="column">
-        {todos.map((todo, index) => {
+        {todos.map((todo) => {
           const config = STATUS_CONFIG[todo.status] || STATUS_CONFIG.pending;
-          const isCurrent = todo.id === currentTodoId;
-          const isLast = index === todos.length - 1;
+          const isInProgress = todo.status === 'in_progress';
+          const isCompleted = todo.status === 'completed';
 
           return (
             <Box key={todo.id} flexDirection="column">
               <Box>
-                {/* Tree connector */}
-                <Text color="gray" dimColor>
-                  {isLast ? '└─' : '├─'}
-                </Text>
-
-                {/* Status icon */}
-                <Box width={2} marginLeft={1}>
-                  {todo.status === 'in_progress' ? (
-                    <Text color={config.color}>
+                {/* Checkbox icon */}
+                <Box width={2}>
+                  {isInProgress ? (
+                    <Text color="blueBright">
                       <Spinner type="dots" />
                     </Text>
                   ) : (
-                    <Text color={config.color}>{config.emoji}</Text>
+                    <Text color={config.color}>{config.icon}</Text>
                   )}
                 </Box>
 
                 {/* Task title */}
                 <Text
-                  color={todo.status === 'completed' ? 'gray' : config.color}
-                  bold={isCurrent}
-                  dimColor={todo.status === 'completed'}
-                  strikethrough={todo.status === 'completed'}
+                  color={isCompleted ? 'gray' : isInProgress ? 'white' : 'gray'}
+                  bold={isInProgress}
+                  dimColor={isCompleted}
+                  strikethrough={isCompleted}
                 >
                   {todo.title}
                 </Text>
+
+                {/* Current indicator */}
+                {isInProgress && (
+                  <Text color="blueBright"> ←</Text>
+                )}
               </Box>
 
               {/* Error message */}
               {todo.error && (
-                <Box marginLeft={5}>
-                  <Text color="red">└─ Error: {todo.error}</Text>
+                <Box marginLeft={2}>
+                  <Text color="red" dimColor>⚠ {todo.error}</Text>
                 </Box>
               )}
             </Box>
@@ -211,21 +163,13 @@ export const TodoPanel: React.FC<TodoPanelProps> = ({
         })}
       </Box>
 
-      {/* Running tasks indicator */}
-      {inProgressCount > 0 && (
-        <Box marginTop={1} justifyContent="flex-end">
-          <Text color="yellow" dimColor>
-            <Spinner type="dots" /> {inProgressCount} task{inProgressCount > 1 ? 's' : ''} running...
-          </Text>
-        </Box>
-      )}
-
-      {/* All complete message */}
-      {completedCount === todos.length && todos.length > 0 && (
-        <Box marginTop={1} justifyContent="center">
-          <Text color="green">✨ All tasks complete!</Text>
-        </Box>
-      )}
+      {/* Progress bar and time */}
+      <Box marginTop={1} justifyContent="space-between">
+        <ProgressBar completed={completedCount} total={todos.length} width={20} />
+        {isProcessing && (
+          <Text color="gray" dimColor>{formatElapsedTime(elapsedTime)}</Text>
+        )}
+      </Box>
     </Box>
   );
 };
@@ -251,24 +195,25 @@ export const TodoStatusBar: React.FC<{ todos: TodoItem[] }> = ({ todos }) => {
 
   return (
     <Box>
-      {/* Mini progress bar */}
-      <Text color="green">{'█'.repeat(Math.round(percentage / 10))}</Text>
-      <Text color="gray">{'░'.repeat(10 - Math.round(percentage / 10))}</Text>
-      <Text color="cyan"> {completedCount}/{todos.length}</Text>
+      {/* Notion-style inline progress */}
+      <Text color="greenBright">{'▓'.repeat(Math.round(percentage / 10))}</Text>
+      <Text color="gray" dimColor>{'░'.repeat(10 - Math.round(percentage / 10))}</Text>
+      <Text color="gray" dimColor> {completedCount}/{todos.length}</Text>
 
       {currentTodo && (
         <>
-          <Text color="gray"> | </Text>
-          <Text color="yellow">
-            <Spinner type="dots" /> {currentTodo.title.slice(0, 30)}{currentTodo.title.length > 30 ? '...' : ''}
+          <Text color="gray" dimColor> │ </Text>
+          <Text color="blueBright">
+            <Spinner type="dots" />
           </Text>
+          <Text color="white"> {currentTodo.title.slice(0, 30)}{currentTodo.title.length > 30 ? '...' : ''}</Text>
         </>
       )}
 
       {inProgressCount === 0 && completedCount === todos.length && (
         <>
-          <Text color="gray"> | </Text>
-          <Text color="green">✨ Done!</Text>
+          <Text color="gray" dimColor> │ </Text>
+          <Text color="greenBright">Done</Text>
         </>
       )}
     </Box>
