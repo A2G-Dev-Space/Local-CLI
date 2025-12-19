@@ -14,14 +14,11 @@ const require = createRequire(import.meta.url);
 const pkg = require('../../../package.json') as { version: string };
 const VERSION = pkg.version;
 
-// ASCII Art Logo for LOCAL-CLI
+// ASCII Art Logo for LOCAL-CLI (Terminal Style)
 const LOGO_LINES = [
-  '  _      ____   _____          _           _____ _      _____ ',
-  ' | |    / __ \\ / ____|   /\\   | |         / ____| |    |_   _|',
-  ' | |   | |  | | |       /  \\  | |  ______| |    | |      | |  ',
-  ' | |   | |  | | |      / /\\ \\ | | |______| |    | |      | |  ',
-  ' | |___| |__| | |____ / ____ \\| |____    | |____| |____ _| |_ ',
-  ' |______\\____/ \\_____/_/    \\_\\______|    \\_____|______|_____|',
+  '▛▀▀▀▀▀▀▜',
+  '▌ ▶ ▁  ▐',
+  '▙▄▄▄▄▄▄▟',
 ];
 
 // Gradient colors (cycle through these)
@@ -78,32 +75,35 @@ export const Logo: React.FC<LogoProps> = ({
     return GRADIENT_COLORS[colorOffset] ?? 'cyan';
   };
 
-  return (
-    <Box flexDirection="column" alignItems="center">
-      {/* Logo */}
-      <Box flexDirection="column">
-        {LOGO_LINES.map((line, idx) => (
-          <Text key={idx} color={animate ? getLineColor(idx) : 'cyan'} bold>
-            {line}
-          </Text>
-        ))}
-      </Box>
+  // Info lines to display next to logo
+  const infoLines = [
+    { text: `LOCAL-CLI v${VERSION}`, color: 'white' as const, bold: true },
+    { text: 'Local LLM Coding Agent', color: 'gray' as const, bold: false },
+    { text: animate ? tagline.slice(0, taglineIndex) : tagline, color: 'magenta' as const, bold: false, showCursor: animate && taglineIndex < tagline.length },
+  ];
 
-      {/* Version and Tagline */}
-      <Box marginTop={1} flexDirection="column" alignItems="center">
-        {showVersion && (
-          <Text color="gray">
-            v{VERSION} - Local LLM Coding Agent
-          </Text>
-        )}
-        {showTagline && (
-          <Text color="magenta" dimColor>
-            {animate ? tagline.slice(0, taglineIndex) : tagline}
-            {animate && taglineIndex < tagline.length && (
-              <Text color="white">_</Text>
-            )}
-          </Text>
-        )}
+  return (
+    <Box flexDirection="column">
+      {/* Logo with info on the right - Claude Code style */}
+      <Box flexDirection="row">
+        {/* Logo column */}
+        <Box flexDirection="column" marginRight={2}>
+          {LOGO_LINES.map((line, idx) => (
+            <Text key={idx} color={animate ? getLineColor(idx) : 'cyan'} bold>
+              {line}
+            </Text>
+          ))}
+        </Box>
+
+        {/* Info column */}
+        <Box flexDirection="column" justifyContent="center">
+          {showVersion && infoLines.map((info, idx) => (
+            <Text key={idx} color={info.color} bold={info.bold} dimColor={idx > 0}>
+              {info.text}
+              {info.showCursor && <Text color="white">_</Text>}
+            </Text>
+          ))}
+        </Box>
       </Box>
     </Box>
   );
