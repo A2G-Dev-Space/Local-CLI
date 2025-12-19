@@ -134,7 +134,7 @@ const PulsingStar: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  return <Text color="magenta" bold>{STAR_FRAMES[frame]} </Text>;
+  return <Text color="magenta" bold>{STAR_FRAMES[frame]}{' '}</Text>;
 };
 
 interface PlanExecuteAppProps {
@@ -364,54 +364,22 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
     };
   }, [addLog]);
 
-  // Setup reasoning callback - adds to Static log
-  const reasoningLogIdRef = React.useRef<string | null>(null);
-  const accumulatedReasoningRef = React.useRef<string>('');
-
+  // Setup reasoning callback - adds to Static log (non-streaming only)
+  // Note: Streaming updates to Static items cause render issues, so we only support non-streaming
   useEffect(() => {
-    setReasoningCallback((content, isStreaming) => {
-      if (isStreaming) {
-        // Accumulate streaming reasoning
-        accumulatedReasoningRef.current += content;
-
-        // Update or create reasoning log entry
-        if (reasoningLogIdRef.current) {
-          setLogEntries(prev => prev.map(entry =>
-            entry.id === reasoningLogIdRef.current
-              ? { ...entry, content: accumulatedReasoningRef.current }
-              : entry
-          ));
-        } else {
-          // Create new reasoning log entry
-          reasoningLogIdRef.current = `log-${++logIdCounter.current}`;
-          setLogEntries(prev => [...prev, {
-            id: reasoningLogIdRef.current!,
-            type: 'reasoning',
-            content: accumulatedReasoningRef.current,
-          }]);
-        }
-      } else {
-        // Non-streaming: add complete reasoning
-        addLog({
-          type: 'reasoning',
-          content,
-        });
-      }
-      logger.debug('Reasoning received', { contentLength: content.length, isStreaming });
+    setReasoningCallback((content, _isStreaming) => {
+      // Always add as new entry (don't update existing Static items)
+      addLog({
+        type: 'reasoning',
+        content,
+      });
+      logger.debug('Reasoning received', { contentLength: content.length });
     });
 
     return () => {
       setReasoningCallback(null);
     };
   }, [addLog]);
-
-  // Reset reasoning refs when processing starts
-  useEffect(() => {
-    if (isProcessing) {
-      reasoningLogIdRef.current = null;
-      accumulatedReasoningRef.current = '';
-    }
-  }, [isProcessing]);
 
   // Setup tool approval callback (Supervised Mode)
   useEffect(() => {
