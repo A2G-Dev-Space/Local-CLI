@@ -12,6 +12,7 @@ import { LLMClient } from '../../core/llm/llm-client.js';
 import { Message, TodoItem, PlanningResult, TodoStatus } from '../../types/index.js';
 import { logger } from '../../utils/logger.js';
 import { PLANNING_SYSTEM_PROMPT } from '../../prompts/agents/planning.js';
+import { toolRegistry } from '../../tools/registry.js';
 import {
   buildDocsSearchDecisionPrompt,
   parseDocsSearchDecision,
@@ -38,6 +39,7 @@ export class PlanningLLM {
 
   /**
    * Convert user request to TODO list
+   * Uses actual tool definitions for Planning LLM
    * @param userRequest The user's request
    * @param contextMessages Optional context messages (e.g., docs search results)
    */
@@ -49,49 +51,79 @@ export class PlanningLLM {
       },
     ];
 
-    // Include context messages (like docs search results) if provided
+    // Include conversation history for context (compact summary + recent messages)
     if (contextMessages && contextMessages.length > 0) {
-      // Filter to only include assistant messages with context (not system messages)
-      const contextToInclude = contextMessages.filter(
-        m => m.role === 'assistant' && m.content.includes('[Documentation Search')
-      );
-      messages.push(...contextToInclude);
+      // Include system messages (may contain compact summary)
+      const systemMsgs = contextMessages.filter(m => m.role === 'system');
+      // Include recent conversation history (last 10 messages, excluding system)
+      const recentMsgs = contextMessages
+        .filter(m => m.role !== 'system')
+        .slice(-10);
+
+      messages.push(...systemMsgs, ...recentMsgs);
     }
 
     messages.push({
       role: 'user',
-      content: `Break down this request into a TODO list:\n\n${userRequest}`,
+      content: userRequest,
     });
+
+    // Get Planning tool definitions (create_todos only)
+    const planningTools = toolRegistry.getLLMPlanningToolDefinitions();
 
     try {
       const response = await this.llmClient.chatCompletion({
         messages,
+        tools: planningTools,
+        // tool_choice: auto (default) - LLM decides whether to use tool or respond directly
         temperature: 0.7,
         max_tokens: 2000,
       });
 
-      const content = response.choices[0]?.message.content || '';
+      const message = response.choices[0]?.message;
+      const toolCalls = message?.tool_calls;
 
-      // Parse JSON from response
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error('Planning LLM did not return valid JSON');
+      // Handle tool call (create_todos)
+      if (toolCalls && toolCalls.length > 0) {
+        const toolCall = toolCalls[0]!;
+        const toolName = toolCall.function?.name;
+
+        let toolArgs;
+        try {
+          toolArgs = JSON.parse(toolCall.function?.arguments || '{}');
+        } catch (error) {
+          logger.error('Failed to parse tool arguments', { args: toolCall.function?.arguments, error });
+          throw new Error('Planning LLM returned invalid JSON for tool arguments.');
+        }
+
+        if (toolName === 'create_todos') {
+          logger.flow('TODO list created via create_todos tool');
+          const todos: TodoItem[] = toolArgs.todos.map((todo: any, index: number) => ({
+            id: todo.id || `todo-${Date.now()}-${index}`,
+            title: todo.title,
+            // First TODO starts as in_progress, rest are pending
+            status: (index === 0 ? 'in_progress' : 'pending') as TodoStatus,
+          }));
+
+          return {
+            todos,
+            complexity: toolArgs.complexity || 'moderate',
+          };
+        }
       }
 
-      const planningData = JSON.parse(jsonMatch[0]);
+      // No tool call = direct text response (simple question/greeting)
+      const content = message?.content || '';
+      if (content) {
+        logger.flow('Direct text response - no planning needed');
+        return {
+          todos: [],
+          complexity: 'simple',
+          directResponse: content,
+        };
+      }
 
-      // Create TodoItem array with proper status (simplified: title only)
-      const todos: TodoItem[] = planningData.todos.map((todo: any, index: number) => ({
-        id: todo.id || `todo-${Date.now()}-${index}`,
-        title: todo.title,
-        status: 'pending' as TodoStatus,
-      }));
-
-      return {
-        todos,
-        estimatedTime: planningData.estimatedTime,
-        complexity: planningData.complexity || 'moderate',
-      };
+      throw new Error('Planning LLM returned empty response');
     } catch (error) {
       logger.error('Planning LLM error:', error as Error);
 

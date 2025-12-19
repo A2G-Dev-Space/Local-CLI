@@ -33,6 +33,7 @@ import {
   emitTodoComplete,
   emitTodoFail,
   emitCompact,
+  emitAssistantResponse,
 } from '../tools/llm/simple/file-tools.js';
 import { toolRegistry } from '../tools/registry.js';
 import { PLAN_EXECUTE_SYSTEM_PROMPT as PLAN_PROMPT } from '../prompts/system/plan-execute.js';
@@ -88,9 +89,28 @@ export class PlanExecutor {
       let currentMessages = messages;
 
       // 1. Generate TODO list with parallel docs search decision
-      callbacks.setCurrentActivity('Creating plan');
+      callbacks.setCurrentActivity('Thinking');
       const planningLLM = new PlanningLLM(llmClient);
       const planResult = await planningLLM.generateTODOListWithDocsDecision(userMessage, currentMessages);
+
+      // Check for direct response (no planning needed)
+      if (planResult.directResponse) {
+        logger.flow('Direct response - no execution needed');
+        const updatedMessages: Message[] = [
+          ...currentMessages,
+          { role: 'user' as const, content: userMessage },
+          { role: 'assistant' as const, content: planResult.directResponse }
+        ];
+        // Emit to UI log
+        emitAssistantResponse(planResult.directResponse);
+        // Update messages state
+        callbacks.setMessages([...updatedMessages]);
+        sessionManager.autoSaveCurrentSession(updatedMessages);
+        callbacks.setExecutionPhase('idle');
+        logger.exit('PlanExecutor.executePlanMode', { directResponse: true });
+        return;
+      }
+
       currentTodos = planResult.todos;
 
       logger.vars(

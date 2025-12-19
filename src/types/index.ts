@@ -67,6 +67,7 @@ export interface LLMRequestOptions {
   max_tokens?: number;
   stream?: boolean;
   tools?: ToolDefinition[];
+  tool_choice?: 'auto' | 'none' | 'required' | { type: 'function'; function: { name: string } };
 }
 
 /**
@@ -159,6 +160,8 @@ export interface PlanningResult {
   todos: TodoItem[];
   estimatedTime?: string;
   complexity: 'simple' | 'moderate' | 'complex';
+  /** Direct response when no planning is needed */
+  directResponse?: string;
 }
 
 /**

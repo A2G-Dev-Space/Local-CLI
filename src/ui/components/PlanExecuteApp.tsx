@@ -121,6 +121,43 @@ function formatTokensCompact(count: number): string {
   return `${(count / 1000000).toFixed(2)}M`;
 }
 
+// Helper function for status bar text
+interface StatusTextParams {
+  phase: string;
+  todos: { status: string }[];
+  currentToolName: string | null;
+}
+
+function getStatusText({ phase, todos, currentToolName }: StatusTextParams): string {
+  const completedCount = todos.filter(t => t.status === 'completed').length;
+  const totalCount = todos.length;
+  const allTodosCompleted = totalCount > 0 && todos.every(t => t.status === 'completed' || t.status === 'failed');
+
+  // Build progress prefix (only show when tasks exist)
+  const progressPrefix = totalCount > 0 ? `${completedCount}/${totalCount} tasks · ` : '';
+
+  // Compacting
+  if (phase === 'compacting') {
+    return 'Compacting conversation';
+  }
+  // All TODOs completed, generating final response
+  if (phase === 'executing' && allTodosCompleted) {
+    return `${progressPrefix}Generating response`;
+  }
+  // Planning/Thinking
+  if (phase === 'planning') {
+    return 'Thinking';
+  }
+  // Tool is running - show tool name
+  if (currentToolName) {
+    return `${progressPrefix}${currentToolName}`;
+  }
+  // Default: processing
+  return `${progressPrefix}Processing`;
+}
+
+// Status bar uses ink-spinner for animation (avoids custom render issues)
+
 interface PlanExecuteAppProps {
   llmClient: LLMClient | null;
   modelInfo: {
@@ -149,6 +186,9 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
   // Session usage tracking for Claude Code style status bar
   const [sessionTokens, setSessionTokens] = useState(0);
   const [sessionElapsed, setSessionElapsed] = useState(0);
+
+  // Current tool being executed (for status bar)
+  const [currentToolName, setCurrentToolName] = useState<string | null>(null);
 
   // Session browser state
   const [showSessionBrowser, setShowSessionBrowser] = useState(false);
@@ -216,8 +256,12 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
   const lastCtrlCTimeRef = React.useRef<number>(0);
   const DOUBLE_TAP_THRESHOLD = 1500; // 1.5 seconds
 
-  // Helper: add log entry
+  // Helper: add log entry (skip if content is empty/whitespace only)
   const addLog = useCallback((entry: Omit<LogEntry, 'id'>) => {
+    // Skip empty content to prevent blank lines
+    if (!entry.content || entry.content.trim() === '') {
+      return;
+    }
     const id = `log-${++logIdCounter.current}`;
     setLogEntries(prev => [...prev, { ...entry, id }]);
   }, []);
@@ -264,6 +308,8 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
     setToolExecutionCallback((toolName, reason, args) => {
       // Save args for tool_result to use (for create_file content display)
       lastToolArgsRef.current = args;
+      // Track current tool for status bar
+      setCurrentToolName(toolName);
       addLog({
         type: 'tool_start',
         content: toolName,
@@ -281,6 +327,9 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
   // Setup tool response callback - adds to Static log
   useEffect(() => {
     setToolResponseCallback((toolName, success, result) => {
+      // Clear current tool when done
+      setCurrentToolName(null);
+
       // diff 내용 파싱 시도
       let diff: string[] | undefined;
       try {
@@ -342,54 +391,22 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
     };
   }, [addLog]);
 
-  // Setup reasoning callback - adds to Static log
-  const reasoningLogIdRef = React.useRef<string | null>(null);
-  const accumulatedReasoningRef = React.useRef<string>('');
-
+  // Setup reasoning callback - adds to Static log (non-streaming only)
+  // Note: Streaming updates to Static items cause render issues, so we only support non-streaming
   useEffect(() => {
-    setReasoningCallback((content, isStreaming) => {
-      if (isStreaming) {
-        // Accumulate streaming reasoning
-        accumulatedReasoningRef.current += content;
-
-        // Update or create reasoning log entry
-        if (reasoningLogIdRef.current) {
-          setLogEntries(prev => prev.map(entry =>
-            entry.id === reasoningLogIdRef.current
-              ? { ...entry, content: accumulatedReasoningRef.current }
-              : entry
-          ));
-        } else {
-          // Create new reasoning log entry
-          reasoningLogIdRef.current = `log-${++logIdCounter.current}`;
-          setLogEntries(prev => [...prev, {
-            id: reasoningLogIdRef.current!,
-            type: 'reasoning',
-            content: accumulatedReasoningRef.current,
-          }]);
-        }
-      } else {
-        // Non-streaming: add complete reasoning
-        addLog({
-          type: 'reasoning',
-          content,
-        });
-      }
-      logger.debug('Reasoning received', { contentLength: content.length, isStreaming });
+    setReasoningCallback((content, _isStreaming) => {
+      // Always add as new entry (don't update existing Static items)
+      addLog({
+        type: 'reasoning',
+        content,
+      });
+      logger.debug('Reasoning received', { contentLength: content.length });
     });
 
     return () => {
       setReasoningCallback(null);
     };
   }, [addLog]);
-
-  // Reset reasoning refs when processing starts
-  useEffect(() => {
-    if (isProcessing) {
-      reasoningLogIdRef.current = null;
-      accumulatedReasoningRef.current = '';
-    }
-  }, [isProcessing]);
 
   // Setup tool approval callback (Supervised Mode)
   useEffect(() => {
@@ -1301,8 +1318,10 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
 
         <Box marginTop={2} flexDirection="column" alignItems="center">
           <Box>
-            <Spinner type="dots" />
-            <Text color="yellow"> {stepInfo.icon} {stepInfo.text}</Text>
+            <Text color="cyan"><Spinner type="shark" /></Text>
+          </Box>
+          <Box marginTop={1}>
+            <Text color="yellow">{stepInfo.icon} {stepInfo.text}</Text>
           </Box>
 
           {/* Progress indicator */}
@@ -1393,7 +1412,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
 
       case 'assistant_message':
         return (
-          <Box key={entry.id} marginTop={1} flexDirection="column">
+          <Box key={entry.id} marginTop={1} marginBottom={1} flexDirection="column">
             <Text color="magenta" bold>● Assistant</Text>
             <Box paddingLeft={2}>
               <MarkdownRenderer content={entry.content} />
@@ -1762,7 +1781,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
 
       {/* Activity Indicator (shown when processing, but NOT when TODO panel is visible) */}
       {isProcessing && planExecutionState.todos.length === 0 && !pendingToolApproval && !isDocsSearching && (
-        <Box marginY={0}>
+        <Box marginY={1}>
           <ActivityIndicator
             activity={getCurrentActivityType()}
             startTime={activityStartTime}
@@ -1912,18 +1931,32 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
 
       {/* Status Bar - Claude Code style when processing */}
       <Box justifyContent="space-between" paddingX={1}>
-        {isProcessing ? (
-          // Claude Code style: "✶ ~ 하는 중… (esc to interrupt · 2m 7s · ↑ 3.6k tokens)"
+        {isProcessing || planExecutionState.executionPhase === 'compacting' ? (
+          // Claude Code style with pulsing star animation (shark for compacting)
           <>
-            <Box>
-              <Text color="magenta" bold>✶ </Text>
-              <Text color="white">
-                {planExecutionState.currentActivity || '처리 중'}…
-              </Text>
-              <Text color="gray">
-                {' '}(esc to interrupt · {formatElapsedTime(sessionElapsed)}
-                {sessionTokens > 0 && ` · ↑ ${formatTokensCompact(sessionTokens)} tokens`})
-              </Text>
+            <Box flexDirection="column">
+              {planExecutionState.executionPhase === 'compacting' ? (
+                // Shark spinner for compacting (full width)
+                <Box>
+                  <Text color="cyan"><Spinner type="shark" /></Text>
+                </Box>
+              ) : null}
+              <Box>
+                <Text color="magenta">
+                  <Spinner type="star" />
+                </Text>
+                <Text color="white">{' '}
+                  {getStatusText({
+                    phase: planExecutionState.executionPhase,
+                    todos: planExecutionState.todos,
+                    currentToolName,
+                  })}…
+                </Text>
+                <Text color="gray">
+                  {' '}(esc to interrupt · {formatElapsedTime(sessionElapsed)}
+                  {sessionTokens > 0 && ` · ↑ ${formatTokensCompact(sessionTokens)} tokens`})
+                </Text>
+              </Box>
             </Box>
             <Box>
               {/* Context usage indicator (tokens / percent) */}

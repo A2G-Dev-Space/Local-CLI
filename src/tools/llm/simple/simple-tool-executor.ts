@@ -167,13 +167,15 @@ export function emitCompact(originalCount: number, newCount: number): void {
 }
 
 export function emitAssistantResponse(content: string): void {
-  if (assistantResponseCallback) {
+  // Skip empty content to prevent blank lines in UI
+  if (assistantResponseCallback && content && content.trim()) {
     assistantResponseCallback(content);
   }
 }
 
 export function emitReasoning(content: string, isStreaming: boolean = false): void {
-  if (reasoningCallback) {
+  // Skip empty content to prevent blank lines in UI
+  if (reasoningCallback && content && content.trim()) {
     reasoningCallback(content, isStreaming);
   }
 }

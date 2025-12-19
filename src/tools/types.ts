@@ -21,6 +21,7 @@ import { LLMClient } from '../core/llm/llm-client.js';
 export type ToolCategory =
   | 'llm-simple'
   | 'llm-agent'
+  | 'llm-planning'  // Planning LLM 전용 tools
   | 'system-simple'
   | 'system-agent'
   | 'user-command'
