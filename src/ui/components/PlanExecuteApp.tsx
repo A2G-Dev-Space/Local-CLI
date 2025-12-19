@@ -1379,15 +1379,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         return (
           <Box key={entry.id} flexDirection="column" marginBottom={1}>
             <Text>{' '}</Text>
-            <Text>{' '}</Text>
-            <Text>{' '}</Text>
-            <Text bold color="cyanBright"> ██╗      ██████╗  ██████╗ █████╗ ██╗          ██████╗██╗     ██╗</Text>
-            <Text bold color="cyan"> ██║     ██╔═══██╗██╔════╝██╔══██╗██║         ██╔════╝██║     ██║</Text>
-            <Text bold color="cyan"> ██║     ██║   ██║██║     ███████║██║         ██║     ██║     ██║</Text>
-            <Text bold color="blue"> ██║     ██║   ██║██║     ██╔══██║██║         ██║     ██║     ██║</Text>
-            <Text bold color="blue"> ███████╗╚██████╔╝╚██████╗██║  ██║███████╗    ╚██████╗███████╗██║</Text>
-            <Text bold color="blueBright"> ╚══════╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝     ╚═════╝╚══════╝╚═╝</Text>
-            <Text color="gray">                      {entry.content}</Text>
+            <Logo showVersion={true} showTagline={false} animate={false} />
             <Text>{' '}</Text>
             <Box>
               <Text color="gray"> 📚 Local RAG documents available. Use </Text>
@@ -1681,14 +1673,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         return (
           <Box key={entry.id} flexDirection="column" marginTop={1}>
             <Text>{' '}</Text>
-            <Text>{' '}</Text>
-            <Text>{' '}</Text>
-            <Text bold color="cyanBright"> ██╗      ██████╗  ██████╗ █████╗ ██╗          ██████╗██╗     ██╗</Text>
-            <Text bold color="cyan"> ██║     ██╔═══██╗██╔════╝██╔══██╗██║         ██╔════╝██║     ██║</Text>
-            <Text bold color="cyan"> ██║     ██║   ██║██║     ███████║██║         ██║     ██║     ██║</Text>
-            <Text bold color="blue"> ██║     ██║   ██║██║     ██╔══██║██║         ██║     ██║     ██║</Text>
-            <Text bold color="blue"> ███████╗╚██████╔╝╚██████╗██║  ██║███████╗    ╚██████╗███████╗██║</Text>
-            <Text bold color="blueBright"> ╚══════╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝     ╚═════╝╚══════╝╚═╝</Text>
+            <Logo showVersion={true} showTagline={false} animate={false} />
             <Text color="gray">── {entry.content} ──</Text>
           </Box>
         );
