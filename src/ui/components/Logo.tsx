@@ -29,6 +29,8 @@ interface LogoProps {
   showVersion?: boolean;
   showTagline?: boolean;
   animate?: boolean;
+  modelName?: string;
+  workingDirectory?: string;
 }
 
 export const Logo: React.FC<LogoProps> = ({
@@ -36,6 +38,8 @@ export const Logo: React.FC<LogoProps> = ({
   showVersion = true,
   showTagline = true,
   animate = true,
+  modelName,
+  workingDirectory,
 }) => {
   // variant reserved for future use (compact, animated modes)
   void _variant;
@@ -75,15 +79,8 @@ export const Logo: React.FC<LogoProps> = ({
     return GRADIENT_COLORS[colorOffset] ?? 'cyan';
   };
 
-  // Info lines to display next to logo
-  const infoLines = [
-    { text: `LOCAL-CLI v${VERSION}`, color: 'white' as const, bold: true },
-    { text: 'Local LLM Coding Agent', color: 'gray' as const, bold: false },
-    { text: animate ? tagline.slice(0, taglineIndex) : tagline, color: 'magenta' as const, bold: false, showCursor: animate && taglineIndex < tagline.length },
-  ];
-
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" marginTop={2}>
       {/* Logo with info on the right - Claude Code style */}
       <Box flexDirection="row">
         {/* Logo column */}
@@ -97,12 +94,27 @@ export const Logo: React.FC<LogoProps> = ({
 
         {/* Info column */}
         <Box flexDirection="column" justifyContent="center">
-          {showVersion && infoLines.map((info, idx) => (
-            <Text key={idx} color={info.color} bold={info.bold} dimColor={idx > 0}>
-              {info.text}
-              {info.showCursor && <Text color="white">_</Text>}
+          {showVersion && (
+            <Text color="white" bold>
+              LOCAL-CLI v{VERSION}
             </Text>
-          ))}
+          )}
+          {modelName && (
+            <Text color="gray" dimColor>
+              {modelName}
+            </Text>
+          )}
+          {workingDirectory && (
+            <Text color="cyan" dimColor>
+              {workingDirectory}
+            </Text>
+          )}
+          {showTagline && !modelName && !workingDirectory && (
+            <Text color="magenta" dimColor>
+              {animate ? tagline.slice(0, taglineIndex) : tagline}
+              {animate && taglineIndex < tagline.length && <Text color="white">_</Text>}
+            </Text>
+          )}
         </Box>
       </Box>
     </Box>
