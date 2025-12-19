@@ -9,7 +9,7 @@
 > Standalone AI coding agent for local LLM environments.
 > Works with vLLM, Ollama, LM Studio, and any OpenAI-compatible API.
 
-[https://github.com/user-attachments/assets/77cc96c9-cb22-4411-8744-3a006b00c580]
+https://github.com/user-attachments/assets/77cc96c9-cb22-4411-8744-3a006b00c580
 ---
 
 ## Quick Start
