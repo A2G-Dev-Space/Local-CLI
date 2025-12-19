@@ -9,7 +9,7 @@ import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Box, Text, useInput, useApp, Static } from 'ink';
 import Spinner from 'ink-spinner';
 import os from 'os';
-import { detectGitRepo } from '../../../utils/git-utils';
+import { detectGitRepo } from '../../utils/git-utils.js';
 
 /**
  * Log entry types for Static scrollable output

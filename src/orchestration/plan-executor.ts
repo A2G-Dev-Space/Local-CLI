@@ -39,7 +39,7 @@ import { toolRegistry } from '../tools/registry.js';
 import { PLAN_EXECUTE_SYSTEM_PROMPT as PLAN_PROMPT } from '../prompts/system/plan-execute.js';
 import { GIT_COMMIT_RULES } from '../prompts/shared/git-rules.js';
 import { logger } from '../utils/logger.js';
-import { detectGitRepo } from '../utils/git-utils';
+import { detectGitRepo } from '../utils/git-utils.js';
 
 import type { StateCallbacks } from './types.js';
 import { formatErrorMessage, buildTodoContext, findActiveTodo, getTodoStats } from './utils.js';
