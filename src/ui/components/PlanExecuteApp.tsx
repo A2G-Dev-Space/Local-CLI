@@ -134,7 +134,7 @@ const PulsingStar: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  return <Text color="magenta" bold>{STAR_FRAMES[frame]}{' '}</Text>;
+  return <Text color="magenta" bold>{STAR_FRAMES[frame]}{'  '}</Text>;
 };
 
 interface PlanExecuteAppProps {
