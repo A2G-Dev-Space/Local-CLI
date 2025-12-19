@@ -121,20 +121,7 @@ function formatTokensCompact(count: number): string {
   return `${(count / 1000000).toFixed(2)}M`;
 }
 
-// Pulsing star animation component (separate component to isolate hook)
-const STAR_FRAMES = ['✦', '✧', '✦', '✷', '✦', '✸', '✦', '✹'];
-const PulsingStar: React.FC = () => {
-  const [frame, setFrame] = useState(0);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setFrame(f => (f + 1) % STAR_FRAMES.length);
-    }, 150);
-    return () => clearInterval(interval);
-  }, []);
-
-  return <Text color="magenta" bold>{STAR_FRAMES[frame]}</Text>;
-};
+// Status bar uses ink-spinner for animation (avoids custom render issues)
 
 interface PlanExecuteAppProps {
   llmClient: LLMClient | null;
@@ -1903,7 +1890,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
           // Claude Code style with pulsing star animation
           <>
             <Box>
-              <PulsingStar />
+              <Text color="magenta"><Spinner type="dots" /></Text>
               <Text>{'  '}</Text>
               <Text color="white">
                 {(() => {
