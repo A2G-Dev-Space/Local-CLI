@@ -37,7 +37,7 @@ interface ActivityInfo {
 
 const ACTIVITY_INFO: Record<ActivityType, ActivityInfo> = {
   thinking: { icon: '💭', label: 'Thinking', color: 'magenta', spinnerType: 'dots' },
-  planning: { icon: '📋', label: 'Planning', color: 'blue', spinnerType: 'dots' },
+  planning: { icon: '💭', label: 'Thinking', color: 'blue', spinnerType: 'dots' },
   executing: { icon: '⚡', label: 'Executing', color: 'green', spinnerType: 'line' },
   docs_search: { icon: '📚', label: 'Searching docs', color: 'yellow', spinnerType: 'dots' },
   file_read: { icon: '📖', label: 'Reading file', color: 'cyan', spinnerType: 'pipe' },
@@ -111,19 +111,11 @@ export const ActivityIndicator: React.FC<ActivityIndicatorProps> = ({
   subActivities = [],
   tokenCount,
   tokensPerSecond,
-  promptTokens,
-  completionTokens,
-  modelName,
   currentStep,
   totalSteps,
   stepName,
-  latencyMs,
 }) => {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [animFrame, setAnimFrame] = useState(0);
-
-  // Animation frames for token counter
-  const tokenAnimFrames = ['⣾', '⣽', '⣻', '⢿', '⡿', '⣟', '⣯', '⣷'];
 
   // Log component lifecycle
   useEffect(() => {
@@ -143,12 +135,11 @@ export const ActivityIndicator: React.FC<ActivityIndicatorProps> = ({
     );
   }, [activity, detail, subActivities.length]);
 
-  // Update elapsed time and animation
+  // Update elapsed time
   useEffect(() => {
     const interval = setInterval(() => {
       setElapsedSeconds(Math.floor((Date.now() - startTime) / 1000));
-      setAnimFrame(prev => (prev + 1) % tokenAnimFrames.length);
-    }, 100);
+    }, 1000);
     return () => clearInterval(interval);
   }, [startTime]);
 
@@ -185,117 +176,54 @@ export const ActivityIndicator: React.FC<ActivityIndicatorProps> = ({
     }
   };
 
-  // Render token metrics
-  const renderTokenMetrics = () => {
-    const hasTokens = tokenCount !== undefined || promptTokens !== undefined || completionTokens !== undefined;
-    if (!hasTokens && !tokensPerSecond && !latencyMs) return null;
-
-    return (
-      <Box marginTop={0} flexDirection="row" gap={2}>
-        {/* Token count with animation */}
-        {tokenCount !== undefined && (
-          <Box>
-            <Text color="cyan">
-              <Text color="cyan">{tokenAnimFrames[animFrame]}</Text>
-              {' '}Tokens: {formatTokens(tokenCount)}
-            </Text>
-          </Box>
-        )}
-
-        {/* Prompt/Completion breakdown */}
-        {promptTokens !== undefined && completionTokens !== undefined && (
-          <Box>
-            <Text color="gray" dimColor>
-              (↑{formatTokens(promptTokens)} ↓{formatTokens(completionTokens)})
-            </Text>
-          </Box>
-        )}
-
-        {/* Tokens per second */}
-        {tokensPerSecond !== undefined && tokensPerSecond > 0 && (
-          <Box>
-            <Text color="yellow">
-              ⚡ {tokensPerSecond.toFixed(1)} tok/s
-            </Text>
-          </Box>
-        )}
-
-        {/* Latency */}
-        {latencyMs !== undefined && (
-          <Box>
-            <Text color={latencyMs > 1000 ? 'red' : latencyMs > 500 ? 'yellow' : 'green'}>
-              📡 {latencyMs}ms
-            </Text>
-          </Box>
-        )}
-      </Box>
-    );
-  };
-
   return (
-    <Box
-      flexDirection="column"
-      borderStyle="round"
-      borderColor={activityInfo.color as any}
-      paddingX={1}
-    >
-      {/* Main activity header */}
+    <Box flexDirection="column" paddingX={1}>
+      {/* Main activity header - minimal Notion style */}
       <Box>
-        <Text color={activityInfo.color as any} bold>
-          {activityInfo.icon}{' '}
-          <Spinner type={activityInfo.spinnerType} />{' '}
-          {activityInfo.label}
+        <Text color="blueBright">
+          <Spinner type={activityInfo.spinnerType} />
         </Text>
-        <Text color="gray"> ({formatTime(elapsedSeconds)})</Text>
+        <Text color="white" bold> {activityInfo.label}</Text>
+        <Text color="gray" dimColor> {formatTime(elapsedSeconds)}</Text>
         {renderProgressBar()}
       </Box>
 
       {/* Detail line */}
       {detail && (
-        <Box paddingLeft={2}>
-          <Text color="gray" dimColor>
-            └─ {detail}
-          </Text>
+        <Box marginLeft={2}>
+          <Text color="gray" dimColor>{detail}</Text>
         </Box>
       )}
 
       {/* Step info for planning/executing */}
       {stepName && (
-        <Box paddingLeft={2}>
-          <Text color="gray" dimColor>
-            └─ {currentStep}/{totalSteps}: {stepName}
-          </Text>
+        <Box marginLeft={2}>
+          <Text color="gray" dimColor>{currentStep}/{totalSteps}: {stepName}</Text>
         </Box>
       )}
 
       {/* Sub-activities (e.g., tool calls during thinking) */}
       {subActivities.length > 0 && (
-        <Box flexDirection="column" paddingLeft={2} marginTop={0}>
+        <Box flexDirection="column" marginLeft={2}>
           {subActivities.map((sub, idx) => {
             const subInfo = ACTIVITY_INFO[sub.type];
-            const isLast = idx === subActivities.length - 1;
-            const prefix = isLast ? '└─' : '├─';
-
             return (
               <Box key={idx}>
-                <Text color="gray" dimColor>
-                  {prefix} {getStatusIcon(sub.status)} {subInfo.icon} {subInfo.label}
-                  {sub.detail && `: ${sub.detail}`}
-                </Text>
+                {getStatusIcon(sub.status)}
+                <Text color="gray" dimColor> {subInfo.label}</Text>
+                {sub.detail && <Text color="gray" dimColor>: {sub.detail}</Text>}
               </Box>
             );
           })}
         </Box>
       )}
 
-      {/* Token metrics */}
-      {renderTokenMetrics()}
-
-      {/* Footer with model name */}
-      {modelName && (
-        <Box marginTop={0} justifyContent="flex-end">
+      {/* Token metrics - simplified */}
+      {tokenCount !== undefined && (
+        <Box marginLeft={2}>
           <Text color="gray" dimColor>
-            {modelName}
+            {formatTokens(tokenCount)} tokens
+            {tokensPerSecond !== undefined && tokensPerSecond > 0 && ` · ${tokensPerSecond.toFixed(0)} tok/s`}
           </Text>
         </Box>
       )}

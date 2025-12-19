@@ -159,6 +159,8 @@ export interface PlanningResult {
   todos: TodoItem[];
   estimatedTime?: string;
   complexity: 'simple' | 'moderate' | 'complex';
+  /** Direct response when no planning is needed */
+  directResponse?: string;
 }
 
 /**
