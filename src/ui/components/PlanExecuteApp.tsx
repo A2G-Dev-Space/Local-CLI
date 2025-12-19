@@ -1283,8 +1283,10 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
 
         <Box marginTop={2} flexDirection="column" alignItems="center">
           <Box>
-            <Spinner type="dots" />
-            <Text color="yellow"> {stepInfo.icon} {stepInfo.text}</Text>
+            <Text color="cyan"><Spinner type="shark" /></Text>
+          </Box>
+          <Box marginTop={1}>
+            <Text color="yellow">{stepInfo.icon} {stepInfo.text}</Text>
           </Box>
 
           {/* Progress indicator */}
