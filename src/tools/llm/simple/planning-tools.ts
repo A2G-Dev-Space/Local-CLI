@@ -32,7 +32,7 @@ DO NOT use for:
 - Clarifications that don't require code changes
 
 Guidelines:
-- 3-5 TODOs maximum
+- 1-5 TODOs (even 1 is fine for simple actions!)
 - Actionable titles that clearly describe what to do
 - Sequential order (execution order)
 - Include details in title

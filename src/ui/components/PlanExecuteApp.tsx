@@ -1468,7 +1468,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
 
       case 'assistant_message':
         return (
-          <Box key={entry.id} marginTop={1} flexDirection="column">
+          <Box key={entry.id} marginTop={1} marginBottom={1} flexDirection="column">
             <Text color="magenta" bold>● Assistant</Text>
             <Box paddingLeft={2}>
               <MarkdownRenderer content={entry.content} />
