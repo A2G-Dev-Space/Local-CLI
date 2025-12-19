@@ -227,7 +227,14 @@ export class GitAutoUpdater {
 
 
       if (currentCommit === latestCommit) {
-        logger.debug('Already up to date, no rebuild needed');
+        logger.debug('Repository up to date');
+
+        // In binary mode, always copy binaries to ensure consistency
+        if (isRunningAsBinary()) {
+          logger.debug('Ensuring binary is up to date...');
+          return await this.copyBinaries();
+        }
+
         this.emitStatus({ type: 'no_update' });
         return false;
       }
