@@ -31,7 +31,7 @@ interface ThinkingIndicatorProps {
 
 const PHASE_INFO: Record<ThinkingPhase, { icon: string; label: string; color: string }> = {
   analyzing: { icon: '🔍', label: 'Analyzing', color: 'yellow' },
-  planning: { icon: '📋', label: 'Planning', color: 'blue' },
+  planning: { icon: '💭', label: 'Thinking', color: 'blue' },
   generating: { icon: '✨', label: 'Generating', color: 'magenta' },
   executing: { icon: '⚡', label: 'Executing', color: 'green' },
   validating: { icon: '✓', label: 'Validating', color: 'cyan' },
@@ -45,8 +45,6 @@ export const ThinkingIndicator: React.FC<ThinkingIndicatorProps> = ({
   currentStep,
   totalSteps,
   completedSteps,
-  tokenCount,
-  modelName,
 }) => {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
@@ -80,26 +78,6 @@ export const ThinkingIndicator: React.FC<ThinkingIndicatorProps> = ({
   }, [startTime]);
 
   const phaseInfo = PHASE_INFO[phase];
-  const progressPercent = totalSteps && completedSteps
-    ? Math.round((completedSteps / totalSteps) * 100)
-    : null;
-
-  // Generate progress bar
-  const renderProgressBar = () => {
-    if (!totalSteps || !completedSteps) return null;
-
-    const barWidth = 20;
-    const filledWidth = Math.round((completedSteps / totalSteps) * barWidth);
-    const emptyWidth = barWidth - filledWidth;
-
-    return (
-      <Text>
-        <Text color="green">{'█'.repeat(filledWidth)}</Text>
-        <Text color="gray">{'░'.repeat(emptyWidth)}</Text>
-        <Text color="gray"> {progressPercent}%</Text>
-      </Text>
-    );
-  };
 
   // Format elapsed time
   const formatTime = (seconds: number): string => {
@@ -110,53 +88,31 @@ export const ThinkingIndicator: React.FC<ThinkingIndicatorProps> = ({
   };
 
   return (
-    <Box
-      flexDirection="column"
-      borderStyle="round"
-      borderColor={phaseInfo.color as any}
-      paddingX={1}
-      paddingY={0}
-    >
-      {/* Header with phase and spinner */}
+    <Box flexDirection="column" paddingX={1}>
+      {/* Main indicator - minimal Notion style */}
       <Box>
-        <Text color={phaseInfo.color as any} bold>
-          {phaseInfo.icon} <Spinner type="dots" /> {phaseInfo.label}
+        <Text color="blueBright">
+          <Spinner type="dots" />
         </Text>
-        <Text color="gray"> ({formatTime(elapsedSeconds)})</Text>
+        <Text color="white" bold> {phaseInfo.label}</Text>
+        <Text color="gray" dimColor> {formatTime(elapsedSeconds)}</Text>
       </Box>
 
       {/* Current step info */}
       {currentStep && (
-        <Box marginTop={0} paddingLeft={2}>
-          <Text color="gray" dimColor>├─ {currentStep}</Text>
+        <Box marginLeft={2}>
+          <Text color="gray" dimColor>{currentStep}</Text>
         </Box>
       )}
 
       {/* Progress bar */}
       {totalSteps && completedSteps !== undefined && (
-        <Box marginTop={0} paddingLeft={2}>
-          <Text color="gray" dimColor>└─ Step {completedSteps}/{totalSteps} </Text>
-          {renderProgressBar()}
+        <Box marginLeft={2}>
+          <Text color="greenBright">{'▓'.repeat(Math.round((completedSteps / totalSteps) * 15))}</Text>
+          <Text color="gray" dimColor>{'░'.repeat(15 - Math.round((completedSteps / totalSteps) * 15))}</Text>
+          <Text color="gray" dimColor> {completedSteps}/{totalSteps}</Text>
         </Box>
       )}
-
-      {/* Footer with tokens and model */}
-      <Box marginTop={0} justifyContent="space-between">
-        <Box>
-          {tokenCount !== undefined && (
-            <Text color="gray" dimColor>
-              Tokens: ~{tokenCount.toLocaleString()}
-            </Text>
-          )}
-        </Box>
-        <Box>
-          {modelName && (
-            <Text color="gray" dimColor>
-              Model: {modelName}
-            </Text>
-          )}
-        </Box>
-      </Box>
     </Box>
   );
 };

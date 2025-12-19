@@ -88,9 +88,25 @@ export class PlanExecutor {
       let currentMessages = messages;
 
       // 1. Generate TODO list with parallel docs search decision
-      callbacks.setCurrentActivity('Creating plan');
+      callbacks.setCurrentActivity('Thinking');
       const planningLLM = new PlanningLLM(llmClient);
       const planResult = await planningLLM.generateTODOListWithDocsDecision(userMessage, currentMessages);
+
+      // Check for direct response (no planning needed)
+      if (planResult.directResponse) {
+        logger.flow('Direct response - no execution needed');
+        currentMessages = [
+          ...currentMessages,
+          { role: 'user' as const, content: userMessage },
+          { role: 'assistant' as const, content: planResult.directResponse }
+        ];
+        callbacks.setMessages(currentMessages);
+        sessionManager.autoSaveCurrentSession(currentMessages);
+        callbacks.setExecutionPhase('idle');
+        logger.exit('PlanExecutor.executePlanMode', { directResponse: true });
+        return;
+      }
+
       currentTodos = planResult.todos;
 
       logger.vars(

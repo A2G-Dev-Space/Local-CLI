@@ -80,8 +80,21 @@ export class PlanningLLM {
 
       const planningData = JSON.parse(jsonMatch[0]);
 
+      // Check if it's a direct response (response_to_user tool)
+      if (planningData.tool === 'response_to_user' && planningData.response) {
+        logger.flow('Direct response detected, no planning needed');
+        return {
+          todos: [],
+          complexity: 'simple',
+          directResponse: planningData.response,
+        };
+      }
+
+      // Handle create_todos tool or legacy format
+      const todosData = planningData.todos || [];
+
       // Create TodoItem array with proper status (simplified: title only)
-      const todos: TodoItem[] = planningData.todos.map((todo: any, index: number) => ({
+      const todos: TodoItem[] = todosData.map((todo: any, index: number) => ({
         id: todo.id || `todo-${Date.now()}-${index}`,
         title: todo.title,
         status: 'pending' as TodoStatus,
