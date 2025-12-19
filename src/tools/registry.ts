@@ -24,6 +24,7 @@ import {
 import { FILE_TOOLS, SYSTEM_TOOLS } from './llm/simple/file-tools.js';
 import { USER_INTERACTION_TOOLS } from './llm/simple/user-interaction-tools.js';
 import { TODO_TOOLS } from './llm/simple/todo-tools.js';
+import { PLANNING_TOOLS } from './llm/simple/planning-tools.js';
 import { docsSearchAgentTool } from './llm/simple/docs-search-agent-tool.js';
 import { LLM_AGENT_TOOLS } from './llm/agents/index.js';
 
@@ -39,6 +40,7 @@ class ToolRegistry {
     const categories: ToolCategory[] = [
       'llm-simple',
       'llm-agent',
+      'llm-planning',
     ];
     for (const category of categories) {
       this.categoryIndex.set(category, new Set());
@@ -111,8 +113,22 @@ class ToolRegistry {
   }
 
   /**
+   * Get all LLM Planning tools
+   */
+  getLLMPlanningTools(): LLMSimpleTool[] {
+    return this.getByCategory('llm-planning').filter(isLLMSimpleTool);
+  }
+
+  /**
+   * Get LLM Planning tool definitions (for Planning LLM)
+   */
+  getLLMPlanningToolDefinitions(): ToolDefinition[] {
+    return this.getLLMPlanningTools().map((tool) => tool.definition);
+  }
+
+  /**
    * Get all LLM tool definitions (for chatCompletion)
-   * Includes both LLM Simple and LLM Agent tools
+   * Includes both LLM Simple and LLM Agent tools (excludes Planning tools)
    */
   getLLMToolDefinitions(): ToolDefinition[] {
     const llmTools = [
@@ -161,6 +177,9 @@ export function initializeToolRegistry(): void {
 
   // LLM Simple Tools - TODO management
   toolRegistry.registerAll(TODO_TOOLS);
+
+  // LLM Planning Tools - response_to_user, create_todos
+  toolRegistry.registerAll(PLANNING_TOOLS);
 
   // LLM Simple Tools - Docs Search Agent (callable by main LLM)
   toolRegistry.register(docsSearchAgentTool);

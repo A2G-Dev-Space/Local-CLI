@@ -67,6 +67,7 @@ export interface LLMRequestOptions {
   max_tokens?: number;
   stream?: boolean;
   tools?: ToolDefinition[];
+  tool_choice?: 'auto' | 'none' | 'required' | { type: 'function'; function: { name: string } };
 }
 
 /**
