@@ -1,7 +1,7 @@
 # 개발자 종합 가이드 (Development Guide)
 
-> **문서 버전**: 11.0.0 (v2.6.0)
-> **최종 수정일**: 2025-12-17
+> **문서 버전**: 12.0.0 (v2.7.0)
+> **최종 수정일**: 2025-12-19
 
 이 문서는 **LOCAL-CLI** 프로젝트의 전체 구조, 아키텍처, 핵심 기능, 개발 규칙을 설명합니다.
 
@@ -31,13 +31,18 @@
 - AI가 직접 파일을 읽고, 쓰고, 검색하고, 코드를 실행
 - 터미널에서 Interactive UI로 AI와 대화
 
-### 핵심 기능 (v2.6.0)
+### 핵심 기능 (v2.7.0)
 
 | 기능 | 설명 |
 |------|------|
+| **Notion-style TODO UI** | 체크박스 아이콘 (☐☑☒), 완료 항목 취소선, dots2 스피너 (v2.7.0) |
+| **Enhanced Status Bar** | star 스피너 (✶), 진행률 (2/5 tasks), 현재 도구명 표시 (v2.7.0) |
+| **Shark Loading Animation** | 초기 로딩 및 /compact 시 shark 스피너 표시 (v2.7.0) |
+| **create_todos Tool** | Planning LLM이 TODO 생성 시 사용하는 도구 (v2.7.0) |
+| **Planning LLM Context** | Compact 후에도 대화 히스토리 유지 (v2.7.0) |
 | **Planning-Only Mode** | 모든 요청이 TODO 기반 플랜 모드로 실행 (classifier 제거) (v2.6.0) |
 | **Simplified TODO** | TodoItem에서 description 제거, title만 사용 (v2.6.0) |
-| **write_todos Tool** | Claude Code 스타일 - 전체 TODO 리스트 교체 (update-todo-list, get-todo-list 대체) (v2.6.0) |
+| **write_todos Tool** | Claude Code 스타일 - 전체 TODO 리스트 교체 (v2.6.0) |
 | **LLM-based Docs Search** | 폴더 구조 기반 LLM 결정으로 문서 검색 트리거 |
 | **Hierarchical Docs Navigation** | 폴더 탐색 기반 문서 검색 (list_directory, read_docs_file, preview_file) |
 | **Docs Search Progress UI** | 문서 검색 중 실시간 진행 상황 표시 |
