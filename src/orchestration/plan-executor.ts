@@ -7,6 +7,8 @@
  * 모든 실행은 Planning 기반 (Direct Mode 제거됨)
  */
 
+import fs from 'fs';
+import path from 'path';
 import { Message, TodoItem } from '../types/index.js';
 import { LLMClient } from '../core/llm/llm-client.js';
 import { PlanningLLM } from '../agents/planner/index.js';
@@ -37,10 +39,23 @@ import {
 } from '../tools/llm/simple/file-tools.js';
 import { toolRegistry } from '../tools/registry.js';
 import { PLAN_EXECUTE_SYSTEM_PROMPT as PLAN_PROMPT } from '../prompts/system/plan-execute.js';
+import { GIT_COMMIT_RULES } from '../prompts/shared/git-rules.js';
 import { logger } from '../utils/logger.js';
 
 import type { StateCallbacks } from './types.js';
 import { formatErrorMessage, buildTodoContext, findActiveTodo, getTodoStats } from './utils.js';
+
+/**
+ * Build system prompt with conditional Git rules
+ * Git rules are only added when .git folder exists in working directory
+ */
+function buildSystemPrompt(): string {
+  const isGitRepo = fs.existsSync(path.join(process.cwd(), '.git'));
+  if (isGitRepo) {
+    return `${PLAN_PROMPT}\n\n${GIT_COMMIT_RULES}`;
+  }
+  return PLAN_PROMPT;
+}
 
 /**
  * Plan Executor
@@ -141,11 +156,11 @@ export class PlanExecutor {
       callbacks.setExecutionPhase('executing');
       const tools = toolRegistry.getLLMToolDefinitions();
 
-      // Prepare system message
+      // Prepare system message (with conditional Git rules if .git exists)
       const hasSystemMessage = currentMessages.some(m => m.role === 'system');
       if (!hasSystemMessage) {
         currentMessages = [
-          { role: 'system' as const, content: PLAN_PROMPT },
+          { role: 'system' as const, content: buildSystemPrompt() },
           ...currentMessages
         ];
       }
@@ -270,11 +285,11 @@ export class PlanExecutor {
       // Get tools from registry
       const tools = toolRegistry.getLLMToolDefinitions();
 
-      // Ensure system message
+      // Ensure system message (with conditional Git rules if .git exists)
       const hasSystemMessage = currentMessages.some(m => m.role === 'system');
       if (!hasSystemMessage) {
         currentMessages = [
-          { role: 'system' as const, content: PLAN_PROMPT },
+          { role: 'system' as const, content: buildSystemPrompt() },
           ...currentMessages
         ];
       }
