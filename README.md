@@ -1,4 +1,4 @@
-# LOCAL-CLI v2.7.0
+# LOCAL-CLI v2.7.2
 
 [![GitHub release](https://img.shields.io/github/v/release/A2G-Dev-Space/Local-CLI)](https://github.com/A2G-Dev-Space/Local-CLI/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -109,6 +109,15 @@ Claude Code-style scrollable log history:
 ---
 
 ## Main Features
+
+### v2.7.2 New Features
+
+| Feature | Description |
+|---------|-------------|
+| **Git Repository Detection** | Shows startup notification when working in a git repo |
+| **Commit Assistance** | Prompts to commit changes after task completion |
+| **Co-Authored-By Support** | Automatically includes `Co-Authored-By: Local-CLI` trailer in commits |
+| **PR Creation Guidelines** | HEREDOC-based formatting for proper markdown in PRs |
 
 ### v2.7.0 New Features
 
