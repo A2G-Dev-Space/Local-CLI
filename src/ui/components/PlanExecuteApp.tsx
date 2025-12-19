@@ -152,6 +152,9 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
   const [sessionTokens, setSessionTokens] = useState(0);
   const [sessionElapsed, setSessionElapsed] = useState(0);
 
+  // Current tool being executed (for status bar)
+  const [currentToolName, setCurrentToolName] = useState<string | null>(null);
+
   // Session browser state
   const [showSessionBrowser, setShowSessionBrowser] = useState(false);
 
@@ -270,6 +273,8 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
     setToolExecutionCallback((toolName, reason, args) => {
       // Save args for tool_result to use (for create_file content display)
       lastToolArgsRef.current = args;
+      // Track current tool for status bar
+      setCurrentToolName(toolName);
       addLog({
         type: 'tool_start',
         content: toolName,
@@ -287,6 +292,9 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
   // Setup tool response callback - adds to Static log
   useEffect(() => {
     setToolResponseCallback((toolName, success, result) => {
+      // Clear current tool when done
+      setCurrentToolName(null);
+
       // diff 내용 파싱 시도
       let diff: string[] | undefined;
       try {
@@ -1897,7 +1905,12 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
                 {(() => {
                   const phase = planExecutionState.executionPhase;
                   const todos = planExecutionState.todos;
-                  const allTodosCompleted = todos.length > 0 && todos.every(t => t.status === 'completed' || t.status === 'failed');
+                  const completedCount = todos.filter(t => t.status === 'completed').length;
+                  const totalCount = todos.length;
+                  const allTodosCompleted = totalCount > 0 && todos.every(t => t.status === 'completed' || t.status === 'failed');
+
+                  // Build progress prefix (only show when tasks exist)
+                  const progressPrefix = totalCount > 0 ? `${completedCount}/${totalCount} tasks · ` : '';
 
                   // Compacting
                   if (phase === 'compacting') {
@@ -1905,14 +1918,18 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
                   }
                   // All TODOs completed, generating final response
                   if (phase === 'executing' && allTodosCompleted) {
-                    return 'Generating response';
+                    return `${progressPrefix}Generating response`;
                   }
                   // Planning/Thinking
                   if (phase === 'planning') {
                     return 'Thinking';
                   }
-                  // Default: use currentActivity
-                  return planExecutionState.currentActivity || 'Processing';
+                  // Tool is running - show tool name
+                  if (currentToolName) {
+                    return `${progressPrefix}${currentToolName}`;
+                  }
+                  // Default: processing
+                  return `${progressPrefix}Processing`;
                 })()}…
               </Text>
               <Text color="gray">
