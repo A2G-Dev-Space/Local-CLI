@@ -9,6 +9,7 @@ import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Box, Text, useInput, useApp, Static } from 'ink';
 import Spinner from 'ink-spinner';
 import os from 'os';
+import { detectGitRepo } from '../../../utils/git-utils';
 
 /**
  * Log entry types for Static scrollable output
@@ -30,7 +31,8 @@ export type LogEntryType =
   | 'interrupt'
   | 'session_restored'
   | 'docs_search'
-  | 'reasoning';
+  | 'reasoning'
+  | 'git_info';
 
 export interface LogEntry {
   id: string;
@@ -303,6 +305,15 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
       type: 'logo',
       content: `v${VERSION} │ ${modelInfo.model}`,
     });
+
+    // Check for .git and show notification
+    const isGitRepo = detectGitRepo();
+    if (isGitRepo) {
+      addLog({
+        type: 'git_info',
+        content: 'Git repository detected! Commit assistance enabled.',
+      });
+    }
   }, []);
 
   // Log component mount
@@ -1439,6 +1450,13 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
           <Box key={entry.id} marginTop={1} flexDirection="column">
             <Text color="cyan" bold>📂 {entry.content}</Text>
             {entry.details && <Text color="gray" dimColor>   {entry.details}</Text>}
+          </Box>
+        );
+
+      case 'git_info':
+        return (
+          <Box key={entry.id} marginTop={0} marginBottom={0}>
+            <Text color="yellow"> 🔀 {entry.content}</Text>
           </Box>
         );
 
