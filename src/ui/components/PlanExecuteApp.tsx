@@ -121,6 +121,21 @@ function formatTokensCompact(count: number): string {
   return `${(count / 1000000).toFixed(2)}M`;
 }
 
+// Pulsing star animation component
+const STAR_FRAMES = ['✦', '✧', '✦', '✷', '✦', '✸', '✦', '✹'];
+const PulsingStar: React.FC = () => {
+  const [frame, setFrame] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setFrame(f => (f + 1) % STAR_FRAMES.length);
+    }, 150);
+    return () => clearInterval(interval);
+  }, []);
+
+  return <Text color="magenta" bold>{STAR_FRAMES[frame]} </Text>;
+};
+
 interface PlanExecuteAppProps {
   llmClient: LLMClient | null;
   modelInfo: {
@@ -1917,12 +1932,31 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
       {/* Status Bar - Claude Code style when processing */}
       <Box justifyContent="space-between" paddingX={1}>
         {isProcessing ? (
-          // Claude Code style: "✶ ~ 하는 중… (esc to interrupt · 2m 7s · ↑ 3.6k tokens)"
+          // Claude Code style with pulsing star animation
           <>
             <Box>
-              <Text color="magenta" bold>✶ </Text>
+              <PulsingStar />
               <Text color="white">
-                {planExecutionState.currentActivity || '처리 중'}…
+                {(() => {
+                  const phase = planExecutionState.executionPhase;
+                  const todos = planExecutionState.todos;
+                  const allTodosCompleted = todos.length > 0 && todos.every(t => t.status === 'completed' || t.status === 'failed');
+
+                  // Compacting
+                  if (phase === 'compacting') {
+                    return 'Compacting conversation';
+                  }
+                  // All TODOs completed, generating final response
+                  if (phase === 'executing' && allTodosCompleted) {
+                    return 'Generating response';
+                  }
+                  // Planning/Thinking
+                  if (phase === 'planning') {
+                    return 'Thinking';
+                  }
+                  // Default: use currentActivity
+                  return planExecutionState.currentActivity || 'Processing';
+                })()}…
               </Text>
               <Text color="gray">
                 {' '}(esc to interrupt · {formatElapsedTime(sessionElapsed)}
