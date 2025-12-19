@@ -51,13 +51,16 @@ export class PlanningLLM {
       },
     ];
 
-    // Include context messages (like docs search results) if provided
+    // Include conversation history for context (compact summary + recent messages)
     if (contextMessages && contextMessages.length > 0) {
-      // Filter to only include assistant messages with context (not system messages)
-      const contextToInclude = contextMessages.filter(
-        m => m.role === 'assistant' && m.content.includes('[Documentation Search')
-      );
-      messages.push(...contextToInclude);
+      // Include system messages (may contain compact summary)
+      const systemMsgs = contextMessages.filter(m => m.role === 'system');
+      // Include recent conversation history (last 10 messages, excluding system)
+      const recentMsgs = contextMessages
+        .filter(m => m.role !== 'system')
+        .slice(-10);
+
+      messages.push(...systemMsgs, ...recentMsgs);
     }
 
     messages.push({
