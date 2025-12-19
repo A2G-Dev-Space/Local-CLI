@@ -216,8 +216,12 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
   const lastCtrlCTimeRef = React.useRef<number>(0);
   const DOUBLE_TAP_THRESHOLD = 1500; // 1.5 seconds
 
-  // Helper: add log entry
+  // Helper: add log entry (skip if content is empty/whitespace only)
   const addLog = useCallback((entry: Omit<LogEntry, 'id'>) => {
+    // Skip empty content to prevent blank lines
+    if (!entry.content || entry.content.trim() === '') {
+      return;
+    }
     const id = `log-${++logIdCounter.current}`;
     setLogEntries(prev => [...prev, { ...entry, id }]);
   }, []);

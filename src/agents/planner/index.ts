@@ -91,7 +91,8 @@ export class PlanningLLM {
           const todos: TodoItem[] = toolArgs.todos.map((todo: any, index: number) => ({
             id: todo.id || `todo-${Date.now()}-${index}`,
             title: todo.title,
-            status: 'pending' as TodoStatus,
+            // First TODO starts as in_progress, rest are pending
+            status: (index === 0 ? 'in_progress' : 'pending') as TodoStatus,
           }));
 
           return {
