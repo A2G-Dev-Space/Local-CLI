@@ -88,4 +88,3 @@ EOF
 - Markdown requires real newlines, not escape sequences
 `;
 
-export default GIT_COMMIT_RULES;

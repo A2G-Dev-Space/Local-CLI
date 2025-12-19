@@ -9,8 +9,7 @@ import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Box, Text, useInput, useApp, Static } from 'ink';
 import Spinner from 'ink-spinner';
 import os from 'os';
-import fs from 'fs';
-import path from 'path';
+import { detectGitRepo } from '../../../utils/git-utils';
 
 /**
  * Log entry types for Static scrollable output
@@ -308,7 +307,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
     });
 
     // Check for .git and show notification
-    const isGitRepo = fs.existsSync(path.join(process.cwd(), '.git'));
+    const isGitRepo = detectGitRepo();
     if (isGitRepo) {
       addLog({
         type: 'git_info',
