@@ -1966,7 +1966,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
           <>
             <Box>
               <Text color="magenta">
-                <Spinner type="dots" />
+                <Spinner type="star" />
               </Text>
               <Text color="white">{' '}
                 {(() => {
