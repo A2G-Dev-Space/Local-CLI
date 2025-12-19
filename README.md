@@ -1,4 +1,4 @@
-# LOCAL-CLI v2.6.1
+# LOCAL-CLI v2.7.0
 
 [![GitHub release](https://img.shields.io/github/v/release/A2G-Dev-Space/Local-CLI)](https://github.com/A2G-Dev-Space/Local-CLI/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -54,12 +54,17 @@ Automatically breaks down user requests into TODO lists and executes them sequen
 ```
 You: Add a logging system to the project
 
-✶ Planning... (esc to interrupt · 5s · ↑ 1.2k tokens)
+✶ Thinking… (esc to interrupt · 5s · ↑ 1.2k tokens)
 
-📋 3 tasks created:
-  1. Create logger.ts file
-  2. Add logger import to existing files
-  3. Apply logger to error handling
+┌────────────────────────────────────────────────┐
+│ 📋 TODO List                            1/3    │
+│ ████████░░░░░░░░░░░░░░░░░ 33%                  │
+│ ├─ ☑ Create logger.ts file                    │
+│ ├─ ⣾ Add logger import to existing files      │
+│ └─ ☐ Apply logger to error handling           │
+└────────────────────────────────────────────────┘
+
+✶ 1/3 tasks · edit_file… (esc to interrupt · 12s)
 ```
 
 ### Static Log UI
@@ -103,14 +108,24 @@ Claude Code-style scrollable log history:
 
 ## Main Features
 
-### v2.6.1 New Features
+### v2.7.0 New Features
+
+| Feature | Description |
+|---------|-------------|
+| **Notion-style TODO UI** | Checkbox icons (☐ pending, ☑ completed, ☒ failed), strikethrough for completed items |
+| **Enhanced Status Bar** | Star spinner (✶), progress display (2/5 tasks), current tool name |
+| **Shark Loading Animation** | Initial loading screen and `/compact` use shark spinner |
+| **Planning LLM Improvements** | create_todos tool, conversation history after compact, TODO sync emphasis |
+| **dots2 Spinner** | TODO list uses dots2 spinner (⣾ ⣽ ⣻ ⢿) for better visuals |
+
+### v2.6.1 Features
 
 | Feature | Description |
 |---------|-------------|
 | **Planning-Only Mode** | All requests use TODO-based plan mode (classifier removed) |
 | **Simplified TODO** | TodoItem uses `title` only (no `description`) |
-| **write_todos Tool** | Claude Code style - replaces entire TODO list (replaces `update-todo-list`, `get-todo-list`) |
-| **tell_to_user First** | LLM must communicate results via `tell_to_user` before calling `write_todos` |
+| **write_todos Tool** | Claude Code style - replaces entire TODO list |
+| **tell_to_user First** | LLM communicates results via `tell_to_user` before `write_todos` |
 
 ### v2.5.x Features
 
