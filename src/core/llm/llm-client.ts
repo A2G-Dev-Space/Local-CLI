@@ -74,6 +74,18 @@ export interface LLMStreamChunk {
 /**
  * LLM Client 클래스
  */
+/**
+ * 재시도 설정 인터페이스
+ */
+export interface RetryConfig {
+  /** 최대 재시도 횟수 (기본값: 3) */
+  maxRetries?: number;
+  /** 현재 시도 횟수 (내부용) */
+  currentAttempt?: number;
+  /** 재시도 비활성화 여부 */
+  disableRetry?: boolean;
+}
+
 export class LLMClient {
   private axiosInstance: AxiosInstance;
   private baseUrl: string;
@@ -82,6 +94,9 @@ export class LLMClient {
   private modelName: string;
   private currentAbortController: AbortController | null = null;
   private isInterrupted: boolean = false;
+
+  /** 기본 최대 재시도 횟수 */
+  private static readonly DEFAULT_MAX_RETRIES = 3;
 
   constructor() {
     // ConfigManager에서 현재 설정 가져오기
@@ -140,12 +155,21 @@ export class LLMClient {
 
   /**
    * Chat Completion API 호출 (Non-streaming)
+   * 기본적으로 3번까지 재시도하며, 재시도 중에는 에러가 UI에 표시되지 않음
    */
-  async chatCompletion(options: Partial<LLMRequestOptions>): Promise<LLMResponse> {
+  async chatCompletion(
+    options: Partial<LLMRequestOptions>,
+    retryConfig?: RetryConfig
+  ): Promise<LLMResponse> {
+    const maxRetries = retryConfig?.disableRetry ? 1 : (retryConfig?.maxRetries ?? LLMClient.DEFAULT_MAX_RETRIES);
+    const currentAttempt = retryConfig?.currentAttempt ?? 1;
+
     logger.enter('chatCompletion', {
       model: options.model || this.model,
       messagesCount: options.messages?.length || 0,
-      hasTools: !!options.tools
+      hasTools: !!options.tools,
+      attempt: currentAttempt,
+      maxRetries
     });
 
     const url = '/chat/completions';
@@ -278,8 +302,36 @@ export class LLMClient {
         throw new Error('INTERRUPTED');
       }
 
+      // 재시도 가능한 에러이고, 아직 재시도 횟수가 남아있으면 재시도
+      if (currentAttempt < maxRetries && this.isRetryableError(error)) {
+        // 재시도 중에는 debug 레벨로만 로깅 (UI에 표시 안됨)
+        const delay = Math.pow(2, currentAttempt - 1) * 1000; // 지수 백오프: 1s, 2s, 4s
+        logger.debug(`LLM 호출 실패 (${currentAttempt}/${maxRetries}), ${delay}ms 후 재시도...`, {
+          error: (error as Error).message,
+          attempt: currentAttempt,
+          maxRetries,
+          delay
+        });
+
+        await this.sleep(delay);
+
+        // 재귀적으로 재시도
+        return this.chatCompletion(options, {
+          maxRetries,
+          currentAttempt: currentAttempt + 1,
+        });
+      }
+
+      // 최종 실패: 에러 로깅 및 throw
       logger.flow('API 호출 실패 - 에러 처리');
-      logger.exit('chatCompletion', { success: false, error: (error as Error).message });
+      if (currentAttempt > 1) {
+        // 재시도 후 최종 실패한 경우에만 에러 로그 표시
+        logger.error(`LLM 호출 ${maxRetries}번 재시도 후 최종 실패`, {
+          error: (error as Error).message,
+          attempts: currentAttempt
+        });
+      }
+      logger.exit('chatCompletion', { success: false, error: (error as Error).message, attempts: currentAttempt });
       throw this.handleError(error, {
         method: 'POST',
         url,
@@ -320,6 +372,64 @@ export class LLMClient {
    */
   isRequestActive(): boolean {
     return this.currentAbortController !== null;
+  }
+
+  /**
+   * 재시도 가능한 에러인지 확인
+   * - 5xx 서버 에러
+   * - 네트워크 에러 (ECONNREFUSED, ETIMEDOUT, ECONNRESET 등)
+   * - Rate Limit (429)
+   * - Tool argument 파싱 에러는 재시도하지 않음 (LLM 응답 문제)
+   */
+  private isRetryableError(error: unknown): boolean {
+    // 사용자 인터럽트는 재시도하지 않음
+    if (error instanceof Error && error.message === 'INTERRUPTED') {
+      return false;
+    }
+
+    if (axios.isAxiosError(error)) {
+      const axiosError = error as AxiosError;
+
+      // 네트워크 에러 (응답 없음)
+      if (!axiosError.response) {
+        const retryableCodes = ['ECONNREFUSED', 'ETIMEDOUT', 'ECONNRESET', 'ECONNABORTED', 'ENOTFOUND', 'EHOSTUNREACH'];
+        if (axiosError.code && retryableCodes.includes(axiosError.code)) {
+          return true;
+        }
+        // 타임아웃
+        if (axiosError.message.includes('timeout')) {
+          return true;
+        }
+        return true; // 기타 네트워크 에러도 재시도
+      }
+
+      const status = axiosError.response.status;
+
+      // Rate Limit (429)
+      if (status === 429) {
+        return true;
+      }
+
+      // 서버 에러 (5xx)
+      if (status >= 500) {
+        return true;
+      }
+
+      // 인증/권한 에러는 재시도하지 않음 (401, 403)
+      // 잘못된 요청도 재시도하지 않음 (400)
+      // Context Length 초과도 재시도하지 않음
+      return false;
+    }
+
+    // 기타 에러는 재시도하지 않음
+    return false;
+  }
+
+  /**
+   * 지정된 시간만큼 대기 (재시도용)
+   */
+  private sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   /**
@@ -1247,28 +1357,14 @@ export class LLMClient {
 
   /**
    * 재시도 로직이 포함된 Chat Completion
+   * @deprecated chatCompletion이 이제 기본적으로 재시도를 수행합니다
    */
   async chatCompletionWithRetry(
     options: Partial<LLMRequestOptions>,
     maxRetries = 3
   ): Promise<LLMResponse> {
-    let lastError: Error | null = null;
-
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        return await this.chatCompletion(options);
-      } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
-
-        if (attempt < maxRetries) {
-          // 지수 백오프 (1s, 2s, 4s)
-          const delay = Math.pow(2, attempt - 1) * 1000;
-          await new Promise((resolve) => setTimeout(resolve, delay));
-        }
-      }
-    }
-
-    throw new Error(`${maxRetries}번 재시도 후 실패: ${lastError?.message || '알 수 없는 에러'}`);
+    // chatCompletion이 이제 내부적으로 재시도를 수행하므로 직접 호출
+    return this.chatCompletion(options, { maxRetries });
   }
 
   /**
