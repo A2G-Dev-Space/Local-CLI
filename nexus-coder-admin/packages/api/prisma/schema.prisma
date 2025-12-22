@@ -1,0 +1,101 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 사용자 모델
+model User {
+  id         String   @id @default(uuid())
+  loginid    String   @unique
+  username   String
+  deptname   String   @default("")
+  firstSeen  DateTime @default(now())
+  lastActive DateTime @default(now())
+  isActive   Boolean  @default(true)
+
+  usageLogs      UsageLog[]
+  dailyUsageStats DailyUsageStat[]
+
+  @@map("users")
+}
+
+// LLM 모델 설정
+model Model {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  displayName String
+  endpointUrl String
+  apiKey      String?
+  maxTokens   Int      @default(128000)
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  createdBy   String?
+
+  creator    Admin?     @relation(fields: [createdBy], references: [id])
+  usageLogs  UsageLog[]
+  dailyUsageStats DailyUsageStat[]
+
+  @@map("models")
+}
+
+// 관리자
+model Admin {
+  id        String   @id @default(uuid())
+  loginid   String   @unique
+  role      AdminRole @default(ADMIN)
+  createdAt DateTime @default(now())
+
+  models Model[]
+
+  @@map("admins")
+}
+
+enum AdminRole {
+  SUPER_ADMIN
+  ADMIN
+  VIEWER
+}
+
+// 사용 로그 (개별 요청)
+model UsageLog {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  modelId      String   @map("model_id")
+  inputTokens  Int      @default(0)
+  outputTokens Int      @default(0)
+  totalTokens  Int      @default(0)
+  timestamp    DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id])
+  model Model @relation(fields: [modelId], references: [id])
+
+  @@index([userId])
+  @@index([modelId])
+  @@index([timestamp])
+  @@map("usage_logs")
+}
+
+// 일별 사용 통계 (집계)
+model DailyUsageStat {
+  id                String   @id @default(uuid())
+  date              DateTime @db.Date
+  userId            String   @map("user_id")
+  modelId           String   @map("model_id")
+  deptname          String   @default("")
+  totalInputTokens  Int      @default(0)
+  totalOutputTokens Int      @default(0)
+  requestCount      Int      @default(0)
+
+  user  User  @relation(fields: [userId], references: [id])
+  model Model @relation(fields: [modelId], references: [id])
+
+  @@unique([date, userId, modelId])
+  @@index([date])
+  @@index([userId])
+  @@index([modelId])
+  @@map("daily_usage_stats")
+}
