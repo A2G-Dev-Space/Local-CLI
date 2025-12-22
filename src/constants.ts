@@ -115,7 +115,7 @@ export const APP_NAME = 'Nexus Coder';
  */
 export const SSO_CONFIG = {
   baseUrl: 'https://genai.samsungds.net:36810',
-  ssoPath: '/sso',
+  ssoPath: '/direct_sso',
   certFileName: 'cert.cer',
 };
 
