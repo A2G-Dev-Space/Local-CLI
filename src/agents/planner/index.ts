@@ -103,8 +103,19 @@ export class PlanningLLM {
         if (toolName === 'create_todos') {
           logger.flow('TODO list created via create_todos tool');
 
-          // Validate todos is an array
-          const rawTodos = toolArgs.todos;
+          // Validate todos is an array (handle string-wrapped JSON from LLM)
+          let rawTodos = toolArgs.todos;
+
+          // If todos is a string, try to parse it as JSON
+          if (typeof rawTodos === 'string') {
+            try {
+              rawTodos = JSON.parse(rawTodos);
+              logger.debug('Parsed string-wrapped todos array');
+            } catch {
+              logger.warn('Failed to parse string todos as JSON', { todos: rawTodos });
+            }
+          }
+
           if (!Array.isArray(rawTodos)) {
             logger.warn('create_todos called with non-array todos', { toolArgs });
             throw new Error('Planning LLM returned invalid todos format (expected array).');
