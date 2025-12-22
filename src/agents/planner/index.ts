@@ -98,9 +98,17 @@ export class PlanningLLM {
 
         if (toolName === 'create_todos') {
           logger.flow('TODO list created via create_todos tool');
-          const todos: TodoItem[] = toolArgs.todos.map((todo: any, index: number) => ({
+
+          // Validate todos is an array
+          const rawTodos = toolArgs.todos;
+          if (!Array.isArray(rawTodos)) {
+            logger.warn('create_todos called with non-array todos', { toolArgs });
+            throw new Error('Planning LLM returned invalid todos format (expected array).');
+          }
+
+          const todos: TodoItem[] = rawTodos.map((todo: any, index: number) => ({
             id: todo.id || `todo-${Date.now()}-${index}`,
-            title: todo.title,
+            title: todo.title || 'Untitled task',
             // First TODO starts as in_progress, rest are pending
             status: (index === 0 ? 'in_progress' : 'pending') as TodoStatus,
           }));
