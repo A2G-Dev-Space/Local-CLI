@@ -110,11 +110,19 @@ export class PlanExecutor {
       // Check for direct response (no planning needed)
       if (planResult.directResponse) {
         logger.flow('Direct response - no execution needed');
-        const updatedMessages: Message[] = [
-          ...currentMessages,
-          { role: 'user' as const, content: userMessage },
-          { role: 'assistant' as const, content: planResult.directResponse }
-        ];
+        // Check if last message is already the same user request (avoid duplicate)
+        const lastMsg = currentMessages[currentMessages.length - 1];
+        const needsUserMessage = !(lastMsg?.role === 'user' && lastMsg?.content === userMessage);
+        const updatedMessages: Message[] = needsUserMessage
+          ? [
+              ...currentMessages,
+              { role: 'user' as const, content: userMessage },
+              { role: 'assistant' as const, content: planResult.directResponse }
+            ]
+          : [
+              ...currentMessages,
+              { role: 'assistant' as const, content: planResult.directResponse }
+            ];
         // Emit to UI log
         emitAssistantResponse(planResult.directResponse);
         // Update messages state
@@ -139,11 +147,19 @@ export class PlanExecutor {
       const planMessage = planResult.docsSearchNeeded
         ? `📋 Created ${currentTodos.length} tasks (including docs search). Starting execution...`
         : `📋 Created ${currentTodos.length} tasks. Starting execution...`;
-      currentMessages = [
-        ...currentMessages,
-        { role: 'user' as const, content: userMessage },
-        { role: 'assistant' as const, content: planMessage }
-      ];
+      // Check if last message is already the same user request (avoid duplicate)
+      const lastMsgForPlan = currentMessages[currentMessages.length - 1];
+      const needsUserMessageForPlan = !(lastMsgForPlan?.role === 'user' && lastMsgForPlan?.content === userMessage);
+      currentMessages = needsUserMessageForPlan
+        ? [
+            ...currentMessages,
+            { role: 'user' as const, content: userMessage },
+            { role: 'assistant' as const, content: planMessage }
+          ]
+        : [
+            ...currentMessages,
+            { role: 'assistant' as const, content: planMessage }
+          ];
       callbacks.setMessages(currentMessages);
 
       // 2. Setup TODO callbacks
