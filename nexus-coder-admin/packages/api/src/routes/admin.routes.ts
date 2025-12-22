@@ -630,10 +630,10 @@ adminRoutes.get('/stats/model-daily-trend', async (req: AuthenticatedRequest, re
 
     // Get daily stats grouped by model and date using raw SQL
     const dailyStats = await prisma.$queryRaw<Array<{ date: Date | string; model_id: string; total_tokens: bigint }>>`
-      SELECT DATE(timestamp) as date, "modelId" as model_id, SUM("totalTokens") as total_tokens
+      SELECT DATE(timestamp) as date, model_id, SUM("totalTokens") as total_tokens
       FROM usage_logs
       WHERE timestamp >= ${startDate}
-      GROUP BY DATE(timestamp), "modelId"
+      GROUP BY DATE(timestamp), model_id
       ORDER BY date ASC
     `;
 
@@ -737,12 +737,12 @@ adminRoutes.get('/stats/model-user-trend', async (req: AuthenticatedRequest, res
 
     // Get daily stats for these users using raw SQL
     const dailyStats = await prisma.$queryRaw<Array<{ date: Date | string; user_id: string; total_tokens: bigint }>>`
-      SELECT DATE(timestamp) as date, "userId" as user_id, SUM("totalTokens") as total_tokens
+      SELECT DATE(timestamp) as date, user_id, SUM("totalTokens") as total_tokens
       FROM usage_logs
-      WHERE "modelId" = ${modelId}
-        AND "userId" = ANY(${topUserIds})
+      WHERE model_id = ${modelId}
+        AND user_id = ANY(${topUserIds})
         AND timestamp >= ${startDate}
-      GROUP BY DATE(timestamp), "userId"
+      GROUP BY DATE(timestamp), user_id
       ORDER BY date ASC
     `;
 
