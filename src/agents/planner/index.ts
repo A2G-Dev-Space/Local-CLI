@@ -63,10 +63,14 @@ export class PlanningLLM {
       messages.push(...systemMsgs, ...recentMsgs);
     }
 
-    messages.push({
-      role: 'user',
-      content: userRequest,
-    });
+    // Check if last message is already the same user request (avoid duplicate)
+    const lastMsg = messages[messages.length - 1];
+    if (!(lastMsg?.role === 'user' && lastMsg?.content === userRequest)) {
+      messages.push({
+        role: 'user',
+        content: userRequest,
+      });
+    }
 
     // Get Planning tool definitions (create_todos only)
     const planningTools = toolRegistry.getLLMPlanningToolDefinitions();
@@ -98,9 +102,28 @@ export class PlanningLLM {
 
         if (toolName === 'create_todos') {
           logger.flow('TODO list created via create_todos tool');
-          const todos: TodoItem[] = toolArgs.todos.map((todo: any, index: number) => ({
+
+          // Validate todos is an array (handle string-wrapped JSON from LLM)
+          let rawTodos = toolArgs.todos;
+
+          // If todos is a string, try to parse it as JSON
+          if (typeof rawTodos === 'string') {
+            try {
+              rawTodos = JSON.parse(rawTodos);
+              logger.debug('Parsed string-wrapped todos array');
+            } catch {
+              logger.warn('Failed to parse string todos as JSON', { todos: rawTodos });
+            }
+          }
+
+          if (!Array.isArray(rawTodos)) {
+            logger.warn('create_todos called with non-array todos', { toolArgs });
+            throw new Error('Planning LLM returned invalid todos format (expected array).');
+          }
+
+          const todos: TodoItem[] = rawTodos.map((todo: any, index: number) => ({
             id: todo.id || `todo-${Date.now()}-${index}`,
-            title: todo.title,
+            title: todo.title || 'Untitled task',
             // First TODO starts as in_progress, rest are pending
             status: (index === 0 ? 'in_progress' : 'pending') as TodoStatus,
           }));

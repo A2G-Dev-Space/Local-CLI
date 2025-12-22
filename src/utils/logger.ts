@@ -829,7 +829,14 @@ export class Logger {
       console.log();
       console.log(chalk.yellow.bold('Tool Calls:'));
       toolCalls.forEach((tc: any) => {
-        console.log(chalk.yellow(`  - ${tc.function?.name}: ${tc.function?.arguments?.substring(0, 100)}...`));
+        console.log(chalk.yellow(`  - ${tc.function?.name}:`));
+        // Pretty print full arguments JSON
+        try {
+          const args = JSON.parse(tc.function?.arguments || '{}');
+          console.log(chalk.gray(JSON.stringify(args, null, 2)));
+        } catch {
+          console.log(chalk.gray(tc.function?.arguments || '(no arguments)'));
+        }
       });
     }
     console.log(chalk.green('─'.repeat(80)));
