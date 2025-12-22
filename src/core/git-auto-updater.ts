@@ -345,6 +345,10 @@ export class GitAutoUpdater {
       // Read gzipped file and decompress
       const gzippedData = fs.readFileSync(nexusGzSrc);
       const decompressedData = await gunzip(gzippedData);
+
+      // Remove existing binary first to avoid ETXTBSY error
+      // (Linux allows unlinking a running binary, but not overwriting it)
+      await rm(nexusDest, { force: true });
       await writeFile(nexusDest, decompressedData);
       await chmod(nexusDest, 0o755);
 
