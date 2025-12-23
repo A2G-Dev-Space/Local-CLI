@@ -2,10 +2,14 @@
  * Custom Text Input Component
  *
  * Replaces ink-text-input with full control over cursor positioning and keyboard shortcuts
+ * Supports multi-line paste detection and display
  */
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Box, Text, useStdin } from 'ink';
+
+// Threshold for collapsing multi-line content
+const MULTILINE_COLLAPSE_THRESHOLD = 10;
 
 interface CustomTextInputProps {
   value: string;
@@ -177,10 +181,28 @@ export const CustomTextInput: React.FC<CustomTextInputProps> = ({
       return;
     }
 
-    // Enter key
-    if (str === '\r' || str === '\n') {
+    // Enter key - submit (only if single character, not part of paste)
+    if ((str === '\r' || str === '\n') && str.length === 1) {
       if (onSubmitRef.current) {
         onSubmitRef.current(currentValue);
+      }
+      return;
+    }
+
+    // Multi-character paste detection:
+    // When pasting, terminal sends multiple characters at once.
+    // If str.length > 1 and contains newlines, it's a paste operation.
+    // Also handle single-character input that's part of rapid paste (detected by length > 1).
+    const isPaste = str.length > 1;
+
+    if (isPaste) {
+      // Paste detected - allow all characters including newlines
+      // Filter out only truly problematic control characters (not newlines)
+      const sanitized = str.replace(/[\x00-\x09\x0B\x0C\x0E-\x1F\x7F]/g, '');
+      if (sanitized.length > 0) {
+        const newValue = currentValue.slice(0, currentCursor) + sanitized + currentValue.slice(currentCursor);
+        onChangeRef.current(newValue);
+        setCursorPosition(currentCursor + sanitized.length);
       }
       return;
     }
@@ -246,6 +268,22 @@ export const CustomTextInput: React.FC<CustomTextInputProps> = ({
     // Multi-line rendering
     // Split by newlines and render each line, placing cursor correctly
     const lines = value.split('\n');
+    const lineCount = lines.length;
+
+    // If more than THRESHOLD lines, show collapsed view
+    if (lineCount > MULTILINE_COLLAPSE_THRESHOLD) {
+      const firstLine = lines[0] || '';
+      const truncatedFirstLine = firstLine.length > 40 ? firstLine.slice(0, 40) + '...' : firstLine;
+      return (
+        <Box>
+          <Text color="cyan">{lineCount} lines pasted</Text>
+          <Text color="gray"> │ </Text>
+          <Text dimColor>{truncatedFirstLine}</Text>
+          {focus && <Text inverse> </Text>}
+        </Box>
+      );
+    }
+
     let charCount = 0;
     let cursorLineIndex = 0;
     let cursorPosInLine = 0;
