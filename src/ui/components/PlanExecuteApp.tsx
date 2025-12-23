@@ -1857,7 +1857,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
                   ? "Press ESC to close settings..."
                   : showDocsBrowser
                   ? "Select a doc source or press ESC..."
-                  : "Type your message... (@ for files, / for commands)"
+                  : "Type your message... (@ files, / commands, Alt+Enter newline)"
               }
               focus={!showSessionBrowser && !showSettings && !showDocsBrowser}
             />
