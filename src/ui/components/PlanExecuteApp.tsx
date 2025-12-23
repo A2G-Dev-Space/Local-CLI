@@ -1859,7 +1859,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
                   ? "Select a doc source or press ESC..."
                   : "Type your message... (@ files, / commands, Alt+Enter newline)"
               }
-              focus={!showSessionBrowser && !showSettings && !showDocsBrowser}
+              focus={!showSessionBrowser && !showSettings && !showDocsBrowser && !planExecutionState.askUserRequest}
             />
           </Box>
           {/* Character counter */}
