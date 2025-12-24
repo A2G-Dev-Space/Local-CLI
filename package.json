@@ -1,16 +1,17 @@
 {
-  "name": "local-cli",
+  "name": "nexus-coder",
   "version": "2.7.4",
-  "description": "LOCAL-CLI - OpenAI-Compatible Local CLI Coding Agent",
+  "description": "Nexus Coder - Enterprise AI Coding Assistant",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "lcli": "dist/cli.js",
-    "lcli-dev": "dist/cli.js"
+    "nexus": "dist/cli.js",
+    "nexus-dev": "dist/cli.js"
   },
   "scripts": {
     "build": "tsc",
     "postbuild": "chmod +x dist/cli.js",
+    "postinstall": "node scripts/patch-yoga.js",
     "dev": "ts-node src/cli.ts",
     "start": "node dist/cli.js",
     "watch": "tsc --watch",
@@ -19,7 +20,19 @@
     "format": "prettier --write \"src/**/*.ts\"",
     "test": "cd tests && python -m pytest test_eval.py -v",
     "test:quick": "cd tests && python -m pytest test_eval.py -v -m 'not slow'",
-    "prepr": "npm run lint && npm run build"
+    "prepr": "npm run lint && npm run build",
+    "bundle": "npm run build && esbuild dist/cli.js --bundle --platform=node --target=node20 --outfile=bundle/cli.cjs --format=cjs --external:fsevents",
+    "pkg": "npm run bundle && pkg bundle/cli.cjs --out-path ./bin --targets node20-linux-x64 -o bin/nexus",
+    "pkg:linux": "npm run bundle && pkg bundle/cli.cjs --targets node20-linux-x64 --out-path ./bin -o bin/nexus-linux",
+    "pkg:win": "npm run bundle && pkg bundle/cli.cjs --targets node20-win-x64 --out-path ./bin -o bin/nexus-win.exe",
+    "pkg:mac": "npm run bundle && pkg bundle/cli.cjs --targets node20-macos-x64 --out-path ./bin -o bin/nexus-macos",
+    "pkg:all": "npm run bundle && pkg bundle/cli.cjs --targets node20-linux-x64,node20-win-x64,node20-macos-x64 --out-path ./bin",
+    "bun:build": "node scripts/inject-version.js && npm run build && bun build dist/cli.js --compile --outfile bin/nexus && cp node_modules/yoga-wasm-web/dist/yoga.wasm bin/"
+  },
+  "pkg": {
+    "assets": [
+      "package.json"
+    ]
   },
   "keywords": [
     "cli",
@@ -48,6 +61,7 @@
     "ink-spinner": "^5.0.0",
     "ink-text-input": "^5.0.1",
     "inquirer": "^8.2.6",
+    "open": "^11.0.0",
     "ora": "^5.4.1",
     "react": "^18.3.1",
     "semver": "^7.7.3"
@@ -59,9 +73,11 @@
     "@types/semver": "^7.7.1",
     "@typescript-eslint/eslint-plugin": "^6.15.0",
     "@typescript-eslint/parser": "^6.15.0",
+    "@yao-pkg/pkg": "^6.11.0",
     "esbuild": "^0.25.12",
     "eslint": "^8.56.0",
     "prettier": "^3.1.1",
+    "react-devtools-core": "^4.28.5",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.3"
   }
