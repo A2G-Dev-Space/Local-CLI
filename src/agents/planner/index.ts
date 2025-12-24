@@ -51,16 +51,14 @@ export class PlanningLLM {
       },
     ];
 
-    // Include conversation history for context (compact summary + recent messages)
+    // Include full conversation history for context (compact summary + all messages)
     if (contextMessages && contextMessages.length > 0) {
       // Include system messages (may contain compact summary)
       const systemMsgs = contextMessages.filter(m => m.role === 'system');
-      // Include recent conversation history (last 10 messages, excluding system)
-      const recentMsgs = contextMessages
-        .filter(m => m.role !== 'system')
-        .slice(-10);
+      // Include full conversation history (excluding system - already added above)
+      const conversationMsgs = contextMessages.filter(m => m.role !== 'system');
 
-      messages.push(...systemMsgs, ...recentMsgs);
+      messages.push(...systemMsgs, ...conversationMsgs);
     }
 
     // Check if last message is already the same user request (avoid duplicate)
