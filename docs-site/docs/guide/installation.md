@@ -33,7 +33,7 @@ curl -kLO https://github.com/A2G-Dev-Space/Local-CLI/raw/nexus-coder/bin/yoga.wa
   - curl: `-k`
 
 **수동 다운로드 (브라우저):**
-1. https://github.com/A2G-Dev-Space/Local-CLI/tree/nexus-coder/bin 접속
+1. https://github.samsungds.net/syngha-han/nexus-coder 접속
 2. `nexus.gz`와 `yoga.wasm` 파일 각각 다운로드
 3. 두 파일을 같은 폴더에 저장 (예: `~/nexus-download/`)
 :::
