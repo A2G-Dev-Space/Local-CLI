@@ -1,5 +1,5 @@
 # Build stage
-FROM node:20-alpine AS builder
+FROM node:24-alpine AS builder
 
 # Install OpenSSL for Prisma (skip SSL verification for corporate network)
 RUN echo "http://dl-cdn.alpinelinux.org/alpine/v3.18/main" > /etc/apk/repositories && \
@@ -29,7 +29,7 @@ COPY . .
 RUN npx tsc
 
 # Production stage
-FROM node:20-alpine AS production
+FROM node:24-alpine AS production
 
 # Install OpenSSL 1.1 for Prisma (skip SSL verification for corporate network)
 RUN echo "http://dl-cdn.alpinelinux.org/alpine/v3.18/main" > /etc/apk/repositories && \
