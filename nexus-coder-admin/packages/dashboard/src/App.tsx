@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard';
 import Models from './pages/Models';
 import Users from './pages/Users';
 import Feedback from './pages/Feedback';
+import MyUsage from './pages/MyUsage';
 import Login from './pages/Login';
 import { authApi } from './services/api';
 
@@ -82,6 +83,7 @@ function App() {
     <Layout user={user} isAdmin={isAdmin} adminRole={adminRole} onLogout={handleLogout}>
       <Routes>
         {/* 모든 사용자 접근 가능 */}
+        <Route path="/my-usage" element={<MyUsage />} />
         <Route path="/feedback" element={<Feedback isAdmin={isAdmin} />} />
 
         {/* Admin만 접근 가능 */}
@@ -96,7 +98,7 @@ function App() {
         {/* 기본 리다이렉트 */}
         <Route
           path="*"
-          element={<Navigate to={isAdmin ? '/' : '/feedback'} replace />}
+          element={<Navigate to={isAdmin ? '/' : '/my-usage'} replace />}
         />
       </Routes>
     </Layout>

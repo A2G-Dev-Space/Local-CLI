@@ -88,6 +88,14 @@ export const statsApi = {
     api.get(`/admin/stats/model-user-trend?modelId=${modelId}&days=${days}&topN=${topN}`),
 };
 
+// 개인 사용량 API
+export const myUsageApi = {
+  summary: () => api.get('/my-usage/summary'),
+  daily: (days = 30) => api.get(`/my-usage/daily?days=${days}`),
+  byModel: (days = 30) => api.get(`/my-usage/by-model?days=${days}`),
+  recent: (limit = 50, offset = 0) => api.get(`/my-usage/recent?limit=${limit}&offset=${offset}`),
+};
+
 interface CreateModelData {
   name: string;
   displayName: string;

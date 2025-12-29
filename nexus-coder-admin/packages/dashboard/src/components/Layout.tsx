@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useState } from 'react';
-import { LayoutDashboard, Server, Users, LogOut, Menu, X, ChevronRight, MessageSquare, Shield, BookOpen } from 'lucide-react';
+import { LayoutDashboard, Server, Users, LogOut, Menu, X, ChevronRight, MessageSquare, Shield, BookOpen, BarChart3 } from 'lucide-react';
 
 interface User {
   id: string;
@@ -28,6 +28,7 @@ const adminNavItems = [
 
 // 모든 사용자 메뉴
 const userNavItems = [
+  { path: '/my-usage', label: '내 사용량', icon: BarChart3 },
   { path: '/feedback', label: '피드백', icon: MessageSquare },
 ];
 
