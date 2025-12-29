@@ -286,7 +286,7 @@ function CreateFeedbackModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-2xl w-full max-w-5xl max-h-[90vh] overflow-y-auto">
         <div className="p-6 border-b border-gray-100">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold text-gray-900">새 피드백</h2>
@@ -343,7 +343,7 @@ function CreateFeedbackModal({
               value={content}
               onChange={(e) => setContent(e.target.value)}
               onPaste={handlePaste}
-              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-samsung-blue focus:border-transparent h-48 resize-none"
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-samsung-blue focus:border-transparent h-64 resize-none"
               placeholder="상세한 내용을 작성해주세요. 이미지를 복사하여 붙여넣을 수 있습니다."
               required
             />
@@ -448,13 +448,13 @@ function FeedbackDetailModal({
     }
   };
 
-  // 본인 피드백인지 확인 (삭제/수정 가능 여부)
-  const canModify = !feedback.response; // 답변 없으면 수정 가능
+  // 본인 피드백인지 확인 (삭제 가능 여부) - 답변이 없으면 삭제 가능
+  const canDelete = !feedback.response;
 
   return (
     <>
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+        <div className="bg-white rounded-2xl w-full max-w-5xl max-h-[90vh] overflow-y-auto">
           <div className="p-6 border-b border-gray-100">
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-center gap-3">
@@ -560,13 +560,13 @@ function FeedbackDetailModal({
               </div>
             )}
 
-            {/* Actions */}
-            {canModify && !isAdmin && (
-              <div className="flex gap-3 pt-4 border-t border-gray-100">
+            {/* Actions - 본인 피드백이고 답변이 없으면 삭제 가능 */}
+            {canDelete && (
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
                 <button
                   onClick={handleDelete}
                   disabled={loading}
-                  className="inline-flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl transition-colors font-medium"
                 >
                   <Trash2 className="w-4 h-4" />
                   삭제
