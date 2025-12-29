@@ -30,8 +30,8 @@ export default defineConfig({
     nav: [
       { text: 'Home', link: '/' },
       { text: 'Guide', link: '/guide/getting-started' },
-      { text: 'Features', link: '/features/overview' },
-      { text: 'API', link: '/api/tools' },
+      { text: 'Demos', link: '/demos/' },
+      { text: 'Feedback', link: '/feedback' },
     ],
 
     sidebar: {
@@ -49,26 +49,15 @@ export default defineConfig({
           items: [
             { text: 'Basic Usage', link: '/guide/basic-usage' },
             { text: 'Advanced Usage', link: '/guide/advanced-usage' },
+            { text: 'Compact Mode', link: '/guide/compact' },
           ]
         }
       ],
-      '/features/': [
+      '/demos/': [
         {
-          text: 'Features',
+          text: 'Demos',
           items: [
-            { text: 'Overview', link: '/features/overview' },
-            { text: 'Planning Mode', link: '/features/planning' },
-            { text: 'Tools', link: '/features/tools' },
-            { text: 'Compact', link: '/features/compact' },
-          ]
-        }
-      ],
-      '/api/': [
-        {
-          text: 'API Reference',
-          items: [
-            { text: 'Tools', link: '/api/tools' },
-            { text: 'Configuration', link: '/api/configuration' },
+            { text: 'Overview', link: '/demos/' },
           ]
         }
       ]
