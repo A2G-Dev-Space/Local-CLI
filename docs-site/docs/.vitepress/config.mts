@@ -9,7 +9,7 @@ export default defineConfig({
 
   // 폐쇄망용: 외부 리소스 비활성화
   head: [
-    ['link', { rel: 'icon', href: '/images/favicon.ico' }],
+    ['link', { rel: 'icon', type: 'image/png', href: '/images/logo.png' }],
     // 외부 리소스 차단 - CSP 설정
     ['meta', {
       'http-equiv': 'Content-Security-Policy',
@@ -25,7 +25,7 @@ export default defineConfig({
   outDir: './../.vitepress/dist',
 
   themeConfig: {
-    logo: '/images/logo.svg',
+    logo: '/images/logo.png',
 
     nav: [
       { text: 'Home', link: '/' },
