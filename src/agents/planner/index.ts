@@ -64,9 +64,11 @@ export class PlanningLLM {
     // Check if last message is already the same user request (avoid duplicate)
     const lastMsg = messages[messages.length - 1];
     if (!(lastMsg?.role === 'user' && lastMsg?.content === userRequest)) {
+      // Add [NEW REQUEST] marker to distinguish from previous conversation
+      // This helps LLM understand this is a fresh request, not continuation of completed tasks
       messages.push({
         role: 'user',
-        content: userRequest,
+        content: `[NEW REQUEST]\n${userRequest}`,
       });
     }
 

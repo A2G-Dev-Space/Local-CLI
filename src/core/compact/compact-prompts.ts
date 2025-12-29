@@ -105,29 +105,30 @@ export function buildCompactUserPrompt(
 
 /**
  * Build messages array after compact
- * Creates system message with summary and initial assistant response
+ * Creates user message with session context and assistant acknowledgment
+ * Note: System prompt will be added by plan-executor when needed
  */
 export function buildCompactedMessages(
   compactSummary: string,
   context: CompactContext
 ): Message[] {
-  const systemContent = `# Session Resumed from Compact
+  // Compact summary as user message (not system) to avoid multiple system messages
+  const contextMessage = `[SESSION CONTEXT - Previous conversation was compacted]
 
 ${compactSummary}
 
 ---
-*This is a compacted session. Previous conversation was compressed to save context.*
-*Working Directory: ${context.workingDirectory || process.cwd()}*
+Working Directory: ${context.workingDirectory || process.cwd()}
 `;
 
   return [
     {
-      role: 'system',
-      content: systemContent,
+      role: 'user',
+      content: contextMessage,
     },
     {
       role: 'assistant',
-      content: 'Session has been compacted. Continuing based on the previous context. How can I help you?',
+      content: 'Understood. I have the session context. Ready to continue.',
     },
   ];
 }

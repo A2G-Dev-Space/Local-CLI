@@ -427,8 +427,14 @@ export class PlanExecutor {
 
         const finalMessages = [...compactedBase, ...lastTwoMessages];
 
+        // Estimate token count for compacted messages (for UI display)
+        const totalContent = finalMessages
+          .map(m => typeof m.content === 'string' ? m.content : JSON.stringify(m.content))
+          .join('');
+        const estimatedTokens = contextTracker.estimateTokens(totalContent);
+
         callbacks.setMessages(finalMessages);
-        contextTracker.reset();
+        contextTracker.reset(estimatedTokens);
         sessionManager.autoSaveCurrentSession(finalMessages);
 
         emitCompact(result.originalMessageCount, finalMessages.length);

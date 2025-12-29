@@ -13,7 +13,6 @@ import {
   buildCompactedMessages,
   CompactContext,
 } from './compact-prompts.js';
-import { contextTracker } from './context-tracker.js';
 import { logger } from '../../utils/logger.js';
 
 /**
@@ -100,8 +99,8 @@ export class CompactManager {
       // Build compacted messages
       const compactedMessages = buildCompactedMessages(response, context);
 
-      // Reset context tracker
-      contextTracker.reset();
+      // Note: contextTracker.reset() is called by PlanExecutor after applying final messages
+      // This keeps CompactManager focused on summary generation only
 
       logger.flow('Compact completed successfully');
       logger.vars(

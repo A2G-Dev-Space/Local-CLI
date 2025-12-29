@@ -1,6 +1,6 @@
 {
   "name": "nexus-coder",
-  "version": "2.7.4",
+  "version": "2.8.0",
   "description": "Nexus Coder - Enterprise AI Coding Assistant",
   "type": "module",
   "main": "dist/index.js",

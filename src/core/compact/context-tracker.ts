@@ -87,12 +87,22 @@ class ContextTrackerClass {
 
   /**
    * Reset after compact (allow future auto-compact triggers)
+   * @param estimatedTokens Optional estimated token count for compacted messages
    */
-  reset(): void {
-    logger.flow('ContextTracker reset');
-    this.lastPromptTokens = 0;
+  reset(estimatedTokens?: number): void {
+    logger.flow('ContextTracker reset', { estimatedTokens });
+    // If estimatedTokens provided, use it; otherwise calculate from 0
+    // This ensures UI shows approximate usage after compact
+    this.lastPromptTokens = estimatedTokens ?? 0;
     this.autoCompactTriggered = false;
     this.recentFiles.clear();
+  }
+
+  /**
+   * Estimate token count from text (rough approximation: ~4 chars per token)
+   */
+  estimateTokens(text: string): number {
+    return Math.ceil(text.length / 4);
   }
 
   /**

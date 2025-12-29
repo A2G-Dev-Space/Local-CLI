@@ -204,52 +204,45 @@ export const createFileTool: LLMSimpleTool = {
 };
 
 /**
- * Edit operation interface
- */
-interface EditOperation {
-  line_number: number;
-  original_text: string;
-  new_text: string;
-}
-
-/**
  * edit_file Tool Definition
  * Used for modifying EXISTING files only. Use create_file for new files.
+ * Claude Code style: old_string/new_string based replacement
  */
 const EDIT_FILE_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'edit_file',
-    description: `Edit an EXISTING file by replacing specific lines.
+    description: `Edit an EXISTING file by replacing a specific text block.
 IMPORTANT: Only use this for files that already exist. For new files, use create_file.
 
 HOW TO USE:
-1. First use read_file to see the current content and line numbers
-2. Identify the exact lines you want to change
-3. Provide edits as a list of operations
+1. First use read_file to see the current content
+2. Copy the EXACT text block you want to change (can be multiple lines)
+3. Provide old_string (text to find) and new_string (replacement)
 
-Each edit operation requires:
-- line_number: The line number to edit (1-based)
-- original_text: The EXACT current text on that line (must match exactly)
-- new_text: The new text to replace it with (use empty string "" to delete the line)
+RULES:
+- old_string must match EXACTLY (including whitespace and indentation)
+- old_string must be UNIQUE in the file (if it appears multiple times, use replace_all: true)
+- Both old_string and new_string can be multi-line
+- To delete text, use empty string "" for new_string
 
 EXAMPLES:
-1. Change line 5 from "const x = 1;" to "const x = 2;":
-   {"line_number": 5, "original_text": "const x = 1;", "new_text": "const x = 2;"}
+1. Change a single line:
+   old_string: "const x = 1;"
+   new_string: "const x = 2;"
 
-2. Delete line 10:
-   {"line_number": 10, "original_text": "// delete this", "new_text": ""}
+2. Change multiple lines at once:
+   old_string: "function foo() {\\n  return 1;\\n}"
+   new_string: "function foo() {\\n  return 2;\\n}"
 
-3. Multiple edits (change lines 3 and 7):
-   [
-     {"line_number": 3, "original_text": "old text", "new_text": "new text"},
-     {"line_number": 7, "original_text": "another old", "new_text": "another new"}
-   ]
+3. Delete a line:
+   old_string: "// delete this line\\n"
+   new_string: ""
 
-IMPORTANT:
-- original_text must match EXACTLY (including whitespace)
-- Line numbers are 1-based
-- Process edits from highest line number to lowest to avoid line number shifts`,
+4. Replace all occurrences:
+   old_string: "oldName"
+   new_string: "newName"
+   replace_all: true`,
     parameters: {
       type: 'object',
       properties: {
@@ -260,52 +253,54 @@ Write as if you're talking to the user directly. Use the same language as the us
 Examples:
 - "Fixing the buggy section"
 - "Changing the function name as requested"
-- "Adding the import statement to connect the dependency"
+- "Adding the import statement"
 - "Fixing the type error"`,
         },
         file_path: {
           type: 'string',
           description: 'Absolute or relative path of the existing file to edit',
         },
-        edits: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              line_number: {
-                type: 'number',
-                description: 'Line number to edit (1-based)',
-              },
-              original_text: {
-                type: 'string',
-                description: 'Exact current text on that line (must match exactly)',
-              },
-              new_text: {
-                type: 'string',
-                description: 'New text to replace with (use empty string to delete)',
-              },
-            },
-            required: ['line_number', 'original_text', 'new_text'],
-          },
-          description: 'List of edit operations to apply',
+        old_string: {
+          type: 'string',
+          description: 'The exact text to find and replace (can be multi-line)',
+        },
+        new_string: {
+          type: 'string',
+          description: 'The new text to replace with (can be multi-line, use "" to delete)',
+        },
+        replace_all: {
+          type: 'boolean',
+          description: 'If true, replace ALL occurrences of old_string. Default is false (requires unique match).',
         },
       },
-      required: ['reason', 'file_path', 'edits'],
+      required: ['reason', 'file_path', 'old_string', 'new_string'],
     },
   },
 };
 
 /**
- * Internal: Execute edit_file
+ * Internal: Execute edit_file (Claude Code style - old_string/new_string)
  */
 async function _executeEditFile(args: Record<string, unknown>): Promise<ToolResult> {
   const filePath = args['file_path'] as string;
-  const edits = args['edits'] as EditOperation[];
+  const oldString = args['old_string'] as string;
+  const newString = args['new_string'] as string;
+  const replaceAll = args['replace_all'] as boolean | undefined;
+
+  // Compute displayPath once at the top for use in both try and catch
+  const cleanPath = filePath.startsWith('@') ? filePath.slice(1) : filePath;
+  const displayPath = cleanPath;
 
   try {
-    const cleanPath = filePath.startsWith('@') ? filePath.slice(1) : filePath;
     const resolvedPath = path.resolve(cleanPath);
-    const displayPath = filePath.startsWith('@') ? filePath.slice(1) : filePath;
+
+    // Validate old_string is not empty
+    if (!oldString) {
+      return {
+        success: false,
+        error: 'old_string cannot be empty.',
+      };
+    }
 
     // Check if file exists
     try {
@@ -319,95 +314,75 @@ async function _executeEditFile(args: Record<string, unknown>): Promise<ToolResu
 
     // Read current content
     const originalContent = await fs.readFile(resolvedPath, 'utf-8');
-    const lines = originalContent.split('\n');
 
-    // Validate and sort edits (process from highest line number to lowest)
-    const sortedEdits = [...edits].sort((a, b) => b.line_number - a.line_number);
+    // Check if old_string exists in the file
+    if (!originalContent.includes(oldString)) {
+      // Try to provide helpful context
+      const lines = originalContent.split('\n');
+      const preview = lines.slice(0, 20).map((l, i) => `${i + 1}: ${l}`).join('\n');
+      return {
+        success: false,
+        error: `old_string not found in file.\n\nSearched for:\n"${oldString.slice(0, 200)}${oldString.length > 200 ? '...' : ''}"\n\nFile preview (first 20 lines):\n${preview}\n\n💡 Use read_file to check the exact content and try again.`,
+      };
+    }
 
-    // Track changes for diff output
-    const changes: Array<{
-      lineNumber: number;
-      original: string;
-      updated: string;
-    }> = [];
+    // Count occurrences
+    const occurrences = originalContent.split(oldString).length - 1;
 
-    // Apply edits
-    for (const edit of sortedEdits) {
-      const lineIdx = edit.line_number - 1; // Convert to 0-based
+    // If not replace_all, old_string must be unique
+    if (!replaceAll && occurrences > 1) {
+      return {
+        success: false,
+        error: `old_string appears ${occurrences} times in the file. Either:\n1. Make old_string more specific (include more context)\n2. Use replace_all: true to replace all occurrences\n\n💡 Include surrounding lines to make the match unique.`,
+      };
+    }
 
-      if (lineIdx < 0 || lineIdx >= lines.length) {
-        return {
-          success: false,
-          error: `Line number out of range: ${edit.line_number} (file has ${lines.length} lines)\n\n💡 Use read_file to check file content and try again.`,
-        };
-      }
-
-      const currentLine = lines[lineIdx];
-      if (currentLine !== edit.original_text) {
-        return {
-          success: false,
-          error: `Line ${edit.line_number} content does not match.\nExpected: "${edit.original_text}"\nActual: "${currentLine}"\n\n💡 Use read_file to check file content and try again.`,
-        };
-      }
-
-      // Record the change
-      changes.push({
-        lineNumber: edit.line_number,
-        original: edit.original_text,
-        updated: edit.new_text,
-      });
-
-      // Apply the edit
-      if (edit.new_text === '') {
-        // Delete the line
-        lines.splice(lineIdx, 1);
-      } else {
-        // Replace the line
-        lines[lineIdx] = edit.new_text;
-      }
+    // Perform replacement
+    let newContent: string;
+    if (replaceAll) {
+      newContent = originalContent.split(oldString).join(newString);
+    } else {
+      // Replace only first occurrence (which should be unique)
+      newContent = originalContent.replace(oldString, newString);
     }
 
     // Write the modified content
-    const newContent = lines.join('\n');
     await fs.writeFile(resolvedPath, newContent, 'utf-8');
 
-    // Generate diff output
-    const additions = changes.filter(c => c.updated !== '').length;
-    const deletions = changes.filter(c => c.updated === '' || c.original !== '').length;
+    // Calculate diff stats (split once, reuse)
+    const oldLinesArr = oldString.split('\n');
+    const newLinesArr = newString.split('\n');
+    const replacements = replaceAll ? occurrences : 1;
 
-    // Sort changes by line number for display
-    changes.sort((a, b) => a.lineNumber - b.lineNumber);
+    // Build simple diff preview
+    const diffPreview: string[] = [];
+    const oldPreview = oldLinesArr.slice(0, 5);
+    const newPreview = newLinesArr.slice(0, 5);
 
-    // Build diff lines for display
-    const diffLines: string[] = [];
-    for (const change of changes) {
-      // Show removed line
-      if (change.original) {
-        diffLines.push(`${change.lineNumber} - ${change.original}`);
-      }
-      // Show added line
-      if (change.updated) {
-        diffLines.push(`${change.lineNumber} + ${change.updated}`);
-      }
-    }
+    oldPreview.forEach(line => diffPreview.push(`- ${line}`));
+    if (oldLinesArr.length > 5) diffPreview.push('- ...');
+    newPreview.forEach(line => diffPreview.push(`+ ${line}`));
+    if (newLinesArr.length > 5) diffPreview.push('+ ...');
 
     return {
       success: true,
       result: JSON.stringify({
         action: 'edited',
         file: displayPath,
-        additions: additions,
-        deletions: deletions,
-        message: `Updated ${displayPath} with ${additions} additions and ${deletions} removals`,
-        diff: diffLines,
+        replacements: replacements,
+        oldLines: oldLinesArr.length,
+        newLines: newLinesArr.length,
+        message: replaceAll
+          ? `Replaced ${replacements} occurrence(s) in ${displayPath}`
+          : `Updated ${displayPath}`,
+        diff: diffPreview,
       }),
     };
   } catch (error) {
     const err = error as NodeJS.ErrnoException;
-    const displayPath = filePath.startsWith('@') ? filePath.slice(1) : filePath;
     return {
       success: false,
-      error: `파일 편집 실패 (${displayPath}): ${err.message}`,
+      error: `File edit failed (${displayPath}): ${err.message}`,
     };
   }
 }
