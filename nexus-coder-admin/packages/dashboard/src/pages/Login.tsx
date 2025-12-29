@@ -36,8 +36,9 @@ export default function Login({ onLogin }: LoginProps) {
   // SSO 콜백 데이터 처리
   const handleSSOCallback = async (dataString: string) => {
     try {
-      // Parse SSO data
-      const ssoData = JSON.parse(dataString);
+      // Parse SSO data (decode URL-encoded string first)
+      const decodedData = decodeURIComponent(dataString);
+      const ssoData = JSON.parse(decodedData);
 
       if (!ssoData.loginid || !ssoData.username) {
         throw new Error('Invalid SSO data');
