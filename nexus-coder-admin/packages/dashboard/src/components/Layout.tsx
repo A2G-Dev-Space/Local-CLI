@@ -45,33 +45,33 @@ export default function Layout({ children, user, isAdmin, adminRole, onLogout }:
                     adminRole === 'VIEWER' ? '뷰어' : '사용자';
 
   return (
-    <div className="min-h-screen bg-samsung-gray-light">
+    <div className="min-h-screen bg-pastel-50">
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          className="fixed inset-0 bg-black/30 z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar - Light theme */}
       <aside
-        className={`fixed inset-y-0 left-0 w-64 bg-samsung-dark text-white z-50 transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 w-64 bg-white border-r border-pastel-200 z-50 transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         {/* Logo */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-pastel-100">
           <div className="flex items-center gap-3">
             <img src="/logo.png" alt="Nexus Coder" className="w-10 h-10 rounded-xl" />
             <div>
-              <h1 className="font-bold text-lg tracking-tight">Nexus Coder</h1>
-              <p className="text-[10px] text-gray-400 uppercase tracking-wider">Portal</p>
+              <h1 className="font-bold text-lg tracking-tight text-pastel-800">Nexus Coder</h1>
+              <p className="text-[10px] text-pastel-500 uppercase tracking-wider">Portal</p>
             </div>
           </div>
           <button
             onClick={() => setSidebarOpen(false)}
-            className="lg:hidden p-1 text-gray-400 hover:text-white"
+            className="lg:hidden p-1 text-pastel-500 hover:text-pastel-700"
           >
             <X className="w-5 h-5" />
           </button>
@@ -82,7 +82,7 @@ export default function Layout({ children, user, isAdmin, adminRole, onLogout }:
           {/* Admin 섹션 */}
           {isAdmin && (
             <div className="mb-4">
-              <p className="px-4 mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              <p className="px-4 mb-2 text-xs font-semibold text-pastel-500 uppercase tracking-wider">
                 관리
               </p>
               {adminNavItems.map(({ path, label, icon: Icon }) => {
@@ -94,13 +94,13 @@ export default function Layout({ children, user, isAdmin, adminRole, onLogout }:
                     onClick={() => setSidebarOpen(false)}
                     className={`flex items-center gap-3 px-4 py-3 rounded-xl mb-1 transition-all duration-200 group ${
                       isActive
-                        ? 'bg-samsung-blue text-white shadow-lg shadow-samsung-blue/30'
-                        : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                        ? 'bg-pastel-100 text-pastel-700 shadow-sm'
+                        : 'text-pastel-600 hover:bg-pastel-50 hover:text-pastel-700'
                     }`}
                   >
-                    <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-gray-500 group-hover:text-white'}`} />
+                    <Icon className={`w-5 h-5 ${isActive ? 'text-samsung-blue' : 'text-pastel-400 group-hover:text-pastel-600'}`} />
                     <span className="font-medium">{label}</span>
-                    {isActive && <ChevronRight className="w-4 h-4 ml-auto" />}
+                    {isActive && <ChevronRight className="w-4 h-4 ml-auto text-samsung-blue" />}
                   </Link>
                 );
               })}
@@ -109,7 +109,7 @@ export default function Layout({ children, user, isAdmin, adminRole, onLogout }:
 
           {/* 일반 섹션 */}
           <div>
-            <p className="px-4 mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            <p className="px-4 mb-2 text-xs font-semibold text-pastel-500 uppercase tracking-wider">
               {isAdmin ? '커뮤니티' : '메뉴'}
             </p>
             {userNavItems.map(({ path, label, icon: Icon }) => {
@@ -121,13 +121,13 @@ export default function Layout({ children, user, isAdmin, adminRole, onLogout }:
                   onClick={() => setSidebarOpen(false)}
                   className={`flex items-center gap-3 px-4 py-3 rounded-xl mb-1 transition-all duration-200 group ${
                     isActive
-                      ? 'bg-samsung-blue text-white shadow-lg shadow-samsung-blue/30'
-                      : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                      ? 'bg-pastel-100 text-pastel-700 shadow-sm'
+                      : 'text-pastel-600 hover:bg-pastel-50 hover:text-pastel-700'
                   }`}
                 >
-                  <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-gray-500 group-hover:text-white'}`} />
+                  <Icon className={`w-5 h-5 ${isActive ? 'text-samsung-blue' : 'text-pastel-400 group-hover:text-pastel-600'}`} />
                   <span className="font-medium">{label}</span>
-                  {isActive && <ChevronRight className="w-4 h-4 ml-auto" />}
+                  {isActive && <ChevronRight className="w-4 h-4 ml-auto text-samsung-blue" />}
                 </Link>
               );
             })}
@@ -135,38 +135,38 @@ export default function Layout({ children, user, isAdmin, adminRole, onLogout }:
 
           {/* 리소스 섹션 */}
           <div className="mt-4">
-            <p className="px-4 mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            <p className="px-4 mb-2 text-xs font-semibold text-pastel-500 uppercase tracking-wider">
               리소스
             </p>
             <a
               href="/docs/"
               onClick={() => setSidebarOpen(false)}
-              className="flex items-center gap-3 px-4 py-3 rounded-xl mb-1 transition-all duration-200 group text-gray-400 hover:bg-white/5 hover:text-white"
+              className="flex items-center gap-3 px-4 py-3 rounded-xl mb-1 transition-all duration-200 group text-pastel-600 hover:bg-pastel-50 hover:text-pastel-700"
             >
-              <BookOpen className="w-5 h-5 text-gray-500 group-hover:text-white" />
+              <BookOpen className="w-5 h-5 text-pastel-400 group-hover:text-pastel-600" />
               <span className="font-medium">문서</span>
             </a>
           </div>
         </nav>
 
         {/* User info */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-white/10">
+        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-pastel-100 bg-pastel-50/50">
           <div className="flex items-center justify-between">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <p className="text-sm font-medium truncate">{user.username}</p>
+                <p className="text-sm font-medium text-pastel-800 truncate">{user.username}</p>
                 {isAdmin && (
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium bg-samsung-blue/20 text-samsung-blue rounded">
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium bg-pastel-200 text-pastel-700 rounded">
                     <Shield className="w-2.5 h-2.5" />
                     {roleLabel}
                   </span>
                 )}
               </div>
-              <p className="text-xs text-gray-500 truncate">{user.deptname}</p>
+              <p className="text-xs text-pastel-500 truncate">{user.deptname}</p>
             </div>
             <button
               onClick={onLogout}
-              className="p-2.5 text-gray-500 hover:text-white hover:bg-white/10 rounded-xl transition-all duration-200"
+              className="p-2.5 text-pastel-500 hover:text-pastel-700 hover:bg-pastel-100 rounded-xl transition-all duration-200"
               title="로그아웃"
             >
               <LogOut className="w-5 h-5" />
@@ -178,27 +178,27 @@ export default function Layout({ children, user, isAdmin, adminRole, onLogout }:
       {/* Main content */}
       <div className="lg:ml-64">
         {/* Top bar */}
-        <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-lg border-b border-gray-200/50">
+        <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-lg border-b border-pastel-100">
           <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 h-16">
             <div className="flex items-center gap-4">
               <button
                 onClick={() => setSidebarOpen(true)}
-                className="lg:hidden p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                className="lg:hidden p-2 text-pastel-500 hover:text-pastel-700 hover:bg-pastel-100 rounded-lg transition-colors"
               >
                 <Menu className="w-6 h-6" />
               </button>
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">
+                <h2 className="text-lg font-semibold text-pastel-800">
                   {currentPage?.label || '피드백'}
                 </h2>
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-full">
+              <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-pastel-100 rounded-full">
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                <span className="text-xs text-gray-600">온라인</span>
+                <span className="text-xs text-pastel-600">온라인</span>
               </div>
-              <div className="w-8 h-8 bg-samsung-blue rounded-full flex items-center justify-center">
+              <div className="w-8 h-8 bg-gradient-to-br from-pastel-300 to-samsung-blue rounded-full flex items-center justify-center shadow-sm">
                 <span className="text-xs font-bold text-white">
                   {user.username.charAt(0).toUpperCase()}
                 </span>

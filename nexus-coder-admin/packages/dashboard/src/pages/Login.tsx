@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Terminal, LogIn, AlertCircle } from 'lucide-react';
+import { LogIn, AlertCircle } from 'lucide-react';
 import { authApi } from '../services/api';
 
 interface User {
@@ -92,32 +92,32 @@ export default function Login({ onLogin }: LoginProps) {
   // 로딩 중 (SSO 콜백 처리)
   if (processingCallback) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-samsung-dark via-gray-900 to-samsung-dark flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-pastel-50 via-white to-pastel-100 flex items-center justify-center p-4">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-samsung-blue border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="mt-6 text-lg text-white">SSO 인증 처리 중...</p>
-          <p className="mt-2 text-sm text-gray-400">잠시만 기다려주세요</p>
+          <p className="mt-6 text-lg text-pastel-800">SSO 인증 처리 중...</p>
+          <p className="mt-2 text-sm text-pastel-500">잠시만 기다려주세요</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-samsung-dark via-gray-900 to-samsung-dark flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-pastel-50 via-white to-pastel-100 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-white/10 backdrop-blur-sm rounded-2xl mb-6 border border-white/20">
-            <Terminal className="w-10 h-10 text-samsung-blue" />
+          <div className="inline-flex items-center justify-center w-24 h-24 bg-white rounded-2xl mb-6 border border-pastel-200 shadow-lg overflow-hidden">
+            <img src="/logo.png" alt="Nexus Coder" className="w-20 h-20 object-contain" />
           </div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">Nexus Coder</h1>
-          <p className="text-gray-400 mt-2 text-sm">Admin Dashboard</p>
+          <h1 className="text-3xl font-bold text-pastel-800 tracking-tight">Nexus Coder</h1>
+          <p className="text-pastel-500 mt-2 text-sm">Portal</p>
         </div>
 
         {/* Login Card */}
-        <div className="bg-white rounded-2xl shadow-2xl p-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">로그인</h2>
-          <p className="text-sm text-gray-500 mb-6">SSO를 통해 로그인하세요</p>
+        <div className="bg-white rounded-2xl shadow-xl border border-pastel-100 p-8">
+          <h2 className="text-xl font-semibold text-pastel-800 mb-2">로그인</h2>
+          <p className="text-sm text-pastel-500 mb-6">SSO를 통해 로그인하세요</p>
 
           {error && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
@@ -129,7 +129,7 @@ export default function Login({ onLogin }: LoginProps) {
           <button
             onClick={handleSSOLogin}
             disabled={loading}
-            className="w-full py-4 px-4 bg-samsung-blue text-white font-semibold rounded-xl hover:bg-samsung-blue-dark focus:ring-4 focus:ring-samsung-blue/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-3"
+            className="w-full py-4 px-4 bg-gradient-to-r from-pastel-400 to-samsung-blue text-white font-semibold rounded-xl hover:from-pastel-500 hover:to-samsung-blue-dark focus:ring-4 focus:ring-pastel-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-3 shadow-lg shadow-pastel-300/50"
           >
             {loading ? (
               <>
@@ -147,8 +147,8 @@ export default function Login({ onLogin }: LoginProps) {
             )}
           </button>
 
-          <div className="mt-6 pt-6 border-t border-gray-200">
-            <div className="text-center text-xs text-gray-400 space-y-1">
+          <div className="mt-6 pt-6 border-t border-pastel-100">
+            <div className="text-center text-xs text-pastel-500 space-y-1">
               <p>Samsung DS 계정으로 로그인됩니다</p>
               <p>관리자 권한이 있는 경우 전체 기능에 접근할 수 있습니다</p>
             </div>
@@ -156,7 +156,7 @@ export default function Login({ onLogin }: LoginProps) {
         </div>
 
         {/* Footer */}
-        <p className="text-center text-xs text-gray-500 mt-8">
+        <p className="text-center text-xs text-pastel-500 mt-8">
           &copy; 2026 Nexus Coder. Samsung DS Internal Use Only.
         </p>
       </div>

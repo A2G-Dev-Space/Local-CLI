@@ -7,28 +7,27 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Samsung Brand Colors
+        // Pastel Sky Blue Theme
         samsung: {
-          blue: '#1428A0', // Samsung Primary Blue
-          'blue-dark': '#0D1B6E',
-          'blue-light': '#4169E1',
-          dark: '#000000',
-          gray: '#767676',
-          'gray-light': '#F4F4F4',
+          blue: '#5BA4D9',       // Primary pastel blue
+          'blue-dark': '#3D8BC4',
+          'blue-light': '#87CEEB',
+          dark: '#1E3A5F',       // Dark navy for sidebar
+          gray: '#6B7B8C',
+          'gray-light': '#F8FAFC',
         },
-        // Nexus Coder Theme (based on Samsung)
-        nexus: {
-          50: '#f0f4ff',
-          100: '#e0e9fe',
-          200: '#c7d5fd',
-          300: '#a5b8fb',
-          400: '#8193f7',
-          500: '#6370f0',
-          600: '#1428A0', // Primary
-          700: '#0D1B6E',
-          800: '#0a1454',
-          900: '#080f3d',
-          950: '#050927',
+        // Pastel Blue Palette
+        pastel: {
+          50: '#F0F9FF',   // Lightest - backgrounds
+          100: '#E0F2FE',  // Very light blue
+          200: '#BAE6FD',  // Light blue
+          300: '#7DD3FC',  // Sky blue
+          400: '#5BA4D9',  // Primary
+          500: '#3D8BC4',  // Darker
+          600: '#2980B9',  // Accent
+          700: '#1E6091',  // Dark accent
+          800: '#1E3A5F',  // Sidebar dark
+          900: '#0C1929',  // Darkest
         },
       },
       fontFamily: {

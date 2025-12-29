@@ -62,10 +62,10 @@ function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-samsung-gray-light">
+      <div className="min-h-screen flex items-center justify-center bg-pastel-50">
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-samsung-blue border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="mt-4 text-sm text-gray-500">로딩 중...</p>
+          <p className="mt-4 text-sm text-pastel-600">로딩 중...</p>
         </div>
       </div>
     );
