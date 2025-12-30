@@ -32,10 +32,18 @@ import { docsSearchAgentTool } from './llm/simple/docs-search-agent-tool.js';
 import { LLM_AGENT_TOOLS } from './llm/agents/index.js';
 
 // Import optional tools
-import { BROWSER_TOOLS } from './browser/index.js';
-import { WORD_TOOLS, EXCEL_TOOLS, POWERPOINT_TOOLS, shutdownOfficeServer } from './office/index.js';
+import { BROWSER_TOOLS, findChromePath } from './browser/index.js';
+import { WORD_TOOLS, EXCEL_TOOLS, POWERPOINT_TOOLS, shutdownOfficeServer, startOfficeServer } from './office/index.js';
 // Background bash tools are always enabled, imported in initializeToolRegistry
 import { BACKGROUND_BASH_TOOLS } from './llm/simple/background-bash-tool.js';
+
+/**
+ * Enable result with optional error message
+ */
+export interface EnableResult {
+  success: boolean;
+  error?: string;
+}
 
 /**
  * Optional tool group definition
@@ -46,7 +54,73 @@ export interface OptionalToolGroup {
   description: string;
   tools: LLMSimpleTool[];
   enabled: boolean;
+  onEnable?: () => Promise<EnableResult>;  // Validation callback when enabling
   onDisable?: () => Promise<void>;  // Cleanup callback when disabled
+}
+
+/**
+ * Validation: Check if Chrome/Chromium is installed
+ */
+async function validateBrowserTools(): Promise<EnableResult> {
+  const chromePath = findChromePath();
+  if (!chromePath) {
+    const platform = process.platform;
+    let installGuide = '';
+    if (platform === 'linux') {
+      installGuide = `
+Chrome이 설치되어 있지 않습니다.
+
+설치 방법:
+  Ubuntu/Debian: sudo apt install chromium-browser
+  또는 Chrome 설치: https://www.google.com/chrome/
+
+WSL에서 Windows Chrome 사용:
+  Windows에 Chrome/Edge 설치 후 자동 감지됩니다.
+  또는 CHROME_PATH 환경변수 설정`;
+    } else if (platform === 'darwin') {
+      installGuide = `
+Chrome이 설치되어 있지 않습니다.
+
+설치: https://www.google.com/chrome/`;
+    } else {
+      installGuide = `
+Chrome이 설치되어 있지 않습니다.
+
+설치: https://www.google.com/chrome/`;
+    }
+    return { success: false, error: installGuide.trim() };
+  }
+  return { success: true };
+}
+
+/**
+ * Validation: Start Office server and check connection
+ */
+async function validateOfficeTools(): Promise<EnableResult> {
+  try {
+    const started = await startOfficeServer();
+    if (!started) {
+      return {
+        success: false,
+        error: `Office 서버에 연결할 수 없습니다.
+
+WSL 사용 시 mirrored networking 설정이 필요합니다:
+1. Windows에서 %USERPROFILE%\\.wslconfig 파일 생성
+2. 다음 내용 추가:
+   [wsl2]
+   networkingMode=mirrored
+3. PowerShell에서 'wsl --shutdown' 실행 후 WSL 재시작
+
+자세한 내용: docs/05_OFFICE_TOOLS.md`,
+      };
+    }
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: `Office 서버 시작 실패: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
 }
 
 /**
@@ -61,6 +135,7 @@ export const OPTIONAL_TOOL_GROUPS: OptionalToolGroup[] = [
     description: 'Control Chrome browser for web testing (navigate, click, screenshot, etc.)',
     tools: BROWSER_TOOLS,
     enabled: false,
+    onEnable: validateBrowserTools,
   },
   {
     id: 'word',
@@ -68,6 +143,7 @@ export const OPTIONAL_TOOL_GROUPS: OptionalToolGroup[] = [
     description: 'Control Word for document editing (write, read, save, screenshot)',
     tools: WORD_TOOLS,
     enabled: false,
+    onEnable: validateOfficeTools,
     onDisable: shutdownOfficeServer,
   },
   {
@@ -76,6 +152,7 @@ export const OPTIONAL_TOOL_GROUPS: OptionalToolGroup[] = [
     description: 'Control Excel for spreadsheet editing (cells, ranges, formulas)',
     tools: EXCEL_TOOLS,
     enabled: false,
+    onEnable: validateOfficeTools,
     onDisable: shutdownOfficeServer,
   },
   {
@@ -84,6 +161,7 @@ export const OPTIONAL_TOOL_GROUPS: OptionalToolGroup[] = [
     description: 'Control PowerPoint for presentations (slides, text, images)',
     tools: POWERPOINT_TOOLS,
     enabled: false,
+    onEnable: validateOfficeTools,
     onDisable: shutdownOfficeServer,
   },
 ];
@@ -213,11 +291,21 @@ class ToolRegistry {
   /**
    * Enable an optional tool group
    * @param persist - If true, saves state to config (default: true)
+   * @param skipValidation - If true, skip onEnable validation (for restoring from config)
+   * @returns EnableResult with success status and optional error message
    */
-  enableToolGroup(groupId: string, persist: boolean = true): boolean {
+  async enableToolGroup(groupId: string, persist: boolean = true, skipValidation: boolean = false): Promise<EnableResult> {
     const group = this.optionalToolGroups.get(groupId);
     if (!group) {
-      return false;
+      return { success: false, error: `Tool group '${groupId}' not found` };
+    }
+
+    // Run validation if onEnable callback exists (unless skipped)
+    if (!skipValidation && group.onEnable) {
+      const result = await group.onEnable();
+      if (!result.success) {
+        return result;
+      }
     }
 
     group.enabled = true;
@@ -235,7 +323,7 @@ class ToolRegistry {
       });
     }
 
-    return true;
+    return { success: true };
   }
 
   /**
@@ -283,17 +371,19 @@ class ToolRegistry {
 
   /**
    * Toggle an optional tool group
+   * @returns EnableResult with success status and optional error message
    */
-  async toggleToolGroup(groupId: string): Promise<boolean> {
+  async toggleToolGroup(groupId: string): Promise<EnableResult> {
     const group = this.optionalToolGroups.get(groupId);
     if (!group) {
-      return false;
+      return { success: false, error: `Tool group '${groupId}' not found` };
     }
 
     if (group.enabled) {
-      return await this.disableToolGroup(groupId);
+      const success = await this.disableToolGroup(groupId);
+      return { success };
     } else {
-      return this.enableToolGroup(groupId);
+      return await this.enableToolGroup(groupId);
     }
   }
 
@@ -414,7 +504,9 @@ export async function initializeOptionalTools(): Promise<void> {
   try {
     const enabledToolIds = configManager.getEnabledTools();
     for (const toolId of enabledToolIds) {
-      toolRegistry.enableToolGroup(toolId);
+      // Skip validation when restoring from config
+      // persist=false to avoid re-saving, skipValidation=true for fast startup
+      await toolRegistry.enableToolGroup(toolId, false, true);
     }
   } catch {
     // Config not initialized yet, skip loading saved state

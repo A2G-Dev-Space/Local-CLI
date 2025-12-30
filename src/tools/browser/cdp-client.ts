@@ -97,8 +97,9 @@ interface CDPTarget {
 
 /**
  * Find Chrome executable path based on OS
+ * Exported for use in tool validation
  */
-function findChromePath(): string | null {
+export function findChromePath(): string | null {
   const platform = os.platform();
 
   // Check environment variable first

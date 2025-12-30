@@ -36,6 +36,24 @@ export {
 } from './office-tools.js';
 
 /**
+ * Start the Office server when tools are enabled
+ * Returns true if server is running (started or already running)
+ */
+export async function startOfficeServer(): Promise<boolean> {
+  const { officeClient } = await import('./office-client.js');
+  try {
+    // Check if already running
+    if (await officeClient.isRunning()) {
+      return true;
+    }
+    // Try to start
+    return await officeClient.startServer();
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Shutdown the Office server when tools are disabled
  */
 export async function shutdownOfficeServer(): Promise<void> {

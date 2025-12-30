@@ -4,7 +4,7 @@
  * CDP-based browser automation tools for web testing
  */
 
-export { CDPClient, cdpClient } from './cdp-client.js';
+export { CDPClient, cdpClient, findChromePath } from './cdp-client.js';
 export {
   BROWSER_TOOLS,
   browserLaunchTool,

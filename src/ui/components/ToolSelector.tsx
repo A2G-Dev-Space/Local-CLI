@@ -52,11 +52,16 @@ export const ToolSelector: React.FC<ToolSelectorProps> = ({ onClose }) => {
   );
   const [chromeWarning, setChromeWarning] = useState<string | null>(null);
   const [isToggling, setIsToggling] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Handle keyboard input
   useInput((_input, key) => {
     if (key.escape && !isToggling) {
       onClose();
+    }
+    // Clear error message on any key press
+    if (errorMessage) {
+      setErrorMessage(null);
     }
   });
 
@@ -79,10 +84,16 @@ export const ToolSelector: React.FC<ToolSelectorProps> = ({ onClose }) => {
 
       setChromeWarning(null);
       setIsToggling(true);
+      setErrorMessage(null);
 
       try {
-        await toolRegistry.toggleToolGroup(groupId);
+        const result = await toolRegistry.toggleToolGroup(groupId);
         setToolGroups(toolRegistry.getOptionalToolGroups());
+
+        // Show error if validation failed
+        if (!result.success && result.error) {
+          setErrorMessage(result.error);
+        }
       } finally {
         setIsToggling(false);
       }
@@ -158,6 +169,29 @@ export const ToolSelector: React.FC<ToolSelectorProps> = ({ onClose }) => {
         <Box marginTop={1} paddingX={1} flexDirection="column">
           <Text color="red">⚠ {chromeWarning}</Text>
           <Text color="cyan">브라우저에서 가이드가 열립니다.</Text>
+        </Box>
+      )}
+
+      {/* Error Message */}
+      {errorMessage && (
+        <Box
+          marginTop={1}
+          borderStyle="single"
+          borderColor="red"
+          paddingX={1}
+          flexDirection="column"
+        >
+          <Text color="red" bold>
+            ✗ Enable Failed
+          </Text>
+          <Text color="white">{errorMessage}</Text>
+        </Box>
+      )}
+
+      {/* Loading indicator */}
+      {isToggling && (
+        <Box marginTop={1} paddingX={1}>
+          <Text color="yellow">Processing...</Text>
         </Box>
       )}
 
