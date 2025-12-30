@@ -46,7 +46,12 @@ export default defineConfig({
           items: [
             { text: 'Basic Usage', link: '/guide/basic-usage' },
             { text: 'Advanced Usage', link: '/guide/advanced-usage' },
-            { text: 'Tools', link: '/guide/tools' },
+          ]
+        },
+        {
+          text: 'Tools',
+          items: [
+            { text: 'Overview', link: '/guide/tools' },
           ]
         }
       ]
