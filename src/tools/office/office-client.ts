@@ -198,13 +198,35 @@ class OfficeClient {
   }
 
   /**
+   * Kill existing office-server processes (cleanup zombie processes)
+   */
+  private killExistingServer(): void {
+    if (this.isWSL) {
+      try {
+        execSync('powershell.exe -Command "Get-Process office-server -ErrorAction SilentlyContinue | Stop-Process -Force"', {
+          stdio: 'ignore',
+          timeout: 5000,
+        });
+      } catch {
+        // Ignore errors - process might not exist
+      }
+    }
+  }
+
+  /**
    * Start the Office server (Windows .exe)
    */
   async startServer(): Promise<boolean> {
-    // Check if already running
+    // Check if already running and responsive
     if (await this.isRunning()) {
       return true;
     }
+
+    // Kill any zombie processes that might be holding the port
+    this.killExistingServer();
+
+    // Wait a bit for port to be released
+    await new Promise(resolve => setTimeout(resolve, 1000));
 
     if (!this.serverExePath) {
       throw new Error(
@@ -279,30 +301,40 @@ class OfficeClient {
   }
 
   /**
-   * Make HTTP request to server
+   * Make HTTP request to server with timeout
    */
   private async request<T extends OfficeResponse>(
     method: 'GET' | 'POST',
     endpoint: string,
-    data?: Record<string, unknown>
+    data?: Record<string, unknown>,
+    timeoutMs: number = 5000
   ): Promise<T> {
     const url = `${this.getServerUrl()}${endpoint}`;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     const options: RequestInit = {
       method,
       headers: {
         'Content-Type': 'application/json',
       },
+      signal: controller.signal,
     };
 
     if (data && method === 'POST') {
       options.body = JSON.stringify(data);
     }
 
-    const response = await fetch(url, options);
-    const result = await response.json() as T;
-
-    return result;
+    try {
+      const response = await fetch(url, options);
+      clearTimeout(timeoutId);
+      const result = await response.json() as T;
+      return result;
+    } catch (error) {
+      clearTimeout(timeoutId);
+      throw error;
+    }
   }
 
   // ===========================================================================
