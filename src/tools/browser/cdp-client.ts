@@ -17,6 +17,7 @@ export interface CDPSession {
   browser: ChildProcess | null;
   debuggingPort: number;
   targetId: string;
+  userDataDir?: string;
 }
 
 interface CDPResponse {
@@ -223,6 +224,7 @@ export class CDPClient {
       browser,
       debuggingPort: port,
       targetId: pageTarget.id,
+      userDataDir,
     };
 
     // Enable required domains
@@ -408,16 +410,18 @@ export class CDPClient {
     // Focus the element first
     await this.click(selector);
 
-    // Clear existing content
+    // Clear existing content (Cmd+A on macOS, Ctrl+A on others)
+    const isMac = os.platform() === 'darwin';
+    const modifiers = isMac ? 4 : 2; // 4 for Cmd on Mac, 2 for Ctrl on others
     await this.send('Input.dispatchKeyEvent', {
       type: 'keyDown',
       key: 'a',
-      modifiers: 2, // Ctrl
+      modifiers,
     });
     await this.send('Input.dispatchKeyEvent', {
       type: 'keyUp',
       key: 'a',
-      modifiers: 2,
+      modifiers,
     });
 
     // Type new content
@@ -494,6 +498,8 @@ export class CDPClient {
    */
   async close(): Promise<void> {
     if (this.session) {
+      const userDataDir = this.session.userDataDir;
+
       try {
         this.session.ws.close();
       } catch {
@@ -502,6 +508,15 @@ export class CDPClient {
 
       if (this.session.browser) {
         this.session.browser.kill();
+      }
+
+      // Clean up temp user data directory
+      if (userDataDir) {
+        try {
+          fs.rmSync(userDataDir, { recursive: true, force: true });
+        } catch {
+          // Ignore cleanup errors
+        }
       }
 
       this.session = null;
