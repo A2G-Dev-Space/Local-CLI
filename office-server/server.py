@@ -346,12 +346,22 @@ def word_create():
         return jsonify(get_error_response('Failed to create document', str(e)))
 
 
+def normalize_text(text: str) -> str:
+    """Normalize text by converting escape sequences and HTML entities"""
+    import html
+    # Convert literal \n, \t to actual characters
+    text = text.replace('\\n', '\n').replace('\\t', '\t').replace('\\r', '\r')
+    # Decode HTML entities (&#10; -> newline, &amp; -> &, etc.)
+    text = html.unescape(text)
+    return text
+
+
 @app.route('/word/write', methods=['POST'])
 def word_write():
     """Write text to the active Word document with optional font settings"""
     try:
         data = request.json or {}
-        text = data.get('text', '')
+        text = normalize_text(data.get('text', ''))
         font_name = data.get('font_name')
         font_size = data.get('font_size')
         bold = data.get('bold')
@@ -367,11 +377,11 @@ def word_write():
         if font_name:
             selection.Font.Name = font_name
         if font_size:
-            selection.Font.Size = font_size
+            selection.Font.Size = int(font_size)
         if bold is not None:
-            selection.Font.Bold = bold
+            selection.Font.Bold = -1 if bold else 0
         if italic is not None:
-            selection.Font.Italic = italic
+            selection.Font.Italic = -1 if italic else 0
 
         selection.TypeText(text)
 
@@ -518,11 +528,11 @@ def word_set_font():
         if font_name:
             selection.Font.Name = font_name
         if font_size:
-            selection.Font.Size = font_size
+            selection.Font.Size = int(font_size)
         if bold is not None:
-            selection.Font.Bold = bold
+            selection.Font.Bold = -1 if bold else 0
         if italic is not None:
-            selection.Font.Italic = italic
+            selection.Font.Italic = -1 if italic else 0
         if underline is not None:
             selection.Font.Underline = 1 if underline else 0
         if color:
@@ -663,7 +673,7 @@ def word_add_table():
                 for j, cell_value in enumerate(row_data):
                     if j >= cols:
                         break
-                    table.Cell(i + 1, j + 1).Range.Text = str(cell_value)
+                    table.Cell(i + 1, j + 1).Range.Text = normalize_text(str(cell_value))
 
         return jsonify(get_success_response('Table added', {
             'rows': rows,
@@ -984,11 +994,11 @@ def excel_write_cell():
             if font_name:
                 font.Name = font_name
             if font_size:
-                font.Size = font_size
+                font.Size = int(font_size)
             if bold is not None:
-                font.Bold = bold
+                font.Bold = -1 if bold else 0
             if italic is not None:
-                font.Italic = italic
+                font.Italic = -1 if italic else 0
 
         return jsonify(get_success_response(f'Value written to {cell}'))
     except Exception as e:
@@ -1208,11 +1218,11 @@ def excel_set_font():
         if font_name:
             font.Name = font_name
         if font_size:
-            font.Size = font_size
+            font.Size = int(font_size)
         if bold is not None:
-            font.Bold = bold
+            font.Bold = -1 if bold else 0
         if italic is not None:
-            font.Italic = italic
+            font.Italic = -1 if italic else 0
         if underline is not None:
             font.Underline = 2 if underline else 0  # xlUnderlineStyleSingle
         if color:
@@ -1892,7 +1902,7 @@ def powerpoint_write_text():
         data = request.json or {}
         slide_number = data.get('slide', 1)
         shape_index = data.get('shape', 1)
-        text = data.get('text', '')
+        text = normalize_text(data.get('text', ''))
         font_name = data.get('font_name')
         font_size = data.get('font_size')
         bold = data.get('bold')
@@ -1921,11 +1931,11 @@ def powerpoint_write_text():
                 if font_name:
                     font.Name = font_name
                 if font_size:
-                    font.Size = font_size
+                    font.Size = int(font_size)
                 if bold is not None:
-                    font.Bold = bold
+                    font.Bold = -1 if bold else 0
                 if italic is not None:
-                    font.Italic = italic
+                    font.Italic = -1 if italic else 0
 
         return jsonify(get_success_response('Text written to slide'))
     except Exception as e:
@@ -1994,7 +2004,7 @@ def powerpoint_add_textbox():
         top = data.get('top', 100)
         width = data.get('width', 300)
         height = data.get('height', 50)
-        text = data.get('text', '')
+        text = normalize_text(data.get('text', ''))
         font_name = data.get('font_name')
         font_size = data.get('font_size')
         bold = data.get('bold')
@@ -2020,11 +2030,11 @@ def powerpoint_add_textbox():
             if font_name:
                 font.Name = font_name
             if font_size:
-                font.Size = font_size
+                font.Size = int(font_size)
             if bold is not None:
-                font.Bold = bold
+                font.Bold = -1 if bold else 0
             if italic is not None:
-                font.Italic = italic
+                font.Italic = -1 if italic else 0
 
         return jsonify(get_success_response('Textbox added', {
             'slide_number': slide_number,
@@ -2068,11 +2078,11 @@ def powerpoint_set_font():
         if font_name:
             font.Name = font_name
         if font_size:
-            font.Size = font_size
+            font.Size = int(font_size)
         if bold is not None:
-            font.Bold = bold
+            font.Bold = -1 if bold else 0
         if italic is not None:
-            font.Italic = italic
+            font.Italic = -1 if italic else 0
         if color is not None:
             if isinstance(color, str) and color.startswith('#'):
                 # Convert hex to RGB integer

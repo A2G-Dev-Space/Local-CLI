@@ -85,9 +85,10 @@ const WORD_WRITE_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'word_write',
-    description: `Write text to the active Word document with optional font settings.
+    description: `Write text to the active Word document with font settings.
 The text will be inserted at the current cursor position.
-Font settings are applied to the new text as it's written.`,
+IMPORTANT: Always specify font_name and font_size for proper formatting.
+Recommended: font_name="맑은 고딕" or "Arial", font_size=11 for body text, 16-24 for titles.`,
     parameters: {
       type: 'object',
       properties: {
@@ -402,8 +403,9 @@ const EXCEL_WRITE_CELL_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'excel_write_cell',
-    description: `Write a value to a specific cell in Excel.
-Use cell references like "A1", "B2", "C10", etc.`,
+    description: `Write a value to a specific cell in Excel with optional font settings.
+Use cell references like "A1", "B2", "C10", etc.
+Specify font_name and font_size for proper formatting.`,
     parameters: {
       type: 'object',
       properties: {
@@ -423,6 +425,18 @@ Use cell references like "A1", "B2", "C10", etc.`,
           type: 'string',
           description: 'Sheet name (optional, uses active sheet if not specified)',
         },
+        font_name: {
+          type: 'string',
+          description: 'Font name (e.g., "Arial", "맑은 고딕")',
+        },
+        font_size: {
+          type: 'number',
+          description: 'Font size in points (e.g., 11, 12, 14)',
+        },
+        bold: {
+          type: 'boolean',
+          description: 'Whether to make the text bold',
+        },
       },
       required: ['reason', 'cell', 'value'],
     },
@@ -438,9 +452,12 @@ async function executeExcelWriteCell(args: Record<string, unknown>): Promise<Too
   const cell = args['cell'] as string;
   const value = args['value'];
   const sheet = args['sheet'] as string | undefined;
+  const fontName = args['font_name'] as string | undefined;
+  const fontSize = args['font_size'] as number | undefined;
+  const bold = args['bold'] as boolean | undefined;
 
   try {
-    const response = await officeClient.excelWriteCell(cell, value, sheet);
+    const response = await officeClient.excelWriteCell(cell, value, sheet, { fontName, fontSize, bold });
     if (response.success) {
       return { success: true, result: `Value written to cell ${cell}` };
     }
@@ -889,8 +906,9 @@ const POWERPOINT_WRITE_TEXT_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'powerpoint_write_text',
-    description: `Write text to a shape on a slide.
-Shape 1 is typically the title, Shape 2 is the content area.`,
+    description: `Write text to a shape on a slide with optional font settings.
+Shape 1 is typically the title, Shape 2 is the content area.
+Specify font_name and font_size for proper formatting.`,
     parameters: {
       type: 'object',
       properties: {
@@ -910,6 +928,18 @@ Shape 1 is typically the title, Shape 2 is the content area.`,
           type: 'string',
           description: 'Text to write',
         },
+        font_name: {
+          type: 'string',
+          description: 'Font name (e.g., "Arial", "맑은 고딕")',
+        },
+        font_size: {
+          type: 'number',
+          description: 'Font size in points (e.g., 24 for title, 18 for content)',
+        },
+        bold: {
+          type: 'boolean',
+          description: 'Whether to make the text bold',
+        },
       },
       required: ['reason', 'slide', 'shape', 'text'],
     },
@@ -925,9 +955,12 @@ async function executePowerPointWriteText(args: Record<string, unknown>): Promis
   const slide = args['slide'] as number;
   const shape = args['shape'] as number;
   const text = args['text'] as string;
+  const fontName = args['font_name'] as string | undefined;
+  const fontSize = args['font_size'] as number | undefined;
+  const bold = args['bold'] as boolean | undefined;
 
   try {
-    const response = await officeClient.powerpointWriteText(slide, shape, text);
+    const response = await officeClient.powerpointWriteText(slide, shape, text, { fontName, fontSize, bold });
     if (response.success) {
       return { success: true, result: `Text written to slide ${slide}, shape ${shape}` };
     }

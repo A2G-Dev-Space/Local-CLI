@@ -358,8 +358,17 @@ class OfficeClient {
     return this.request('POST', '/excel/create');
   }
 
-  async excelWriteCell(cell: string, value: unknown, sheet?: string): Promise<OfficeResponse> {
-    return this.request('POST', '/excel/write_cell', { cell, value, sheet });
+  async excelWriteCell(
+    cell: string,
+    value: unknown,
+    sheet?: string,
+    options?: { fontName?: string; fontSize?: number; bold?: boolean }
+  ): Promise<OfficeResponse> {
+    const body: Record<string, unknown> = { cell, value, sheet };
+    if (options?.fontName) body['font_name'] = options.fontName;
+    if (options?.fontSize) body['font_size'] = options.fontSize;
+    if (options?.bold !== undefined) body['bold'] = options.bold;
+    return this.request('POST', '/excel/write_cell', body);
   }
 
   async excelReadCell(cell: string, sheet?: string): Promise<OfficeResponse> {
@@ -403,12 +412,21 @@ class OfficeClient {
     return this.request('POST', '/powerpoint/add_slide', { layout });
   }
 
-  async powerpointWriteText(slideNumber: number, shapeIndex: number, text: string): Promise<OfficeResponse> {
-    return this.request('POST', '/powerpoint/write_text', {
+  async powerpointWriteText(
+    slideNumber: number,
+    shapeIndex: number,
+    text: string,
+    options?: { fontName?: string; fontSize?: number; bold?: boolean }
+  ): Promise<OfficeResponse> {
+    const body: Record<string, unknown> = {
       slide: slideNumber,
       shape: shapeIndex,
       text,
-    });
+    };
+    if (options?.fontName) body['font_name'] = options.fontName;
+    if (options?.fontSize) body['font_size'] = options.fontSize;
+    if (options?.bold !== undefined) body['bold'] = options.bold;
+    return this.request('POST', '/powerpoint/write_text', body);
   }
 
   async powerpointReadSlide(slideNumber: number): Promise<OfficeResponse> {
