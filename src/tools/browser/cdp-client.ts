@@ -5,7 +5,7 @@
  * No external dependencies - pure TypeScript implementation
  */
 
-import { spawn, ChildProcess, execSync } from 'child_process';
+import { spawn, ChildProcess, execSync, execFileSync } from 'child_process';
 import { WebSocket } from 'ws';
 import * as http from 'http';
 import * as os from 'os';
@@ -230,7 +230,7 @@ export class CDPClient {
 
     // For Windows Chrome, convert WSL path to Windows path
     const userDataDirForChrome = useWindowsChrome
-      ? execSync(`wslpath -w "${userDataDir}"`, { encoding: 'utf-8' }).trim()
+      ? execFileSync('wslpath', ['-w', userDataDir], { encoding: 'utf-8' }).trim()
       : userDataDir;
 
     const args = [
