@@ -18,6 +18,7 @@ import { setupLogging } from './utils/logger.js';
 import { runEvalMode } from './eval/index.js';
 import { APP_VERSION } from './constants.js';
 import { initializeOptionalTools } from './tools/registry.js';
+import { ensureOfficeServerOnStartup } from './tools/office/index.js';
 
 const program = new Command();
 
@@ -63,6 +64,9 @@ program
 
       // Load saved optional tool states (e.g., browser tools)
       await initializeOptionalTools();
+
+      // Ensure Office server is running if Office tools are enabled
+      await ensureOfficeServerOnStartup();
 
       // Ink UI 시작 - 모든 초기화는 PlanExecuteApp에서 UI와 함께 처리
       // (git update → login → health → docs → config)

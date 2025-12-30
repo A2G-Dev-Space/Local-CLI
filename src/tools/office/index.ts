@@ -77,6 +77,37 @@ export function hasAnyOfficeGroupEnabled(): boolean {
   return enabledOfficeGroups.size > 0;
 }
 
+// Office tool group IDs
+const OFFICE_GROUP_IDS = ['word-tools', 'excel-tools', 'powerpoint-tools'];
+
+/**
+ * Ensure Office server is running on startup if any Office tools are enabled
+ * This handles the case where computer was restarted but tools are still enabled in config
+ */
+export async function ensureOfficeServerOnStartup(): Promise<void> {
+  const { configManager } = await import('../../core/config/config-manager.js');
+  const { officeClient } = await import('./office-client.js');
+
+  try {
+    const enabledToolIds = configManager.getEnabledTools();
+    const enabledOfficeGroupIds = enabledToolIds.filter((id: string) => OFFICE_GROUP_IDS.includes(id));
+
+    if (enabledOfficeGroupIds.length === 0) {
+      return; // No Office tools enabled
+    }
+
+    // Register enabled groups in memory
+    for (const groupId of enabledOfficeGroupIds) {
+      registerOfficeGroupEnabled(groupId);
+    }
+
+    // Start the server (this will kill zombies and start fresh)
+    await officeClient.startServer();
+  } catch {
+    // Ignore errors - server will start when tool is actually used
+  }
+}
+
 /**
  * Shutdown the Office server when ALL Office tools are disabled
  * Only shuts down if no Office tool groups remain enabled
