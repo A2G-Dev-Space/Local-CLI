@@ -365,6 +365,9 @@ export class GitAutoUpdater {
       await this.ensurePathConfigured(installDir);
       await this.unlinkNpm();
 
+      // Step 4: Install Chrome if not present (for browser tools)
+      await this.ensureChromeInstalled();
+
       // Detect shell for user-friendly message
       const shell = process.env['SHELL'] || '/bin/bash';
       const rcFile = shell.includes('zsh') ? '~/.zshrc' : '~/.bashrc';
@@ -425,6 +428,58 @@ export class GitAutoUpdater {
       await execAsync('npm unlink -g nexus-coder');
     } catch (error) {
       // npm not available or package not linked - ignore
+    }
+  }
+
+  /**
+   * Ensure Chrome/Chromium is installed for browser tools
+   * Downloads and installs Google Chrome if not present
+   */
+  private async ensureChromeInstalled(): Promise<void> {
+    // Check if Chrome is already installed
+    try {
+      await execAsync('which google-chrome || which chromium-browser || which chromium');
+      // Chrome is installed, nothing to do
+      return;
+    } catch {
+      // Chrome not found, proceed with installation
+    }
+
+    // Only install on Linux
+    if (os.platform() !== 'linux') {
+      return;
+    }
+
+    this.emitStatus({ type: 'updating', step: 4, totalSteps: 4, message: 'Installing Chrome for browser tools...' });
+
+    const tempDir = os.tmpdir();
+    const debPath = path.join(tempDir, 'google-chrome.deb');
+    const chromeUrl = 'https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb';
+
+    try {
+      // Download Chrome .deb
+      await execAsync(`wget -O "${debPath}" "${chromeUrl}" --no-check-certificate`);
+
+      // Install with dpkg (may have missing dependencies)
+      try {
+        await execAsync(`sudo dpkg -i "${debPath}"`);
+      } catch {
+        // Fix broken dependencies
+        await execAsync('sudo apt-get install -f -y');
+      }
+
+      // Cleanup
+      await rm(debPath, { force: true });
+
+      logger.info('Chrome installed successfully');
+    } catch (error) {
+      // Non-fatal - browser tools will just not work
+      logger.warn('Failed to install Chrome (browser tools will be unavailable)', error);
+      try {
+        await rm(debPath, { force: true });
+      } catch {
+        // Ignore cleanup errors
+      }
     }
   }
 
