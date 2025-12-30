@@ -209,8 +209,16 @@ export class CDPClient {
     // For Windows Chrome, use a Windows-compatible path
     let userDataDir: string;
     if (useWindowsChrome) {
-      // Use Windows temp directory via WSL path
-      const winTempDir = '/mnt/c/Users/Public/Temp';
+      // Dynamically get Windows temp directory via WSL
+      const winTempDir = (() => {
+        try {
+          const winTempRaw = execSync('cmd.exe /c "echo %TEMP%"', { encoding: 'utf-8' }).trim();
+          return execSync(`wslpath "${winTempRaw}"`, { encoding: 'utf-8' }).trim();
+        } catch {
+          // Fallback to common Windows temp path
+          return '/mnt/c/Users/Public/Temp';
+        }
+      })();
       if (!fs.existsSync(winTempDir)) {
         fs.mkdirSync(winTempDir, { recursive: true });
       }
@@ -289,7 +297,7 @@ export class CDPClient {
     // Connect WebSocket - replace localhost with actual host IP for WSL
     let wsUrl = pageTarget.webSocketDebuggerUrl;
     if (cdpHost !== '127.0.0.1') {
-      wsUrl = wsUrl.replace('127.0.0.1', cdpHost).replace('localhost', cdpHost);
+      wsUrl = wsUrl.replace(/127\.0\.0\.1|localhost/g, cdpHost);
     }
     const ws = new WebSocket(wsUrl);
 
