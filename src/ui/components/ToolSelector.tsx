@@ -24,11 +24,16 @@ export const ToolSelector: React.FC<ToolSelectorProps> = ({ onClose }) => {
     toolRegistry.getOptionalToolGroups()
   );
   const [isToggling, setIsToggling] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Handle keyboard input
   useInput((_input, key) => {
     if (key.escape && !isToggling) {
       onClose();
+    }
+    // Clear error message on any key press
+    if (errorMessage) {
+      setErrorMessage(null);
     }
   });
 
@@ -39,10 +44,16 @@ export const ToolSelector: React.FC<ToolSelectorProps> = ({ onClose }) => {
 
       const groupId = item.value;
       setIsToggling(true);
+      setErrorMessage(null);
 
       try {
-        await toolRegistry.toggleToolGroup(groupId);
+        const result = await toolRegistry.toggleToolGroup(groupId);
         setToolGroups(toolRegistry.getOptionalToolGroups());
+
+        // Show error if validation failed
+        if (!result.success && result.error) {
+          setErrorMessage(result.error);
+        }
       } finally {
         setIsToggling(false);
       }
@@ -110,6 +121,29 @@ export const ToolSelector: React.FC<ToolSelectorProps> = ({ onClose }) => {
               .map((g) => g.name)
               .join(', ')}
           </Text>
+        </Box>
+      )}
+
+      {/* Error Message */}
+      {errorMessage && (
+        <Box
+          marginTop={1}
+          borderStyle="single"
+          borderColor="red"
+          paddingX={1}
+          flexDirection="column"
+        >
+          <Text color="red" bold>
+            ✗ Enable Failed
+          </Text>
+          <Text color="white">{errorMessage}</Text>
+        </Box>
+      )}
+
+      {/* Loading indicator */}
+      {isToggling && (
+        <Box marginTop={1} paddingX={1}>
+          <Text color="yellow">Processing...</Text>
         </Box>
       )}
 
