@@ -328,6 +328,46 @@ class ToolRegistry {
   listAll(): string[] {
     return Array.from(this.tools.keys());
   }
+
+  /**
+   * Get tool summary for planning prompt
+   * Returns formatted string with tool names and descriptions
+   * Includes: always-on tools + enabled optional tools
+   */
+  getToolSummaryForPlanning(): string {
+    const lines: string[] = [];
+
+    // Get all LLM Simple tools (always-on)
+    const simpleTools = this.getLLMSimpleTools();
+
+    for (const tool of simpleTools) {
+      const name = tool.definition.function.name;
+      const desc = tool.definition.function.description?.split('\n')[0] || '';
+      // Truncate long descriptions
+      const shortDesc = desc.length > 80 ? desc.slice(0, 77) + '...' : desc;
+      lines.push(`- \`${name}\`: ${shortDesc}`);
+    }
+
+    return lines.join('\n');
+  }
+
+  /**
+   * Get enabled optional tools info for planning prompt
+   */
+  getEnabledOptionalToolsInfo(): string {
+    const enabledGroups = Array.from(this.optionalToolGroups.values())
+      .filter(g => g.enabled);
+
+    if (enabledGroups.length === 0) {
+      return '';
+    }
+
+    const lines: string[] = ['', '**Currently enabled optional tools:**'];
+    for (const group of enabledGroups) {
+      lines.push(`- **${group.name}**: ${group.description}`);
+    }
+    return lines.join('\n');
+  }
 }
 
 /**
