@@ -139,6 +139,8 @@ export interface OpenConfig {
     streamResponse: boolean;
     autoSave: boolean;
   };
+  /** Enabled optional tool group IDs (persisted across sessions) */
+  enabledTools?: string[];
 }
 
 /**

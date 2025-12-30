@@ -11,6 +11,7 @@ import { PlanExecuteApp } from './components/PlanExecuteApp.js';
 import { createLLMClient } from '../core/llm/llm-client.js';
 import { configManager } from '../core/config/config-manager.js';
 import { authManager } from '../core/auth/index.js';
+import { initializeOptionalTools } from '../tools/registry.js';
 
 // Async 초기화
 (async () => {
@@ -20,6 +21,9 @@ import { authManager } from '../core/auth/index.js';
 
     // AuthManager 초기화 (LLMClient 생성 전에 auth headers 준비)
     await authManager.initialize();
+
+    // Load saved optional tool states (e.g., browser tools)
+    await initializeOptionalTools();
 
     // LLM Client 생성
     const llmClient = createLLMClient();

@@ -391,6 +391,50 @@ export class ConfigManager {
 
     return allModels;
   }
+
+  /**
+   * Get enabled tool group IDs
+   */
+  getEnabledTools(): string[] {
+    const config = this.getConfig();
+    return config.enabledTools || [];
+  }
+
+  /**
+   * Set enabled tool group IDs
+   */
+  async setEnabledTools(toolIds: string[]): Promise<void> {
+    const config = this.getConfig();
+    config.enabledTools = toolIds;
+    await this.saveConfig();
+  }
+
+  /**
+   * Enable a tool group
+   */
+  async enableTool(toolId: string): Promise<void> {
+    const config = this.getConfig();
+    const enabledTools = config.enabledTools || [];
+    if (!enabledTools.includes(toolId)) {
+      enabledTools.push(toolId);
+      config.enabledTools = enabledTools;
+      await this.saveConfig();
+    }
+  }
+
+  /**
+   * Disable a tool group
+   */
+  async disableTool(toolId: string): Promise<void> {
+    const config = this.getConfig();
+    const enabledTools = config.enabledTools || [];
+    const index = enabledTools.indexOf(toolId);
+    if (index !== -1) {
+      enabledTools.splice(index, 1);
+      config.enabledTools = enabledTools;
+      await this.saveConfig();
+    }
+  }
 }
 
 /**

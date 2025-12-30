@@ -17,6 +17,7 @@ import { PlanExecuteApp } from './ui/components/PlanExecuteApp.js';
 import { setupLogging } from './utils/logger.js';
 import { runEvalMode } from './eval/index.js';
 import { APP_VERSION } from './constants.js';
+import { initializeOptionalTools } from './tools/registry.js';
 
 const program = new Command();
 
@@ -59,6 +60,9 @@ program
 
       // ConfigManager 초기화
       await configManager.initialize();
+
+      // Load saved optional tool states (e.g., browser tools)
+      await initializeOptionalTools();
 
       // Ink UI 시작 - 모든 초기화는 PlanExecuteApp에서 UI와 함께 처리
       // (git update → login → health → docs → config)

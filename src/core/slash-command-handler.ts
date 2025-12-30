@@ -37,6 +37,7 @@ export interface CommandHandlerContext {
   onShowSettings?: () => void;
   onShowModelSelector?: () => void;
   onShowDocsBrowser?: () => void;
+  onShowToolSelector?: () => void;
   onCompact?: () => Promise<CompactResult>;
 }
 
@@ -152,6 +153,31 @@ export async function executeSlashCommand(
     const updatedMessages = [
       ...context.messages,
       { role: 'assistant' as const, content: modelMessage },
+    ];
+    context.setMessages(updatedMessages);
+    return {
+      handled: true,
+      shouldContinue: false,
+      updatedContext: {
+        messages: updatedMessages,
+      },
+    };
+  }
+
+  // Tool command - show tool selector for optional tools
+  if (trimmedCommand === '/tool' || trimmedCommand === '/tools') {
+    if (context.onShowToolSelector) {
+      context.onShowToolSelector();
+      return {
+        handled: true,
+        shouldContinue: false,
+      };
+    }
+    // Fallback if no UI callback
+    const toolMessage = `Use /tool in interactive mode to enable/disable optional tools (Browser Automation, Background Processes).`;
+    const updatedMessages = [
+      ...context.messages,
+      { role: 'assistant' as const, content: toolMessage },
     ];
     context.setMessages(updatedMessages);
     return {
@@ -325,6 +351,7 @@ Available commands:
   /compact        - Compact conversation to free up context
   /settings       - Open settings menu
   /model          - Switch between LLM models
+  /tool           - Enable/disable optional tools (Browser, Background)
   /load           - Load a saved session
   /usage          - Show token usage statistics
   /docs           - Manage documentation (download agno, adk)

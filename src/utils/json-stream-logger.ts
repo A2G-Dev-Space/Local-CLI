@@ -281,8 +281,28 @@ export class JsonStreamLogger {
    * Log error
    */
   logError(error: Error | unknown, context?: string): void {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    const errorStack = error instanceof Error ? error.stack : undefined;
+    let errorMessage: string;
+    let errorStack: string | undefined;
+    let errorDetails: Record<string, unknown> | undefined;
+
+    if (error instanceof Error) {
+      errorMessage = error.message;
+      errorStack = error.stack;
+      // Include custom error details if available
+      if ((error as any).details) {
+        errorDetails = (error as any).details;
+      }
+    } else if (typeof error === 'object' && error !== null) {
+      // For plain objects, serialize them properly
+      try {
+        errorMessage = JSON.stringify(error, null, 2);
+        errorDetails = error as Record<string, unknown>;
+      } catch {
+        errorMessage = String(error);
+      }
+    } else {
+      errorMessage = String(error);
+    }
 
     this.log({
       timestamp: new Date().toISOString(),
@@ -292,6 +312,7 @@ export class JsonStreamLogger {
         context,
         stack: errorStack,
         name: error instanceof Error ? error.constructor.name : 'Unknown',
+        ...(errorDetails && { details: errorDetails }),
       },
     });
   }

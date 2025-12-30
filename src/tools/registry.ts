@@ -8,6 +8,8 @@
  * - Multi-category registration (한 도구가 여러 카테고리에 등록 가능)
  * - Type-safe tool retrieval
  * - LLM tool definitions export
+ * - Optional tools with enable/disable support
+ * - Persistent tool state across sessions
  */
 
 import { ToolDefinition } from '../types/index.js';
@@ -19,6 +21,7 @@ import {
   isLLMSimpleTool,
   isLLMAgentTool,
 } from './types.js';
+import { configManager } from '../core/config/config-manager.js';
 
 // Import active tools
 import { FILE_TOOLS, SYSTEM_TOOLS } from './llm/simple/file-tools.js';
@@ -28,12 +31,47 @@ import { PLANNING_TOOLS } from './llm/simple/planning-tools.js';
 import { docsSearchAgentTool } from './llm/simple/docs-search-agent-tool.js';
 import { LLM_AGENT_TOOLS } from './llm/agents/index.js';
 
+// Import optional tools
+import { BROWSER_TOOLS } from './browser/index.js';
+// Background bash tools are always enabled, imported in initializeToolRegistry
+import { BACKGROUND_BASH_TOOLS } from './llm/simple/background-bash-tool.js';
+
+/**
+ * Optional tool group definition
+ */
+export interface OptionalToolGroup {
+  id: string;
+  name: string;
+  description: string;
+  tools: LLMSimpleTool[];
+  enabled: boolean;
+}
+
+/**
+ * Available optional tool groups
+ * Note: Browser tools require Chrome to be installed, so they are optional
+ */
+export const OPTIONAL_TOOL_GROUPS: OptionalToolGroup[] = [
+  {
+    id: 'browser',
+    name: 'Browser Automation',
+    description: 'Control Chrome browser for web testing (navigate, click, screenshot, etc.)',
+    tools: BROWSER_TOOLS,
+    enabled: false,  // Disabled by default
+  },
+];
+
+// Re-export for use in initializeToolRegistry
+export { BACKGROUND_BASH_TOOLS };
+
 /**
  * Tool Registry class
  */
 class ToolRegistry {
   private tools: Map<string, AnyTool> = new Map();
   private categoryIndex: Map<ToolCategory, Set<string>> = new Map();
+  private optionalToolGroups: Map<string, OptionalToolGroup> = new Map();
+  private enabledOptionalTools: Set<string> = new Set();
 
   constructor() {
     // Initialize category index for active categories
@@ -44,6 +82,11 @@ class ToolRegistry {
     ];
     for (const category of categories) {
       this.categoryIndex.set(category, new Set());
+    }
+
+    // Initialize optional tool groups
+    for (const group of OPTIONAL_TOOL_GROUPS) {
+      this.optionalToolGroups.set(group.id, { ...group });
     }
   }
 
@@ -129,13 +172,107 @@ class ToolRegistry {
   /**
    * Get all LLM tool definitions (for chatCompletion)
    * Includes both LLM Simple and LLM Agent tools (excludes Planning tools)
+   * Note: Enabled optional tools are already included via enableToolGroup() registration
    */
   getLLMToolDefinitions(): ToolDefinition[] {
     const llmTools = [
       ...this.getLLMSimpleTools(),
       ...this.getLLMAgentTools(),
     ];
+
     return llmTools.map((tool) => tool.definition);
+  }
+
+  /**
+   * Enable an optional tool group
+   * @param persist - If true, saves state to config (default: true)
+   */
+  enableToolGroup(groupId: string, persist: boolean = true): boolean {
+    const group = this.optionalToolGroups.get(groupId);
+    if (!group) {
+      return false;
+    }
+
+    group.enabled = true;
+
+    // Register tools to the main registry
+    for (const tool of group.tools) {
+      this.register(tool);
+      this.enabledOptionalTools.add(tool.definition.function.name);
+    }
+
+    // Persist state to config
+    if (persist) {
+      configManager.enableTool(groupId).catch(() => {
+        // Ignore errors if config not initialized
+      });
+    }
+
+    return true;
+  }
+
+  /**
+   * Disable an optional tool group
+   * @param persist - If true, saves state to config (default: true)
+   */
+  disableToolGroup(groupId: string, persist: boolean = true): boolean {
+    const group = this.optionalToolGroups.get(groupId);
+    if (!group) {
+      return false;
+    }
+
+    group.enabled = false;
+
+    // Remove tools from the main registry
+    for (const tool of group.tools) {
+      const toolName = tool.definition.function.name;
+      this.tools.delete(toolName);
+      this.enabledOptionalTools.delete(toolName);
+
+      // Remove from category index
+      for (const category of tool.categories) {
+        this.categoryIndex.get(category)?.delete(toolName);
+      }
+    }
+
+    // Persist state to config
+    if (persist) {
+      configManager.disableTool(groupId).catch(() => {
+        // Ignore errors if config not initialized
+      });
+    }
+
+    return true;
+  }
+
+  /**
+   * Toggle an optional tool group
+   */
+  toggleToolGroup(groupId: string): boolean {
+    const group = this.optionalToolGroups.get(groupId);
+    if (!group) {
+      return false;
+    }
+
+    if (group.enabled) {
+      return this.disableToolGroup(groupId);
+    } else {
+      return this.enableToolGroup(groupId);
+    }
+  }
+
+  /**
+   * Get all optional tool groups with their current state
+   */
+  getOptionalToolGroups(): OptionalToolGroup[] {
+    return Array.from(this.optionalToolGroups.values());
+  }
+
+  /**
+   * Check if an optional tool group is enabled
+   */
+  isToolGroupEnabled(groupId: string): boolean {
+    return this.optionalToolGroups.get(groupId)?.enabled ?? false;
   }
 
   /**
@@ -175,6 +312,9 @@ export function initializeToolRegistry(): void {
   // LLM Simple Tools - System utilities (bash)
   toolRegistry.registerAll(SYSTEM_TOOLS);
 
+  // LLM Simple Tools - Background process management (bash_background, bash_background_status, bash_background_kill)
+  toolRegistry.registerAll(BACKGROUND_BASH_TOOLS);
+
   // LLM Simple Tools - TODO management
   toolRegistry.registerAll(TODO_TOOLS);
 
@@ -187,7 +327,22 @@ export function initializeToolRegistry(): void {
   // LLM Agent Tools (docs-search internal tools)
   toolRegistry.registerAll(LLM_AGENT_TOOLS);
 
-  // Future: User Commands, MCP Tools, System Tools
+  // Note: Optional tools (Browser) are registered via /tool command
+}
+
+/**
+ * Initialize optional tool groups from saved config
+ * Call this AFTER configManager.initialize() is complete
+ */
+export async function initializeOptionalTools(): Promise<void> {
+  try {
+    const enabledToolIds = configManager.getEnabledTools();
+    for (const toolId of enabledToolIds) {
+      toolRegistry.enableToolGroup(toolId);
+    }
+  } catch {
+    // Config not initialized yet, skip loading saved state
+  }
 }
 
 // Auto-initialize on import
