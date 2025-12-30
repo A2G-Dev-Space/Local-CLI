@@ -40,13 +40,25 @@ interface CDPTarget {
 function findChromePath(): string | null {
   const platform = os.platform();
 
+  // Check environment variable first
+  if (process.env['CHROME_PATH'] && fs.existsSync(process.env['CHROME_PATH'])) {
+    return process.env['CHROME_PATH'];
+  }
+
   const paths: Record<string, string[]> = {
     linux: [
+      // Native Linux
       '/usr/bin/google-chrome',
       '/usr/bin/google-chrome-stable',
       '/usr/bin/chromium',
       '/usr/bin/chromium-browser',
       '/snap/bin/chromium',
+      // WSL - Windows Chrome paths
+      '/mnt/c/Program Files/Google/Chrome/Application/chrome.exe',
+      '/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe',
+      // WSL - Edge as fallback (Chromium-based)
+      '/mnt/c/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
+      '/mnt/c/Program Files/Microsoft/Edge/Application/msedge.exe',
     ],
     darwin: [
       '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
