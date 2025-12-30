@@ -5,12 +5,73 @@
  * No external dependencies - pure TypeScript implementation
  */
 
-import { spawn, ChildProcess } from 'child_process';
+import { spawn, ChildProcess, execSync } from 'child_process';
 import { WebSocket } from 'ws';
 import * as http from 'http';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
+
+/**
+ * Check if running in WSL environment
+ */
+function isWSL(): boolean {
+  try {
+    const release = os.release().toLowerCase();
+    if (release.includes('microsoft') || release.includes('wsl')) {
+      return true;
+    }
+    // Check /proc/version for WSL signature
+    if (fs.existsSync('/proc/version')) {
+      const version = fs.readFileSync('/proc/version', 'utf-8').toLowerCase();
+      return version.includes('microsoft') || version.includes('wsl');
+    }
+  } catch {
+    // Ignore errors
+  }
+  return false;
+}
+
+/**
+ * Get Windows host IP from WSL
+ * In WSL2, Windows host is accessible via the IP in /etc/resolv.conf
+ */
+function getWindowsHostIP(): string {
+  try {
+    // Method 1: Read from /etc/resolv.conf (most reliable)
+    if (fs.existsSync('/etc/resolv.conf')) {
+      const content = fs.readFileSync('/etc/resolv.conf', 'utf-8');
+      const match = content.match(/nameserver\s+(\d+\.\d+\.\d+\.\d+)/);
+      if (match && match[1]) {
+        return match[1];
+      }
+    }
+
+    // Method 2: Use WSL_HOST_IP environment variable if set
+    if (process.env['WSL_HOST_IP']) {
+      return process.env['WSL_HOST_IP'];
+    }
+
+    // Method 3: Try to get from ip route
+    const routeOutput = execSync('ip route show default 2>/dev/null', { encoding: 'utf-8' });
+    const routeMatch = routeOutput.match(/via\s+(\d+\.\d+\.\d+\.\d+)/);
+    if (routeMatch && routeMatch[1]) {
+      return routeMatch[1];
+    }
+  } catch {
+    // Ignore errors
+  }
+
+  // Fallback to localhost (will work for WSL1 or native Linux)
+  return '127.0.0.1';
+}
+
+/**
+ * Check if Chrome path is a Windows executable (WSL path)
+ */
+function isWindowsChrome(chromePath: string): boolean {
+  return chromePath.startsWith('/mnt/') && chromePath.endsWith('.exe');
+}
 
 export interface CDPSession {
   ws: WebSocket;
@@ -85,9 +146,9 @@ function findChromePath(): string | null {
 /**
  * Get list of available debugging targets
  */
-async function getTargets(port: number): Promise<CDPTarget[]> {
+async function getTargets(port: number, host: string = '127.0.0.1'): Promise<CDPTarget[]> {
   return new Promise((resolve, reject) => {
-    const req = http.get(`http://127.0.0.1:${port}/json`, (res) => {
+    const req = http.get(`http://${host}:${port}/json`, (res) => {
       let data = '';
       res.on('data', (chunk) => data += chunk);
       res.on('end', () => {
@@ -109,10 +170,10 @@ async function getTargets(port: number): Promise<CDPTarget[]> {
 /**
  * Wait for Chrome to be ready
  */
-async function waitForChrome(port: number, maxRetries = 30): Promise<CDPTarget[]> {
+async function waitForChrome(port: number, host: string = '127.0.0.1', maxRetries = 30): Promise<CDPTarget[]> {
   for (let i = 0; i < maxRetries; i++) {
     try {
-      const targets = await getTargets(port);
+      const targets = await getTargets(port, host);
       return targets;
     } catch {
       await new Promise(r => setTimeout(r, 200));
@@ -140,8 +201,23 @@ export class CDPClient {
       throw new Error('Chrome not found. Please install Google Chrome or Chromium.');
     }
 
+    // Detect if using Windows Chrome from WSL
+    const useWindowsChrome = isWSL() && isWindowsChrome(chromePath);
+    const cdpHost = useWindowsChrome ? getWindowsHostIP() : '127.0.0.1';
+
     // Create temp user data dir
-    const userDataDir = path.join(os.tmpdir(), `chrome-cdp-${Date.now()}`);
+    // For Windows Chrome, use a Windows-compatible path
+    let userDataDir: string;
+    if (useWindowsChrome) {
+      // Use Windows temp directory via WSL path
+      const winTempDir = '/mnt/c/Users/Public/Temp';
+      if (!fs.existsSync(winTempDir)) {
+        fs.mkdirSync(winTempDir, { recursive: true });
+      }
+      userDataDir = path.join(winTempDir, `chrome-cdp-${Date.now()}`);
+    } else {
+      userDataDir = path.join(os.tmpdir(), `chrome-cdp-${Date.now()}`);
+    }
     fs.mkdirSync(userDataDir, { recursive: true });
 
     const args = [
@@ -162,6 +238,11 @@ export class CDPClient {
       '--safebrowsing-disable-auto-update',
     ];
 
+    // For Windows Chrome accessed from WSL, bind to all interfaces
+    if (useWindowsChrome) {
+      args.push('--remote-debugging-address=0.0.0.0');
+    }
+
     if (headless) {
       args.push('--headless=new');
     }
@@ -176,8 +257,8 @@ export class CDPClient {
       console.error('Chrome process error:', err);
     });
 
-    // Wait for Chrome to be ready
-    const targets = await waitForChrome(port);
+    // Wait for Chrome to be ready (use Windows host IP for WSL)
+    const targets = await waitForChrome(port, cdpHost);
 
     // Find a page target
     let pageTarget = targets.find(t => t.type === 'page');
@@ -185,7 +266,7 @@ export class CDPClient {
     if (!pageTarget) {
       // Create a new page
       await new Promise<void>((resolve, reject) => {
-        const req = http.get(`http://127.0.0.1:${port}/json/new`, (res) => {
+        const req = http.get(`http://${cdpHost}:${port}/json/new`, (res) => {
           let data = '';
           res.on('data', (chunk) => data += chunk);
           res.on('end', () => {
@@ -205,8 +286,12 @@ export class CDPClient {
       throw new Error('No page target available');
     }
 
-    // Connect WebSocket
-    const ws = new WebSocket(pageTarget.webSocketDebuggerUrl);
+    // Connect WebSocket - replace localhost with actual host IP for WSL
+    let wsUrl = pageTarget.webSocketDebuggerUrl;
+    if (cdpHost !== '127.0.0.1') {
+      wsUrl = wsUrl.replace('127.0.0.1', cdpHost).replace('localhost', cdpHost);
+    }
+    const ws = new WebSocket(wsUrl);
 
     await new Promise<void>((resolve, reject) => {
       ws.on('open', () => resolve());
