@@ -9,7 +9,7 @@
 
 import { ToolDefinition } from '../../types/index.js';
 import { LLMSimpleTool, ToolResult, ToolCategory } from '../types.js';
-import { cdpClient } from './cdp-client.js';
+import { cdpClient, ConsoleMessage } from './cdp-client.js';
 
 const BROWSER_CATEGORIES: ToolCategory[] = ['llm-simple'];
 
@@ -141,7 +141,8 @@ const BROWSER_SCREENSHOT_DEFINITION: ToolDefinition = {
     name: 'browser_screenshot',
     description: `Take a screenshot of the current browser page.
 Returns a base64-encoded PNG image that you can analyze to understand the page state.
-Use this to verify that pages loaded correctly or to check UI elements.`,
+Use this to verify that pages loaded correctly or to check UI elements.
+If your model returns an error about not supporting images, use browser_get_content instead.`,
     parameters: {
       type: 'object',
       properties: {
@@ -438,6 +439,164 @@ export const browserCloseTool: LLMSimpleTool = {
 };
 
 /**
+ * browser_get_content Tool Definition
+ * Returns accessibility tree - more efficient than raw HTML for understanding page structure
+ */
+const BROWSER_GET_CONTENT_DEFINITION: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'browser_get_content',
+    description: `Get the accessibility tree of the current page.
+This returns a structured view of all interactive elements (buttons, links, inputs, etc.)
+with their roles and names. Much more efficient than HTML for understanding what actions are available.
+
+Use this tool when you need to:
+- Find clickable elements and their selectors
+- Understand the page structure
+- Check form fields and their current values
+- Verify UI state (checkboxes, expanded menus, etc.)`,
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: {
+          type: 'string',
+          description: 'Explanation of why you need the page content',
+        },
+      },
+      required: ['reason'],
+    },
+  },
+};
+
+async function executeBrowserGetContent(_args: Record<string, unknown>): Promise<ToolResult> {
+  try {
+    if (!cdpClient.isConnected()) {
+      return {
+        success: false,
+        error: 'Browser is not running. Use browser_launch first.',
+      };
+    }
+
+    const accessibilityTree = await cdpClient.getAccessibilityTree();
+    const url = await cdpClient.getUrl();
+    const title = await cdpClient.getTitle();
+
+    return {
+      success: true,
+      result: `Page: ${title} (${url})\n\nAccessibility Tree:\n${accessibilityTree}`,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: `Failed to get page content: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+export const browserGetContentTool: LLMSimpleTool = {
+  definition: BROWSER_GET_CONTENT_DEFINITION,
+  execute: executeBrowserGetContent,
+  categories: BROWSER_CATEGORIES,
+  description: 'Get page accessibility tree',
+};
+
+/**
+ * browser_get_console Tool Definition
+ * Returns console logs captured during the session
+ */
+const BROWSER_GET_CONSOLE_DEFINITION: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'browser_get_console',
+    description: `Get console logs from the browser.
+Returns all console.log, console.error, console.warn messages captured during the session.
+
+Use this tool to:
+- Debug JavaScript errors on the page
+- Check API response logs
+- Verify application behavior
+- Find error messages that might explain UI issues`,
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: {
+          type: 'string',
+          description: 'Explanation of why you need the console logs',
+        },
+        filter: {
+          type: 'array',
+          items: {
+            type: 'string',
+            enum: ['log', 'info', 'warn', 'error', 'debug'],
+          },
+          description: 'Filter by log type (default: all types). Example: ["error", "warn"] to see only errors and warnings.',
+        },
+        clear: {
+          type: 'boolean',
+          description: 'Clear the console log buffer after reading (default: false)',
+        },
+      },
+      required: ['reason'],
+    },
+  },
+};
+
+async function executeBrowserGetConsole(args: Record<string, unknown>): Promise<ToolResult> {
+  try {
+    if (!cdpClient.isConnected()) {
+      return {
+        success: false,
+        error: 'Browser is not running. Use browser_launch first.',
+      };
+    }
+
+    const filter = args['filter'] as ConsoleMessage['type'][] | undefined;
+    const clear = args['clear'] === true;
+
+    const messages = cdpClient.getConsoleMessages({ filter, clear });
+
+    if (messages.length === 0) {
+      return {
+        success: true,
+        result: 'No console messages captured.',
+      };
+    }
+
+    // Format messages
+    const formatted = messages.map(m => {
+      const timestamp = new Date(m.timestamp).toISOString().split('T')[1]?.slice(0, 8) || '';
+      const location = m.url ? ` (${m.url}:${m.lineNumber})` : '';
+      const typeIcon = {
+        log: '📝',
+        info: 'ℹ️',
+        warn: '⚠️',
+        error: '❌',
+        debug: '🔍',
+      }[m.type] || '•';
+
+      return `[${timestamp}] ${typeIcon} ${m.type.toUpperCase()}: ${m.text}${location}`;
+    }).join('\n');
+
+    return {
+      success: true,
+      result: `Console logs (${messages.length} messages):\n\n${formatted}`,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: `Failed to get console logs: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+export const browserGetConsoleTool: LLMSimpleTool = {
+  definition: BROWSER_GET_CONSOLE_DEFINITION,
+  execute: executeBrowserGetConsole,
+  categories: BROWSER_CATEGORIES,
+  description: 'Get browser console logs',
+};
+
+/**
  * All browser tools
  */
 export const BROWSER_TOOLS: LLMSimpleTool[] = [
@@ -447,5 +606,7 @@ export const BROWSER_TOOLS: LLMSimpleTool[] = [
   browserClickTool,
   browserFillTool,
   browserGetTextTool,
+  browserGetContentTool,
+  browserGetConsoleTool,
   browserCloseTool,
 ];
