@@ -50,6 +50,12 @@ export default defineConfig({
             { text: 'Advanced Usage', link: '/guide/advanced-usage' },
             { text: 'Compact Mode', link: '/guide/compact' },
           ]
+        },
+        {
+          text: 'Tools',
+          items: [
+            { text: 'Overview', link: '/guide/tools' },
+          ]
         }
       ],
       '/demos/': [
