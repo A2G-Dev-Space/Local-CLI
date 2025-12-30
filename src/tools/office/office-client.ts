@@ -317,8 +317,16 @@ class OfficeClient {
     return this.request('POST', '/word/create');
   }
 
-  async wordWrite(text: string): Promise<OfficeResponse> {
-    return this.request('POST', '/word/write', { text });
+  async wordWrite(
+    text: string,
+    options?: { fontName?: string; fontSize?: number; bold?: boolean; italic?: boolean }
+  ): Promise<OfficeResponse> {
+    const body: Record<string, unknown> = { text };
+    if (options?.fontName) body['font_name'] = options.fontName;
+    if (options?.fontSize) body['font_size'] = options.fontSize;
+    if (options?.bold !== undefined) body['bold'] = options.bold;
+    if (options?.italic !== undefined) body['italic'] = options.italic;
+    return this.request('POST', '/word/write', body);
   }
 
   async wordRead(): Promise<OfficeResponse> {

@@ -85,9 +85,9 @@ const WORD_WRITE_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'word_write',
-    description: `Write text to the active Word document.
+    description: `Write text to the active Word document with optional font settings.
 The text will be inserted at the current cursor position.
-Use this to add content to documents.`,
+Font settings are applied to the new text as it's written.`,
     parameters: {
       type: 'object',
       properties: {
@@ -98,6 +98,22 @@ Use this to add content to documents.`,
         text: {
           type: 'string',
           description: 'The text to write to the document',
+        },
+        font_name: {
+          type: 'string',
+          description: 'Font name (e.g., "Arial", "Times New Roman", "맑은 고딕")',
+        },
+        font_size: {
+          type: 'number',
+          description: 'Font size in points (e.g., 12, 14, 16)',
+        },
+        bold: {
+          type: 'boolean',
+          description: 'Whether to make the text bold',
+        },
+        italic: {
+          type: 'boolean',
+          description: 'Whether to make the text italic',
         },
       },
       required: ['reason', 'text'],
@@ -112,9 +128,13 @@ async function executeWordWrite(args: Record<string, unknown>): Promise<ToolResu
   }
 
   const text = args['text'] as string;
+  const fontName = args['font_name'] as string | undefined;
+  const fontSize = args['font_size'] as number | undefined;
+  const bold = args['bold'] as boolean | undefined;
+  const italic = args['italic'] as boolean | undefined;
 
   try {
-    const response = await officeClient.wordWrite(text);
+    const response = await officeClient.wordWrite(text, { fontName, fontSize, bold, italic });
     if (response.success) {
       return { success: true, result: `Text written to document (${text.length} characters)` };
     }

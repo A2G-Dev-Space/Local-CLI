@@ -347,16 +347,31 @@ def word_create():
 
 @app.route('/word/write', methods=['POST'])
 def word_write():
-    """Write text to the active Word document"""
+    """Write text to the active Word document with optional font settings"""
     try:
         data = request.json or {}
         text = data.get('text', '')
+        font_name = data.get('font_name')
+        font_size = data.get('font_size')
+        bold = data.get('bold')
+        italic = data.get('italic')
 
         word = get_or_create_word()
         if word.Documents.Count == 0:
             return jsonify(get_error_response('No active Word document'))
 
         selection = word.Selection
+
+        # Apply font settings BEFORE writing text (so new text inherits them)
+        if font_name:
+            selection.Font.Name = font_name
+        if font_size:
+            selection.Font.Size = font_size
+        if bold is not None:
+            selection.Font.Bold = bold
+        if italic is not None:
+            selection.Font.Italic = italic
+
         selection.TypeText(text)
 
         return jsonify(get_success_response('Text written successfully'))
@@ -942,12 +957,16 @@ def excel_create():
 
 @app.route('/excel/write_cell', methods=['POST'])
 def excel_write_cell():
-    """Write value to a cell"""
+    """Write value to a cell with optional font settings"""
     try:
         data = request.json or {}
         cell = data.get('cell', 'A1')
         value = data.get('value', '')
         sheet = data.get('sheet', None)
+        font_name = data.get('font_name')
+        font_size = data.get('font_size')
+        bold = data.get('bold')
+        italic = data.get('italic')
 
         excel = get_or_create_excel()
         if excel.Workbooks.Count == 0:
@@ -955,7 +974,20 @@ def excel_write_cell():
 
         wb = excel.ActiveWorkbook
         ws = wb.Sheets(sheet) if sheet else wb.ActiveSheet
-        ws.Range(cell).Value = value
+        cell_range = ws.Range(cell)
+        cell_range.Value = value
+
+        # Apply font settings if provided
+        if font_name or font_size or bold is not None or italic is not None:
+            font = cell_range.Font
+            if font_name:
+                font.Name = font_name
+            if font_size:
+                font.Size = font_size
+            if bold is not None:
+                font.Bold = bold
+            if italic is not None:
+                font.Italic = italic
 
         return jsonify(get_success_response(f'Value written to {cell}'))
     except Exception as e:
@@ -1854,12 +1886,16 @@ def powerpoint_add_slide():
 
 @app.route('/powerpoint/write_text', methods=['POST'])
 def powerpoint_write_text():
-    """Write text to a slide"""
+    """Write text to a slide with optional font settings"""
     try:
         data = request.json or {}
         slide_number = data.get('slide', 1)
         shape_index = data.get('shape', 1)
         text = data.get('text', '')
+        font_name = data.get('font_name')
+        font_size = data.get('font_size')
+        bold = data.get('bold')
+        italic = data.get('italic')
 
         ppt = get_or_create_powerpoint()
         if ppt.Presentations.Count == 0:
@@ -1875,7 +1911,20 @@ def powerpoint_write_text():
 
         shape = slide.Shapes(shape_index)
         if shape.HasTextFrame:
-            shape.TextFrame.TextRange.Text = text
+            text_range = shape.TextFrame.TextRange
+            text_range.Text = text
+
+            # Apply font settings if provided
+            if font_name or font_size or bold is not None or italic is not None:
+                font = text_range.Font
+                if font_name:
+                    font.Name = font_name
+                if font_size:
+                    font.Size = font_size
+                if bold is not None:
+                    font.Bold = bold
+                if italic is not None:
+                    font.Italic = italic
 
         return jsonify(get_success_response('Text written to slide'))
     except Exception as e:
@@ -1936,7 +1985,7 @@ def powerpoint_read_slide():
 
 @app.route('/powerpoint/add_textbox', methods=['POST'])
 def powerpoint_add_textbox():
-    """Add a textbox to a slide"""
+    """Add a textbox to a slide with optional font settings"""
     try:
         data = request.json or {}
         slide_number = data.get('slide', 1)
@@ -1945,6 +1994,10 @@ def powerpoint_add_textbox():
         width = data.get('width', 300)
         height = data.get('height', 50)
         text = data.get('text', '')
+        font_name = data.get('font_name')
+        font_size = data.get('font_size')
+        bold = data.get('bold')
+        italic = data.get('italic')
 
         ppt = get_or_create_powerpoint()
         if ppt.Presentations.Count == 0:
@@ -1957,7 +2010,20 @@ def powerpoint_add_textbox():
         slide = pres.Slides(slide_number)
         # msoTextBox = 17
         textbox = slide.Shapes.AddTextbox(1, left, top, width, height)
-        textbox.TextFrame.TextRange.Text = text
+        text_range = textbox.TextFrame.TextRange
+        text_range.Text = text
+
+        # Apply font settings if provided
+        if font_name or font_size or bold is not None or italic is not None:
+            font = text_range.Font
+            if font_name:
+                font.Name = font_name
+            if font_size:
+                font.Size = font_size
+            if bold is not None:
+                font.Bold = bold
+            if italic is not None:
+                font.Italic = italic
 
         return jsonify(get_success_response('Textbox added', {
             'slide_number': slide_number,
