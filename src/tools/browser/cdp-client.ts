@@ -228,9 +228,14 @@ export class CDPClient {
     }
     fs.mkdirSync(userDataDir, { recursive: true });
 
+    // For Windows Chrome, convert WSL path to Windows path
+    const userDataDirForChrome = useWindowsChrome
+      ? execSync(`wslpath -w "${userDataDir}"`, { encoding: 'utf-8' }).trim()
+      : userDataDir;
+
     const args = [
       `--remote-debugging-port=${port}`,
-      `--user-data-dir=${userDataDir}`,
+      `--user-data-dir=${userDataDirForChrome}`,
       '--no-first-run',
       '--no-default-browser-check',
       '--disable-background-networking',
