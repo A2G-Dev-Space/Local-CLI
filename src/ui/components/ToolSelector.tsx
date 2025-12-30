@@ -51,17 +51,20 @@ export const ToolSelector: React.FC<ToolSelectorProps> = ({ onClose }) => {
     toolRegistry.getOptionalToolGroups()
   );
   const [chromeWarning, setChromeWarning] = useState<string | null>(null);
+  const [isToggling, setIsToggling] = useState(false);
 
   // Handle keyboard input
   useInput((_input, key) => {
-    if (key.escape) {
+    if (key.escape && !isToggling) {
       onClose();
     }
   });
 
   // Handle tool group selection (toggle)
   const handleSelect = useCallback(
-    (item: SelectItem) => {
+    async (item: SelectItem) => {
+      if (isToggling) return;
+
       const groupId = item.value;
       const group = toolGroups.find(g => g.id === groupId);
 
@@ -75,10 +78,16 @@ export const ToolSelector: React.FC<ToolSelectorProps> = ({ onClose }) => {
       }
 
       setChromeWarning(null);
-      toolRegistry.toggleToolGroup(groupId);
-      setToolGroups(toolRegistry.getOptionalToolGroups());
+      setIsToggling(true);
+
+      try {
+        await toolRegistry.toggleToolGroup(groupId);
+        setToolGroups(toolRegistry.getOptionalToolGroups());
+      } finally {
+        setIsToggling(false);
+      }
     },
-    [toolGroups]
+    [toolGroups, isToggling]
   );
 
   // Build menu items
