@@ -4,7 +4,7 @@ layout: home
 hero:
   name: "Nexus Coder"
   text: "완벽한 코딩 자동화를 꿈꿉니다"
-  tagline: 폐쇄망 환경에서도 동작하는 엔터프라이즈 AI 코딩 어시스턴트
+  tagline: 폐쇄망 지원 AI 코딩 어시스턴트
   actions:
     - theme: brand
       text: 시작하기
