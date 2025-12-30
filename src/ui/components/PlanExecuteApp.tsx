@@ -1499,6 +1499,17 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
               <Text color="cyan">/docs</Text>
               <Text color="gray"> 명령어를 사용해보세요.</Text>
             </Box>
+            <Text>{' '}</Text>
+            <Box>
+              <Text color="gray"> 🔧 Optional tools available! Use </Text>
+              <Text color="cyan">/tool</Text>
+              <Text color="gray"> to enable browser automation and more.</Text>
+            </Box>
+            <Box>
+              <Text color="gray">    선택적 도구를 사용할 수 있습니다. </Text>
+              <Text color="cyan">/tool</Text>
+              <Text color="gray"> 명령어로 브라우저 자동화 등을 활성화하세요.</Text>
+            </Box>
             <Box marginTop={1}>
               <Text color="red" dimColor>⚠️  Warning: If no_proxy is not configured correctly, LLM usage may be restricted.</Text>
             </Box>
@@ -1560,8 +1571,9 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
 
       case 'git_info':
         return (
-          <Box key={entry.id} marginTop={0} marginBottom={0}>
+          <Box key={entry.id} marginTop={0} marginBottom={0} flexDirection="column">
             <Text color="yellow"> 🔀 {entry.content}</Text>
+            <Text color="gray">    Git 저장소가 감지되었습니다! 커밋 지원이 활성화됩니다.</Text>
           </Box>
         );
 
@@ -2133,6 +2145,8 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
               {/* Model info - always visible */}
               <Text color="gray">{getHealthIndicator()} </Text>
               <Text color="cyan">{currentModelInfo.model}</Text>
+              <Text color="gray"> │ </Text>
+              <Text color="gray">{shortenPath(process.cwd())}</Text>
               {planExecutionState.todos.length > 0 && (
                 <>
                   <Text color="gray"> │ </Text>

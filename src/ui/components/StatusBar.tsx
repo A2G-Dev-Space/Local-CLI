@@ -16,6 +16,8 @@ export interface StatusBarProps {
   // Model and endpoint
   model?: string;
   endpoint?: string;
+  // Working directory
+  workingDirectory?: string;
   // Status
   status?: 'idle' | 'thinking' | 'executing' | 'error';
   message?: string;
@@ -132,6 +134,7 @@ function formatElapsedTime(seconds: number): string {
 export const StatusBar: React.FC<StatusBarProps> = ({
   model,
   endpoint: _endpoint,
+  workingDirectory,
   status = 'idle',
   message: _message,
   messageCount = 0,
@@ -238,6 +241,14 @@ export const StatusBar: React.FC<StatusBarProps> = ({
           <>
             <Text color="gray"> | </Text>
             <Text color="cyan">{model.slice(0, 15)}</Text>
+          </>
+        )}
+
+        {/* Working directory */}
+        {workingDirectory && (
+          <>
+            <Text color="gray"> | </Text>
+            <Text color="gray">{workingDirectory}</Text>
           </>
         )}
       </Box>
