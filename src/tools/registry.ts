@@ -33,6 +33,7 @@ import { LLM_AGENT_TOOLS } from './llm/agents/index.js';
 
 // Import optional tools
 import { BROWSER_TOOLS } from './browser/index.js';
+import { WORD_TOOLS, EXCEL_TOOLS, POWERPOINT_TOOLS, shutdownOfficeServer } from './office/index.js';
 // Background bash tools are always enabled, imported in initializeToolRegistry
 import { BACKGROUND_BASH_TOOLS } from './llm/simple/background-bash-tool.js';
 
@@ -45,11 +46,13 @@ export interface OptionalToolGroup {
   description: string;
   tools: LLMSimpleTool[];
   enabled: boolean;
+  onDisable?: () => Promise<void>;  // Cleanup callback when disabled
 }
 
 /**
  * Available optional tool groups
  * Note: Browser tools require Chrome to be installed, so they are optional
+ * Note: Office tools require Windows + Microsoft Office + office-server.exe
  */
 export const OPTIONAL_TOOL_GROUPS: OptionalToolGroup[] = [
   {
@@ -57,7 +60,31 @@ export const OPTIONAL_TOOL_GROUPS: OptionalToolGroup[] = [
     name: 'Browser Automation',
     description: 'Control Chrome browser for web testing (navigate, click, screenshot, etc.)',
     tools: BROWSER_TOOLS,
-    enabled: false,  // Disabled by default
+    enabled: false,
+  },
+  {
+    id: 'word',
+    name: 'Microsoft Word',
+    description: 'Control Word for document editing (write, read, save, screenshot)',
+    tools: WORD_TOOLS,
+    enabled: false,
+    onDisable: shutdownOfficeServer,
+  },
+  {
+    id: 'excel',
+    name: 'Microsoft Excel',
+    description: 'Control Excel for spreadsheet editing (cells, ranges, formulas)',
+    tools: EXCEL_TOOLS,
+    enabled: false,
+    onDisable: shutdownOfficeServer,
+  },
+  {
+    id: 'powerpoint',
+    name: 'Microsoft PowerPoint',
+    description: 'Control PowerPoint for presentations (slides, text, images)',
+    tools: POWERPOINT_TOOLS,
+    enabled: false,
+    onDisable: shutdownOfficeServer,
   },
 ];
 
@@ -215,7 +242,7 @@ class ToolRegistry {
    * Disable an optional tool group
    * @param persist - If true, saves state to config (default: true)
    */
-  disableToolGroup(groupId: string, persist: boolean = true): boolean {
+  async disableToolGroup(groupId: string, persist: boolean = true): Promise<boolean> {
     const group = this.optionalToolGroups.get(groupId);
     if (!group) {
       return false;
@@ -235,6 +262,15 @@ class ToolRegistry {
       }
     }
 
+    // Call onDisable callback (e.g., shutdown Office server)
+    if (group.onDisable) {
+      try {
+        await group.onDisable();
+      } catch {
+        // Ignore cleanup errors
+      }
+    }
+
     // Persist state to config
     if (persist) {
       configManager.disableTool(groupId).catch(() => {
@@ -248,14 +284,14 @@ class ToolRegistry {
   /**
    * Toggle an optional tool group
    */
-  toggleToolGroup(groupId: string): boolean {
+  async toggleToolGroup(groupId: string): Promise<boolean> {
     const group = this.optionalToolGroups.get(groupId);
     if (!group) {
       return false;
     }
 
     if (group.enabled) {
-      return this.disableToolGroup(groupId);
+      return await this.disableToolGroup(groupId);
     } else {
       return this.enableToolGroup(groupId);
     }

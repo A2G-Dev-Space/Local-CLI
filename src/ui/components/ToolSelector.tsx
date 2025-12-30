@@ -23,22 +23,31 @@ export const ToolSelector: React.FC<ToolSelectorProps> = ({ onClose }) => {
   const [toolGroups, setToolGroups] = useState<OptionalToolGroup[]>(() =>
     toolRegistry.getOptionalToolGroups()
   );
+  const [isToggling, setIsToggling] = useState(false);
 
   // Handle keyboard input
   useInput((_input, key) => {
-    if (key.escape) {
+    if (key.escape && !isToggling) {
       onClose();
     }
   });
 
   // Handle tool group selection (toggle)
   const handleSelect = useCallback(
-    (item: SelectItem) => {
+    async (item: SelectItem) => {
+      if (isToggling) return;
+
       const groupId = item.value;
-      toolRegistry.toggleToolGroup(groupId);
-      setToolGroups(toolRegistry.getOptionalToolGroups());
+      setIsToggling(true);
+
+      try {
+        await toolRegistry.toggleToolGroup(groupId);
+        setToolGroups(toolRegistry.getOptionalToolGroups());
+      } finally {
+        setIsToggling(false);
+      }
     },
-    []
+    [isToggling]
   );
 
   // Build menu items
