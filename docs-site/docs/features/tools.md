@@ -91,7 +91,10 @@ TODO 리스트를 업데이트합니다.
 ### Browser Automation Tools
 
 Chrome DevTools Protocol (CDP)를 사용한 브라우저 자동화 도구입니다.
-웹 테스트 및 자동화에 유용합니다.
+
+::: info 완벽한 End-to-End 자동화
+개발 서버 실행 → 브라우저 접속 → 스크린샷으로 현재 상태 파악 → 코드 수정 → 결과 확인 → 배포까지, 전체 개발 워크플로우를 AI가 자동으로 수행합니다. 더 이상 수동으로 브라우저를 열고 확인할 필요가 없습니다.
+:::
 
 ::: tip 활성화 방법
 `/tool` 입력 후 Browser Automation을 선택하여 활성화합니다.
