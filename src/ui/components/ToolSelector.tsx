@@ -8,7 +8,34 @@
 import React, { useState, useCallback } from 'react';
 import { Box, Text, useInput } from 'ink';
 import SelectInput from 'ink-select-input';
+import { execSync } from 'child_process';
 import { toolRegistry, OptionalToolGroup } from '../../tools/registry.js';
+
+const BROWSER_TOOLS_GUIDE_URL = 'http://a2g.samsungds.net:4090/docs/guide/browser-tools.html';
+
+/**
+ * Check if Chrome/Chromium is installed
+ */
+function isChromeInstalled(): boolean {
+  try {
+    execSync('which google-chrome || which chromium-browser || which chromium', { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Open URL in default browser
+ */
+function openUrl(url: string): void {
+  try {
+    // Try xdg-open (Linux), then open (macOS), then start (Windows)
+    execSync(`xdg-open "${url}" 2>/dev/null || open "${url}" 2>/dev/null || start "${url}" 2>/dev/null`, { stdio: 'ignore' });
+  } catch {
+    // Ignore errors
+  }
+}
 
 interface ToolSelectorProps {
   onClose: () => void;
@@ -23,6 +50,7 @@ export const ToolSelector: React.FC<ToolSelectorProps> = ({ onClose }) => {
   const [toolGroups, setToolGroups] = useState<OptionalToolGroup[]>(() =>
     toolRegistry.getOptionalToolGroups()
   );
+  const [chromeWarning, setChromeWarning] = useState<string | null>(null);
 
   // Handle keyboard input
   useInput((_input, key) => {
@@ -35,10 +63,22 @@ export const ToolSelector: React.FC<ToolSelectorProps> = ({ onClose }) => {
   const handleSelect = useCallback(
     (item: SelectItem) => {
       const groupId = item.value;
+      const group = toolGroups.find(g => g.id === groupId);
+
+      // Check Chrome installation when enabling browser tools
+      if (groupId === 'browser' && group && !group.enabled) {
+        if (!isChromeInstalled()) {
+          setChromeWarning(`Chrome이 설치되지 않았습니다. 설치 가이드: ${BROWSER_TOOLS_GUIDE_URL}`);
+          openUrl(BROWSER_TOOLS_GUIDE_URL);
+          return;
+        }
+      }
+
+      setChromeWarning(null);
       toolRegistry.toggleToolGroup(groupId);
       setToolGroups(toolRegistry.getOptionalToolGroups());
     },
-    []
+    [toolGroups]
   );
 
   // Build menu items
@@ -101,6 +141,14 @@ export const ToolSelector: React.FC<ToolSelectorProps> = ({ onClose }) => {
               .map((g) => g.name)
               .join(', ')}
           </Text>
+        </Box>
+      )}
+
+      {/* Chrome Warning */}
+      {chromeWarning && (
+        <Box marginTop={1} paddingX={1} flexDirection="column">
+          <Text color="red">⚠ {chromeWarning}</Text>
+          <Text color="cyan">브라우저에서 가이드가 열립니다.</Text>
         </Box>
       )}
 

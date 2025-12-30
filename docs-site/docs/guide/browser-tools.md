@@ -1,93 +1,106 @@
 # Browser Tools
 
-Chrome DevTools Protocol (CDP)를 사용한 브라우저 자동화 도구입니다.
-
-::: info 완벽한 End-to-End 자동화
-개발 서버 실행 → 브라우저 접속 → 스크린샷으로 현재 상태 파악 → 코드 수정 → 결과 확인 → 배포까지, 전체 개발 워크플로우를 AI가 자동으로 수행합니다. 더 이상 수동으로 브라우저를 열고 확인할 필요가 없습니다.
+::: danger Chrome 설치 필수
+Browser Tools를 사용하려면 **Chrome 또는 Chromium**이 설치되어 있어야 합니다.
 :::
 
-::: tip 활성화 방법
-`/tool` 입력 후 Browser Automation을 선택하여 활성화합니다.
-활성화 상태는 재시작해도 유지됩니다.
-:::
+## Chrome 설치
 
-## browser_launch
-Chrome 브라우저를 실행합니다.
-
-```
-- headless: false (기본값) - 브라우저 창이 보임
-- headless: true - 백그라운드 실행
-```
-
-## browser_navigate
-지정된 URL로 이동합니다.
+### Ubuntu/Debian (WSL 포함)
 
 ```bash
-# 예: 로컬 개발 서버
-http://localhost:3000
+# 다운로드
+wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb --no-check-certificate
+
+# 설치
+sudo dpkg -i google-chrome-stable_current_amd64.deb
+
+# 의존성 해결 (필요시)
+sudo apt-get install -f -y
+
+# 설치 확인
+which google-chrome
 ```
 
-## browser_screenshot
-현재 페이지의 스크린샷을 캡처합니다.
+### 설치 확인 후 활성화
 
+```bash
+nexus
+# 실행 후 /tool 입력 → Browser Automation 선택
 ```
-- full_page: true - 전체 페이지 캡처
-- full_page: false - 현재 뷰포트만 캡처
-```
-
-## browser_click
-CSS 셀렉터로 요소를 클릭합니다.
-
-```css
-/* 예시 */
-button[type="submit"]
-#login-btn
-.nav-link
-```
-
-## browser_fill
-입력 필드에 텍스트를 입력합니다.
-
-```css
-/* 셀렉터 예시 */
-input[name="email"]
-#password
-textarea.comment
-```
-
-## browser_get_text
-요소의 텍스트 내용을 가져옵니다.
-
-```css
-/* 에러 메시지 확인 등 */
-.error-message
-#result
-```
-
-## browser_close
-브라우저를 종료합니다.
 
 ---
 
-## 사용 예시
+## 이걸로 뭘 할 수 있나요?
 
-### 웹 테스트 워크플로우
+::: tip 완벽한 End-to-End 자동화
+AI가 코드만 수정하는 게 아니라, **직접 브라우저를 열고 결과를 확인**합니다.
+:::
+
+### 1. UI 버그 수정
+```
+"로그인 버튼이 안 눌려요"
+→ AI가 브라우저 열고 → 버튼 클릭 시도 → 에러 확인 → 코드 수정 → 다시 테스트 → 성공 확인
+```
+
+### 2. 스타일 수정
+```
+"헤더 색상을 파란색으로 바꿔주세요"
+→ 코드 수정 → 스크린샷 캡처 → 결과 확인 → 필요시 재수정
+```
+
+### 3. 폼 테스트
+```
+"회원가입 폼 테스트해줘"
+→ 브라우저 열기 → 입력 필드 채우기 → 제출 → 결과 확인 → 에러 있으면 수정
+```
+
+### 4. 반응형 테스트
+```
+"모바일에서 레이아웃 확인해줘"
+→ 뷰포트 변경 → 스크린샷 → 문제점 파악 → CSS 수정
+```
+
+---
+
+## 사용 가능한 도구
+
+| 도구 | 설명 |
+|-----|------|
+| `browser_launch` | Chrome 브라우저 실행 |
+| `browser_navigate` | URL로 이동 |
+| `browser_screenshot` | 페이지 스크린샷 캡처 |
+| `browser_click` | 요소 클릭 |
+| `browser_fill` | 입력 필드에 텍스트 입력 |
+| `browser_get_text` | 요소의 텍스트 가져오기 |
+| `browser_close` | 브라우저 종료 |
+
+---
+
+## 활성화 방법
+
+```bash
+# nexus 실행 후
+/tool
+# → Browser Automation 선택 (Enter)
+# → ● enabled 상태 확인
+```
+
+활성화 상태는 재시작해도 유지됩니다.
+
+---
+
+## 예시 워크플로우
 
 ```
-1. bash_background로 개발 서버 시작
-   > npm run dev
+사용자: "개발 서버 띄우고 메인 페이지 스크린샷 찍어줘"
 
-2. /tool로 Browser Automation 활성화
-
-3. browser_launch로 브라우저 실행
-
-4. browser_navigate로 localhost:3000 이동
-
-5. browser_screenshot으로 페이지 확인
-
-6. browser_fill, browser_click으로 폼 테스트
-
-7. browser_close로 브라우저 종료
-
-8. bash_background_kill로 서버 종료
+AI 동작:
+1. bash_background로 npm run dev 실행
+2. browser_launch로 Chrome 실행
+3. browser_navigate로 localhost:3000 이동
+4. browser_screenshot으로 스크린샷 캡처
+5. 결과 이미지 표시
 ```
+
+개발자가 직접 브라우저를 열 필요 없이, AI가 모든 것을 처리합니다.
