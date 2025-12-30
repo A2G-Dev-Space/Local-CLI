@@ -17,6 +17,7 @@ import { createLLMClient } from './core/llm/llm-client.js';
 import { PlanExecuteApp } from './ui/components/PlanExecuteApp.js';
 import { setupLogging } from './utils/logger.js';
 import { runEvalMode } from './eval/index.js';
+import { initializeOptionalTools } from './tools/registry.js';
 
 // Read version from package.json (single source of truth)
 const require = createRequire(import.meta.url);
@@ -63,6 +64,9 @@ program
 
       // ConfigManager 초기화
       await configManager.initialize();
+
+      // Load saved optional tool states (e.g., browser tools)
+      await initializeOptionalTools();
 
       // LLMClient 생성 (엔드포인트가 없으면 null)
       let llmClient = null;

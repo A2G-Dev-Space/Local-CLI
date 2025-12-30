@@ -10,12 +10,16 @@ import { render } from 'ink';
 import { PlanExecuteApp } from './components/PlanExecuteApp.js';
 import { createLLMClient } from '../core/llm/llm-client.js';
 import { configManager } from '../core/config/config-manager.js';
+import { initializeOptionalTools } from '../tools/registry.js';
 
 // Async 초기화
 (async () => {
   try {
     // ConfigManager 초기화
     await configManager.initialize();
+
+    // Load saved optional tool states (e.g., browser tools)
+    await initializeOptionalTools();
 
     // LLM Client 생성
     const llmClient = createLLMClient();

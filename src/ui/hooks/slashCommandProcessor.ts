@@ -54,6 +54,11 @@ export const SLASH_COMMANDS: CommandMetadata[] = [
     description: 'Download framework documentation (agno, adk)',
   },
   {
+    name: '/tool',
+    description: 'Enable/disable optional tools (Browser, Background)',
+    aliases: ['/tools'],
+  },
+  {
     name: '/usage',
     description: 'Show token usage statistics',
   },

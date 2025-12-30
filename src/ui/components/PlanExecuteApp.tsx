@@ -56,6 +56,7 @@ import { SessionBrowser } from './panels/SessionPanel.js';
 import { SettingsBrowser } from './dialogs/SettingsDialog.js';
 import { LLMSetupWizard } from './LLMSetupWizard.js';
 import { ModelSelector } from './ModelSelector.js';
+import { ToolSelector } from './ToolSelector.js';
 import { AskUserDialog } from './dialogs/AskUserDialog.js';
 import { ApprovalDialog } from './dialogs/ApprovalDialog.js';
 import { DocsBrowser } from './dialogs/DocsBrowser.js';
@@ -222,6 +223,8 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
   // Docs Browser state
   const [showDocsBrowser, setShowDocsBrowser] = useState(false);
 
+  // Tool Selector state
+  const [showToolSelector, setShowToolSelector] = useState(false);
 
   // Execution mode: 'auto' (autonomous) or 'supervised' (requires user approval)
   const [executionMode, setExecutionMode] = useState<'auto' | 'supervised'>('auto');
@@ -1011,6 +1014,12 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
     setShowModelSelector(false);
   }, []);
 
+  // Handle tool selector close
+  const handleToolSelectorClose = useCallback(() => {
+    logger.debug('Tool selector closed');
+    setShowToolSelector(false);
+  }, []);
+
   const handleSubmit = useCallback(async (value: string) => {
     // If processing and user submits a message, queue it for injection at next LLM invoke
     if (isProcessing && value.trim()) {
@@ -1077,6 +1086,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         onShowSettings: () => setShowSettings(true),
         onShowModelSelector: () => setShowModelSelector(true),
         onShowDocsBrowser: () => setShowDocsBrowser(true),
+        onShowToolSelector: () => setShowToolSelector(true),
         onCompact: llmClient
           ? () => planExecutionState.performCompact(llmClient, messages, setMessages)
           : undefined,
@@ -1938,6 +1948,15 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         <Box marginTop={0}>
           <DocsBrowser
             onClose={() => setShowDocsBrowser(false)}
+          />
+        </Box>
+      )}
+
+      {/* Tool Selector (shown when /tool command is submitted) */}
+      {showToolSelector && !isProcessing && (
+        <Box marginTop={0}>
+          <ToolSelector
+            onClose={handleToolSelectorClose}
           />
         </Box>
       )}

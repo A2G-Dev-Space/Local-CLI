@@ -1085,6 +1085,28 @@ export class LLMClient {
         const errorType = data?.error?.type || 'unknown';
         const errorCode = data?.error?.code || data?.code;
 
+        // Enhanced error logging for debugging
+        logger.error('=== API ERROR DETAILS ===', {
+          status,
+          statusText: axiosError.response.statusText,
+          endpoint: this.baseUrl,
+          model: this.model,
+          errorMessage,
+          errorType,
+          errorCode,
+          // Full API response body
+          responseBody: JSON.stringify(data, null, 2),
+          // Request info
+          requestMethod: requestContext?.method,
+          requestUrl: requestContext?.url,
+          // Request body (truncated for large payloads)
+          requestBody: requestContext?.body
+            ? JSON.stringify(requestContext.body, null, 2).substring(0, 5000)
+            : undefined,
+          // Response headers
+          responseHeaders: axiosError.response.headers,
+        });
+
         logger.httpResponse(status, axiosError.response.statusText, data);
 
         // Context length exceeded (common OpenAI error)
