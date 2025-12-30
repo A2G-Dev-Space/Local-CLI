@@ -69,11 +69,42 @@ AI가 코드만 수정하는 게 아니라, **직접 브라우저를 열고 결�
 |-----|------|
 | `browser_launch` | Chrome 브라우저 실행 |
 | `browser_navigate` | URL로 이동 |
-| `browser_screenshot` | 페이지 스크린샷 캡처 |
+| `browser_screenshot` | 페이지 스크린샷 캡처 (Vision 모델 필요) |
 | `browser_click` | 요소 클릭 |
 | `browser_fill` | 입력 필드에 텍스트 입력 |
 | `browser_get_text` | 요소의 텍스트 가져오기 |
+| `browser_get_content` | 페이지 Accessibility Tree 조회 |
+| `browser_get_console` | 브라우저 Console 로그 조회 |
 | `browser_close` | 브라우저 종료 |
+
+### browser_get_content
+
+HTML 대신 **Accessibility Tree**를 반환합니다. 버튼, 링크, 입력 필드 등 interactive 요소만 추출하여 훨씬 효율적입니다.
+
+```
+[button] "로그인"
+[link] "회원가입"
+[textbox] "이메일" value=""
+[textbox] "비밀번호" value=""
+```
+
+::: tip Vision 미지원 모델에서 유용
+`browser_screenshot`은 Vision 모델이 필요하지만, `browser_get_content`는 텍스트만 반환하므로 모든 모델에서 사용 가능합니다.
+:::
+
+### browser_get_console
+
+브라우저 Console 로그(log, error, warn 등)를 수집합니다.
+
+```typescript
+// 필터링 예시
+browser_get_console({ filter: ["error", "warn"] })  // 에러와 경고만
+browser_get_console({ clear: true })                 // 조회 후 버퍼 클리어
+```
+
+::: warning 디버깅에 필수
+JavaScript 에러, API 호출 로그 등을 확인할 때 사용합니다.
+:::
 
 ---
 
