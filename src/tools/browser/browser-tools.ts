@@ -550,7 +550,10 @@ async function executeBrowserGetConsole(args: Record<string, unknown>): Promise<
       };
     }
 
-    const filter = args['filter'] as ConsoleMessage['type'][] | undefined;
+    // Validate filter types
+    const validTypes: ConsoleMessage['type'][] = ['log', 'info', 'warn', 'error', 'debug'];
+    const filterInput = args['filter'] as string[] | undefined;
+    const filter = filterInput?.filter((t): t is ConsoleMessage['type'] => validTypes.includes(t as ConsoleMessage['type']));
     const clear = args['clear'] === true;
 
     const messages = cdpClient.getConsoleMessages({ filter, clear });
@@ -564,7 +567,7 @@ async function executeBrowserGetConsole(args: Record<string, unknown>): Promise<
 
     // Format messages
     const formatted = messages.map(m => {
-      const timestamp = new Date(m.timestamp).toISOString().split('T')[1]?.slice(0, 8) || '';
+      const timestamp = new Date(m.timestamp).toLocaleTimeString('en-GB');
       const location = m.url ? ` (${m.url}:${m.lineNumber})` : '';
       const typeIcon = {
         log: '📝',

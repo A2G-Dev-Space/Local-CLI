@@ -706,40 +706,54 @@ export class CDPClient {
       'navigation', 'main', 'banner', 'contentinfo', 'form',
     ]);
 
-    function processNode(node: typeof nodes[0], depth: number): void {
-      if (processedIds.has(node.nodeId)) return;
+    // Build node map for efficient lookup
+    const nodeMap = new Map(nodes.map(n => [n.nodeId, n]));
+
+    function processNode(node: typeof nodes[0] | undefined, depth: number): void {
+      if (!node || processedIds.has(node.nodeId)) return;
       processedIds.add(node.nodeId);
 
       const role = node.role?.value || '';
       const name = node.name?.value || '';
 
-      // Skip generic/container roles without names
-      if (!importantRoles.has(role) && !name) return;
+      const isImportant = importantRoles.has(role) || !!name;
 
-      // Get additional properties
-      const props = node.properties || [];
-      const disabled = props.find(p => p.name === 'disabled')?.value?.value;
-      const checked = props.find(p => p.name === 'checked')?.value?.value;
-      const expanded = props.find(p => p.name === 'expanded')?.value?.value;
-      const value = props.find(p => p.name === 'value')?.value?.value;
+      if (isImportant) {
+        // Get additional properties
+        const props = node.properties || [];
+        const disabled = props.find(p => p.name === 'disabled')?.value?.value;
+        const checked = props.find(p => p.name === 'checked')?.value?.value;
+        const expanded = props.find(p => p.name === 'expanded')?.value?.value;
+        const value = props.find(p => p.name === 'value')?.value?.value;
 
-      // Build line
-      const indent = '  '.repeat(depth);
-      let line = `${indent}[${role}]`;
+        // Build line with proper indentation
+        const indent = '  '.repeat(depth);
+        let line = `${indent}[${role}]`;
 
-      if (name) line += ` "${name}"`;
-      if (value) line += ` value="${value}"`;
-      if (checked !== undefined) line += ` checked=${checked}`;
-      if (expanded !== undefined) line += ` expanded=${expanded}`;
-      if (disabled) line += ' (disabled)';
+        if (name) line += ` "${name}"`;
+        if (value) line += ` value="${value}"`;
+        if (checked !== undefined) line += ` checked=${checked}`;
+        if (expanded !== undefined) line += ` expanded=${expanded}`;
+        if (disabled) line += ' (disabled)';
 
-      if (role || name) {
         lines.push(line);
+      }
+
+      // Recurse into children, only increment depth for important nodes
+      const childDepth = isImportant ? depth + 1 : depth;
+      if (node.childIds) {
+        for (const childId of node.childIds) {
+          processNode(nodeMap.get(childId), childDepth);
+        }
       }
     }
 
-    // Process all nodes (tree is already flattened in CDP response)
-    for (const node of nodes) {
+    // Find root nodes (nodes that are not children of any other node)
+    const allChildIds = new Set(nodes.flatMap(n => n.childIds || []));
+    const rootNodes = nodes.filter(n => !allChildIds.has(n.nodeId));
+
+    // Process from root nodes to build hierarchical tree
+    for (const node of rootNodes) {
       processNode(node, 0);
     }
 
