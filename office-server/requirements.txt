@@ -5,3 +5,4 @@ pillow>=10.0.0
 pyinstaller>=6.0.0
 pyautogui>=0.9.54
 mss>=10.0.0
+pymupdf>=1.24.0

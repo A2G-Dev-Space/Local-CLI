@@ -197,6 +197,7 @@ def capture_window_screenshot(hwnd: int) -> Optional[str]:
         # Fallback: pyautogui
         try:
             import pyautogui
+            screen_width, screen_height = pyautogui.size()
             cap_left = max(0, left)
             cap_top = max(0, top)
             cap_width = min(width, screen_width - cap_left)
