@@ -182,6 +182,14 @@ async function waitForChrome(port: number, host: string = '127.0.0.1', maxRetrie
   throw new Error('Chrome failed to start within timeout');
 }
 
+export interface ConsoleMessage {
+  type: 'log' | 'info' | 'warn' | 'error' | 'debug';
+  text: string;
+  timestamp: number;
+  url?: string;
+  lineNumber?: number;
+}
+
 export class CDPClient {
   private session: CDPSession | null = null;
   private messageId = 0;
@@ -189,6 +197,7 @@ export class CDPClient {
     resolve: (value: CDPResponse) => void;
     reject: (error: Error) => void;
   }> = new Map();
+  private consoleMessages: ConsoleMessage[] = [];
 
   /**
    * Launch Chrome and connect via CDP
@@ -314,7 +323,15 @@ export class CDPClient {
 
     ws.on('message', (data: Buffer) => {
       try {
-        const message = JSON.parse(data.toString()) as CDPResponse;
+        const message = JSON.parse(data.toString());
+
+        // Handle CDP events (console messages)
+        if (message.method === 'Runtime.consoleAPICalled') {
+          this.handleConsoleMessage(message.params);
+          return;
+        }
+
+        // Handle CDP responses
         const pending = this.pendingMessages.get(message.id);
         if (pending) {
           this.pendingMessages.delete(message.id);
@@ -336,6 +353,9 @@ export class CDPClient {
       targetId: pageTarget.id,
       userDataDir,
     };
+
+    // Clear console messages for new session
+    this.consoleMessages = [];
 
     // Enable required domains
     await this.send('Page.enable');
@@ -601,6 +621,163 @@ export class CDPClient {
    */
   isConnected(): boolean {
     return this.session !== null && this.session.ws.readyState === WebSocket.OPEN;
+  }
+
+  /**
+   * Handle console message from CDP event
+   */
+  private handleConsoleMessage(params: Record<string, unknown>): void {
+    const type = (params['type'] as string) || 'log';
+    const args = params['args'] as Array<{ type: string; value?: unknown; description?: string }> || [];
+    const stackTrace = params['stackTrace'] as { callFrames?: Array<{ url?: string; lineNumber?: number }> } | undefined;
+
+    // Extract text from args
+    const text = args
+      .map(arg => {
+        if (arg.value !== undefined) return String(arg.value);
+        if (arg.description) return arg.description;
+        return '[object]';
+      })
+      .join(' ');
+
+    // Get location info from stack trace
+    const firstFrame = stackTrace?.callFrames?.[0];
+
+    this.consoleMessages.push({
+      type: type as ConsoleMessage['type'],
+      text,
+      timestamp: Date.now(),
+      url: firstFrame?.url,
+      lineNumber: firstFrame?.lineNumber,
+    });
+
+    // Keep only last 100 messages to prevent memory issues
+    if (this.consoleMessages.length > 100) {
+      this.consoleMessages = this.consoleMessages.slice(-100);
+    }
+  }
+
+  /**
+   * Get console messages collected during session
+   */
+  getConsoleMessages(options: { clear?: boolean; filter?: ConsoleMessage['type'][] } = {}): ConsoleMessage[] {
+    let messages = [...this.consoleMessages];
+
+    if (options.filter && options.filter.length > 0) {
+      messages = messages.filter(m => options.filter!.includes(m.type));
+    }
+
+    if (options.clear) {
+      this.consoleMessages = [];
+    }
+
+    return messages;
+  }
+
+  /**
+   * Clear console messages
+   */
+  clearConsoleMessages(): void {
+    this.consoleMessages = [];
+  }
+
+  /**
+   * Get accessibility tree for the page
+   * Returns a simplified structure with interactive elements
+   */
+  async getAccessibilityTree(): Promise<string> {
+    // Enable Accessibility domain
+    await this.send('Accessibility.enable');
+
+    // Get the full accessibility tree
+    const response = await this.send('Accessibility.getFullAXTree');
+    const nodes = response.result?.['nodes'] as Array<{
+      nodeId: string;
+      role?: { value: string };
+      name?: { value: string };
+      properties?: Array<{ name: string; value: { value: unknown } }>;
+      childIds?: string[];
+    }> || [];
+
+    // Build a simplified representation
+    const lines: string[] = [];
+    const processedIds = new Set<string>();
+
+    // Find interactive/important roles
+    const importantRoles = new Set([
+      'button', 'link', 'textbox', 'checkbox', 'radio', 'combobox',
+      'menuitem', 'tab', 'heading', 'img', 'listitem', 'option',
+      'searchbox', 'slider', 'switch', 'dialog', 'alert', 'alertdialog',
+      'navigation', 'main', 'banner', 'contentinfo', 'form',
+    ]);
+
+    // Build node map for efficient lookup
+    const nodeMap = new Map(nodes.map(n => [n.nodeId, n]));
+
+    function processNode(node: typeof nodes[0] | undefined, depth: number): void {
+      if (!node || processedIds.has(node.nodeId)) return;
+      processedIds.add(node.nodeId);
+
+      const role = node.role?.value || '';
+      const name = node.name?.value || '';
+
+      const isImportant = importantRoles.has(role) || !!name;
+
+      if (isImportant) {
+        // Get additional properties
+        const props = node.properties || [];
+        const disabled = props.find(p => p.name === 'disabled')?.value?.value;
+        const checked = props.find(p => p.name === 'checked')?.value?.value;
+        const expanded = props.find(p => p.name === 'expanded')?.value?.value;
+        const value = props.find(p => p.name === 'value')?.value?.value;
+
+        // Build line with proper indentation
+        const indent = '  '.repeat(depth);
+        let line = `${indent}[${role}]`;
+
+        if (name) line += ` "${name}"`;
+        if (value) line += ` value="${value}"`;
+        if (checked !== undefined) line += ` checked=${checked}`;
+        if (expanded !== undefined) line += ` expanded=${expanded}`;
+        if (disabled) line += ' (disabled)';
+
+        lines.push(line);
+      }
+
+      // Recurse into children, only increment depth for important nodes
+      const childDepth = isImportant ? depth + 1 : depth;
+      if (node.childIds) {
+        for (const childId of node.childIds) {
+          processNode(nodeMap.get(childId), childDepth);
+        }
+      }
+    }
+
+    // Find root nodes (nodes that are not children of any other node)
+    const allChildIds = new Set(nodes.flatMap(n => n.childIds || []));
+    const rootNodes = nodes.filter(n => !allChildIds.has(n.nodeId));
+
+    // Process from root nodes to build hierarchical tree
+    for (const node of rootNodes) {
+      processNode(node, 0);
+    }
+
+    // Disable to save resources
+    await this.send('Accessibility.disable');
+
+    return lines.join('\n') || '(No accessible elements found)';
+  }
+
+  /**
+   * Get page HTML source
+   */
+  async getPageSource(): Promise<string> {
+    const result = await this.send('Runtime.evaluate', {
+      expression: 'document.documentElement.outerHTML',
+      returnByValue: true,
+    });
+
+    return (result.result?.['result'] as { value: string })?.value || '';
   }
 
   /**
