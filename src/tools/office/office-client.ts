@@ -9,6 +9,7 @@ import { spawn, ChildProcess, execSync } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
+import { logger } from '../../utils/logger.js';
 
 /**
  * Check if WSL2 mirrored networking is enabled
@@ -105,12 +106,15 @@ class OfficeClient {
 
   constructor() {
     this.isWSL = this.detectWSL();
+    logger.debug('[OfficeClient] constructor: isWSL = ' + this.isWSL);
     this.findServerExe();
 
     // Use Windows host IP when running from WSL
     if (this.isWSL) {
       this.host = getWindowsHostIP();
+      logger.debug('[OfficeClient] constructor: Windows host IP = ' + this.host);
     }
+    logger.debug('[OfficeClient] constructor: server URL = ' + this.getServerUrl());
   }
 
   private detectWSL(): boolean {
@@ -133,12 +137,15 @@ class OfficeClient {
       path.resolve(process.cwd(), 'office-server', 'dist', 'office-server.exe'),
     ];
 
+    logger.debug('[OfficeClient] findServerExe: checking paths', possiblePaths);
     for (const p of possiblePaths) {
       if (p && fs.existsSync(p)) {
         this.serverExePath = p;
+        logger.debug('[OfficeClient] findServerExe: found at ' + p);
         return;
       }
     }
+    logger.debug('[OfficeClient] findServerExe: not found in any location');
   }
 
   /**
@@ -164,7 +171,16 @@ class OfficeClient {
       return `${drive}:\\${rest}`;
     }
 
-    return linuxPath;
+    // WSL internal paths (/home/..., /usr/..., etc) -> \\wsl$\<distro>\...
+    // Use wslpath command to convert
+    try {
+      const windowsPath = execSync(`wslpath -w "${linuxPath}"`, { encoding: 'utf-8' }).trim();
+      logger.debug('[OfficeClient] toWindowsPath: converted ' + linuxPath + ' -> ' + windowsPath);
+      return windowsPath;
+    } catch (error) {
+      logger.debug('[OfficeClient] toWindowsPath: wslpath failed, returning original path');
+      return linuxPath;
+    }
   }
 
   /**
@@ -178,10 +194,13 @@ class OfficeClient {
    * Check if server is running
    */
   async isRunning(): Promise<boolean> {
+    logger.debug('[OfficeClient] isRunning: checking server at ' + this.getServerUrl());
     try {
       const response = await this.request<HealthResponse>('GET', '/health');
+      logger.debug('[OfficeClient] isRunning: response', response);
       return response.success;
-    } catch {
+    } catch (error) {
+      logger.debug('[OfficeClient] isRunning: failed - ' + (error instanceof Error ? error.message : String(error)));
       return false;
     }
   }
@@ -201,14 +220,17 @@ class OfficeClient {
    * Kill existing office-server processes (cleanup zombie processes)
    */
   private killExistingServer(): void {
+    logger.debug('[OfficeClient] killExistingServer: isWSL = ' + this.isWSL);
     if (this.isWSL) {
       try {
+        logger.debug('[OfficeClient] killExistingServer: executing powershell kill command');
         execSync('powershell.exe -Command "Get-Process office-server -ErrorAction SilentlyContinue | Stop-Process -Force"', {
           stdio: 'ignore',
           timeout: 5000,
         });
-      } catch {
-        // Ignore errors - process might not exist
+        logger.debug('[OfficeClient] killExistingServer: kill command completed');
+      } catch (error) {
+        logger.debug('[OfficeClient] killExistingServer: kill failed (may not exist) - ' + (error instanceof Error ? error.message : String(error)));
       }
     }
   }
@@ -217,18 +239,25 @@ class OfficeClient {
    * Start the Office server (Windows .exe)
    */
   async startServer(): Promise<boolean> {
+    logger.debug('[OfficeClient] startServer: beginning startup sequence');
+
     // Check if already running and responsive
+    logger.debug('[OfficeClient] startServer: checking if already running');
     if (await this.isRunning()) {
+      logger.debug('[OfficeClient] startServer: server already running');
       return true;
     }
 
     // Kill any zombie processes that might be holding the port
+    logger.debug('[OfficeClient] startServer: killing zombie processes');
     this.killExistingServer();
 
     // Wait a bit for port to be released
+    logger.debug('[OfficeClient] startServer: waiting 1s for port release');
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     if (!this.serverExePath) {
+      logger.debug('[OfficeClient] startServer: exe not found');
       throw new Error(
         'Office server executable not found. ' +
         'Please place office-server.exe in the bin/ folder or set OFFICE_SERVER_PATH environment variable.'
@@ -236,6 +265,7 @@ class OfficeClient {
     }
 
     const windowsExePath = this.toWindowsPath(this.serverExePath);
+    logger.debug('[OfficeClient] startServer: exe path = ' + windowsExePath);
 
     return new Promise((resolve, reject) => {
       try {
@@ -252,6 +282,7 @@ class OfficeClient {
           args = ['--port', String(this.port)];
         }
 
+        logger.debug('[OfficeClient] startServer: spawning ' + command + ' ' + args.join(' '));
         this.serverProcess = spawn(command, args, {
           detached: true,
           stdio: 'ignore',
@@ -259,24 +290,31 @@ class OfficeClient {
         });
 
         this.serverProcess.unref();
+        logger.debug('[OfficeClient] startServer: process spawned, waiting for ready');
 
         // Wait for server to be ready
         const startTime = Date.now();
         const checkInterval = setInterval(async () => {
+          const elapsed = Date.now() - startTime;
+          logger.debug('[OfficeClient] startServer: checking ready, elapsed = ' + elapsed + ' ms');
           if (await this.isRunning()) {
             clearInterval(checkInterval);
+            logger.debug('[OfficeClient] startServer: server ready');
             resolve(true);
-          } else if (Date.now() - startTime > this.startupTimeout) {
+          } else if (elapsed > this.startupTimeout) {
             clearInterval(checkInterval);
+            logger.debug('[OfficeClient] startServer: timeout after ' + elapsed + ' ms');
             reject(new Error('Office server startup timeout'));
           }
         }, 500);
 
         this.serverProcess.on('error', (err) => {
+          logger.debug('[OfficeClient] startServer: process error - ' + err.message);
           clearInterval(checkInterval);
           reject(new Error(`Failed to start Office server: ${err.message}`));
         });
       } catch (error) {
+        logger.debug('[OfficeClient] startServer: caught error - ' + (error instanceof Error ? error.message : String(error)));
         reject(error);
       }
     });
@@ -310,9 +348,13 @@ class OfficeClient {
     timeoutMs: number = 5000
   ): Promise<T> {
     const url = `${this.getServerUrl()}${endpoint}`;
+    logger.debug(`[OfficeClient] request: ${method} ${url} timeout = ${timeoutMs} ms`);
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    const timeoutId = setTimeout(() => {
+      logger.debug('[OfficeClient] request: timeout triggered for ' + url);
+      controller.abort();
+    }, timeoutMs);
 
     const options: RequestInit = {
       method,
@@ -324,15 +366,21 @@ class OfficeClient {
 
     if (data && method === 'POST') {
       options.body = JSON.stringify(data);
+      logger.debug('[OfficeClient] request: body', options.body);
     }
 
     try {
+      logger.debug('[OfficeClient] request: fetching...');
       const response = await fetch(url, options);
       clearTimeout(timeoutId);
+      logger.debug('[OfficeClient] request: response status = ' + response.status);
       const result = await response.json() as T;
+      logger.debug('[OfficeClient] request: result', JSON.stringify(result).substring(0, 200));
       return result;
     } catch (error) {
       clearTimeout(timeoutId);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      logger.debug('[OfficeClient] request: error - ' + errorMsg);
       throw error;
     }
   }
@@ -376,6 +424,87 @@ class OfficeClient {
 
   async wordClose(save: boolean = false): Promise<OfficeResponse> {
     return this.request('POST', '/word/close', { save });
+  }
+
+  async wordSetFont(
+    options: {
+      fontName?: string;
+      fontSize?: number;
+      bold?: boolean;
+      italic?: boolean;
+      underline?: boolean;
+      color?: string;
+      highlightColor?: string;
+    }
+  ): Promise<OfficeResponse> {
+    return this.request('POST', '/word/set_font', {
+      font_name: options.fontName,
+      font_size: options.fontSize,
+      bold: options.bold,
+      italic: options.italic,
+      underline: options.underline,
+      color: options.color,
+      highlight_color: options.highlightColor,
+    });
+  }
+
+  async wordSetParagraph(
+    options: {
+      alignment?: 'left' | 'center' | 'right' | 'justify';
+      lineSpacing?: number;
+      spaceBefore?: number;
+      spaceAfter?: number;
+      firstLineIndent?: number;
+    }
+  ): Promise<OfficeResponse> {
+    return this.request('POST', '/word/set_paragraph', {
+      alignment: options.alignment,
+      line_spacing: options.lineSpacing,
+      space_before: options.spaceBefore,
+      space_after: options.spaceAfter,
+      first_line_indent: options.firstLineIndent,
+    });
+  }
+
+  async wordAddHyperlink(text: string, url: string): Promise<OfficeResponse> {
+    return this.request('POST', '/word/add_hyperlink', { text, url });
+  }
+
+  async wordAddTable(rows: number, cols: number, data?: string[][]): Promise<OfficeResponse> {
+    return this.request('POST', '/word/add_table', { rows, cols, data });
+  }
+
+  async wordAddImage(imagePath: string, width?: number, height?: number): Promise<OfficeResponse> {
+    const windowsPath = this.toWindowsPath(imagePath);
+    return this.request('POST', '/word/add_image', { path: windowsPath, width, height });
+  }
+
+  async wordDeleteText(start: number, end: number): Promise<OfficeResponse> {
+    return this.request('POST', '/word/delete_text', { start, end });
+  }
+
+  async wordFindReplace(find: string, replace: string, replaceAll: boolean = true): Promise<OfficeResponse> {
+    return this.request('POST', '/word/find_replace', { find, replace, replace_all: replaceAll });
+  }
+
+  async wordSetStyle(styleName: string): Promise<OfficeResponse> {
+    return this.request('POST', '/word/set_style', { style: styleName });
+  }
+
+  async wordInsertBreak(breakType: 'page' | 'line' | 'section' = 'page'): Promise<OfficeResponse> {
+    return this.request('POST', '/word/insert_break', { break_type: breakType });
+  }
+
+  async wordGetSelection(): Promise<OfficeResponse> {
+    return this.request('GET', '/word/get_selection');
+  }
+
+  async wordSelectAll(): Promise<OfficeResponse> {
+    return this.request('POST', '/word/select_all');
+  }
+
+  async wordGoto(what: 'page' | 'line' | 'bookmark', target: number | string): Promise<OfficeResponse> {
+    return this.request('POST', '/word/goto', { what, target });
   }
 
   // ===========================================================================
@@ -426,6 +555,148 @@ class OfficeClient {
 
   async excelClose(save: boolean = false): Promise<OfficeResponse> {
     return this.request('POST', '/excel/close', { save });
+  }
+
+  async excelSetFormula(cell: string, formula: string, sheet?: string): Promise<OfficeResponse> {
+    return this.request('POST', '/excel/set_formula', { cell, formula, sheet });
+  }
+
+  async excelSetFont(
+    range: string,
+    options: {
+      fontName?: string;
+      fontSize?: number;
+      bold?: boolean;
+      italic?: boolean;
+      underline?: boolean;
+      color?: string;
+    },
+    sheet?: string
+  ): Promise<OfficeResponse> {
+    return this.request('POST', '/excel/set_font', {
+      range,
+      font_name: options.fontName,
+      font_size: options.fontSize,
+      bold: options.bold,
+      italic: options.italic,
+      underline: options.underline,
+      color: options.color,
+      sheet,
+    });
+  }
+
+  async excelSetAlignment(
+    range: string,
+    options: {
+      horizontal?: 'left' | 'center' | 'right';
+      vertical?: 'top' | 'center' | 'bottom';
+      wrapText?: boolean;
+      orientation?: number;
+    },
+    sheet?: string
+  ): Promise<OfficeResponse> {
+    return this.request('POST', '/excel/set_alignment', {
+      range,
+      horizontal: options.horizontal,
+      vertical: options.vertical,
+      wrap_text: options.wrapText,
+      orientation: options.orientation,
+      sheet,
+    });
+  }
+
+  async excelSetColumnWidth(column: string, width?: number, autoFit?: boolean, sheet?: string): Promise<OfficeResponse> {
+    return this.request('POST', '/excel/set_column_width', { column, width, auto_fit: autoFit, sheet });
+  }
+
+  async excelSetRowHeight(row: number, height?: number, autoFit?: boolean, sheet?: string): Promise<OfficeResponse> {
+    return this.request('POST', '/excel/set_row_height', { row, height, auto_fit: autoFit, sheet });
+  }
+
+  async excelMergeCells(range: string, sheet?: string): Promise<OfficeResponse> {
+    return this.request('POST', '/excel/merge_cells', { range, sheet });
+  }
+
+  async excelSetBorder(
+    range: string,
+    options: {
+      style?: 'thin' | 'medium' | 'thick' | 'double' | 'dotted' | 'dashed';
+      color?: string;
+      edges?: ('left' | 'right' | 'top' | 'bottom' | 'all')[];
+    },
+    sheet?: string
+  ): Promise<OfficeResponse> {
+    return this.request('POST', '/excel/set_border', {
+      range,
+      style: options.style,
+      color: options.color,
+      edges: options.edges,
+      sheet,
+    });
+  }
+
+  async excelSetFill(range: string, color: string, sheet?: string): Promise<OfficeResponse> {
+    return this.request('POST', '/excel/set_fill', { range, color, sheet });
+  }
+
+  async excelSetNumberFormat(range: string, format: string, sheet?: string): Promise<OfficeResponse> {
+    return this.request('POST', '/excel/set_number_format', { range, format, sheet });
+  }
+
+  async excelAddSheet(name?: string, position?: 'start' | 'end' | string): Promise<OfficeResponse> {
+    return this.request('POST', '/excel/add_sheet', { name, position });
+  }
+
+  async excelDeleteSheet(name: string): Promise<OfficeResponse> {
+    return this.request('POST', '/excel/delete_sheet', { name });
+  }
+
+  async excelRenameSheet(oldName: string, newName: string): Promise<OfficeResponse> {
+    return this.request('POST', '/excel/rename_sheet', { old_name: oldName, new_name: newName });
+  }
+
+  async excelGetSheets(): Promise<OfficeResponse> {
+    return this.request('GET', '/excel/get_sheets');
+  }
+
+  async excelSortRange(
+    range: string,
+    sortColumn: string,
+    ascending: boolean = true,
+    hasHeader: boolean = true,
+    sheet?: string
+  ): Promise<OfficeResponse> {
+    return this.request('POST', '/excel/sort_range', {
+      range,
+      sort_column: sortColumn,
+      ascending,
+      has_header: hasHeader,
+      sheet,
+    });
+  }
+
+  async excelInsertRow(row: number, count: number = 1, sheet?: string): Promise<OfficeResponse> {
+    return this.request('POST', '/excel/insert_row', { row, count, sheet });
+  }
+
+  async excelDeleteRow(row: number, count: number = 1, sheet?: string): Promise<OfficeResponse> {
+    return this.request('POST', '/excel/delete_row', { row, count, sheet });
+  }
+
+  async excelInsertColumn(column: string, count: number = 1, sheet?: string): Promise<OfficeResponse> {
+    return this.request('POST', '/excel/insert_column', { column, count, sheet });
+  }
+
+  async excelDeleteColumn(column: string, count: number = 1, sheet?: string): Promise<OfficeResponse> {
+    return this.request('POST', '/excel/delete_column', { column, count, sheet });
+  }
+
+  async excelFreezePanes(row?: number, column?: string, sheet?: string): Promise<OfficeResponse> {
+    return this.request('POST', '/excel/freeze_panes', { row, column, sheet });
+  }
+
+  async excelAutoFilter(range: string, sheet?: string): Promise<OfficeResponse> {
+    return this.request('POST', '/excel/auto_filter', { range, sheet });
   }
 
   // ===========================================================================

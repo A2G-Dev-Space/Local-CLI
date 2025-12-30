@@ -33,7 +33,7 @@ import { LLM_AGENT_TOOLS } from './llm/agents/index.js';
 
 // Import optional tools
 import { BROWSER_TOOLS, findChromePath } from './browser/index.js';
-import { WORD_TOOLS, EXCEL_TOOLS, POWERPOINT_TOOLS, shutdownOfficeServer, startOfficeServer } from './office/index.js';
+import { WORD_TOOLS, EXCEL_TOOLS, POWERPOINT_TOOLS, shutdownOfficeServer, startOfficeServer, registerOfficeGroupEnabled } from './office/index.js';
 // Background bash tools are always enabled, imported in initializeToolRegistry
 import { BACKGROUND_BASH_TOOLS } from './llm/simple/background-bash-tool.js';
 
@@ -95,14 +95,16 @@ Chrome이 설치되어 있지 않습니다.
 
 /**
  * Validation: Start Office server and check connection
+ * Returns a factory that creates enable callbacks with groupId registration
  */
-async function validateOfficeTools(): Promise<EnableResult> {
-  try {
-    const started = await startOfficeServer();
-    if (!started) {
-      return {
-        success: false,
-        error: `Office 서버에 연결할 수 없습니다.
+function createOfficeEnableCallback(groupId: string): () => Promise<EnableResult> {
+  return async () => {
+    try {
+      const started = await startOfficeServer();
+      if (!started) {
+        return {
+          success: false,
+          error: `Office 서버에 연결할 수 없습니다.
 
 WSL 사용 시 mirrored networking 설정이 필요합니다:
 1. Windows에서 %USERPROFILE%\\.wslconfig 파일 생성
@@ -112,15 +114,27 @@ WSL 사용 시 mirrored networking 설정이 필요합니다:
 3. PowerShell에서 'wsl --shutdown' 실행 후 WSL 재시작
 
 자세한 내용: docs/05_OFFICE_TOOLS.md`,
+        };
+      }
+      // Register this group as enabled for smart shutdown
+      registerOfficeGroupEnabled(groupId);
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: `Office 서버 시작 실패: ${error instanceof Error ? error.message : String(error)}`,
       };
     }
-    return { success: true };
-  } catch (error) {
-    return {
-      success: false,
-      error: `Office 서버 시작 실패: ${error instanceof Error ? error.message : String(error)}`,
-    };
-  }
+  };
+}
+
+/**
+ * Create disable callback that passes groupId for smart shutdown
+ */
+function createOfficeDisableCallback(groupId: string): () => Promise<void> {
+  return async () => {
+    await shutdownOfficeServer(groupId);
+  };
 }
 
 /**
@@ -143,8 +157,8 @@ export const OPTIONAL_TOOL_GROUPS: OptionalToolGroup[] = [
     description: 'Control Word for document editing (write, read, save, screenshot)',
     tools: WORD_TOOLS,
     enabled: false,
-    onEnable: validateOfficeTools,
-    onDisable: shutdownOfficeServer,
+    onEnable: createOfficeEnableCallback('word'),
+    onDisable: createOfficeDisableCallback('word'),
   },
   {
     id: 'excel',
@@ -152,8 +166,8 @@ export const OPTIONAL_TOOL_GROUPS: OptionalToolGroup[] = [
     description: 'Control Excel for spreadsheet editing (cells, ranges, formulas)',
     tools: EXCEL_TOOLS,
     enabled: false,
-    onEnable: validateOfficeTools,
-    onDisable: shutdownOfficeServer,
+    onEnable: createOfficeEnableCallback('excel'),
+    onDisable: createOfficeDisableCallback('excel'),
   },
   {
     id: 'powerpoint',
@@ -161,8 +175,8 @@ export const OPTIONAL_TOOL_GROUPS: OptionalToolGroup[] = [
     description: 'Control PowerPoint for presentations (slides, text, images)',
     tools: POWERPOINT_TOOLS,
     enabled: false,
-    onEnable: validateOfficeTools,
-    onDisable: shutdownOfficeServer,
+    onEnable: createOfficeEnableCallback('powerpoint'),
+    onDisable: createOfficeDisableCallback('powerpoint'),
   },
 ];
 

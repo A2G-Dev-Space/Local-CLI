@@ -8,6 +8,7 @@
 import React, { useState, useCallback } from 'react';
 import { Box, Text, useInput } from 'ink';
 import SelectInput from 'ink-select-input';
+import Spinner from 'ink-spinner';
 import { toolRegistry, OptionalToolGroup } from '../../tools/registry.js';
 
 interface ToolSelectorProps {
@@ -24,6 +25,7 @@ export const ToolSelector: React.FC<ToolSelectorProps> = ({ onClose }) => {
     toolRegistry.getOptionalToolGroups()
   );
   const [isToggling, setIsToggling] = useState(false);
+  const [togglingGroup, setTogglingGroup] = useState<{ name: string; enabling: boolean } | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Handle keyboard input
@@ -43,7 +45,12 @@ export const ToolSelector: React.FC<ToolSelectorProps> = ({ onClose }) => {
       if (isToggling) return;
 
       const groupId = item.value;
+      const group = toolGroups.find(g => g.id === groupId);
+      const groupName = group?.name || groupId;
+      const isEnabling = !group?.enabled;
+
       setIsToggling(true);
+      setTogglingGroup({ name: groupName, enabling: isEnabling });
       setErrorMessage(null);
 
       try {
@@ -56,9 +63,10 @@ export const ToolSelector: React.FC<ToolSelectorProps> = ({ onClose }) => {
         }
       } finally {
         setIsToggling(false);
+        setTogglingGroup(null);
       }
     },
-    [isToggling]
+    [isToggling, toolGroups]
   );
 
   // Build menu items
@@ -140,10 +148,18 @@ export const ToolSelector: React.FC<ToolSelectorProps> = ({ onClose }) => {
         </Box>
       )}
 
-      {/* Loading indicator */}
-      {isToggling && (
+      {/* Loading indicator with spinner */}
+      {isToggling && togglingGroup && (
         <Box marginTop={1} paddingX={1}>
-          <Text color="yellow">Processing...</Text>
+          <Text color="cyan">
+            <Spinner type="dots" />
+          </Text>
+          <Text color="yellow">
+            {' '}
+            {togglingGroup.enabling
+              ? `Starting ${togglingGroup.name}...`
+              : `Stopping ${togglingGroup.name}...`}
+          </Text>
         </Box>
       )}
 

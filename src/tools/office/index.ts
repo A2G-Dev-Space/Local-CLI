@@ -53,10 +53,45 @@ export async function startOfficeServer(): Promise<boolean> {
   }
 }
 
+// Track which Office tool groups are enabled
+const enabledOfficeGroups = new Set<string>();
+
 /**
- * Shutdown the Office server when tools are disabled
+ * Register an Office tool group as enabled
  */
-export async function shutdownOfficeServer(): Promise<void> {
+export function registerOfficeGroupEnabled(groupId: string): void {
+  enabledOfficeGroups.add(groupId);
+}
+
+/**
+ * Unregister an Office tool group as disabled
+ */
+export function unregisterOfficeGroupEnabled(groupId: string): void {
+  enabledOfficeGroups.delete(groupId);
+}
+
+/**
+ * Check if any Office tool group is still enabled
+ */
+export function hasAnyOfficeGroupEnabled(): boolean {
+  return enabledOfficeGroups.size > 0;
+}
+
+/**
+ * Shutdown the Office server when ALL Office tools are disabled
+ * Only shuts down if no Office tool groups remain enabled
+ */
+export async function shutdownOfficeServer(groupId?: string): Promise<void> {
+  // Unregister this group
+  if (groupId) {
+    unregisterOfficeGroupEnabled(groupId);
+  }
+
+  // Only shutdown if no Office groups remain enabled
+  if (hasAnyOfficeGroupEnabled()) {
+    return; // Other Office tools still active, don't shutdown
+  }
+
   const { officeClient } = await import('./office-client.js');
   try {
     if (await officeClient.isRunning()) {
