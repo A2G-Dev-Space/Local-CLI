@@ -204,8 +204,7 @@ const WORD_SAVE_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'word_save',
-    description: `Save the active Word document.
-Optionally specify a file path to save as a new file.`,
+    description: `Save the active Word document. WSL paths are automatically converted to Windows paths.`,
     parameters: {
       type: 'object',
       properties: {
@@ -215,7 +214,7 @@ Optionally specify a file path to save as a new file.`,
         },
         path: {
           type: 'string',
-          description: 'File path to save to (optional). Example: C:\\Users\\user\\Documents\\report.docx',
+          description: 'File path to save to (optional). Can use Linux/WSL paths (e.g., /home/user/doc.docx) or Windows paths (e.g., C:\\Users\\user\\doc.docx)',
         },
       },
       required: ['reason'],
@@ -503,12 +502,12 @@ const WORD_ADD_IMAGE_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'word_add_image',
-    description: `Add an image to the Word document.`,
+    description: `Add an image to the Word document. WSL paths (e.g., /home/user/image.png) are automatically converted to Windows paths.`,
     parameters: {
       type: 'object',
       properties: {
         reason: { type: 'string', description: 'Why you are adding an image' },
-        path: { type: 'string', description: 'Image file path' },
+        path: { type: 'string', description: 'Image file path. Can use Linux/WSL paths or Windows paths.' },
         width: { type: 'number', description: 'Image width in points (optional)' },
         height: { type: 'number', description: 'Image height in points (optional)' },
       },
@@ -633,7 +632,7 @@ const WORD_SET_STYLE_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'word_set_style',
-    description: `Apply a style to the current selection. Common styles: "Normal", "Heading 1", "Heading 2", "Title", "Quote".`,
+    description: `Apply a style to the current selection. IMPORTANT: Style names depend on Office language. English: "Normal", "Heading 1", "Title". Korean (한국어): "표준", "제목 1", "제목". Use the style name matching the user's Office language.`,
     parameters: {
       type: 'object',
       properties: {
@@ -1090,7 +1089,7 @@ const EXCEL_SAVE_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'excel_save',
-    description: `Save the active Excel workbook.`,
+    description: `Save the active Excel workbook. WSL paths are automatically converted to Windows paths.`,
     parameters: {
       type: 'object',
       properties: {
@@ -1100,7 +1099,7 @@ const EXCEL_SAVE_DEFINITION: ToolDefinition = {
         },
         path: {
           type: 'string',
-          description: 'File path to save to (optional). Example: C:\\Users\\user\\Documents\\data.xlsx',
+          description: 'File path to save to (optional). Can use Linux/WSL paths or Windows paths.',
         },
       },
       required: ['reason'],
@@ -2329,7 +2328,7 @@ const POWERPOINT_SAVE_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'powerpoint_save',
-    description: `Save the active PowerPoint presentation.`,
+    description: `Save the active PowerPoint presentation. WSL paths are automatically converted to Windows paths.`,
     parameters: {
       type: 'object',
       properties: {
@@ -2339,7 +2338,7 @@ const POWERPOINT_SAVE_DEFINITION: ToolDefinition = {
         },
         path: {
           type: 'string',
-          description: 'File path to save to (optional). Example: C:\\Users\\user\\Documents\\presentation.pptx',
+          description: 'File path to save to (optional). Can use Linux/WSL paths or Windows paths.',
         },
       },
       required: ['reason'],
@@ -2584,13 +2583,13 @@ const POWERPOINT_ADD_IMAGE_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'powerpoint_add_image',
-    description: `Add an image to a slide.`,
+    description: `Add an image to a slide. WSL paths are automatically converted to Windows paths.`,
     parameters: {
       type: 'object',
       properties: {
         reason: { type: 'string', description: 'Why you are adding an image' },
         slide: { type: 'number', description: 'Slide number' },
-        path: { type: 'string', description: 'Image file path' },
+        path: { type: 'string', description: 'Image file path. Can use Linux/WSL paths or Windows paths.' },
         left: { type: 'number', description: 'Left position in points' },
         top: { type: 'number', description: 'Top position in points' },
         width: { type: 'number', description: 'Width in points (optional)' },
@@ -2680,14 +2679,14 @@ const POWERPOINT_SET_BACKGROUND_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'powerpoint_set_background',
-    description: `Set slide background color or image.`,
+    description: `Set slide background color or image. WSL paths for images are automatically converted to Windows paths.`,
     parameters: {
       type: 'object',
       properties: {
         reason: { type: 'string', description: 'Why you are setting background' },
         slide: { type: 'number', description: 'Slide number' },
         color: { type: 'string', description: 'Background color as hex (e.g., "#FFFFFF")' },
-        image: { type: 'string', description: 'Background image file path' },
+        image: { type: 'string', description: 'Background image file path. Can use Linux/WSL paths or Windows paths.' },
       },
       required: ['reason', 'slide'],
     },
