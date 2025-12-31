@@ -2028,7 +2028,7 @@ def powerpoint_set_font():
                 hex_color = color.lstrip('#')
                 rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
                 # Convert to BGR for Office
-                color_int = rgb[2] + (rgb[1] << 8) + (rgb[0] << 16)
+                color_int = rgb[0] + (rgb[1] << 8) + (rgb[2] << 16)
             else:
                 color_int = int(color)
             font.Color.RGB = color_int
@@ -2174,7 +2174,7 @@ def powerpoint_set_background():
             if isinstance(color, str) and color.startswith('#'):
                 hex_color = color.lstrip('#')
                 rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-                color_int = rgb[2] + (rgb[1] << 8) + (rgb[0] << 16)
+                color_int = rgb[0] + (rgb[1] << 8) + (rgb[2] << 16)
             else:
                 color_int = int(color)
             slide.Background.Fill.Solid()
