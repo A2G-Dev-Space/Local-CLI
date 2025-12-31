@@ -8,6 +8,7 @@
 import React, { useState, useCallback } from 'react';
 import { Box, Text, useInput } from 'ink';
 import SelectInput from 'ink-select-input';
+import Spinner from 'ink-spinner';
 import { toolRegistry, OptionalToolGroup } from '../../tools/registry.js';
 
 interface ToolSelectorProps {
@@ -23,22 +24,49 @@ export const ToolSelector: React.FC<ToolSelectorProps> = ({ onClose }) => {
   const [toolGroups, setToolGroups] = useState<OptionalToolGroup[]>(() =>
     toolRegistry.getOptionalToolGroups()
   );
+  const [isToggling, setIsToggling] = useState(false);
+  const [togglingGroup, setTogglingGroup] = useState<{ name: string; enabling: boolean } | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Handle keyboard input
   useInput((_input, key) => {
-    if (key.escape) {
+    if (key.escape && !isToggling) {
       onClose();
+    }
+    // Clear error message on any key press
+    if (errorMessage) {
+      setErrorMessage(null);
     }
   });
 
   // Handle tool group selection (toggle)
   const handleSelect = useCallback(
-    (item: SelectItem) => {
+    async (item: SelectItem) => {
+      if (isToggling) return;
+
       const groupId = item.value;
-      toolRegistry.toggleToolGroup(groupId);
-      setToolGroups(toolRegistry.getOptionalToolGroups());
+      const group = toolGroups.find(g => g.id === groupId);
+      const groupName = group?.name || groupId;
+      const isEnabling = !group?.enabled;
+
+      setIsToggling(true);
+      setTogglingGroup({ name: groupName, enabling: isEnabling });
+      setErrorMessage(null);
+
+      try {
+        const result = await toolRegistry.toggleToolGroup(groupId);
+        setToolGroups(toolRegistry.getOptionalToolGroups());
+
+        // Show error if validation failed
+        if (!result.success && result.error) {
+          setErrorMessage(result.error);
+        }
+      } finally {
+        setIsToggling(false);
+        setTogglingGroup(null);
+      }
     },
-    []
+    [isToggling, toolGroups]
   );
 
   // Build menu items
@@ -100,6 +128,37 @@ export const ToolSelector: React.FC<ToolSelectorProps> = ({ onClose }) => {
               .filter((g) => g.enabled)
               .map((g) => g.name)
               .join(', ')}
+          </Text>
+        </Box>
+      )}
+
+      {/* Error Message */}
+      {errorMessage && (
+        <Box
+          marginTop={1}
+          borderStyle="single"
+          borderColor="red"
+          paddingX={1}
+          flexDirection="column"
+        >
+          <Text color="red" bold>
+            ✗ Enable Failed
+          </Text>
+          <Text color="white">{errorMessage}</Text>
+        </Box>
+      )}
+
+      {/* Loading indicator with spinner */}
+      {isToggling && togglingGroup && (
+        <Box marginTop={1} paddingX={1}>
+          <Text color="cyan">
+            <Spinner type="dots" />
+          </Text>
+          <Text color="yellow">
+            {' '}
+            {togglingGroup.enabling
+              ? `Starting ${togglingGroup.name}...`
+              : `Stopping ${togglingGroup.name}...`}
           </Text>
         </Box>
       )}

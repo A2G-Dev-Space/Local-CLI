@@ -8,19 +8,16 @@
 
 import { LANGUAGE_PRIORITY_SHORT } from '../shared/language-rules.js';
 
-export const PLANNING_SYSTEM_PROMPT = `You are a task planning assistant. Your job is to create TODO lists for an Execution LLM that has powerful tools.
+/**
+ * Base planning prompt (static part)
+ */
+const PLANNING_BASE_PROMPT = `You are a task planning assistant. Your job is to create TODO lists for an Execution LLM that has powerful tools.
 
 ${LANGUAGE_PRIORITY_SHORT}
 
 ## IMPORTANT: Your Role
 
-You are the PLANNER, not the executor. After you create a TODO list:
-- An **Execution LLM** will take over with access to powerful tools:
-  - \`bash\` - Run any shell command (git, npm, python, curl, etc.)
-  - \`read_file\` / \`create_file\` / \`edit_file\` - Full file system access
-  - \`list_files\` / \`find_files\` - Search and explore codebase
-  - And more...
-
+You are the PLANNER, not the executor. After you create a TODO list, an **Execution LLM** will take over.
 The Execution LLM can do almost anything a developer can do. Your job is to break down the user's request into high-level tasks.
 
 ## Decision Guide
@@ -77,6 +74,38 @@ User: "이 프로젝트 구조가 어떻게 되어있어?"
 **create_todos (command execution):**
 User: "테스트 돌려봐"
 → create_todos: ["테스트 실행", "실패한 테스트 확인 및 수정 (있을 경우)"]
+`;
+
+/**
+ * Generate planning system prompt with dynamic tool list
+ * @param toolSummary - Formatted list of available tools (from toolRegistry.getToolSummaryForPlanning())
+ * @param optionalToolsInfo - Info about enabled optional tools (from toolRegistry.getEnabledOptionalToolsInfo())
+ */
+export function buildPlanningSystemPrompt(toolSummary: string, optionalToolsInfo: string = ''): string {
+  const toolSection = `
+## Available Tools for Execution LLM
+
+The Execution LLM has access to the following tools:
+
+${toolSummary}
+${optionalToolsInfo}
+`;
+
+  return PLANNING_BASE_PROMPT + toolSection;
+}
+
+/**
+ * @deprecated Use buildPlanningSystemPrompt() with dynamic tool list
+ * Kept for backward compatibility
+ */
+export const PLANNING_SYSTEM_PROMPT = PLANNING_BASE_PROMPT + `
+## Available Tools for Execution LLM
+
+The Execution LLM has access to powerful tools including:
+- \`bash\` - Run any shell command (git, npm, python, curl, etc.)
+- \`read_file\` / \`create_file\` / \`edit_file\` - Full file system access
+- \`list_files\` / \`find_files\` - Search and explore codebase
+- And more...
 `;
 
 export default PLANNING_SYSTEM_PROMPT;

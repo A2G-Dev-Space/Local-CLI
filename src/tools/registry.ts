@@ -32,9 +32,18 @@ import { docsSearchAgentTool } from './llm/simple/docs-search-agent-tool.js';
 import { LLM_AGENT_TOOLS } from './llm/agents/index.js';
 
 // Import optional tools
-import { BROWSER_TOOLS } from './browser/index.js';
+import { BROWSER_TOOLS, findChromePath } from './browser/index.js';
+import { WORD_TOOLS, EXCEL_TOOLS, POWERPOINT_TOOLS, shutdownOfficeServer, startOfficeServer, registerOfficeGroupEnabled } from './office/index.js';
 // Background bash tools are always enabled, imported in initializeToolRegistry
 import { BACKGROUND_BASH_TOOLS } from './llm/simple/background-bash-tool.js';
+
+/**
+ * Enable result with optional error message
+ */
+export interface EnableResult {
+  success: boolean;
+  error?: string;
+}
 
 /**
  * Optional tool group definition
@@ -45,11 +54,93 @@ export interface OptionalToolGroup {
   description: string;
   tools: LLMSimpleTool[];
   enabled: boolean;
+  onEnable?: () => Promise<EnableResult>;  // Validation callback when enabling
+  onDisable?: () => Promise<void>;  // Cleanup callback when disabled
+}
+
+/**
+ * Validation: Check if Chrome/Chromium is installed
+ */
+async function validateBrowserTools(): Promise<EnableResult> {
+  const chromePath = findChromePath();
+  if (!chromePath) {
+    const platform = process.platform;
+    let installGuide = '';
+    if (platform === 'linux') {
+      installGuide = `
+Chrome이 설치되어 있지 않습니다.
+
+설치 방법:
+  Ubuntu/Debian: sudo apt install chromium-browser
+  또는 Chrome 설치: https://www.google.com/chrome/
+
+WSL에서 Windows Chrome 사용:
+  Windows에 Chrome/Edge 설치 후 자동 감지됩니다.
+  또는 CHROME_PATH 환경변수 설정`;
+    } else if (platform === 'darwin') {
+      installGuide = `
+Chrome이 설치되어 있지 않습니다.
+
+설치: https://www.google.com/chrome/`;
+    } else {
+      installGuide = `
+Chrome이 설치되어 있지 않습니다.
+
+설치: https://www.google.com/chrome/`;
+    }
+    return { success: false, error: installGuide.trim() };
+  }
+  return { success: true };
+}
+
+/**
+ * Validation: Start Office server and check connection
+ * Returns a factory that creates enable callbacks with groupId registration
+ */
+function createOfficeEnableCallback(groupId: string): () => Promise<EnableResult> {
+  return async () => {
+    try {
+      const started = await startOfficeServer();
+      if (!started) {
+        return {
+          success: false,
+          error: `Office 서버에 연결할 수 없습니다.
+
+WSL 사용 시 mirrored networking 설정이 필요합니다:
+1. Windows에서 %USERPROFILE%\\.wslconfig 파일 생성
+2. 다음 내용 추가:
+   [wsl2]
+   networkingMode=mirrored
+3. PowerShell에서 'wsl --shutdown' 실행 후 WSL 재시작
+
+자세한 내용: docs/05_OFFICE_TOOLS.md`,
+        };
+      }
+      // Register this group as enabled for smart shutdown
+      registerOfficeGroupEnabled(groupId);
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: `Office 서버 시작 실패: ${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
+  };
+}
+
+/**
+ * Create disable callback that passes groupId for smart shutdown
+ */
+function createOfficeDisableCallback(groupId: string): () => Promise<void> {
+  return async () => {
+    await shutdownOfficeServer(groupId);
+  };
 }
 
 /**
  * Available optional tool groups
  * Note: Browser tools require Chrome to be installed, so they are optional
+ * Note: Office tools require Windows + Microsoft Office + office-server.exe
  */
 export const OPTIONAL_TOOL_GROUPS: OptionalToolGroup[] = [
   {
@@ -57,7 +148,35 @@ export const OPTIONAL_TOOL_GROUPS: OptionalToolGroup[] = [
     name: 'Browser Automation',
     description: 'Control Chrome browser for web testing (navigate, click, screenshot, etc.)',
     tools: BROWSER_TOOLS,
-    enabled: false,  // Disabled by default
+    enabled: false,
+    onEnable: validateBrowserTools,
+  },
+  {
+    id: 'word',
+    name: 'Microsoft Word',
+    description: 'Control Word for document editing (write, read, save, screenshot)',
+    tools: WORD_TOOLS,
+    enabled: false,
+    onEnable: createOfficeEnableCallback('word'),
+    onDisable: createOfficeDisableCallback('word'),
+  },
+  {
+    id: 'excel',
+    name: 'Microsoft Excel',
+    description: 'Control Excel for spreadsheet editing (cells, ranges, formulas)',
+    tools: EXCEL_TOOLS,
+    enabled: false,
+    onEnable: createOfficeEnableCallback('excel'),
+    onDisable: createOfficeDisableCallback('excel'),
+  },
+  {
+    id: 'powerpoint',
+    name: 'Microsoft PowerPoint',
+    description: 'Control PowerPoint for presentations (slides, text, images)',
+    tools: POWERPOINT_TOOLS,
+    enabled: false,
+    onEnable: createOfficeEnableCallback('powerpoint'),
+    onDisable: createOfficeDisableCallback('powerpoint'),
   },
 ];
 
@@ -186,11 +305,21 @@ class ToolRegistry {
   /**
    * Enable an optional tool group
    * @param persist - If true, saves state to config (default: true)
+   * @param skipValidation - If true, skip onEnable validation (for restoring from config)
+   * @returns EnableResult with success status and optional error message
    */
-  enableToolGroup(groupId: string, persist: boolean = true): boolean {
+  async enableToolGroup(groupId: string, persist: boolean = true, skipValidation: boolean = false): Promise<EnableResult> {
     const group = this.optionalToolGroups.get(groupId);
     if (!group) {
-      return false;
+      return { success: false, error: `Tool group '${groupId}' not found` };
+    }
+
+    // Run validation if onEnable callback exists (unless skipped)
+    if (!skipValidation && group.onEnable) {
+      const result = await group.onEnable();
+      if (!result.success) {
+        return result;
+      }
     }
 
     group.enabled = true;
@@ -208,14 +337,14 @@ class ToolRegistry {
       });
     }
 
-    return true;
+    return { success: true };
   }
 
   /**
    * Disable an optional tool group
    * @param persist - If true, saves state to config (default: true)
    */
-  disableToolGroup(groupId: string, persist: boolean = true): boolean {
+  async disableToolGroup(groupId: string, persist: boolean = true): Promise<boolean> {
     const group = this.optionalToolGroups.get(groupId);
     if (!group) {
       return false;
@@ -235,6 +364,15 @@ class ToolRegistry {
       }
     }
 
+    // Call onDisable callback (e.g., shutdown Office server)
+    if (group.onDisable) {
+      try {
+        await group.onDisable();
+      } catch {
+        // Ignore cleanup errors
+      }
+    }
+
     // Persist state to config
     if (persist) {
       configManager.disableTool(groupId).catch(() => {
@@ -247,17 +385,19 @@ class ToolRegistry {
 
   /**
    * Toggle an optional tool group
+   * @returns EnableResult with success status and optional error message
    */
-  toggleToolGroup(groupId: string): boolean {
+  async toggleToolGroup(groupId: string): Promise<EnableResult> {
     const group = this.optionalToolGroups.get(groupId);
     if (!group) {
-      return false;
+      return { success: false, error: `Tool group '${groupId}' not found` };
     }
 
     if (group.enabled) {
-      return this.disableToolGroup(groupId);
+      const success = await this.disableToolGroup(groupId);
+      return { success };
     } else {
-      return this.enableToolGroup(groupId);
+      return await this.enableToolGroup(groupId);
     }
   }
 
@@ -291,6 +431,46 @@ class ToolRegistry {
    */
   listAll(): string[] {
     return Array.from(this.tools.keys());
+  }
+
+  /**
+   * Get tool summary for planning prompt
+   * Returns formatted string with tool names and descriptions
+   * Includes: always-on tools + enabled optional tools
+   */
+  getToolSummaryForPlanning(): string {
+    const lines: string[] = [];
+
+    // Get all LLM Simple tools (always-on)
+    const simpleTools = this.getLLMSimpleTools();
+
+    for (const tool of simpleTools) {
+      const name = tool.definition.function.name;
+      const desc = tool.definition.function.description?.split('\n')[0] || '';
+      // Truncate long descriptions
+      const shortDesc = desc.length > 80 ? desc.slice(0, 77) + '...' : desc;
+      lines.push(`- \`${name}\`: ${shortDesc}`);
+    }
+
+    return lines.join('\n');
+  }
+
+  /**
+   * Get enabled optional tools info for planning prompt
+   */
+  getEnabledOptionalToolsInfo(): string {
+    const enabledGroups = Array.from(this.optionalToolGroups.values())
+      .filter(g => g.enabled);
+
+    if (enabledGroups.length === 0) {
+      return '';
+    }
+
+    const lines: string[] = ['', '**Currently enabled optional tools:**'];
+    for (const group of enabledGroups) {
+      lines.push(`- **${group.name}**: ${group.description}`);
+    }
+    return lines.join('\n');
   }
 }
 
@@ -338,7 +518,9 @@ export async function initializeOptionalTools(): Promise<void> {
   try {
     const enabledToolIds = configManager.getEnabledTools();
     for (const toolId of enabledToolIds) {
-      toolRegistry.enableToolGroup(toolId);
+      // Skip validation when restoring from config
+      // persist=false to avoid re-saving, skipValidation=true for fast startup
+      await toolRegistry.enableToolGroup(toolId, false, true);
     }
   } catch {
     // Config not initialized yet, skip loading saved state

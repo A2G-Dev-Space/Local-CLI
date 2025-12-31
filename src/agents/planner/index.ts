@@ -11,7 +11,7 @@ import * as os from 'os';
 import { LLMClient } from '../../core/llm/llm-client.js';
 import { Message, TodoItem, PlanningResult, TodoStatus } from '../../types/index.js';
 import { logger } from '../../utils/logger.js';
-import { PLANNING_SYSTEM_PROMPT } from '../../prompts/agents/planning.js';
+import { buildPlanningSystemPrompt } from '../../prompts/agents/planning.js';
 import { toolRegistry } from '../../tools/registry.js';
 import {
   buildDocsSearchDecisionPrompt,
@@ -44,10 +44,15 @@ export class PlanningLLM {
    * @param contextMessages Optional context messages (e.g., docs search results)
    */
   async generateTODOList(userRequest: string, contextMessages?: Message[]): Promise<PlanningResult> {
+    // Build dynamic system prompt with available tools
+    const toolSummary = toolRegistry.getToolSummaryForPlanning();
+    const optionalToolsInfo = toolRegistry.getEnabledOptionalToolsInfo();
+    const systemPrompt = buildPlanningSystemPrompt(toolSummary, optionalToolsInfo);
+
     const messages: Message[] = [
       {
         role: 'system',
-        content: PLANNING_SYSTEM_PROMPT,
+        content: systemPrompt,
       },
     ];
 

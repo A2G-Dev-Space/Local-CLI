@@ -18,6 +18,7 @@ import { PlanExecuteApp } from './ui/components/PlanExecuteApp.js';
 import { setupLogging } from './utils/logger.js';
 import { runEvalMode } from './eval/index.js';
 import { initializeOptionalTools } from './tools/registry.js';
+import { ensureOfficeServerOnStartup } from './tools/office/index.js';
 
 // Read version from package.json (single source of truth)
 const require = createRequire(import.meta.url);
@@ -67,6 +68,9 @@ program
 
       // Load saved optional tool states (e.g., browser tools)
       await initializeOptionalTools();
+
+      // Ensure Office server is running if Office tools are enabled
+      await ensureOfficeServerOnStartup();
 
       // LLMClient 생성 (엔드포인트가 없으면 null)
       let llmClient = null;
