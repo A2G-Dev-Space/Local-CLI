@@ -105,15 +105,7 @@ function createOfficeEnableCallback(groupId: string): () => Promise<EnableResult
         return {
           success: false,
           error: `Office 서버에 연결할 수 없습니다.
-
-WSL 사용 시 mirrored networking 설정이 필요합니다:
-1. Windows에서 %USERPROFILE%\\.wslconfig 파일 생성
-2. 다음 내용 추가:
-   [wsl2]
-   networkingMode=mirrored
-3. PowerShell에서 'wsl --shutdown' 실행 후 WSL 재시작
-
-자세한 내용: docs/05_OFFICE_TOOLS.md`,
+WSL 사용 시 mirrored networking 설정이 필요합니다.`,
         };
       }
       // Register this group as enabled for smart shutdown
