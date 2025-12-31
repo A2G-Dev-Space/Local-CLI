@@ -9,27 +9,63 @@ WSL에서 실행 시 네트워크 설정이 필요합니다.
 
 WSL에서 Windows의 Office 서버와 통신하려면 **mirrored networking mode**가 필요합니다.
 
-### 1. .wslconfig 파일 생성/수정
+::: warning 한 번만 설정하면 됩니다
+이 설정은 최초 1회만 하면 됩니다. 이미 설정했다면 이 섹션을 건너뛰세요.
+:::
 
-Windows에서 `%USERPROFILE%\.wslconfig` 파일을 생성하거나 수정합니다:
+### Step 1. PowerShell 열기
 
-```ini
-[wsl2]
-networkingMode=mirrored
+1. Windows 키를 누릅니다
+2. `powershell` 입력
+3. **"Windows PowerShell"** 클릭 (관리자 권한 불필요)
+
+### Step 2. 사용자 폴더로 이동
+
+PowerShell에서 다음 명령어 입력:
+
+```powershell
+cd $env:USERPROFILE
 ```
 
-### 2. WSL 재시작
+### Step 3. .wslconfig 파일 생성
 
-PowerShell (관리자 권한)에서:
+다음 명령어를 **그대로 복사해서** 붙여넣기:
+
+```powershell
+@"
+[wsl2]
+networkingMode=mirrored
+"@ | Out-File -FilePath .wslconfig -Encoding ASCII
+```
+
+::: tip 이미 .wslconfig 파일이 있다면?
+메모장으로 열어서 `[wsl2]` 섹션에 `networkingMode=mirrored` 줄을 추가하세요:
+```powershell
+notepad .wslconfig
+```
+:::
+
+### Step 4. WSL 재시작
+
+같은 PowerShell 창에서:
+
 ```powershell
 wsl --shutdown
 ```
 
-그 후 WSL 터미널을 다시 엽니다.
+### Step 5. WSL 다시 열기
 
-### 3. 확인
+1. Windows 터미널 또는 Ubuntu 앱을 실행
+2. nexus 실행 후 `/tool`에서 Office 도구 활성화
 
-설정 후 `/tool`에서 Office 도구를 활성화하면 자동으로 서버가 시작됩니다.
+### 설정 확인 방법
+
+WSL 터미널에서 다음 명령어로 확인:
+
+```bash
+cat /proc/sys/kernel/osrelease
+# 출력에 "mirrored" 또는 버전 6.x 이상이면 OK
+```
 
 ---
 
