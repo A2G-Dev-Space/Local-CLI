@@ -128,9 +128,12 @@ class OfficeClient {
 
   private findServerExe(): void {
     // Look for office-server.exe in common locations
+    const homeDir = process.env['HOME'] || process.env['USERPROFILE'] || '';
     const possiblePaths = [
       // Environment variable (highest priority - user override)
       process.env['OFFICE_SERVER_PATH'] || '',
+      // In ~/.local/bin/ (where nexus is typically installed)
+      path.join(homeDir, '.local', 'bin', 'office-server.exe'),
       // In bin folder (relative to project)
       path.resolve(process.cwd(), 'bin', 'office-server.exe'),
       // In dist folder (build output for development)

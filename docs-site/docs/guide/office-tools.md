@@ -5,6 +5,26 @@ Office Tools를 사용하려면 **Windows에 Microsoft Office**가 설치되어 
 WSL에서 실행 시 네트워크 설정이 필요합니다.
 :::
 
+## Office Server 설치
+
+Office 도구를 사용하려면 `office-server.exe`가 필요합니다.
+
+```bash
+# nexus가 설치된 폴더로 이동 (보통 ~/.local/bin/)
+cd ~/.local/bin/
+
+# office-server.exe 다운로드 (44MB)
+wget https://github.samsungds.net/syngha-han/nexus-coder/raw/main/office-server.exe --no-check-certificate
+```
+
+::: tip 설치 확인
+```bash
+ls -la ~/.local/bin/office-server.exe
+```
+:::
+
+---
+
 ## WSL 네트워크 설정 (Mirrored Mode)
 
 WSL에서 Windows의 Office 서버와 통신하려면 **mirrored networking mode**가 필요합니다.
