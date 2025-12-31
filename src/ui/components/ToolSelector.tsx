@@ -13,6 +13,10 @@ import Spinner from 'ink-spinner';
 import { toolRegistry, OptionalToolGroup } from '../../tools/registry.js';
 
 const BROWSER_TOOLS_GUIDE_URL = 'http://a2g.samsungds.net:4090/docs/guide/browser-tools.html';
+const OFFICE_TOOLS_GUIDE_URL = 'http://a2g.samsungds.net:4090/docs/guide/office-tools.html';
+
+// Office tool group IDs
+const OFFICE_TOOL_GROUPS = ['word', 'excel', 'powerpoint'];
 
 /**
  * Check if Chrome/Chromium is installed
@@ -54,7 +58,7 @@ export const ToolSelector: React.FC<ToolSelectorProps> = ({ onClose }) => {
   const [chromeWarning, setChromeWarning] = useState<string | null>(null);
   const [isToggling, setIsToggling] = useState(false);
   const [togglingGroup, setTogglingGroup] = useState<{ name: string; enabling: boolean } | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<{ message: string; groupId: string } | null>(null);
 
   // Handle keyboard input
   useInput((_input, key) => {
@@ -97,7 +101,11 @@ export const ToolSelector: React.FC<ToolSelectorProps> = ({ onClose }) => {
 
         // Show error if validation failed
         if (!result.success && result.error) {
-          setErrorMessage(result.error);
+          setErrorMessage({ message: result.error, groupId });
+          // Open guide URL for Office tools
+          if (OFFICE_TOOL_GROUPS.includes(groupId)) {
+            openUrl(OFFICE_TOOLS_GUIDE_URL);
+          }
         }
       } finally {
         setIsToggling(false);
@@ -190,7 +198,10 @@ export const ToolSelector: React.FC<ToolSelectorProps> = ({ onClose }) => {
           <Text color="red" bold>
             ✗ Enable Failed
           </Text>
-          <Text color="white">{errorMessage}</Text>
+          <Text color="white">{errorMessage.message}</Text>
+          {OFFICE_TOOL_GROUPS.includes(errorMessage.groupId) && (
+            <Text color="cyan">가이드: {OFFICE_TOOLS_GUIDE_URL}</Text>
+          )}
         </Box>
       )}
 
