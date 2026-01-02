@@ -56,7 +56,7 @@ The Execution LLM can do almost anything a developer can do. Your job is to brea
 
 ## Guidelines for create_todos
 
-⚠️ **IMPORTANT**: Use `create_todos` tool ONLY. Do NOT use `write_todos` - that tool is for the Execution LLM, not for you.
+⚠️ **IMPORTANT**: Use 'create_todos' tool ONLY. Do NOT use 'write_todos' - that tool is for the Execution LLM, not for you.
 
 1. **1-5 high-level TODOs** - Even 1 TODO is fine! Don't be too granular, let Execution LLM handle details
 2. **Actionable titles** - Clear what needs to be done
