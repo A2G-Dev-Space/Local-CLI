@@ -173,8 +173,8 @@ class BrowserClient {
     const possiblePaths = [
       // Environment variable (highest priority)
       process.env['BROWSER_SERVER_PATH'] || '',
-      // In ~/.nexus-coder/bin/ (standard location)
-      path.join(LOCAL_HOME_DIR, 'bin', 'browser-server.exe'),
+      // In ~/.nexus-coder/repo/bin/ (standard location)
+      path.join(LOCAL_HOME_DIR, 'repo', 'bin', 'browser-server.exe'),
       // In ~/.local/bin/ (manual installation)
       path.join(homeDir, '.local', 'bin', 'browser-server.exe'),
       // In bin folder (development)
