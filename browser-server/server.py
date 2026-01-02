@@ -11,16 +11,24 @@ Or as compiled .exe:
     browser-server.exe [--port 8766]
 """
 
+import os
+import sys
+
+# Disable SSL verification for webdriver_manager (for corporate networks)
+# Must be set BEFORE importing webdriver_manager
+os.environ['WDM_SSL_VERIFY'] = '0'
+os.environ['WDM_LOCAL'] = '1'  # Try to use local cache first
+os.environ['REQUESTS_CA_BUNDLE'] = ''  # Disable requests SSL verify
+
+# Disable SSL warnings
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 import argparse
 import base64
 import json
-import sys
-import os
 import time
 from typing import Optional, Dict, Any
-
-# Disable SSL verification for webdriver_manager (for corporate networks)
-os.environ['WDM_SSL_VERIFY'] = '0'
 
 # Flask for HTTP server
 from flask import Flask, request, jsonify
@@ -179,7 +187,7 @@ def browser_launch():
         headless = data.get('headless', False)
         preferred_browser = data.get('browser', 'chrome')  # 'chrome' or 'edge'
 
-        print(f"[launch] Starting browser launch: preferred={preferred_browser}, headless={headless}")
+        print(f"[launch] Starting browser launch: preferred={preferred_browser}, headless={headless}", flush=True)
 
         # Close existing browser if any
         if browser:
@@ -191,7 +199,7 @@ def browser_launch():
 
         # Try Chrome first, then Edge
         if preferred_browser == 'chrome' and find_chrome_path():
-            print("[launch] Chrome found, setting up options...")
+            print("[launch] Chrome found, setting up options...", flush=True)
             options = ChromeOptions()
             if headless:
                 options.add_argument('--headless=new')
@@ -210,19 +218,19 @@ def browser_launch():
                 'browser': 'ALL'
             })
 
-            print("[launch] Installing ChromeDriver via webdriver_manager...")
+            print("[launch] Installing ChromeDriver via webdriver_manager...", flush=True)
             try:
                 driver_path = ChromeDriverManager().install()
-                print(f"[launch] ChromeDriver installed at: {driver_path}")
+                print(f"[launch] ChromeDriver installed at: {driver_path}", flush=True)
             except Exception as dm_err:
-                print(f"[launch] ChromeDriverManager error: {dm_err}")
+                print(f"[launch] ChromeDriverManager error: {dm_err}", flush=True)
                 raise
 
             service = ChromeService(driver_path)
-            print("[launch] Starting Chrome browser...")
+            print("[launch] Starting Chrome browser...", flush=True)
             browser = webdriver.Chrome(service=service, options=options)
             browser_type = 'chrome'
-            print("[launch] Chrome started successfully!")
+            print("[launch] Chrome started successfully!", flush=True)
 
         elif find_edge_path():
             options = EdgeOptions()
