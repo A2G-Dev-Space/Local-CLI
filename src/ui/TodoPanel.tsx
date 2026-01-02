@@ -43,8 +43,8 @@ const ProgressBar: React.FC<{ completed: number; total: number; width?: number }
   return (
     <Box>
       <Text color="greenBright">{'▓'.repeat(filled)}</Text>
-      <Text color="gray" dimColor>{'░'.repeat(empty)}</Text>
-      <Text color="gray" dimColor> {completed} of {total}</Text>
+      <Text color="white">{'░'.repeat(empty)}</Text>
+      <Text color="cyan"> {completed} of {total}</Text>
     </Box>
   );
 };
@@ -167,7 +167,7 @@ export const TodoPanel: React.FC<TodoPanelProps> = ({
       <Box marginTop={1} justifyContent="space-between">
         <ProgressBar completed={completedCount} total={todos.length} width={20} />
         {isProcessing && (
-          <Text color="gray" dimColor>{formatElapsedTime(elapsedTime)}</Text>
+          <Text color="yellow">{formatElapsedTime(elapsedTime)}</Text>
         )}
       </Box>
     </Box>
@@ -197,12 +197,12 @@ export const TodoStatusBar: React.FC<{ todos: TodoItem[] }> = ({ todos }) => {
     <Box>
       {/* Notion-style inline progress */}
       <Text color="greenBright">{'▓'.repeat(Math.round(percentage / 10))}</Text>
-      <Text color="gray" dimColor>{'░'.repeat(10 - Math.round(percentage / 10))}</Text>
-      <Text color="gray" dimColor> {completedCount}/{todos.length}</Text>
+      <Text color="white">{'░'.repeat(10 - Math.round(percentage / 10))}</Text>
+      <Text color="cyan"> {completedCount}/{todos.length}</Text>
 
       {currentTodo && (
         <>
-          <Text color="gray" dimColor> │ </Text>
+          <Text color="white"> │ </Text>
           <Text color="blueBright">
             <Spinner type="dots" />
           </Text>
@@ -212,7 +212,7 @@ export const TodoStatusBar: React.FC<{ todos: TodoItem[] }> = ({ todos }) => {
 
       {inProgressCount === 0 && completedCount === todos.length && (
         <>
-          <Text color="gray" dimColor> │ </Text>
+          <Text color="white"> │ </Text>
           <Text color="greenBright">Done</Text>
         </>
       )}
