@@ -17,6 +17,7 @@ import io
 import json
 import sys
 import os
+import time
 from typing import Optional, Dict, Any
 
 # Flask for HTTP server
@@ -273,6 +274,32 @@ def find_window_by_class_or_title(class_name: str, title_pattern: str = None) ->
     return result[0] if result else None
 
 
+def bring_window_to_front(window_title_contains: str) -> bool:
+    """Bring a window to the foreground by partial title match"""
+    def callback(hwnd, results):
+        if win32gui.IsWindowVisible(hwnd):
+            title = win32gui.GetWindowText(hwnd)
+            if window_title_contains.lower() in title.lower():
+                results.append(hwnd)
+        return True
+
+    results = []
+    win32gui.EnumWindows(callback, results)
+
+    if results:
+        hwnd = results[0]
+        try:
+            # Restore if minimized
+            if win32gui.IsIconic(hwnd):
+                win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+            # Bring to front
+            win32gui.SetForegroundWindow(hwnd)
+            return True
+        except Exception:
+            pass
+    return False
+
+
 # =============================================================================
 # Health Check Endpoints
 # =============================================================================
@@ -325,6 +352,10 @@ def word_launch():
         # Create new document if none exists
         if word.Documents.Count == 0:
             word.Documents.Add()
+
+        # Bring Word window to front
+        time.sleep(0.3)
+        bring_window_to_front('Word')
 
         return jsonify(get_success_response('Word launched successfully'))
     except Exception as e:
@@ -936,6 +967,10 @@ def excel_launch():
 
         if excel.Workbooks.Count == 0:
             excel.Workbooks.Add()
+
+        # Bring Excel window to front
+        time.sleep(0.3)
+        bring_window_to_front('Excel')
 
         return jsonify(get_success_response('Excel launched successfully'))
     except Exception as e:
@@ -1826,6 +1861,10 @@ def powerpoint_launch():
 
         if ppt.Presentations.Count == 0:
             ppt.Presentations.Add()
+
+        # Bring PowerPoint window to front
+        time.sleep(0.3)
+        bring_window_to_front('PowerPoint')
 
         return jsonify(get_success_response('PowerPoint launched successfully'))
     except Exception as e:

@@ -69,6 +69,17 @@ cat /proc/sys/kernel/osrelease
 
 ---
 
+## Windows 보안 경고
+
+::: warning 처음 실행 시 보안 경고
+Office 도구를 처음 활성화하면 Windows에서 보안 경고가 표시됩니다.
+**"허용"** 버튼을 클릭해야 정상 작동합니다.
+
+이 경고는 `office-server.exe`가 네트워크 통신을 시도하기 때문에 발생합니다.
+:::
+
+---
+
 ## 이걸로 뭘 할 수 있나요?
 
 ::: tip 문서 작업 완전 자동화

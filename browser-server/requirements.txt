@@ -1,0 +1,6 @@
+flask>=2.0.0
+flask-cors>=3.0.0
+selenium>=4.15.0
+webdriver-manager>=4.0.0
+pyinstaller>=6.0.0
+pywin32>=306
