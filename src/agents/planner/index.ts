@@ -105,8 +105,9 @@ export class PlanningLLM {
           throw new Error('Planning LLM returned invalid JSON for tool arguments.');
         }
 
-        if (toolName === 'create_todos') {
-          logger.flow('TODO list created via create_todos tool');
+        // Accept both create_todos (correct) and write_todos (LLM may confuse from context)
+        if (toolName === 'create_todos' || toolName === 'write_todos') {
+          logger.flow(`TODO list created via ${toolName} tool`);
 
           // Validate todos is an array (handle string-wrapped JSON from LLM)
           let rawTodos = toolArgs.todos;
