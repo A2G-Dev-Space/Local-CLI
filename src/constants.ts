@@ -103,7 +103,7 @@ export const SUPPORTED_TEXT_EXTENSIONS = [
 /**
  * 앱 버전 - package.json과 동기화 필요
  */
-export const APP_VERSION = '3.0.1';
+export const APP_VERSION = '3.0.2';
 
 /**
  * 앱 이름
