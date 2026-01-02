@@ -106,7 +106,7 @@ export class PlanningLLM {
         }
 
         // Accept both create_todos (correct) and write_todos (LLM may confuse from context)
-        if (toolName === 'create_todos' || toolName === 'write_todos') {
+        if (['create_todos', 'write_todos'].includes(toolName)) {
           logger.flow(`TODO list created via ${toolName} tool`);
 
           // Validate todos is an array (handle string-wrapped JSON from LLM)
