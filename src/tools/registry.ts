@@ -32,7 +32,7 @@ import { docsSearchAgentTool } from './llm/simple/docs-search-agent-tool.js';
 import { LLM_AGENT_TOOLS } from './llm/agents/index.js';
 
 // Import optional tools
-import { BROWSER_TOOLS, findChromePath } from './browser/index.js';
+import { BROWSER_TOOLS, startBrowserServer, shutdownBrowserServer, isBrowserServerAvailable } from './browser/index.js';
 import { WORD_TOOLS, EXCEL_TOOLS, POWERPOINT_TOOLS, shutdownOfficeServer, startOfficeServer, registerOfficeGroupEnabled } from './office/index.js';
 // Background bash tools are always enabled, imported in initializeToolRegistry
 import { BACKGROUND_BASH_TOOLS } from './llm/simple/background-bash-tool.js';
@@ -59,38 +59,43 @@ export interface OptionalToolGroup {
 }
 
 /**
- * Validation: Check if Chrome/Chromium is installed
+ * Validation: Check if browser-server.exe is available and start it
  */
 async function validateBrowserTools(): Promise<EnableResult> {
-  const chromePath = findChromePath();
-  if (!chromePath) {
-    const platform = process.platform;
-    let installGuide = '';
-    if (platform === 'linux') {
-      installGuide = `
-Chrome이 설치되어 있지 않습니다.
+  // Check if browser-server.exe exists
+  if (!isBrowserServerAvailable()) {
+    return {
+      success: false,
+      error: `browser-server.exe를 찾을 수 없습니다.
 
-설치 방법:
-  Ubuntu/Debian: sudo apt install chromium-browser
-  또는 Chrome 설치: https://www.google.com/chrome/
+위치 확인:
+  - ~/.local-cli/repo/bin/browser-server.exe (auto-update)
+  - ./bin/browser-server.exe (development)
+  - BROWSER_SERVER_PATH 환경변수
 
-WSL에서 Windows Chrome 사용:
-  Windows에 Chrome/Edge 설치 후 자동 감지됩니다.
-  또는 CHROME_PATH 환경변수 설정`;
-    } else if (platform === 'darwin') {
-      installGuide = `
-Chrome이 설치되어 있지 않습니다.
-
-설치: https://www.google.com/chrome/`;
-    } else {
-      installGuide = `
-Chrome이 설치되어 있지 않습니다.
-
-설치: https://www.google.com/chrome/`;
-    }
-    return { success: false, error: installGuide.trim() };
+설치:
+  browser-server 폴더에서 빌드하거나
+  최신 버전으로 업데이트하세요.`,
+    };
   }
-  return { success: true };
+
+  // Try to start the server
+  try {
+    const started = await startBrowserServer();
+    if (!started) {
+      return {
+        success: false,
+        error: `Browser 서버에 연결할 수 없습니다.
+WSL 사용 시 mirrored networking 설정이 필요할 수 있습니다.`,
+      };
+    }
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: `Browser 서버 시작 실패: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
 }
 
 /**
@@ -146,10 +151,11 @@ export const OPTIONAL_TOOL_GROUPS: OptionalToolGroup[] = [
   {
     id: 'browser',
     name: 'Browser Automation',
-    description: 'Control Chrome browser for web testing (navigate, click, screenshot, etc.)',
+    description: 'Control Chrome/Edge browser for web testing (navigate, click, screenshot, etc.)',
     tools: BROWSER_TOOLS,
     enabled: false,
     onEnable: validateBrowserTools,
+    onDisable: shutdownBrowserServer,
   },
   {
     id: 'word',
