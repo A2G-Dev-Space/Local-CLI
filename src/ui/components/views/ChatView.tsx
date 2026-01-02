@@ -253,6 +253,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
       }
     }
 
+    // For browser/office tools, summarize if more than 3 lines
+    if (toolName.startsWith('browser_') || toolName.startsWith('word_') ||
+        toolName.startsWith('excel_') || toolName.startsWith('powerpoint_')) {
+      const lines = result.split('\n');
+      if (lines.length > 3) {
+        const preview = lines.slice(0, 2).join('\n');
+        return `${preview}\n... (${lines.length - 2} more lines)`;
+      }
+      return result;
+    }
+
     // Default: show truncated first line
     const firstLine = result.split('\n')[0] || '';
     return firstLine.length > 60 ? firstLine.substring(0, 57) + '...' : firstLine;
