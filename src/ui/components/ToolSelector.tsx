@@ -19,9 +19,22 @@ const OFFICE_TOOLS_GUIDE_URL = 'http://a2g.samsungds.net:4090/docs/guide/office-
 const OFFICE_TOOL_GROUPS = ['word', 'excel', 'powerpoint'];
 
 /**
- * Check if Chrome/Chromium is installed
+ * Check if Chrome/Chromium is installed (or browser-server.exe is available)
+ * browser-server.exe runs on Windows and handles Chrome/Edge detection there
  */
 function isChromeInstalled(): boolean {
+  // If browser-server.exe exists, skip Linux Chrome check
+  // (browser-server handles Chrome/Edge detection on Windows)
+  try {
+    const { browserClient } = require('../tools/browser/browser-client.js');
+    if (browserClient.getServerExePath()) {
+      return true;
+    }
+  } catch {
+    // Ignore import errors
+  }
+
+  // Fallback: check Linux Chrome installation
   try {
     execSync('which google-chrome || which chromium-browser || which chromium', { stdio: 'ignore' });
     return true;
