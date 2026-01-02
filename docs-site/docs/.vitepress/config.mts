@@ -64,10 +64,11 @@ export default defineConfig({
           text: 'Demos',
           items: [
             { text: 'Overview', link: '/demos/' },
-            { text: 'Starting a New Project', link: '/demos/starting-project' },
             { text: 'Understanding Codebase', link: '/demos/understanding-codebase' },
-            { text: 'Finding and Fixing Issues', link: '/demos/fixing-issues' },
-            { text: 'Writing Documentation', link: '/demos/writing-docs' },
+            { text: 'Vibe Coding Streamlit', link: '/demos/vibe-coding-streamlit' },
+            { text: 'Vibe Coding React', link: '/demos/vibe-coding-react' },
+            { text: 'Vibe Coding Office', link: '/demos/vibe-coding-office' },
+            { text: 'Git Automation', link: '/demos/git-automation' },
           ]
         }
       ]
