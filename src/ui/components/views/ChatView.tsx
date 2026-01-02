@@ -253,9 +253,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
       }
     }
 
-    // For browser/office tools, summarize if more than 3 lines
+    // For browser/office/bash tools, summarize if more than 3 lines
     if (toolName.startsWith('browser_') || toolName.startsWith('word_') ||
-        toolName.startsWith('excel_') || toolName.startsWith('powerpoint_')) {
+        toolName.startsWith('excel_') || toolName.startsWith('powerpoint_') ||
+        toolName.startsWith('bash')) {
       const lines = result.split('\n');
       if (lines.length > 3) {
         const preview = lines.slice(0, 2).join('\n');
