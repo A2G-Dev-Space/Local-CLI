@@ -8,8 +8,38 @@
 import React, { useState, useCallback } from 'react';
 import { Box, Text, useInput } from 'ink';
 import SelectInput from 'ink-select-input';
+import { execSync } from 'child_process';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
 import Spinner from 'ink-spinner';
 import { toolRegistry, OptionalToolGroup } from '../../tools/registry.js';
+
+/**
+ * Check if Chrome/Chromium is installed (or browser-server.exe is available)
+ */
+function isChromeInstalled(): boolean {
+  // Check if browser-server.exe exists (handles Chrome/Edge on Windows)
+  const homeDir = os.homedir();
+  const browserServerPaths = [
+    path.join(homeDir, '.local-cli', 'repo', 'bin', 'browser-server.exe'),
+    path.join(homeDir, '.local', 'bin', 'browser-server.exe'),
+  ];
+
+  for (const p of browserServerPaths) {
+    if (fs.existsSync(p)) {
+      return true;
+    }
+  }
+
+  // Fallback: check Linux Chrome installation
+  try {
+    execSync('which google-chrome || which chromium-browser || which chromium', { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 interface ToolSelectorProps {
   onClose: () => void;
@@ -48,6 +78,12 @@ export const ToolSelector: React.FC<ToolSelectorProps> = ({ onClose }) => {
       const group = toolGroups.find(g => g.id === groupId);
       const groupName = group?.name || groupId;
       const isEnabling = !group?.enabled;
+
+      // Check Chrome installation when enabling browser tools
+      if (groupId === 'browser' && isEnabling && !isChromeInstalled()) {
+        setErrorMessage('Chrome/browser-server.exe not found');
+        return;
+      }
 
       setIsToggling(true);
       setTogglingGroup({ name: groupName, enabling: isEnabling });
