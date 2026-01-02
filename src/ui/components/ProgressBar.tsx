@@ -39,10 +39,10 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
       )}
       <Box>
         <Text>
-          {chalk.green(filledBar)}
-          {chalk.gray(emptyBar)}
+          {chalk.greenBright(filledBar)}
+          {chalk.white(emptyBar)}
           {showPercentage && (
-            <Text> {percentage}% ({current}/{total})</Text>
+            <Text color="cyan"> {percentage}% ({current}/{total})</Text>
           )}
         </Text>
       </Box>
