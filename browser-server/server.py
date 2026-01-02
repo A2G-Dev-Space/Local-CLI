@@ -11,11 +11,12 @@ Or as compiled .exe:
     browser-server.exe [--port 8766]
 """
 
+import os
+import sys
+
 import argparse
 import base64
 import json
-import sys
-import os
 import time
 from typing import Optional, Dict, Any
 
@@ -25,8 +26,7 @@ from flask_cors import CORS
 
 # Selenium for browser automation
 from selenium import webdriver
-from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.webdriver.edge.service import Service as EdgeService
+# Note: Service classes not needed with Selenium 4.6+ built-in driver manager
 from selenium.webdriver.chrome.options import Options as ChromeOptions
 from selenium.webdriver.edge.options import Options as EdgeOptions
 from selenium.webdriver.common.by import By
@@ -34,8 +34,7 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
-from webdriver_manager.chrome import ChromeDriverManager
-from webdriver_manager.microsoft import EdgeChromiumDriverManager
+# Note: Selenium 4.6+ has built-in driver manager, no need for webdriver_manager
 
 # Windows API for window management
 try:
@@ -115,10 +114,36 @@ def bring_window_to_front(window_title_contains: str) -> bool:
             # Restore if minimized
             if win32gui.IsIconic(hwnd):
                 win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
-            # Bring to front
-            win32gui.SetForegroundWindow(hwnd)
+
+            # Multiple methods to ensure window comes to front
+            # Method 1: Show and activate
+            win32gui.ShowWindow(hwnd, win32con.SW_SHOW)
+
+            # Method 2: Bring to top
+            win32gui.BringWindowToTop(hwnd)
+
+            # Method 3: SetForegroundWindow with thread attach trick
+            try:
+                import win32process
+                import win32api
+
+                foreground_hwnd = win32gui.GetForegroundWindow()
+                foreground_thread = win32process.GetWindowThreadProcessId(foreground_hwnd)[0]
+                target_thread = win32process.GetWindowThreadProcessId(hwnd)[0]
+
+                if foreground_thread != target_thread:
+                    win32process.AttachThreadInput(foreground_thread, target_thread, True)
+                    win32gui.SetForegroundWindow(hwnd)
+                    win32process.AttachThreadInput(foreground_thread, target_thread, False)
+                else:
+                    win32gui.SetForegroundWindow(hwnd)
+            except Exception:
+                # Fallback: just try SetForegroundWindow
+                win32gui.SetForegroundWindow(hwnd)
+
             return True
-        except Exception:
+        except Exception as e:
+            print(f"[bring_window_to_front] Error: {e}", flush=True)
             pass
     return False
 
@@ -176,6 +201,8 @@ def browser_launch():
         headless = data.get('headless', False)
         preferred_browser = data.get('browser', 'chrome')  # 'chrome' or 'edge'
 
+        print(f"[launch] Starting browser launch: preferred={preferred_browser}, headless={headless}", flush=True)
+
         # Close existing browser if any
         if browser:
             try:
@@ -186,6 +213,7 @@ def browser_launch():
 
         # Try Chrome first, then Edge
         if preferred_browser == 'chrome' and find_chrome_path():
+            print("[launch] Chrome found, setting up options...", flush=True)
             options = ChromeOptions()
             if headless:
                 options.add_argument('--headless=new')
@@ -204,9 +232,11 @@ def browser_launch():
                 'browser': 'ALL'
             })
 
-            service = ChromeService(ChromeDriverManager().install())
-            browser = webdriver.Chrome(service=service, options=options)
+            print("[launch] Starting Chrome browser (Selenium built-in driver manager)...", flush=True)
+            # Selenium 4.6+ automatically manages chromedriver
+            browser = webdriver.Chrome(options=options)
             browser_type = 'chrome'
+            print("[launch] Chrome started successfully!", flush=True)
 
         elif find_edge_path():
             options = EdgeOptions()
@@ -224,8 +254,8 @@ def browser_launch():
                 'browser': 'ALL'
             })
 
-            service = EdgeService(EdgeChromiumDriverManager().install())
-            browser = webdriver.Edge(service=service, options=options)
+            # Selenium 4.6+ automatically manages edgedriver
+            browser = webdriver.Edge(options=options)
             browser_type = 'edge'
 
         else:

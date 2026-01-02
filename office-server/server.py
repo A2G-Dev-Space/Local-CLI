@@ -292,10 +292,35 @@ def bring_window_to_front(window_title_contains: str) -> bool:
             # Restore if minimized
             if win32gui.IsIconic(hwnd):
                 win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
-            # Bring to front
-            win32gui.SetForegroundWindow(hwnd)
+
+            # Multiple methods to ensure window comes to front
+            # Method 1: Show and activate
+            win32gui.ShowWindow(hwnd, win32con.SW_SHOW)
+
+            # Method 2: Bring to top
+            win32gui.BringWindowToTop(hwnd)
+
+            # Method 3: SetForegroundWindow with thread attach trick
+            try:
+                import win32process
+
+                foreground_hwnd = win32gui.GetForegroundWindow()
+                foreground_thread = win32process.GetWindowThreadProcessId(foreground_hwnd)[0]
+                target_thread = win32process.GetWindowThreadProcessId(hwnd)[0]
+
+                if foreground_thread != target_thread:
+                    win32process.AttachThreadInput(foreground_thread, target_thread, True)
+                    win32gui.SetForegroundWindow(hwnd)
+                    win32process.AttachThreadInput(foreground_thread, target_thread, False)
+                else:
+                    win32gui.SetForegroundWindow(hwnd)
+            except Exception:
+                # Fallback: just try SetForegroundWindow
+                win32gui.SetForegroundWindow(hwnd)
+
             return True
-        except Exception:
+        except Exception as e:
+            print(f"[bring_window_to_front] Error: {e}", flush=True)
             pass
     return False
 
