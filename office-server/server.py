@@ -413,7 +413,14 @@ def word_write():
             return jsonify(get_error_response('No active Word document'))
 
         selection = word.Selection
-        selection.TypeText(text)
+
+        # Handle line breaks: split by \n and insert paragraphs
+        lines = text.split('\n')
+        for i, line in enumerate(lines):
+            if line:  # Only type non-empty lines
+                selection.TypeText(line)
+            if i < len(lines) - 1:  # Insert paragraph break between lines
+                selection.TypeParagraph()
 
         return jsonify(get_success_response('Text written successfully'))
     except Exception as e:
@@ -719,6 +726,11 @@ def word_add_table():
                         break
                     cell = table.Cell(i + 1, j + 1)
                     cell.Range.Text = str(cell_value)
+
+        # Move cursor after the table
+        # Insert paragraph after table and move cursor to end of document
+        table.Range.InsertParagraphAfter()
+        selection.EndKey(Unit=6)  # Unit=6 is wdStory - moves to end of document
 
         return jsonify(get_success_response('Table added', {
             'rows': rows,
