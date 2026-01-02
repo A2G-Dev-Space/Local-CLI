@@ -8,9 +8,34 @@
  * 첫 사용 시 office-server.exe 자동 시작
  */
 
+import * as fs from 'fs';
+import * as path from 'path';
 import { ToolDefinition } from '../../types/index.js';
 import { LLMSimpleTool, ToolResult, ToolCategory } from '../types.js';
 import { officeClient } from './office-client.js';
+
+/**
+ * Save base64 image to file and return the path
+ */
+function saveScreenshot(base64Image: string, appName: string): string {
+  const screenshotsDir = path.join(process.cwd(), 'screenshots');
+
+  // Create screenshots directory if it doesn't exist
+  if (!fs.existsSync(screenshotsDir)) {
+    fs.mkdirSync(screenshotsDir, { recursive: true });
+  }
+
+  // Generate filename with timestamp
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const filename = `${appName}_${timestamp}.png`;
+  const filePath = path.join(screenshotsDir, filename);
+
+  // Decode base64 and save
+  const buffer = Buffer.from(base64Image, 'base64');
+  fs.writeFileSync(filePath, buffer);
+
+  return filePath;
+}
 
 const OFFICE_CATEGORIES: ToolCategory[] = ['llm-simple'];
 
@@ -278,14 +303,10 @@ async function executeWordScreenshot(_args: Record<string, unknown>): Promise<To
   try {
     const response = await officeClient.wordScreenshot();
     if (response.success && response.image) {
+      const filePath = saveScreenshot(response.image, 'word');
       return {
         success: true,
-        result: 'Word screenshot captured',
-        metadata: {
-          image: response.image,
-          imageType: 'image/png',
-          encoding: 'base64',
-        },
+        result: `Word screenshot saved to: ${filePath}\n\nYou can view this image using read_file tool if your LLM supports vision.`,
       };
     }
     return { success: false, error: response.error || 'Failed to capture screenshot' };
@@ -1161,14 +1182,10 @@ async function executeExcelScreenshot(_args: Record<string, unknown>): Promise<T
   try {
     const response = await officeClient.excelScreenshot();
     if (response.success && response.image) {
+      const filePath = saveScreenshot(response.image, 'excel');
       return {
         success: true,
-        result: 'Excel screenshot captured',
-        metadata: {
-          image: response.image,
-          imageType: 'image/png',
-          encoding: 'base64',
-        },
+        result: `Excel screenshot saved to: ${filePath}\n\nYou can view this image using read_file tool if your LLM supports vision.`,
       };
     }
     return { success: false, error: response.error || 'Failed to capture screenshot' };
@@ -2400,14 +2417,10 @@ async function executePowerPointScreenshot(_args: Record<string, unknown>): Prom
   try {
     const response = await officeClient.powerpointScreenshot();
     if (response.success && response.image) {
+      const filePath = saveScreenshot(response.image, 'powerpoint');
       return {
         success: true,
-        result: 'PowerPoint screenshot captured',
-        metadata: {
-          image: response.image,
-          imageType: 'image/png',
-          encoding: 'base64',
-        },
+        result: `PowerPoint screenshot saved to: ${filePath}\n\nYou can view this image using read_file tool if your LLM supports vision.`,
       };
     }
     return { success: false, error: response.error || 'Failed to capture screenshot' };
