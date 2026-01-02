@@ -1,4 +1,4 @@
-# LOCAL-CLI v2.7.2
+# LOCAL-CLI v3.0.1
 
 [![GitHub release](https://img.shields.io/github/v/release/A2G-Dev-Space/Local-CLI)](https://github.com/A2G-Dev-Space/Local-CLI/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -83,9 +83,15 @@ Claude Code-style scrollable log history:
 | `edit_file` | Edit existing file (line-by-line) | ✅ |
 | `list_files` | List directory | ❌ |
 | `find_files` | Search files (glob pattern) | ❌ |
-| `bash` | Execute shell commands (v2.2.0) | ✅ |
+| `bash` | Execute shell commands | ✅ |
 | `tell_to_user` | Send message to user | ❌ |
 | `ask_user` | Ask user a question | ❌ |
+
+### Optional Tools (via `/tool` command)
+| Tool Group | Description |
+|------------|-------------|
+| `browser` | Chrome/Edge automation via CDP (navigate, click, screenshot, etc.) |
+| `office` | Microsoft Office automation (Excel, Word, PowerPoint) |
 
 ### Slash Commands
 | Command | Description |
@@ -98,6 +104,7 @@ Claude Code-style scrollable log history:
 | `/settings` | Settings menu |
 | `/usage` | Token usage statistics |
 | `/docs` | Documentation management |
+| `/tool` | Enable/disable optional tools (browser, office) |
 
 ### Keyboard Shortcuts
 - `Ctrl+C` - Exit
@@ -110,26 +117,37 @@ Claude Code-style scrollable log history:
 
 ## Main Features
 
-### v2.7.2 New Features
+### v3.0.1 New Features
+
+| Feature | Description |
+|---------|-------------|
+| **Planning LLM Fix** | Fixed empty response and tool confusion errors |
+| **Progress Bar Visibility** | Improved color visibility for progress bars |
+| **TODO Complete Message** | Removed duplicate completion messages |
+
+### v3.0.0 New Features
+
+| Feature | Description |
+|---------|-------------|
+| **Microsoft Office Tools** | Excel, Word, PowerPoint automation via `/tool office` |
+| **Browser Automation** | Chrome/Edge CDP-based browser control via `/tool browser` |
+| **WSL2 Support** | Windows Chrome/Edge support in WSL2 environment |
+| **UI Visibility** | Improved startup messages and UI visibility |
+| **Multi-line Paste** | Support for pasting multi-line text in input |
+| **Auto Retry** | Automatic retry logic for LLM calls (up to 3 times) |
+
+### v2.7.x Features
 
 | Feature | Description |
 |---------|-------------|
 | **Git Repository Detection** | Shows startup notification when working in a git repo |
 | **Commit Assistance** | Prompts to commit changes after task completion |
-| **Co-Authored-By Support** | Automatically includes `Co-Authored-By: Local-CLI` trailer in commits |
-| **PR Creation Guidelines** | HEREDOC-based formatting for proper markdown in PRs |
-
-### v2.7.0 New Features
-
-| Feature | Description |
-|---------|-------------|
+| **Co-Authored-By Support** | Automatically includes `Co-Authored-By` trailer in commits |
 | **Notion-style TODO UI** | Checkbox icons (☐ pending, ☑ completed, ☒ failed), strikethrough for completed items |
 | **Enhanced Status Bar** | Star spinner (✶), progress display (2/5 tasks), current tool name |
-| **Shark Loading Animation** | Initial loading screen and `/compact` use shark spinner |
 | **Planning LLM Improvements** | create_todos tool, conversation history after compact, TODO sync emphasis |
-| **dots2 Spinner** | TODO list uses dots2 spinner (⣾ ⣽ ⣻ ⢿) for better visuals |
 
-### v2.6.1 Features
+### v2.6.x Features
 
 | Feature | Description |
 |---------|-------------|

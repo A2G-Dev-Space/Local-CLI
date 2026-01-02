@@ -577,11 +577,9 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
       });
     });
 
-    setTodoCompleteCallback((title) => {
-      addLog({
-        type: 'todo_complete',
-        content: title,
-      });
+    // todo_complete 로그 제거 - TodoPanel에서 이미 상태 표시 중이므로 중복
+    setTodoCompleteCallback(() => {
+      // No-op: TodoPanel handles visual feedback
     });
 
     setTodoFailCallback((title) => {
