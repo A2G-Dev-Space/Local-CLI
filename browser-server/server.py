@@ -14,16 +14,6 @@ Or as compiled .exe:
 import os
 import sys
 
-# Disable SSL verification for webdriver_manager (for corporate networks)
-# Must be set BEFORE importing webdriver_manager
-os.environ['WDM_SSL_VERIFY'] = '0'
-os.environ['WDM_LOCAL'] = '1'  # Try to use local cache first
-os.environ['REQUESTS_CA_BUNDLE'] = ''  # Disable requests SSL verify
-
-# Disable SSL warnings
-import urllib3
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
 import argparse
 import base64
 import json
@@ -36,8 +26,7 @@ from flask_cors import CORS
 
 # Selenium for browser automation
 from selenium import webdriver
-from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.webdriver.edge.service import Service as EdgeService
+# Note: Service classes not needed with Selenium 4.6+ built-in driver manager
 from selenium.webdriver.chrome.options import Options as ChromeOptions
 from selenium.webdriver.edge.options import Options as EdgeOptions
 from selenium.webdriver.common.by import By
@@ -45,8 +34,7 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
-from webdriver_manager.chrome import ChromeDriverManager
-from webdriver_manager.microsoft import EdgeChromiumDriverManager
+# Note: Selenium 4.6+ has built-in driver manager, no need for webdriver_manager
 
 # Windows API for window management
 try:
@@ -218,17 +206,9 @@ def browser_launch():
                 'browser': 'ALL'
             })
 
-            print("[launch] Installing ChromeDriver via webdriver_manager...", flush=True)
-            try:
-                driver_path = ChromeDriverManager().install()
-                print(f"[launch] ChromeDriver installed at: {driver_path}", flush=True)
-            except Exception as dm_err:
-                print(f"[launch] ChromeDriverManager error: {dm_err}", flush=True)
-                raise
-
-            service = ChromeService(driver_path)
-            print("[launch] Starting Chrome browser...", flush=True)
-            browser = webdriver.Chrome(service=service, options=options)
+            print("[launch] Starting Chrome browser (Selenium built-in driver manager)...", flush=True)
+            # Selenium 4.6+ automatically manages chromedriver
+            browser = webdriver.Chrome(options=options)
             browser_type = 'chrome'
             print("[launch] Chrome started successfully!", flush=True)
 
@@ -248,8 +228,8 @@ def browser_launch():
                 'browser': 'ALL'
             })
 
-            service = EdgeService(EdgeChromiumDriverManager().install())
-            browser = webdriver.Edge(service=service, options=options)
+            # Selenium 4.6+ automatically manages edgedriver
+            browser = webdriver.Edge(options=options)
             browser_type = 'edge'
 
         else:
