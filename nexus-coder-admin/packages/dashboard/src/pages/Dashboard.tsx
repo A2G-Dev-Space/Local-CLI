@@ -4,6 +4,7 @@ import { statsApi } from '../services/api';
 import UserStatsChart from '../components/Charts/UserStatsChart';
 import ModelUsageChart from '../components/Charts/ModelUsageChart';
 import UsersByModelChart from '../components/Charts/UsersByModelChart';
+import ModelRatingChart from '../components/Charts/ModelRatingChart';
 
 interface OverviewStats {
   activeUsers: number;
@@ -141,6 +142,9 @@ export default function Dashboard() {
 
       {/* Model Usage Chart */}
       <ModelUsageChart />
+
+      {/* Model Rating Chart */}
+      <ModelRatingChart />
 
       {/* Users by Model Chart */}
       <UsersByModelChart />

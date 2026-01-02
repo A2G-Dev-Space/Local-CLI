@@ -96,6 +96,11 @@ export const myUsageApi = {
   recent: (limit = 50, offset = 0) => api.get(`/my-usage/recent?limit=${limit}&offset=${offset}`),
 };
 
+// 모델 평점 API
+export const ratingApi = {
+  stats: (days = 30) => api.get(`/rating/stats?days=${days}`),
+};
+
 interface CreateModelData {
   name: string;
   displayName: string;

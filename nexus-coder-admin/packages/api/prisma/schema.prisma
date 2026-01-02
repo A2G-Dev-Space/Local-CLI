@@ -144,3 +144,16 @@ model Feedback {
   @@index([createdAt])
   @@map("feedbacks")
 }
+
+// 모델 평점 피드백 (1-5점)
+// 누가 줬는지는 중요하지 않음 - 모델별 평균 점수 추이만 필요
+model RatingFeedback {
+  id        String   @id @default(uuid())
+  modelName String   @map("model_name")  // 모델 이름
+  rating    Int                          // 1-5 점수
+  timestamp DateTime @default(now())
+
+  @@index([modelName])
+  @@index([timestamp])
+  @@map("rating_feedbacks")
+}

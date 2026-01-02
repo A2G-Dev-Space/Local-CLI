@@ -11,3 +11,6 @@ export { SettingsBrowser } from './SettingsDialog.js';
 
 // Docs browser
 export { DocsBrowser } from './DocsBrowser.js';
+
+// Rating dialog
+export { RatingDialog } from './RatingDialog.js';

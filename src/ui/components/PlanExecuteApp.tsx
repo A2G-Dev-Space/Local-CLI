@@ -32,7 +32,8 @@ export type LogEntryType =
   | 'session_restored'
   | 'docs_search'
   | 'reasoning'
-  | 'git_info';
+  | 'git_info'
+  | 'star_request';
 
 export interface LogEntry {
   id: string;
@@ -60,6 +61,8 @@ import { ToolSelector } from './ToolSelector.js';
 import { AskUserDialog } from './dialogs/AskUserDialog.js';
 import { ApprovalDialog } from './dialogs/ApprovalDialog.js';
 import { DocsBrowser } from './dialogs/DocsBrowser.js';
+import { RatingDialog } from './dialogs/RatingDialog.js';
+import { notificationManager, type RatingNotification } from '../../core/notification-manager.js';
 import { CommandBrowser } from './CommandBrowser.js';
 // ChatView removed - using Static log instead
 import { Logo } from './Logo.js';
@@ -242,6 +245,9 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
     reason?: string;
     resolve: (result: 'approve' | 'always' | { reject: true; comment: string }) => void;
   } | null>(null);
+
+  // Rating notification state
+  const [pendingRatingNotification, setPendingRatingNotification] = useState<RatingNotification | null>(null);
 
   // Static log entries for scrollable history
   const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
@@ -434,6 +440,30 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
       setReasoningCallback(null);
     };
   }, [addLog]);
+
+  // Setup notification callbacks (rating dialog & star message)
+  useEffect(() => {
+    // Rating notification - shows dialog
+    notificationManager.setRatingCallback((notification) => {
+      // Only show if not currently processing
+      if (!isProcessing) {
+        setPendingRatingNotification(notification);
+      }
+    });
+
+    // Star message - adds to log (scrolls naturally)
+    notificationManager.setStarMessageCallback((message) => {
+      addLog({
+        type: 'star_request',
+        content: message,
+      });
+    });
+
+    return () => {
+      notificationManager.setRatingCallback(null);
+      notificationManager.setStarMessageCallback(null);
+    };
+  }, [addLog, isProcessing]);
 
   // Setup tool approval callback (Supervised Mode)
   useEffect(() => {
@@ -1248,6 +1278,9 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
       setIsProcessing(false);
       logger.endTimer('message-processing');
       logger.exit('handleSubmit', { success: true });
+
+      // Check for periodic notifications (rating, star)
+      notificationManager.checkNotifications();
     }
   }, [
     isProcessing,
@@ -1313,6 +1346,9 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
           logger.error('Queued message processing failed', error as Error);
         } finally {
           setIsProcessing(false);
+
+          // Check for periodic notifications (rating, star)
+          notificationManager.checkNotifications();
         }
       };
 
@@ -1780,6 +1816,13 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
           </Box>
         );
 
+      case 'star_request':
+        return (
+          <Box key={entry.id} marginTop={1}>
+            <Text color="yellow">{entry.content}</Text>
+          </Box>
+        );
+
       case 'plan_created':
         return (
           <Box key={entry.id} flexDirection="column" marginTop={1}>
@@ -1915,6 +1958,18 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
             onResponse={handleApprovalResponse}
           />
         </Box>
+      )}
+
+      {/* Rating Dialog - shown after processing completes (every N requests) */}
+      {pendingRatingNotification && (
+        <RatingDialog
+          modelName={pendingRatingNotification.modelName}
+          onSubmit={async (rating) => {
+            await notificationManager.submitRating(pendingRatingNotification.modelName, rating);
+            setPendingRatingNotification(null);
+          }}
+          onCancel={() => setPendingRatingNotification(null)}
+        />
       )}
 
       {/* Activity Indicator (shown when processing, but NOT when TODO panel is visible) */}
