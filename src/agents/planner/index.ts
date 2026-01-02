@@ -80,94 +80,134 @@ export class PlanningLLM {
     // Get Planning tool definitions (create_todos only)
     const planningTools = toolRegistry.getLLMPlanningToolDefinitions();
 
-    try {
-      const response = await this.llmClient.chatCompletion({
-        messages,
-        tools: planningTools,
-        // tool_choice: auto (default) - LLM decides whether to use tool or respond directly
-        temperature: 0.7,
-        max_tokens: 2000,
-      });
+    const MAX_RETRIES = 3;
+    let lastError: Error | null = null;
 
-      const message = response.choices[0]?.message;
-      const toolCalls = message?.tool_calls;
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        // Add retry prompt if this is a retry attempt
+        if (attempt > 1) {
+          messages.push({
+            role: 'user',
+            content: `[RETRY ${attempt}/${MAX_RETRIES}] You MUST respond. Either:
+1. Use the 'create_todos' tool to create a TODO list for this task, OR
+2. Provide a direct text response if this is a simple question.
 
-      // Handle tool call (create_todos)
-      if (toolCalls && toolCalls.length > 0) {
-        const toolCall = toolCalls[0]!;
-        const toolName = toolCall.function?.name;
-
-        let toolArgs;
-        try {
-          toolArgs = JSON.parse(toolCall.function?.arguments || '{}');
-        } catch (error) {
-          logger.error('Failed to parse tool arguments', { args: toolCall.function?.arguments, error });
-          throw new Error('Planning LLM returned invalid JSON for tool arguments.');
+DO NOT return an empty response. The user is waiting for your response.`,
+          });
+          logger.warn(`Planning LLM retry attempt ${attempt}/${MAX_RETRIES}`);
         }
 
-        // Accept both create_todos (correct) and write_todos (LLM may confuse from context)
-        if (['create_todos', 'write_todos'].includes(toolName)) {
-          logger.flow(`TODO list created via ${toolName} tool`);
+        const response = await this.llmClient.chatCompletion({
+          messages,
+          tools: planningTools,
+          // tool_choice: auto (default) - LLM decides whether to use tool or respond directly
+          temperature: 0.7,
+          max_tokens: 2000,
+        });
 
-          // Validate todos is an array (handle string-wrapped JSON from LLM)
-          let rawTodos = toolArgs.todos;
+        // Debug: Log raw response structure
+        const choicesCount = response.choices?.length ?? 0;
+        const message = response.choices?.[0]?.message;
+        const toolCalls = message?.tool_calls;
+        const finishReason = response.choices?.[0]?.finish_reason;
 
-          // If todos is a string, try to parse it as JSON
-          if (typeof rawTodos === 'string') {
-            try {
-              rawTodos = JSON.parse(rawTodos);
-              logger.debug('Parsed string-wrapped todos array');
-            } catch {
-              logger.warn('Failed to parse string todos as JSON', { todos: rawTodos });
+        logger.debug('Planning LLM response', {
+          choicesCount,
+          hasMessage: !!message,
+          hasToolCalls: !!(toolCalls && toolCalls.length > 0),
+          hasContent: !!message?.content,
+          contentLength: message?.content?.length ?? 0,
+          finishReason,
+          toolCallsCount: toolCalls?.length ?? 0,
+        });
+
+        // Handle tool call (create_todos)
+        if (toolCalls && toolCalls.length > 0) {
+          const toolCall = toolCalls[0]!;
+          const toolName = toolCall.function?.name;
+
+          let toolArgs;
+          try {
+            toolArgs = JSON.parse(toolCall.function?.arguments || '{}');
+          } catch (error) {
+            logger.warn('Failed to parse tool arguments', { args: toolCall.function?.arguments, error });
+            lastError = error as Error;
+            continue; // Retry
+          }
+
+          // Accept both create_todos (correct) and write_todos (LLM may confuse from context)
+          if (['create_todos', 'write_todos'].includes(toolName)) {
+            logger.flow(`TODO list created via ${toolName} tool`);
+
+            // Validate todos is an array (handle string-wrapped JSON from LLM)
+            let rawTodos = toolArgs.todos;
+
+            // If todos is a string, try to parse it as JSON
+            if (typeof rawTodos === 'string') {
+              try {
+                rawTodos = JSON.parse(rawTodos);
+                logger.debug('Parsed string-wrapped todos array');
+              } catch {
+                logger.warn('Failed to parse string todos as JSON', { todos: rawTodos });
+              }
             }
+
+            if (!Array.isArray(rawTodos)) {
+              logger.warn('create_todos called with non-array todos', { toolArgs });
+              lastError = new Error('Planning LLM returned invalid todos format (expected array).');
+              continue; // Retry
+            }
+
+            const todos: TodoItem[] = rawTodos.map((todo: any, index: number) => ({
+              id: todo.id || `todo-${Date.now()}-${index}`,
+              title: todo.title || 'Untitled task',
+              // First TODO starts as in_progress, rest are pending
+              status: (index === 0 ? 'in_progress' : 'pending') as TodoStatus,
+            }));
+
+            return {
+              todos,
+              complexity: toolArgs.complexity || 'moderate',
+            };
           }
+        }
 
-          if (!Array.isArray(rawTodos)) {
-            logger.warn('create_todos called with non-array todos', { toolArgs });
-            throw new Error('Planning LLM returned invalid todos format (expected array).');
-          }
-
-          const todos: TodoItem[] = rawTodos.map((todo: any, index: number) => ({
-            id: todo.id || `todo-${Date.now()}-${index}`,
-            title: todo.title || 'Untitled task',
-            // First TODO starts as in_progress, rest are pending
-            status: (index === 0 ? 'in_progress' : 'pending') as TodoStatus,
-          }));
-
+        // No tool call = direct text response (simple question/greeting)
+        const content = message?.content || '';
+        if (content) {
+          logger.flow('Direct text response - no planning needed');
           return {
-            todos,
-            complexity: toolArgs.complexity || 'moderate',
+            todos: [],
+            complexity: 'simple',
+            directResponse: content,
           };
         }
+
+        // Empty response - will retry
+        logger.warn(`Planning LLM returned empty response (attempt ${attempt}/${MAX_RETRIES})`);
+        lastError = new Error('Planning LLM returned empty response');
+        // Continue to next retry
+      } catch (error) {
+        // Network or API error - will retry
+        logger.warn(`Planning LLM error (attempt ${attempt}/${MAX_RETRIES}):`, error as Error);
+        lastError = error as Error;
+        // Continue to next retry
       }
-
-      // No tool call = direct text response (simple question/greeting)
-      const content = message?.content || '';
-      if (content) {
-        logger.flow('Direct text response - no planning needed');
-        return {
-          todos: [],
-          complexity: 'simple',
-          directResponse: content,
-        };
-      }
-
-      throw new Error('Planning LLM returned empty response');
-    } catch (error) {
-      logger.error('Planning LLM error:', error as Error);
-
-      // Fallback: Create single TODO for the entire request
-      return {
-        todos: [
-          {
-            id: `todo-${Date.now()}`,
-            title: userRequest.length > 100 ? userRequest.substring(0, 100) + '...' : userRequest,
-            status: 'pending',
-          },
-        ],
-        complexity: 'simple',
-      };
     }
+
+    // All retries exhausted - use fallback
+    logger.warn('All planning retries exhausted, using fallback TODO', { lastError: lastError?.message });
+    return {
+      todos: [
+        {
+          id: `todo-${Date.now()}`,
+          title: userRequest.length > 100 ? userRequest.substring(0, 100) + '...' : userRequest,
+          status: 'in_progress',
+        },
+      ],
+      complexity: 'simple',
+    };
   }
 
   /**
@@ -248,9 +288,9 @@ export class PlanningLLM {
     ];
 
     let retries = 0;
-    const maxRetries = 2;
+    const MAX_RETRIES = 2;
 
-    while (retries <= maxRetries) {
+    while (retries <= MAX_RETRIES) {
       logger.flow(`Asking LLM for docs search decision (attempt ${retries + 1})`);
 
       const response = await this.llmClient.chatCompletion({
@@ -271,7 +311,7 @@ export class PlanningLLM {
 
       // Invalid response, retry
       retries++;
-      if (retries <= maxRetries) {
+      if (retries <= MAX_RETRIES) {
         messages.push({ role: 'assistant', content });
         messages.push({ role: 'user', content: DOCS_SEARCH_DECISION_RETRY_PROMPT });
         logger.warn('Invalid decision response, retrying', { response: content });
