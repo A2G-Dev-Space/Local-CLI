@@ -1592,8 +1592,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
               {entry.diff.map((line, idx) => (
                 <Box key={idx} marginLeft={3}>
                   <Text
-                    color={line.includes(' + ') ? 'white' : line.includes(' - ') ? 'white' : 'gray'}
-                    backgroundColor={line.includes(' + ') ? '#1e40af' : line.includes(' - ') ? '#b91c1c' : undefined}
+                    color={line.includes(' + ') ? 'green' : line.includes(' - ') ? 'red' : 'gray'}
                   >
                     {line}
                   </Text>
