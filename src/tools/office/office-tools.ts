@@ -13,20 +13,29 @@ import * as path from 'path';
 import { ToolDefinition } from '../../types/index.js';
 import { LLMSimpleTool, ToolResult, ToolCategory } from '../types.js';
 import { officeClient } from './office-client.js';
+import { LOCAL_HOME_DIR } from '../../constants.js';
+
+/**
+ * Screenshot directory for Office apps
+ */
+const OFFICE_SCREENSHOT_DIR = path.join(LOCAL_HOME_DIR, 'screenshots', 'office');
+
+/**
+ * User-friendly path for tool descriptions
+ */
+const OFFICE_SCREENSHOT_PATH_DESC = '~/.local-cli/screenshots/office/';
 
 /**
  * Save base64 image to file and return the path
  */
 async function saveScreenshot(base64Image: string, appName: string): Promise<string> {
-  const screenshotsDir = path.join(process.cwd(), 'screenshots');
-
   // Create screenshots directory if it doesn't exist
-  await fs.mkdir(screenshotsDir, { recursive: true });
+  await fs.mkdir(OFFICE_SCREENSHOT_DIR, { recursive: true });
 
   // Generate filename with timestamp
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   const filename = `${appName}_${timestamp}.png`;
-  const filePath = path.join(screenshotsDir, filename);
+  const filePath = path.join(OFFICE_SCREENSHOT_DIR, filename);
 
   // Decode base64 and save
   const buffer = Buffer.from(base64Image, 'base64');
@@ -276,9 +285,10 @@ const WORD_SCREENSHOT_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'word_screenshot',
-    description: `Take a screenshot of the Word window.
-Returns a base64-encoded PNG image of the current Word window.
-Use this to verify document formatting or show the user what the document looks like.`,
+    description: `Take a screenshot of the current Word document.
+Captures the document content using CopyAsPicture and saves to ${OFFICE_SCREENSHOT_PATH_DESC}.
+Use this to verify document formatting or show the user what the document looks like.
+You can view the saved image using read_file tool.`,
     parameters: {
       type: 'object',
       properties: {
@@ -1157,7 +1167,10 @@ const EXCEL_SCREENSHOT_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'excel_screenshot',
-    description: `Take a screenshot of the Excel window.`,
+    description: `Take a screenshot of the current Excel spreadsheet.
+Captures the visible range using CopyPicture and saves to ${OFFICE_SCREENSHOT_PATH_DESC}.
+Use this to verify spreadsheet formatting or show the user the data layout.
+You can view the saved image using read_file tool.`,
     parameters: {
       type: 'object',
       properties: {
@@ -2392,7 +2405,10 @@ const POWERPOINT_SCREENSHOT_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'powerpoint_screenshot',
-    description: `Take a screenshot of the PowerPoint window.`,
+    description: `Take a screenshot of the current PowerPoint slide.
+Exports the current slide as PNG (1920x1080) and saves to ${OFFICE_SCREENSHOT_PATH_DESC}.
+Use this to verify slide content or show the user the presentation layout.
+You can view the saved image using read_file tool.`,
     parameters: {
       type: 'object',
       properties: {
