@@ -15,6 +15,7 @@ export type {
   NavigateResponse,
   PageInfoResponse,
   ConsoleResponse,
+  NetworkResponse,
 } from './browser-client.js';
 export {
   BROWSER_TOOLS,
@@ -26,6 +27,8 @@ export {
   browserGetTextTool,
   browserGetContentTool,
   browserGetConsoleTool,
+  browserGetNetworkTool,
+  browserFocusTool,
   browserCloseTool,
 } from './browser-tools.js';
 
