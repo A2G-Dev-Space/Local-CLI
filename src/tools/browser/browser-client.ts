@@ -115,6 +115,22 @@ interface ConsoleResponse extends BrowserResponse {
   count?: number;
 }
 
+interface NetworkLogEntry {
+  type: 'request' | 'response';
+  url: string;
+  method?: string;
+  status?: number;
+  statusText?: string;
+  mimeType?: string;
+  timestamp: number;
+  requestId: string;
+}
+
+interface NetworkResponse extends BrowserResponse {
+  logs?: NetworkLogEntry[];
+  count?: number;
+}
+
 class BrowserClient {
   private serverProcess: ChildProcess | null = null;
   private host: string = 'localhost';
@@ -490,6 +506,14 @@ class BrowserClient {
     return this.request('POST', '/browser/wait_for', { selector, timeout });
   }
 
+  async getNetwork(): Promise<NetworkResponse> {
+    return this.request('GET', '/browser/get_network');
+  }
+
+  async focus(): Promise<BrowserResponse> {
+    return this.request('POST', '/browser/focus');
+  }
+
   /**
    * Check if browser is currently active
    */
@@ -505,4 +529,4 @@ class BrowserClient {
 
 // Export singleton instance
 export const browserClient = new BrowserClient();
-export type { BrowserResponse, HealthResponse, ScreenshotResponse, NavigateResponse, PageInfoResponse, ConsoleResponse };
+export type { BrowserResponse, HealthResponse, ScreenshotResponse, NavigateResponse, PageInfoResponse, ConsoleResponse, NetworkResponse };

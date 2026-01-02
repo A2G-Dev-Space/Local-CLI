@@ -37,6 +37,14 @@ from selenium.common.exceptions import TimeoutException, NoSuchElementException,
 from webdriver_manager.chrome import ChromeDriverManager
 from webdriver_manager.microsoft import EdgeChromiumDriverManager
 
+# Windows API for window management
+try:
+    import win32gui
+    import win32con
+    HAS_WIN32 = True
+except ImportError:
+    HAS_WIN32 = False
+
 app = Flask(__name__)
 CORS(app)  # Allow cross-origin requests from WSL
 
@@ -84,6 +92,35 @@ def find_edge_path() -> Optional[str]:
         if os.path.exists(path):
             return path
     return None
+
+
+def bring_window_to_front(window_title_contains: str) -> bool:
+    """Bring a window to the foreground by partial title match"""
+    if not HAS_WIN32:
+        return False
+
+    def callback(hwnd, results):
+        if win32gui.IsWindowVisible(hwnd):
+            title = win32gui.GetWindowText(hwnd)
+            if window_title_contains.lower() in title.lower():
+                results.append(hwnd)
+        return True
+
+    results = []
+    win32gui.EnumWindows(callback, results)
+
+    if results:
+        hwnd = results[0]
+        try:
+            # Restore if minimized
+            if win32gui.IsIconic(hwnd):
+                win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+            # Bring to front
+            win32gui.SetForegroundWindow(hwnd)
+            return True
+        except:
+            pass
+    return False
 
 
 # =============================================================================
@@ -161,6 +198,12 @@ def browser_launch():
             options.add_argument('--disable-dev-shm-usage')
             options.add_argument('--no-sandbox')
 
+            # Enable performance logging for network requests
+            options.set_capability('goog:loggingPrefs', {
+                'performance': 'ALL',
+                'browser': 'ALL'
+            })
+
             service = ChromeService(ChromeDriverManager().install())
             browser = webdriver.Chrome(service=service, options=options)
             browser_type = 'chrome'
@@ -175,12 +218,23 @@ def browser_launch():
             options.add_argument('--start-maximized')
             options.add_argument('--disable-gpu')
 
+            # Enable performance logging for network requests
+            options.set_capability('ms:loggingPrefs', {
+                'performance': 'ALL',
+                'browser': 'ALL'
+            })
+
             service = EdgeService(EdgeChromiumDriverManager().install())
             browser = webdriver.Edge(service=service, options=options)
             browser_type = 'edge'
 
         else:
             return jsonify(get_error_response('No browser found', 'Neither Chrome nor Edge is installed'))
+
+        # Bring browser window to front
+        if not headless:
+            time.sleep(0.5)  # Wait for window to appear
+            bring_window_to_front('Chrome' if browser_type == 'chrome' else 'Edge')
 
         return jsonify(get_success_response(f'{browser_type.title()} launched successfully', {
             'browser': browser_type,
@@ -503,6 +557,85 @@ def browser_wait_for():
         return jsonify(get_error_response('Failed to wait for element', str(e)))
 
 
+@app.route('/browser/get_network', methods=['GET'])
+def browser_get_network():
+    """Get network request logs (requires performance logging enabled)"""
+    global browser
+
+    try:
+        if not browser:
+            return jsonify(get_error_response('Browser not running', 'Use /browser/launch first'))
+
+        # Get performance logs
+        network_logs = []
+        try:
+            perf_logs = browser.get_log('performance')
+            for entry in perf_logs:
+                try:
+                    message = json.loads(entry.get('message', '{}'))
+                    msg = message.get('message', {})
+                    method = msg.get('method', '')
+
+                    # Filter for network events
+                    if method.startswith('Network.'):
+                        params = msg.get('params', {})
+
+                        if method == 'Network.requestWillBeSent':
+                            req = params.get('request', {})
+                            network_logs.append({
+                                'type': 'request',
+                                'url': req.get('url', ''),
+                                'method': req.get('method', ''),
+                                'timestamp': entry.get('timestamp', 0),
+                                'requestId': params.get('requestId', '')
+                            })
+                        elif method == 'Network.responseReceived':
+                            resp = params.get('response', {})
+                            network_logs.append({
+                                'type': 'response',
+                                'url': resp.get('url', ''),
+                                'status': resp.get('status', 0),
+                                'statusText': resp.get('statusText', ''),
+                                'mimeType': resp.get('mimeType', ''),
+                                'timestamp': entry.get('timestamp', 0),
+                                'requestId': params.get('requestId', '')
+                            })
+                except:
+                    continue
+        except Exception as e:
+            return jsonify(get_error_response('Failed to get performance logs', str(e)))
+
+        return jsonify(get_success_response('Network logs retrieved', {
+            'logs': network_logs,
+            'count': len(network_logs)
+        }))
+
+    except Exception as e:
+        return jsonify(get_error_response('Failed to get network logs', str(e)))
+
+
+@app.route('/browser/focus', methods=['POST'])
+def browser_focus():
+    """Bring the browser window to the foreground"""
+    global browser, browser_type
+
+    try:
+        if not browser:
+            return jsonify(get_error_response('Browser not running', 'Use /browser/launch first'))
+
+        # Try to bring window to front
+        window_name = 'Chrome' if browser_type == 'chrome' else 'Edge'
+        success = bring_window_to_front(window_name)
+
+        if success:
+            return jsonify(get_success_response('Browser window focused'))
+        else:
+            return jsonify(get_error_response('Failed to focus window', 'Window not found or win32gui not available'))
+
+    except Exception as e:
+        return jsonify(get_error_response('Failed to focus browser', str(e)))
+
+
 # =============================================================================
 # Main Entry Point
 # =============================================================================
@@ -532,7 +665,9 @@ def main():
     print("  GET  /browser/get_html      - Get page HTML source")
     print("  POST /browser/execute_script- Execute JavaScript")
     print("  GET  /browser/get_console   - Get console logs")
+    print("  GET  /browser/get_network   - Get network request logs")
     print("  POST /browser/wait_for      - Wait for element")
+    print("  POST /browser/focus         - Bring window to foreground")
     print("")
     print(f"Chrome: {'Found' if find_chrome_path() else 'Not found'}")
     print(f"Edge: {'Found' if find_edge_path() else 'Not found'}")

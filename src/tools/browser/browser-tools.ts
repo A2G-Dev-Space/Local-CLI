@@ -640,6 +640,148 @@ export const browserGetConsoleTool: LLMSimpleTool = {
 };
 
 /**
+ * browser_get_network Tool Definition
+ */
+const BROWSER_GET_NETWORK_DEFINITION: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'browser_get_network',
+    description: `Get network request logs from the browser.
+Returns HTTP requests and responses captured during page interactions.
+
+Use this tool to:
+- Debug API calls and responses
+- Check request/response status codes
+- Verify network requests are being made correctly
+- Analyze API endpoints being called
+- Check for failed network requests`,
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: {
+          type: 'string',
+          description: 'Explanation of why you need the network logs',
+        },
+      },
+      required: ['reason'],
+    },
+  },
+};
+
+async function executeBrowserGetNetwork(_args: Record<string, unknown>): Promise<ToolResult> {
+  try {
+    if (!(await browserClient.isBrowserActive())) {
+      return {
+        success: false,
+        error: 'Browser is not running. Use browser_launch first.',
+      };
+    }
+
+    const response = await browserClient.getNetwork();
+
+    if (!response.success) {
+      return {
+        success: false,
+        error: response.error || 'Failed to get network logs',
+      };
+    }
+
+    const logs = response.logs || [];
+    if (logs.length === 0) {
+      return {
+        success: true,
+        result: 'No network requests captured.',
+      };
+    }
+
+    const formatted = logs.map(log => {
+      if (log.type === 'request') {
+        return `➡️ ${log.method} ${log.url}`;
+      } else {
+        const statusIcon = log.status && log.status >= 400 ? '❌' : '✅';
+        return `${statusIcon} ${log.status} ${log.statusText} - ${log.url} (${log.mimeType || 'unknown'})`;
+      }
+    }).join('\n');
+
+    return {
+      success: true,
+      result: `Network logs (${logs.length} entries):\n\n${formatted}`,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: `Failed to get network logs: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+export const browserGetNetworkTool: LLMSimpleTool = {
+  definition: BROWSER_GET_NETWORK_DEFINITION,
+  execute: executeBrowserGetNetwork,
+  categories: BROWSER_CATEGORIES,
+  description: 'Get browser network logs',
+};
+
+/**
+ * browser_focus Tool Definition
+ */
+const BROWSER_FOCUS_DEFINITION: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'browser_focus',
+    description: `Bring the browser window to the foreground.
+Use this to make the browser window visible and focused when needed.`,
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: {
+          type: 'string',
+          description: 'Explanation of why you need to focus the browser window',
+        },
+      },
+      required: ['reason'],
+    },
+  },
+};
+
+async function executeBrowserFocus(_args: Record<string, unknown>): Promise<ToolResult> {
+  try {
+    if (!(await browserClient.isBrowserActive())) {
+      return {
+        success: false,
+        error: 'Browser is not running. Use browser_launch first.',
+      };
+    }
+
+    const response = await browserClient.focus();
+
+    if (!response.success) {
+      return {
+        success: false,
+        error: response.error || 'Failed to focus browser window',
+      };
+    }
+
+    return {
+      success: true,
+      result: 'Browser window brought to foreground.',
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: `Failed to focus browser: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+export const browserFocusTool: LLMSimpleTool = {
+  definition: BROWSER_FOCUS_DEFINITION,
+  execute: executeBrowserFocus,
+  categories: BROWSER_CATEGORIES,
+  description: 'Bring browser window to foreground',
+};
+
+/**
  * All browser tools
  */
 export const BROWSER_TOOLS: LLMSimpleTool[] = [
@@ -651,5 +793,7 @@ export const BROWSER_TOOLS: LLMSimpleTool[] = [
   browserGetTextTool,
   browserGetContentTool,
   browserGetConsoleTool,
+  browserGetNetworkTool,
+  browserFocusTool,
   browserCloseTool,
 ];
