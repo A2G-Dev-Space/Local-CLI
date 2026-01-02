@@ -169,7 +169,28 @@ export function emitCompact(originalCount: number, newCount: number): void {
 export function emitAssistantResponse(content: string): void {
   // Skip empty content to prevent blank lines in UI
   if (assistantResponseCallback && content && content.trim()) {
-    assistantResponseCallback(content);
+    // Filter out <think>...</think> tags (used by some models like DeepSeek)
+    // Extract thinking content and emit as reasoning, then remove from main content
+    const thinkRegex = /<think>([\s\S]*?)<\/think>/g;
+    let thinkingContent = '';
+    let match;
+    while ((match = thinkRegex.exec(content)) !== null) {
+      if (match[1] && match[1].trim()) {
+        thinkingContent += match[1].trim() + '\n';
+      }
+    }
+
+    // Emit thinking as reasoning if present
+    if (thinkingContent && reasoningCallback) {
+      reasoningCallback(thinkingContent.trim(), false);
+    }
+
+    // Remove <think> tags from content
+    const cleanedContent = content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+
+    if (cleanedContent) {
+      assistantResponseCallback(cleanedContent);
+    }
   }
 }
 
