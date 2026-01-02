@@ -15,6 +15,7 @@ When the working directory is a git repository, follow these rules:
 When creating git commits, ALWAYS include this trailer at the end of the commit message:
 
 \`\`\`
+🐳 Co-Worked-With: Local-CLI
 Co-Authored-By: Local-CLI <86968876+local-cli-bot@users.noreply.github.com>
 \`\`\`
 
@@ -25,6 +26,7 @@ git commit -m "$(cat <<'EOF'
 
 <optional body>
 
+🐳 Co-Worked-With: Local-CLI
 Co-Authored-By: Local-CLI <86968876+local-cli-bot@users.noreply.github.com>
 EOF
 )"
@@ -37,6 +39,7 @@ feat: add user authentication
 
 Implemented JWT-based authentication with refresh tokens.
 
+🐳 Co-Worked-With: Local-CLI
 Co-Authored-By: Local-CLI <86968876+local-cli-bot@users.noreply.github.com>
 EOF
 )"
@@ -77,6 +80,7 @@ gh pr create --title "feat: add new feature" --body "$(cat <<'EOF'
 ## Changes
 Detailed explanation of what was changed and why.
 
+🐳 Co-Worked-With: Local-CLI
 Co-Authored-By: Local-CLI <86968876+local-cli-bot@users.noreply.github.com>
 EOF
 )"
