@@ -68,7 +68,6 @@ export default defineConfig({
             { text: 'Understanding Codebase', link: '/demos/understanding-codebase' },
             { text: 'Vibe Coding Streamlit', link: '/demos/vibe-coding-streamlit' },
             { text: 'Vibe Coding React', link: '/demos/vibe-coding-react' },
-            { text: 'Web Debugging', link: '/demos/web-debugging' },
             { text: 'Office Automation', link: '/demos/office-automation' },
             { text: 'Git Automation', link: '/demos/git-automation' },
           ]
