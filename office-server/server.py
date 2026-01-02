@@ -414,6 +414,11 @@ def word_write():
 
         selection = word.Selection
 
+        # Auto line break: if not at beginning of document, add paragraph first
+        doc = word.ActiveDocument
+        if selection.Start > 0:  # Not at the very beginning
+            selection.TypeParagraph()
+
         # Handle line breaks: split by \n and insert paragraphs
         lines = text.split('\n')
         for i, line in enumerate(lines):
