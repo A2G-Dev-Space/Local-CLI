@@ -19,6 +19,9 @@ import os
 import time
 from typing import Optional, Dict, Any
 
+# Disable SSL verification for webdriver_manager (for corporate networks)
+os.environ['WDM_SSL_VERIFY'] = '0'
+
 # Flask for HTTP server
 from flask import Flask, request, jsonify
 from flask_cors import CORS
