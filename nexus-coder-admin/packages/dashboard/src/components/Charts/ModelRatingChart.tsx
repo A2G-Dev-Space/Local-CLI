@@ -159,14 +159,6 @@ export default function ModelRatingChart() {
     return date.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
   };
 
-  // Calculate tick interval based on date range
-  const tickInterval = useMemo(() => {
-    if (days <= 7) return 0;
-    if (days <= 14) return 1;
-    if (days <= 30) return 2;
-    return 7;
-  }, [days]);
-
   if (loading) {
     return (
       <div className="bg-white rounded-2xl shadow-card p-6">
@@ -234,7 +226,7 @@ export default function ModelRatingChart() {
                 tick={{ fill: '#6b7280', fontSize: 11 }}
                 tickLine={false}
                 axisLine={{ stroke: '#e5e7eb' }}
-                interval={tickInterval}
+                interval="preserveStartEnd"
               />
               <YAxis
                 domain={[0, 5]}
