@@ -1619,8 +1619,17 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
           }
         }
 
-        // bash: 3줄 넘으면 축약
-        if (entry.content === 'bash') {
+        // bash: 3줄 넘으면 축약 (bash, bash_background, bash_background_status, etc.)
+        if (entry.content?.startsWith('bash')) {
+          const lines = displayText.split('\n');
+          if (lines.length > 3) {
+            displayText = lines.slice(0, 3).join('\n') + `\n... (${lines.length - 3} more lines)`;
+          }
+        }
+
+        // browser, office tools: 3줄 넘으면 축약
+        if (entry.content?.startsWith('browser_') || entry.content?.startsWith('word_') ||
+            entry.content?.startsWith('excel_') || entry.content?.startsWith('powerpoint_')) {
           const lines = displayText.split('\n');
           if (lines.length > 3) {
             displayText = lines.slice(0, 3).join('\n') + `\n... (${lines.length - 3} more lines)`;
