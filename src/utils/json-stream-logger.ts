@@ -499,6 +499,20 @@ export class JsonStreamLogger {
   }
 
   /**
+   * Get the log directory path (for server log files)
+   */
+  getLogDirectory(): string {
+    return dirname(this.filePath);
+  }
+
+  /**
+   * Get the log file path
+   */
+  getLogFilePath(): string {
+    return this.filePath;
+  }
+
+  /**
    * Close the JSON stream logger
    */
   async close(): Promise<void> {

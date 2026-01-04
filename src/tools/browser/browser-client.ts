@@ -318,12 +318,18 @@ class BrowserClient {
         let command: string;
         let args: string[];
 
+        // Get log directory from stream logger and convert to Windows path
+        const streamLogger = getStreamLogger();
+        const logDir = streamLogger.getLogDirectory();
+        const serverLogPath = path.join(logDir, 'browser-server_log.jsonl');
+        const windowsLogPath = this.toWindowsPath(serverLogPath);
+
         if (this.isWSL) {
           command = 'cmd.exe';
-          args = ['/C', windowsExePath, '--port', String(this.port)];
+          args = ['/C', windowsExePath, '--port', String(this.port), '--log-path', windowsLogPath];
         } else {
           command = windowsExePath;
-          args = ['--port', String(this.port)];
+          args = ['--port', String(this.port), '--log-path', windowsLogPath];
         }
 
         logger.debug('[BrowserClient] startServer: spawning ' + command + ' ' + args.join(' '));

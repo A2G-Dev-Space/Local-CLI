@@ -273,14 +273,20 @@ class OfficeClient {
         let command: string;
         let args: string[];
 
+        // Get log directory from stream logger and convert to Windows path
+        const streamLogger = getStreamLogger();
+        const logDir = streamLogger.getLogDirectory();
+        const serverLogPath = path.join(logDir, 'office-server_log.jsonl');
+        const windowsLogPath = this.toWindowsPath(serverLogPath);
+
         if (this.isWSL) {
           // Use cmd.exe to launch the Windows executable from WSL
           command = 'cmd.exe';
-          args = ['/C', windowsExePath, '--port', String(this.port)];
+          args = ['/C', windowsExePath, '--port', String(this.port), '--log-path', windowsLogPath];
         } else {
           // Direct Windows execution
           command = windowsExePath;
-          args = ['--port', String(this.port)];
+          args = ['--port', String(this.port), '--log-path', windowsLogPath];
         }
 
         logger.debug('[OfficeClient] startServer: spawning ' + command + ' ' + args.join(' '));
