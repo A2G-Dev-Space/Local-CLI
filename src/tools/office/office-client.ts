@@ -10,6 +10,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 import { logger } from '../../utils/logger.js';
+import { getStreamLogger } from '../../utils/json-stream-logger.js';
 
 /**
  * Check if WSL2 mirrored networking is enabled
@@ -347,8 +348,13 @@ class OfficeClient {
     data?: Record<string, unknown>,
     timeoutMs: number = 5000
   ): Promise<T> {
+    const startTime = Date.now();
+    const streamLogger = getStreamLogger();
     const url = `${this.getServerUrl()}${endpoint}`;
     logger.debug(`[OfficeClient] request: ${method} ${url} timeout = ${timeoutMs} ms`);
+
+    // Log server request
+    streamLogger.logServerRequest('office', method, endpoint, data);
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => {
@@ -376,11 +382,21 @@ class OfficeClient {
       logger.debug('[OfficeClient] request: response status = ' + response.status);
       const result = await response.json() as T;
       logger.debug('[OfficeClient] request: result', JSON.stringify(result).substring(0, 200));
+
+      // Log server response
+      const durationMs = Date.now() - startTime;
+      streamLogger.logServerResponse('office', endpoint, result.success, result, undefined, durationMs);
+
       return result;
     } catch (error) {
       clearTimeout(timeoutId);
       const errorMsg = error instanceof Error ? error.message : String(error);
       logger.debug('[OfficeClient] request: error - ' + errorMsg);
+
+      // Log server error response
+      const durationMs = Date.now() - startTime;
+      streamLogger.logServerResponse('office', endpoint, false, undefined, errorMsg, durationMs);
+
       throw error;
     }
   }

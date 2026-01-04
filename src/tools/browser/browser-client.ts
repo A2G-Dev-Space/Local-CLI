@@ -11,6 +11,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 import { logger } from '../../utils/logger.js';
+import { getStreamLogger } from '../../utils/json-stream-logger.js';
 import { LOCAL_HOME_DIR } from '../../constants.js';
 
 /**
@@ -397,8 +398,13 @@ class BrowserClient {
     data?: Record<string, unknown>,
     timeoutMs: number = 30000
   ): Promise<T> {
+    const startTime = Date.now();
+    const streamLogger = getStreamLogger();
     const url = `${this.getServerUrl()}${endpoint}`;
     logger.debug(`[BrowserClient] request: ${method} ${url} timeout = ${timeoutMs} ms`);
+
+    // Log server request
+    streamLogger.logServerRequest('browser', method, endpoint, data);
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => {
@@ -426,11 +432,21 @@ class BrowserClient {
       logger.debug('[BrowserClient] request: response status = ' + response.status);
       const result = await response.json() as T;
       logger.debug('[BrowserClient] request: result', JSON.stringify(result).substring(0, 200));
+
+      // Log server response
+      const durationMs = Date.now() - startTime;
+      streamLogger.logServerResponse('browser', endpoint, result.success, result, undefined, durationMs);
+
       return result;
     } catch (error) {
       clearTimeout(timeoutId);
       const errorMsg = error instanceof Error ? error.message : String(error);
       logger.debug('[BrowserClient] request: error - ' + errorMsg);
+
+      // Log server error response
+      const durationMs = Date.now() - startTime;
+      streamLogger.logServerResponse('browser', endpoint, false, undefined, errorMsg, durationMs);
+
       throw error;
     }
   }

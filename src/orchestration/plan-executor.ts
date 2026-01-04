@@ -39,6 +39,7 @@ import { toolRegistry } from '../tools/registry.js';
 import { PLAN_EXECUTE_SYSTEM_PROMPT as PLAN_PROMPT } from '../prompts/system/plan-execute.js';
 import { GIT_COMMIT_RULES } from '../prompts/shared/git-rules.js';
 import { logger } from '../utils/logger.js';
+import { getStreamLogger } from '../utils/json-stream-logger.js';
 import { detectGitRepo } from '../utils/git-utils.js';
 
 import type { StateCallbacks } from './types.js';
@@ -80,7 +81,16 @@ export class PlanExecutor {
     isInterruptedRef: { current: boolean },
     callbacks: StateCallbacks
   ): Promise<void> {
+    const planningStartTime = Date.now();
+    const streamLogger = getStreamLogger();
+
     logger.enter('PlanExecutor.executePlanMode', { messageLength: userMessage.length });
+
+    // Log planning start
+    streamLogger.logPlanningStart(userMessage, {
+      messageCount: messages.length,
+      model: configManager.getCurrentModel()?.name,
+    });
 
     // Store LLM client for docs search agent tool
     this.currentLLMClient = llmClient;
@@ -110,6 +120,10 @@ export class PlanExecutor {
       // Check for direct response (no planning needed)
       if (planResult.directResponse) {
         logger.flow('Direct response - no execution needed');
+
+        // Log planning end (direct response)
+        streamLogger.logPlanningEnd(0, [], true, Date.now() - planningStartTime);
+
         // Check if last message is already the same user request (avoid duplicate)
         const lastMsg = currentMessages[currentMessages.length - 1];
         const needsUserMessage = !(lastMsg?.role === 'user' && lastMsg?.content === userMessage);
@@ -134,6 +148,14 @@ export class PlanExecutor {
       }
 
       currentTodos = planResult.todos;
+
+      // Log planning end (TODOs created)
+      streamLogger.logPlanningEnd(
+        currentTodos.length,
+        currentTodos.map(t => ({ id: t.id, title: t.title, status: t.status })),
+        false,
+        Date.now() - planningStartTime
+      );
 
       logger.vars(
         { name: 'todoCount', value: currentTodos.length },
