@@ -1,9 +1,19 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Plus, Bug, Lightbulb, HelpCircle, Send, Trash2, MessageSquare,
-  CheckCircle, Clock, AlertCircle, X, ChevronDown, BookOpen, Zap, Image as ImageIcon
+  CheckCircle, Clock, AlertCircle, X, ChevronDown, BookOpen, Zap, Image as ImageIcon, Edit2
 } from 'lucide-react';
 import { feedbackApi } from '../services/api';
+
+interface FeedbackComment {
+  id: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+  admin: {
+    loginid: string;
+  };
+}
 
 interface FeedbackItem {
   id: string;
@@ -13,6 +23,7 @@ interface FeedbackItem {
   images?: string[];
   status: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
   response: string | null;
+  comments: FeedbackComment[];
   createdAt: string;
   updatedAt: string;
   user: {
@@ -96,6 +107,47 @@ export default function Feedback({ isAdmin }: FeedbackProps) {
       setShowDetailModal(false);
     } catch (error) {
       console.error('Failed to respond:', error);
+    }
+  };
+
+  const handleStatusChange = async (id: string, status: string) => {
+    try {
+      await feedbackApi.updateStatus(id, status);
+      loadFeedbacks();
+      // Update selected feedback if open
+      if (selectedFeedback?.id === id) {
+        setSelectedFeedback({ ...selectedFeedback, status: status as FeedbackItem['status'] });
+      }
+    } catch (error) {
+      console.error('Failed to update status:', error);
+    }
+  };
+
+  const handleAddComment = async (id: string, content: string) => {
+    try {
+      await feedbackApi.addComment(id, content);
+      loadFeedbacks();
+    } catch (error) {
+      console.error('Failed to add comment:', error);
+    }
+  };
+
+  const handleUpdateComment = async (feedbackId: string, commentId: string, content: string) => {
+    try {
+      await feedbackApi.updateComment(feedbackId, commentId, content);
+      loadFeedbacks();
+    } catch (error) {
+      console.error('Failed to update comment:', error);
+    }
+  };
+
+  const handleDeleteComment = async (feedbackId: string, commentId: string) => {
+    if (!confirm('댓글을 삭제하시겠습니까?')) return;
+    try {
+      await feedbackApi.deleteComment(feedbackId, commentId);
+      loadFeedbacks();
+    } catch (error) {
+      console.error('Failed to delete comment:', error);
     }
   };
 
@@ -227,6 +279,11 @@ export default function Feedback({ isAdmin }: FeedbackProps) {
           }}
           onDelete={handleDelete}
           onRespond={handleRespond}
+          onStatusChange={handleStatusChange}
+          onAddComment={handleAddComment}
+          onUpdateComment={handleUpdateComment}
+          onDeleteComment={handleDeleteComment}
+          onRefresh={loadFeedbacks}
         />
       )}
     </div>
@@ -429,27 +486,66 @@ function FeedbackDetailModal({
   onClose,
   onDelete,
   onRespond,
+  onStatusChange,
+  onAddComment,
+  onUpdateComment,
+  onDeleteComment,
+  onRefresh,
 }: {
   feedback: FeedbackItem;
   isAdmin: boolean;
   onClose: () => void;
   onDelete: (id: string) => Promise<void>;
   onRespond: (id: string, response: string, status: string) => Promise<void>;
+  onStatusChange: (id: string, status: string) => Promise<void>;
+  onAddComment: (id: string, content: string) => Promise<void>;
+  onUpdateComment: (feedbackId: string, commentId: string, content: string) => Promise<void>;
+  onDeleteComment: (feedbackId: string, commentId: string) => Promise<void>;
+  onRefresh: () => void;
 }) {
-  const [response, setResponse] = useState('');
-  const [status, setStatus] = useState('RESOLVED');
+  const [newComment, setNewComment] = useState('');
   const [loading, setLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingContent, setEditingContent] = useState('');
 
   const category = categoryConfig[feedback.category];
   const statusInfo = statusConfig[feedback.status];
   const CategoryIcon = category.icon;
 
-  const handleRespond = async () => {
-    if (!response.trim()) return;
+  // 댓글 또는 레거시 response가 있는지 확인
+  const hasComments = feedback.comments && feedback.comments.length > 0;
+  const hasLegacyResponse = feedback.response && !hasComments;
+
+  const handleAddComment = async () => {
+    if (!newComment.trim()) return;
     setLoading(true);
     try {
-      await onRespond(feedback.id, response, status);
+      await onAddComment(feedback.id, newComment);
+      setNewComment('');
+      onRefresh();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateComment = async (commentId: string) => {
+    if (!editingContent.trim()) return;
+    setLoading(true);
+    try {
+      await onUpdateComment(feedback.id, commentId, editingContent);
+      setEditingCommentId(null);
+      setEditingContent('');
+      onRefresh();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleStatusChange = async (newStatus: string) => {
+    setLoading(true);
+    try {
+      await onStatusChange(feedback.id, newStatus);
     } finally {
       setLoading(false);
     }
@@ -465,8 +561,18 @@ function FeedbackDetailModal({
     }
   };
 
+  const startEditComment = (comment: FeedbackComment) => {
+    setEditingCommentId(comment.id);
+    setEditingContent(comment.content);
+  };
+
+  const cancelEditComment = () => {
+    setEditingCommentId(null);
+    setEditingContent('');
+  };
+
   // 삭제 가능 여부: Admin은 모두 삭제 가능, 일반 사용자는 답변 없는 본인 피드백만
-  const canDelete = isAdmin || !feedback.response;
+  const canDelete = isAdmin || (!feedback.response && !hasComments);
 
   return (
     <>
@@ -494,12 +600,25 @@ function FeedbackDetailModal({
           </div>
 
           <div className="p-6 space-y-6">
-            {/* Status Badge */}
-            <div className="flex items-center gap-2">
+            {/* Status Badge + Changer */}
+            <div className="flex items-center gap-3">
               <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-full ${statusInfo.bg} ${statusInfo.color}`}>
                 {statusInfo.label}
               </span>
               <span className="text-sm text-gray-400">{category.label}</span>
+              {isAdmin && (
+                <select
+                  value={feedback.status}
+                  onChange={(e) => handleStatusChange(e.target.value)}
+                  disabled={loading}
+                  className="ml-auto px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-samsung-blue"
+                >
+                  <option value="OPEN">접수됨</option>
+                  <option value="IN_PROGRESS">검토 중</option>
+                  <option value="RESOLVED">해결됨</option>
+                  <option value="CLOSED">종료</option>
+                </select>
+              )}
             </div>
 
             {/* Content */}
@@ -525,8 +644,8 @@ function FeedbackDetailModal({
               </div>
             )}
 
-            {/* Response (if exists) */}
-            {feedback.response && (
+            {/* Legacy Response (if exists and no comments) */}
+            {hasLegacyResponse && (
               <div className="bg-green-50 border border-green-200 rounded-xl p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <CheckCircle className="w-4 h-4 text-green-500" />
@@ -539,45 +658,107 @@ function FeedbackDetailModal({
               </div>
             )}
 
-            {/* Admin Response Form */}
-            {isAdmin && !feedback.response && (
-              <div className="border-t border-gray-100 pt-6">
-                <h3 className="text-sm font-semibold text-gray-700 mb-3">답변 작성</h3>
-                <textarea
-                  value={response}
-                  onChange={(e) => setResponse(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-samsung-blue focus:border-transparent h-32 resize-none"
-                  placeholder="답변을 작성하세요"
-                />
-                <div className="flex items-center gap-3 mt-3">
-                  <select
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value)}
-                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                  >
-                    <option value="RESOLVED">해결됨</option>
-                    <option value="IN_PROGRESS">검토 중</option>
-                    <option value="CLOSED">종료</option>
-                  </select>
-                  <button
-                    onClick={handleRespond}
-                    disabled={loading || !response.trim()}
-                    className="px-4 py-2 bg-samsung-blue text-white rounded-lg hover:bg-samsung-blue-dark disabled:opacity-50 transition-colors flex items-center gap-2"
-                  >
-                    {loading ? (
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <>
-                        <Send className="w-4 h-4" />
-                        답변 등록
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            )}
+            {/* Comments Section */}
+            <div className="border-t border-gray-100 pt-6">
+              <h3 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
+                <MessageSquare className="w-4 h-4" />
+                관리자 댓글 ({feedback.comments?.length || 0})
+              </h3>
 
-            {/* Actions - 본인 피드백이고 답변이 없으면 삭제 가능 */}
+              {/* Comments List */}
+              {hasComments && (
+                <div className="space-y-3 mb-4">
+                  {feedback.comments.map((comment) => (
+                    <div key={comment.id} className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-sm font-medium text-blue-700">{comment.admin.loginid}</span>
+                          <span className="text-xs text-blue-500">
+                            {new Date(comment.createdAt).toLocaleString('ko-KR')}
+                            {comment.updatedAt !== comment.createdAt && ' (수정됨)'}
+                          </span>
+                        </div>
+                        {isAdmin && (
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => startEditComment(comment)}
+                              className="p-1 text-blue-500 hover:text-blue-700"
+                              title="수정"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => onDeleteComment(feedback.id, comment.id)}
+                              className="p-1 text-red-500 hover:text-red-700"
+                              title="삭제"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      {editingCommentId === comment.id ? (
+                        <div className="space-y-2">
+                          <textarea
+                            value={editingContent}
+                            onChange={(e) => setEditingContent(e.target.value)}
+                            className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-samsung-blue resize-none"
+                            rows={3}
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleUpdateComment(comment.id)}
+                              disabled={loading || !editingContent.trim()}
+                              className="px-3 py-1.5 bg-samsung-blue text-white text-sm rounded-lg hover:bg-samsung-blue-dark disabled:opacity-50"
+                            >
+                              저장
+                            </button>
+                            <button
+                              onClick={cancelEditComment}
+                              className="px-3 py-1.5 border border-gray-300 text-gray-600 text-sm rounded-lg hover:bg-gray-50"
+                            >
+                              취소
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-gray-700 whitespace-pre-wrap">{comment.content}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Add Comment Form (Admin only) */}
+              {isAdmin && (
+                <div className="space-y-3">
+                  <textarea
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-samsung-blue focus:border-transparent h-24 resize-none"
+                    placeholder="댓글을 작성하세요..."
+                  />
+                  <div className="flex justify-end">
+                    <button
+                      onClick={handleAddComment}
+                      disabled={loading || !newComment.trim()}
+                      className="px-4 py-2 bg-samsung-blue text-white rounded-lg hover:bg-samsung-blue-dark disabled:opacity-50 transition-colors flex items-center gap-2"
+                    >
+                      {loading ? (
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <>
+                          <Send className="w-4 h-4" />
+                          댓글 추가
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Actions - 삭제 버튼 */}
             {canDelete && (
               <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
                 <button

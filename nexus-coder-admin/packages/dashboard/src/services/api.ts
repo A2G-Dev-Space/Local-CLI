@@ -73,6 +73,13 @@ export const feedbackApi = {
   updateStatus: (id: string, status: string) =>
     api.patch(`/feedback/${id}/status`, { status }),
   stats: () => api.get('/feedback/stats/overview'),
+  // 댓글 API
+  addComment: (feedbackId: string, content: string) =>
+    api.post(`/feedback/${feedbackId}/comments`, { content }),
+  updateComment: (feedbackId: string, commentId: string, content: string) =>
+    api.put(`/feedback/${feedbackId}/comments/${commentId}`, { content }),
+  deleteComment: (feedbackId: string, commentId: string) =>
+    api.delete(`/feedback/${feedbackId}/comments/${commentId}`),
 };
 
 export const statsApi = {

@@ -69,6 +69,14 @@ feedbackRoutes.get('/', authenticateToken, async (req: AuthenticatedRequest, res
           responder: {
             select: { loginid: true },
           },
+          comments: {
+            include: {
+              admin: {
+                select: { loginid: true },
+              },
+            },
+            orderBy: { createdAt: 'asc' },
+          },
         },
         orderBy: { createdAt: 'desc' },
         skip,
@@ -113,6 +121,14 @@ feedbackRoutes.get('/:id', authenticateToken, async (req: AuthenticatedRequest, 
         },
         responder: {
           select: { loginid: true },
+        },
+        comments: {
+          include: {
+            admin: {
+              select: { loginid: true },
+            },
+          },
+          orderBy: { createdAt: 'asc' },
         },
       },
     });
@@ -469,6 +485,168 @@ feedbackRoutes.get('/stats/overview', authenticateToken, requireAdmin, async (_r
   } catch (error) {
     console.error('Get feedback stats error:', error);
     res.status(500).json({ error: 'Failed to get feedback stats' });
+  }
+});
+
+/**
+ * POST /feedback/:id/comments
+ * 피드백에 댓글 추가 (Admin만)
+ */
+feedbackRoutes.post('/:id/comments', authenticateToken, requireAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Authentication required' });
+      return;
+    }
+
+    const { id } = req.params;
+    const { content } = req.body;
+
+    if (!content || !content.trim()) {
+      res.status(400).json({ error: 'content is required' });
+      return;
+    }
+
+    // Get feedback
+    const feedback = await prisma.feedback.findUnique({
+      where: { id },
+    });
+
+    if (!feedback) {
+      res.status(404).json({ error: 'Feedback not found' });
+      return;
+    }
+
+    // Get or create admin record
+    let admin = await prisma.admin.findUnique({
+      where: { loginid: req.user.loginid },
+    });
+
+    if (!admin && isDeveloper(req.user.loginid)) {
+      admin = await prisma.admin.create({
+        data: {
+          loginid: req.user.loginid,
+          role: 'SUPER_ADMIN',
+        },
+      });
+    }
+
+    if (!admin) {
+      res.status(403).json({ error: 'Admin record not found' });
+      return;
+    }
+
+    const comment = await prisma.feedbackComment.create({
+      data: {
+        feedbackId: id,
+        adminId: admin.id,
+        content: content.trim(),
+      },
+      include: {
+        admin: {
+          select: { loginid: true },
+        },
+      },
+    });
+
+    res.status(201).json(comment);
+  } catch (error) {
+    console.error('Add comment error:', error);
+    res.status(500).json({ error: 'Failed to add comment' });
+  }
+});
+
+/**
+ * PUT /feedback/:id/comments/:commentId
+ * 댓글 수정 (본인 댓글만)
+ */
+feedbackRoutes.put('/:id/comments/:commentId', authenticateToken, requireAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Authentication required' });
+      return;
+    }
+
+    const { id, commentId } = req.params;
+    const { content } = req.body;
+
+    if (!content || !content.trim()) {
+      res.status(400).json({ error: 'content is required' });
+      return;
+    }
+
+    // Get comment
+    const comment = await prisma.feedbackComment.findUnique({
+      where: { id: commentId },
+      include: { admin: true },
+    });
+
+    if (!comment || comment.feedbackId !== id) {
+      res.status(404).json({ error: 'Comment not found' });
+      return;
+    }
+
+    // Check ownership
+    if (comment.admin.loginid !== req.user.loginid) {
+      res.status(403).json({ error: 'You can only edit your own comments' });
+      return;
+    }
+
+    const updatedComment = await prisma.feedbackComment.update({
+      where: { id: commentId },
+      data: { content: content.trim() },
+      include: {
+        admin: {
+          select: { loginid: true },
+        },
+      },
+    });
+
+    res.json(updatedComment);
+  } catch (error) {
+    console.error('Update comment error:', error);
+    res.status(500).json({ error: 'Failed to update comment' });
+  }
+});
+
+/**
+ * DELETE /feedback/:id/comments/:commentId
+ * 댓글 삭제 (본인 댓글만)
+ */
+feedbackRoutes.delete('/:id/comments/:commentId', authenticateToken, requireAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Authentication required' });
+      return;
+    }
+
+    const { id, commentId } = req.params;
+
+    // Get comment
+    const comment = await prisma.feedbackComment.findUnique({
+      where: { id: commentId },
+      include: { admin: true },
+    });
+
+    if (!comment || comment.feedbackId !== id) {
+      res.status(404).json({ error: 'Comment not found' });
+      return;
+    }
+
+    // Check ownership
+    if (comment.admin.loginid !== req.user.loginid) {
+      res.status(403).json({ error: 'You can only delete your own comments' });
+      return;
+    }
+
+    await prisma.feedbackComment.delete({
+      where: { id: commentId },
+    });
+
+    res.json({ success: true, message: 'Comment deleted' });
+  } catch (error) {
+    console.error('Delete comment error:', error);
+    res.status(500).json({ error: 'Failed to delete comment' });
   }
 });
 

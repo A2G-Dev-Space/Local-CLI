@@ -51,7 +51,8 @@ model Admin {
   createdAt DateTime @default(now())
 
   models    Model[]
-  responses Feedback[]  // 답변한 피드백들
+  responses Feedback[]         // 답변한 피드백들 (레거시)
+  comments  FeedbackComment[]  // 피드백 댓글들
 
   @@map("admins")
 }
@@ -129,20 +130,38 @@ model Feedback {
   content     String
   images      String[]         @default([])  // 이미지 데이터 (base64)
   status      FeedbackStatus   @default(OPEN)
-  response    String?          // 관리자 답변
-  respondedBy String?          @map("responded_by")  // 답변한 관리자 ID
+  response    String?          // 관리자 답변 (레거시, 첫 댓글로 마이그레이션 예정)
+  respondedBy String?          @map("responded_by")  // 답변한 관리자 ID (레거시)
   respondedAt DateTime?        @map("responded_at")
   createdAt   DateTime         @default(now()) @map("created_at")
   updatedAt   DateTime         @updatedAt @map("updated_at")
 
-  user      User   @relation(fields: [userId], references: [id])
-  responder Admin? @relation(fields: [respondedBy], references: [id])
+  user      User              @relation(fields: [userId], references: [id])
+  responder Admin?            @relation(fields: [respondedBy], references: [id])
+  comments  FeedbackComment[]
 
   @@index([userId])
   @@index([status])
   @@index([category])
   @@index([createdAt])
   @@map("feedbacks")
+}
+
+// 피드백 댓글
+model FeedbackComment {
+  id         String   @id @default(uuid())
+  feedbackId String   @map("feedback_id")
+  adminId    String   @map("admin_id")
+  content    String
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  feedback Feedback @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+  admin    Admin    @relation(fields: [adminId], references: [id])
+
+  @@index([feedbackId])
+  @@index([adminId])
+  @@map("feedback_comments")
 }
 
 // 모델 평점 피드백 (1-5점)
