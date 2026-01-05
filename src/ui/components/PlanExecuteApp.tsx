@@ -1215,7 +1215,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
     }
 
     // Add processed message to messages (with file contents for LLM)
-    const updatedMessages: Message[] = [...messages, { role: 'user' as const, content: processedMessage }];
+    let updatedMessages: Message[] = [...messages, { role: 'user' as const, content: processedMessage }];
     setMessages(updatedMessages);
 
     setIsProcessing(true);
@@ -1235,19 +1235,21 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
     logger.startTimer('message-processing');
 
     try {
-      // Check for auto-compact before processing (80% threshold)
+      // Check for auto-compact before processing (70% threshold)
       if (planExecutionState.shouldAutoCompact()) {
         logger.flow('Auto-compact triggered');
         setActivityType('thinking');
         setActivityDetail('Compacting conversation...');
 
         const compactResult = await planExecutionState.performCompact(llmClient!, updatedMessages, setMessages);
-        if (compactResult.success) {
+        if (compactResult.success && compactResult.compactedMessages) {
+          // Update local variable with compacted messages for subsequent LLM calls
+          updatedMessages = compactResult.compactedMessages;
           logger.debug('Auto-compact completed', {
             originalCount: compactResult.originalMessageCount,
             newCount: compactResult.newMessageCount,
           });
-        } else {
+        } else if (!compactResult.success) {
           logger.warn('Auto-compact failed, continuing without compact', { error: compactResult.error });
         }
       }

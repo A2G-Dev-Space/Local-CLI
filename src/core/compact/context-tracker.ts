@@ -33,7 +33,7 @@ export interface ContextUsageInfo {
  */
 class ContextTrackerClass {
   private lastPromptTokens: number = 0;
-  private autoCompactThreshold: number = 80; // percentage
+  private autoCompactThreshold: number = 70; // percentage
   private autoCompactTriggered: boolean = false;
 
   // Recent files tracking

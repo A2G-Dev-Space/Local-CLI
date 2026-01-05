@@ -105,7 +105,7 @@ export function buildCompactUserPrompt(
 
 /**
  * Build messages array after compact
- * Creates user message with session context and assistant acknowledgment
+ * Creates user message with session context, assistant acknowledgment, and continue prompt
  * Note: System prompt will be added by plan-executor when needed
  */
 export function buildCompactedMessages(
@@ -128,7 +128,11 @@ Working Directory: ${context.workingDirectory || process.cwd()}
     },
     {
       role: 'assistant',
-      content: 'Understood. I have the session context. Ready to continue.',
+      content: 'Understood. I have the session context.',
+    },
+    {
+      role: 'user',
+      content: 'Please continue your work.',
     },
   ];
 }
