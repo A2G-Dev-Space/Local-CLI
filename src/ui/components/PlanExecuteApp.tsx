@@ -79,7 +79,7 @@ import {
   type CommandHandlerContext,
   type PlanningMode,
 } from '../../core/slash-command-handler.js';
-import { closeJsonStreamLogger } from '../../utils/json-stream-logger.js';
+import { closeJsonStreamLogger, getStreamLogger } from '../../utils/json-stream-logger.js';
 import { configManager } from '../../core/config/config-manager.js';
 import { GitAutoUpdater, UpdateStatus } from '../../core/git-auto-updater.js';
 import { isRunningAsBinary } from '../../core/binary-auto-updater.js';
@@ -231,6 +231,9 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
 
   // Tool Selector state
   const [showToolSelector, setShowToolSelector] = useState(false);
+
+  // Log files visibility (Ctrl+O toggle)
+  const [showLogFiles, setShowLogFiles] = useState(false);
 
   // Execution mode: 'auto' (autonomous) or 'supervised' (requires user approval)
   const [executionMode, setExecutionMode] = useState<'auto' | 'supervised'>('auto');
@@ -890,6 +893,10 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         content: `실행 모드 변경: ${newMode === 'auto' ? '🚀 Auto Mode (자율 실행)' : '👁️ Supervised Mode (승인 필요)'}`,
       });
       logger.debug('Execution mode toggled', { newMode });
+    }
+    // Ctrl+O: toggle log files visibility
+    if (key.ctrl && inputChar === 'o') {
+      setShowLogFiles(prev => !prev);
     }
   }, { isActive: !fileBrowserState.showFileBrowser && !commandBrowserState.showCommandBrowser && !pendingToolApproval });
 
@@ -2219,6 +2226,23 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
           </>
         )}
       </Box>
+
+      {/* Log files info (Ctrl+O to toggle) */}
+      {showLogFiles && (() => {
+        const streamLogger = getStreamLogger();
+        const sessionLogPath = streamLogger?.getFilePath() ?? 'N/A';
+        const logDir = streamLogger?.getLogDirectory() ?? '';
+        const browserLogPath = logDir ? `${logDir}/browser-server_log.jsonl` : 'N/A';
+        const officeLogPath = logDir ? `${logDir}/office-server_log.jsonl` : 'N/A';
+        return (
+          <Box flexDirection="column" paddingX={1} borderStyle="single" borderColor="gray">
+            <Text color="gray" dimColor>📁 Log Files (Ctrl+O to hide)</Text>
+            <Text color="gray" dimColor>  Session: {sessionLogPath}</Text>
+            <Text color="gray" dimColor>  Browser: {browserLogPath}</Text>
+            <Text color="gray" dimColor>  Office:  {officeLogPath}</Text>
+          </Box>
+        );
+      })()}
     </Box>
   );
 };
