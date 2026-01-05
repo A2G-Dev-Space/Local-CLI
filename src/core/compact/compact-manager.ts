@@ -27,6 +27,8 @@ export interface CompactResult {
   newMessageCount: number;
   /** The compact summary generated */
   compactedSummary?: string;
+  /** The compacted messages array (for caller to use) */
+  compactedMessages?: Message[];
   /** Error message if failed */
   error?: string;
 }

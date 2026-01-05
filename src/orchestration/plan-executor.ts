@@ -462,6 +462,13 @@ export class PlanExecutor {
         emitCompact(result.originalMessageCount, finalMessages.length);
 
         logger.flow('Compact completed successfully', { preservedMessages: 2 });
+
+        // Return with compactedMessages for caller to use
+        logger.exit('PlanExecutor.performCompact', { success: true });
+        return {
+          ...result,
+          compactedMessages: finalMessages,
+        };
       }
 
       logger.exit('PlanExecutor.performCompact', { success: result.success });
