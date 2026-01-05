@@ -15,9 +15,11 @@ import argparse
 import base64
 import io
 import json
+import logging
 import sys
 import os
 import time
+from datetime import datetime
 from typing import Optional, Dict, Any
 
 # Flask for HTTP server
@@ -45,6 +47,121 @@ office_apps: Dict[str, Any] = {
 
 # Initialize COM for main thread at startup
 pythoncom.CoInitialize()
+
+# =============================================================================
+# JSON File Logger for Remote Debugging
+# =============================================================================
+
+class JsonFileLogger:
+    """JSON file logger for remote debugging support"""
+
+    def __init__(self, log_path: Optional[str] = None):
+        self.log_path = log_path
+        self.log_file = None
+
+        if log_path:
+            try:
+                # Ensure directory exists
+                log_dir = os.path.dirname(log_path)
+                if log_dir and not os.path.exists(log_dir):
+                    os.makedirs(log_dir, exist_ok=True)
+                self.log_file = open(log_path, 'a', encoding='utf-8')
+                self._log_entry('server_start', {'message': 'Office server started', 'port': 8765})
+            except Exception as e:
+                print(f"Failed to open log file: {e}", flush=True)
+
+    def _log_entry(self, log_type: str, data: Dict[str, Any]) -> None:
+        """Write a log entry to the file"""
+        if not self.log_file:
+            return
+
+        entry = {
+            'timestamp': datetime.now().isoformat(),
+            'type': log_type,
+            **data
+        }
+
+        try:
+            self.log_file.write(json.dumps(entry, ensure_ascii=False, default=str) + '\n')
+            self.log_file.flush()
+        except Exception as e:
+            print(f"Failed to write log: {e}", flush=True)
+
+    def log_request(self, method: str, endpoint: str, body: Optional[Dict] = None) -> None:
+        """Log an incoming request"""
+        self._log_entry('request', {
+            'method': method,
+            'endpoint': endpoint,
+            'body': body
+        })
+
+    def log_response(self, endpoint: str, success: bool, response: Dict, duration_ms: float) -> None:
+        """Log a response"""
+        # Truncate large response data (e.g., screenshots)
+        safe_response = response.copy()
+        if 'image' in safe_response:
+            safe_response['image'] = f"[base64 image, {len(response.get('image', ''))} chars]"
+        if 'content' in safe_response and len(str(safe_response.get('content', ''))) > 500:
+            safe_response['content'] = f"[content, {len(response.get('content', ''))} chars]"
+
+        self._log_entry('response', {
+            'endpoint': endpoint,
+            'success': success,
+            'response': safe_response,
+            'duration_ms': duration_ms
+        })
+
+    def log_error(self, endpoint: str, error: str, duration_ms: float) -> None:
+        """Log an error"""
+        self._log_entry('error', {
+            'endpoint': endpoint,
+            'error': error,
+            'duration_ms': duration_ms
+        })
+
+    def close(self) -> None:
+        """Close the log file"""
+        if self.log_file:
+            self._log_entry('server_stop', {'message': 'Office server stopped'})
+            self.log_file.close()
+            self.log_file = None
+
+
+# Global logger instance (initialized in main)
+json_logger: Optional[JsonFileLogger] = None
+
+
+# =============================================================================
+# Flask Request/Response Logging Hooks
+# =============================================================================
+
+@app.before_request
+def log_request():
+    """Log incoming request"""
+    if json_logger:
+        body = None
+        if request.is_json:
+            try:
+                body = request.get_json(silent=True)
+            except Exception:
+                pass
+        json_logger.log_request(request.method, request.path, body)
+    # Store start time for duration calculation
+    request._start_time = time.time()
+
+
+@app.after_request
+def log_response(response):
+    """Log outgoing response"""
+    if json_logger:
+        duration_ms = (time.time() - getattr(request, '_start_time', time.time())) * 1000
+        try:
+            response_data = response.get_json(silent=True) or {}
+            success = response_data.get('success', response.status_code < 400)
+            json_logger.log_response(request.path, success, response_data, duration_ms)
+        except Exception as e:
+            json_logger.log_error(request.path, str(e), duration_ms)
+    return response
 
 
 def get_or_create_word():
@@ -2385,12 +2502,21 @@ def powerpoint_close():
 # =============================================================================
 
 def main():
+    global json_logger
+
     parser = argparse.ArgumentParser(description='Office Automation Server')
     parser.add_argument('--host', default='0.0.0.0', help='Host to bind to')
     parser.add_argument('--port', type=int, default=8765, help='Port to listen on')
     parser.add_argument('--debug', action='store_true', help='Enable debug mode')
+    parser.add_argument('--log-path', type=str, default=None,
+                        help='Path to JSON log file for remote debugging (e.g., C:\\logs\\office-server.jsonl)')
 
     args = parser.parse_args()
+
+    # Initialize JSON logger if log path is provided
+    if args.log_path:
+        json_logger = JsonFileLogger(args.log_path)
+        print(f"Logging to: {args.log_path}")
 
     print(f"Office Automation Server starting on http://{args.host}:{args.port}")
     print("Endpoints:")
