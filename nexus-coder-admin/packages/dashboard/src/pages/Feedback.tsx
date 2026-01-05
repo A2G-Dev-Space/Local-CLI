@@ -100,16 +100,6 @@ export default function Feedback({ isAdmin }: FeedbackProps) {
     }
   };
 
-  const handleRespond = async (id: string, response: string, status: string) => {
-    try {
-      await feedbackApi.respond(id, { response, status });
-      loadFeedbacks();
-      setShowDetailModal(false);
-    } catch (error) {
-      console.error('Failed to respond:', error);
-    }
-  };
-
   const handleStatusChange = async (id: string, status: string) => {
     try {
       await feedbackApi.updateStatus(id, status);
@@ -278,7 +268,6 @@ export default function Feedback({ isAdmin }: FeedbackProps) {
             setSelectedFeedback(null);
           }}
           onDelete={handleDelete}
-          onRespond={handleRespond}
           onStatusChange={handleStatusChange}
           onAddComment={handleAddComment}
           onUpdateComment={handleUpdateComment}
@@ -485,7 +474,6 @@ function FeedbackDetailModal({
   isAdmin,
   onClose,
   onDelete,
-  onRespond,
   onStatusChange,
   onAddComment,
   onUpdateComment,
@@ -496,7 +484,6 @@ function FeedbackDetailModal({
   isAdmin: boolean;
   onClose: () => void;
   onDelete: (id: string) => Promise<void>;
-  onRespond: (id: string, response: string, status: string) => Promise<void>;
   onStatusChange: (id: string, status: string) => Promise<void>;
   onAddComment: (id: string, content: string) => Promise<void>;
   onUpdateComment: (feedbackId: string, commentId: string, content: string) => Promise<void>;
