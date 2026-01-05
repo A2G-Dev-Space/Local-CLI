@@ -865,9 +865,10 @@ export class LLMClient {
     toolCalls: Array<{ tool: string; args: unknown; result: string }>;
     allMessages: Message[];
   }> {
-    const workingMessages = [...messages];
+    let workingMessages = [...messages];
     const toolCallHistory: Array<{ tool: string; args: unknown; result: string }> = [];
     let iterations = 0;
+    let contextLengthRecoveryAttempted = false;  // Prevent infinite recovery loop
 
     while (true) {
       // Check for interrupt at start of each iteration
@@ -888,11 +889,64 @@ export class LLMClient {
         }
       }
 
-      // LLM 호출 (tools 포함)
-      const response = await this.chatCompletion({
-        messages: workingMessages,
-        tools,
-      });
+      // LLM 호출 (tools 포함) - with ContextLengthError recovery
+      let response: LLMResponse;
+      try {
+        response = await this.chatCompletion({
+          messages: workingMessages,
+          tools,
+        });
+      } catch (error) {
+        // ContextLengthError recovery: rollback last tool + compact + retry
+        if (error instanceof ContextLengthError && !contextLengthRecoveryAttempted) {
+          contextLengthRecoveryAttempted = true;
+          logger.flow('ContextLengthError detected - attempting recovery with compact');
+
+          // Rollback: remove last tool results and assistant message with tool_calls
+          let rollbackIdx = workingMessages.length - 1;
+          while (rollbackIdx >= 0 && workingMessages[rollbackIdx]?.role === 'tool') {
+            rollbackIdx--;
+          }
+          // rollbackIdx now points to last assistant message (with tool_calls)
+          if (rollbackIdx >= 0 && workingMessages[rollbackIdx]?.tool_calls) {
+            workingMessages = workingMessages.slice(0, rollbackIdx);
+            logger.debug('Rolled back messages to before last tool execution', {
+              removedCount: workingMessages.length - rollbackIdx,
+            });
+          }
+
+          // Execute compact
+          const { CompactManager } = await import('../compact/compact-manager.js');
+          const { buildCompactedMessages } = await import('../compact/compact-prompts.js');
+          const compactManager = new CompactManager(this);
+
+          const compactResult = await compactManager.compact(workingMessages, {
+            workingDirectory: process.cwd(),
+          });
+
+          if (compactResult.success && compactResult.compactedSummary) {
+            // Replace workingMessages with compacted result
+            const compactedMessages = buildCompactedMessages(compactResult.compactedSummary, {
+              workingDirectory: process.cwd(),
+            });
+            workingMessages = [...compactedMessages];
+            logger.flow('Compact completed, retrying with reduced context', {
+              originalCount: compactResult.originalMessageCount,
+              newCount: compactedMessages.length,
+            });
+
+            // Retry loop
+            continue;
+          } else {
+            // Compact failed - throw original error
+            logger.error('Compact failed during recovery', { error: compactResult.error });
+            throw error;
+          }
+        }
+
+        // Other errors or second ContextLengthError - rethrow
+        throw error;
+      }
 
       // Check for interrupt after LLM call
       if (this.isInterrupted) {

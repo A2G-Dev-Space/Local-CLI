@@ -25,6 +25,10 @@ const EXCLUDED_DIRS = new Set([
 const MAX_DEPTH = 5;
 const MAX_FILES = 100;
 
+// Read file limits (Claude Code style)
+const DEFAULT_LINE_LIMIT = 2000;
+const MAX_LINE_LIMIT = 10000;
+
 /**
  * read_file Tool Definition
  */
@@ -32,7 +36,8 @@ const READ_FILE_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'read_file',
-    description: 'Read the contents of a file. Only text files are supported.',
+    description: `Read the contents of a file. Only text files are supported.
+By default, reads up to ${DEFAULT_LINE_LIMIT} lines. Use offset/limit for large files.`,
     parameters: {
       type: 'object',
       properties: {
@@ -50,6 +55,14 @@ Examples:
           type: 'string',
           description: 'Absolute or relative path of the file to read',
         },
+        offset: {
+          type: 'number',
+          description: 'Starting line number (1-based, default: 1)',
+        },
+        limit: {
+          type: 'number',
+          description: `Number of lines to read (default: ${DEFAULT_LINE_LIMIT}, max: ${MAX_LINE_LIMIT})`,
+        },
       },
       required: ['reason', 'file_path'],
     },
@@ -58,19 +71,49 @@ Examples:
 
 /**
  * Internal: Execute read_file
+ * Supports offset/limit for reading portions of large files (Claude Code style)
  */
 async function _executeReadFile(args: Record<string, unknown>): Promise<ToolResult> {
   const filePath = args['file_path'] as string;
+  const offset = Math.max(1, (args['offset'] as number) || 1);  // 1-based, default 1
+  const limit = Math.min(MAX_LINE_LIMIT, Math.max(1, (args['limit'] as number) || DEFAULT_LINE_LIMIT));
 
   try {
     // Remove @ prefix if present
     const cleanPath = filePath.startsWith('@') ? filePath.slice(1) : filePath;
     const resolvedPath = path.resolve(cleanPath);
+    const displayPath = filePath.startsWith('@') ? filePath.slice(1) : filePath;
     const content = await fs.readFile(resolvedPath, 'utf-8');
+
+    // Split into lines and apply offset/limit
+    const allLines = content.split('\n');
+    const totalLines = allLines.length;
+    const startIdx = offset - 1;  // Convert to 0-based
+    const endIdx = Math.min(startIdx + limit, totalLines);
+    const selectedLines = allLines.slice(startIdx, endIdx);
+
+    // Format with line numbers (Claude Code style: "   1→content")
+    const formattedLines = selectedLines.map((line, idx) => {
+      const lineNum = startIdx + idx + 1;
+      const padding = String(totalLines).length;
+      return `${String(lineNum).padStart(padding)}→${line}`;
+    });
+
+    let result = formattedLines.join('\n');
+
+    // Add info header if file is larger than what we're showing
+    if (totalLines > limit || offset > 1) {
+      const header = `[File: ${displayPath} | Lines ${offset}-${endIdx} of ${totalLines}]`;
+      const hasMore = endIdx < totalLines;
+      const footer = hasMore
+        ? `\n[... ${totalLines - endIdx} more lines. Use offset=${endIdx + 1} to continue reading]`
+        : '';
+      result = `${header}\n${result}${footer}`;
+    }
 
     return {
       success: true,
-      result: content,
+      result,
     };
   } catch (error) {
     const err = error as NodeJS.ErrnoException;
