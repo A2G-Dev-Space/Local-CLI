@@ -320,7 +320,7 @@ class BrowserClient {
 
         // Get log directory from stream logger and convert to Windows path
         const streamLogger = getStreamLogger();
-        const logDir = streamLogger.getLogDirectory();
+        const logDir = streamLogger?.getLogDirectory() ?? LOCAL_HOME_DIR;
         const serverLogPath = path.join(logDir, 'browser-server_log.jsonl');
         const windowsLogPath = this.toWindowsPath(serverLogPath);
 
@@ -410,7 +410,7 @@ class BrowserClient {
     logger.debug(`[BrowserClient] request: ${method} ${url} timeout = ${timeoutMs} ms`);
 
     // Log server request
-    streamLogger.logServerRequest('browser', method, endpoint, data);
+    streamLogger?.logServerRequest('browser', method, endpoint, data);
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => {
@@ -441,7 +441,7 @@ class BrowserClient {
 
       // Log server response
       const durationMs = Date.now() - startTime;
-      streamLogger.logServerResponse('browser', endpoint, result.success, result, undefined, durationMs);
+      streamLogger?.logServerResponse('browser', endpoint, result.success, result, undefined, durationMs);
 
       return result;
     } catch (error) {
@@ -451,7 +451,7 @@ class BrowserClient {
 
       // Log server error response
       const durationMs = Date.now() - startTime;
-      streamLogger.logServerResponse('browser', endpoint, false, undefined, errorMsg, durationMs);
+      streamLogger?.logServerResponse('browser', endpoint, false, undefined, errorMsg, durationMs);
 
       throw error;
     }

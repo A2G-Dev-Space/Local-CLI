@@ -87,7 +87,7 @@ export class PlanExecutor {
     logger.enter('PlanExecutor.executePlanMode', { messageLength: userMessage.length });
 
     // Log planning start
-    streamLogger.logPlanningStart(userMessage, {
+    streamLogger?.logPlanningStart(userMessage, {
       messageCount: messages.length,
       model: configManager.getCurrentModel()?.name,
     });
@@ -122,7 +122,7 @@ export class PlanExecutor {
         logger.flow('Direct response - no execution needed');
 
         // Log planning end (direct response)
-        streamLogger.logPlanningEnd(0, [], true, Date.now() - planningStartTime);
+        streamLogger?.logPlanningEnd(0, [], true, Date.now() - planningStartTime);
 
         // Check if last message is already the same user request (avoid duplicate)
         const lastMsg = currentMessages[currentMessages.length - 1];
@@ -150,7 +150,7 @@ export class PlanExecutor {
       currentTodos = planResult.todos;
 
       // Log planning end (TODOs created)
-      streamLogger.logPlanningEnd(
+      streamLogger?.logPlanningEnd(
         currentTodos.length,
         currentTodos.map(t => ({ id: t.id, title: t.title, status: t.status })),
         false,
