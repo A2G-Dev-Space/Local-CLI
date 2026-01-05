@@ -9,6 +9,22 @@ interface User {
   deptname: string;
 }
 
+/**
+ * Decode unicode escape sequences (e.g., \uD55C\uAE00 → 한글)
+ */
+function decodeUnicodeEscape(str: string): string {
+  if (!str) return str;
+  try {
+    // Check if string contains unicode escape sequences
+    if (str.includes('\\u')) {
+      return JSON.parse(`"${str}"`);
+    }
+    return str;
+  } catch {
+    return str;
+  }
+}
+
 type AdminRole = 'SUPER_ADMIN' | 'ADMIN' | 'VIEWER' | null;
 
 interface LayoutProps {
@@ -155,7 +171,7 @@ export default function Layout({ children, user, isAdmin, adminRole, onLogout }:
           <div className="flex items-center justify-between">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <p className="text-sm font-medium text-pastel-800 truncate">{user.username}</p>
+                <p className="text-sm font-medium text-pastel-800 truncate">{decodeUnicodeEscape(user.username)}</p>
                 {isAdmin && (
                   <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium bg-pastel-200 text-pastel-700 rounded">
                     <Shield className="w-2.5 h-2.5" />
@@ -163,7 +179,7 @@ export default function Layout({ children, user, isAdmin, adminRole, onLogout }:
                   </span>
                 )}
               </div>
-              <p className="text-xs text-pastel-500 truncate">{user.deptname}</p>
+              <p className="text-xs text-pastel-500 truncate">{decodeUnicodeEscape(user.deptname)}</p>
             </div>
             <button
               onClick={onLogout}

@@ -319,6 +319,23 @@ function CreateFeedbackModal({
                 );
               })}
             </div>
+
+            {/* Log files notice for bug/performance issues */}
+            {(category === 'ISSUE' || category === 'PERFORMANCE') && (
+              <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-sm text-amber-800">
+                  <strong>💡 디버깅을 위해 로그 파일을 첨부해주세요!</strong>
+                </p>
+                <p className="text-xs text-amber-700 mt-1">
+                  CLI에서 <code className="bg-amber-100 px-1 py-0.5 rounded">Ctrl+O</code>를 누르면 로그 파일 경로를 확인할 수 있습니다:
+                </p>
+                <ul className="text-xs text-amber-700 mt-1 ml-4 list-disc">
+                  <li>Session 로그 (session_log.jsonl)</li>
+                  <li>Browser Server 로그 (browser-server_log.jsonl)</li>
+                  <li>Office Server 로그 (office-server_log.jsonl)</li>
+                </ul>
+              </div>
+            )}
           </div>
 
           <div>
