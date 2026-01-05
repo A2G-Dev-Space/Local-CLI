@@ -646,6 +646,11 @@ export function getJsonStreamLogger(): JsonStreamLogger | null {
 }
 
 /**
+ * Alias for getJsonStreamLogger (main branch compatibility)
+ */
+export const getStreamLogger = getJsonStreamLogger;
+
+/**
  * Close global JSON stream logger
  */
 export async function closeJsonStreamLogger(): Promise<void> {

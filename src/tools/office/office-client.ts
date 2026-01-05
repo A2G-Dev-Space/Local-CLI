@@ -11,6 +11,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { logger } from '../../utils/logger.js';
 import { getStreamLogger } from '../../utils/json-stream-logger.js';
+import { LOCAL_HOME_DIR } from '../../constants.js';
 
 /**
  * Check if WSL2 mirrored networking is enabled
@@ -280,7 +281,7 @@ class OfficeClient {
 
         // Get log directory from stream logger and convert to Windows path
         const streamLogger = getStreamLogger();
-        const logDir = streamLogger.getLogDirectory();
+        const logDir = streamLogger?.getLogDirectory() ?? LOCAL_HOME_DIR;
         const serverLogPath = path.join(logDir, 'office-server_log.jsonl');
         const windowsLogPath = this.toWindowsPath(serverLogPath);
 
@@ -365,7 +366,7 @@ class OfficeClient {
     logger.debug(`[OfficeClient] request: ${method} ${url} timeout = ${timeoutMs} ms`);
 
     // Log server request
-    streamLogger.logServerRequest('office', method, endpoint, data);
+    streamLogger?.logServerRequest('office', method, endpoint, data);
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => {
@@ -396,7 +397,7 @@ class OfficeClient {
 
       // Log server response
       const durationMs = Date.now() - startTime;
-      streamLogger.logServerResponse('office', endpoint, result.success, result, undefined, durationMs);
+      streamLogger?.logServerResponse('office', endpoint, result.success, result, undefined, durationMs);
 
       return result;
     } catch (error) {
@@ -406,7 +407,7 @@ class OfficeClient {
 
       // Log server error response
       const durationMs = Date.now() - startTime;
-      streamLogger.logServerResponse('office', endpoint, false, undefined, errorMsg, durationMs);
+      streamLogger?.logServerResponse('office', endpoint, false, undefined, errorMsg, durationMs);
 
       throw error;
     }

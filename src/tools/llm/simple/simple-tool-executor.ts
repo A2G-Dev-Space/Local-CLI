@@ -224,7 +224,7 @@ export async function executeSimpleTool(
   if (!tool || !isLLMSimpleTool(tool)) {
     const error = `Unknown or not a simple tool: ${toolName}`;
     // Log tool execution failure
-    logger.logToolEnd(toolName, false, undefined, error, Date.now() - startTime);
+    logger?.logToolEnd(toolName, false, undefined, error, Date.now() - startTime);
     return {
       success: false,
       error,
@@ -235,7 +235,7 @@ export async function executeSimpleTool(
   const reason = args['reason'] as string | undefined;
 
   // Log tool execution start
-  logger.logToolStart(toolName, args, reason);
+  logger?.logToolStart(toolName, args, reason);
 
   // Call the callback to notify UI about tool execution (pass all args)
   // Skip for TODO tools which don't have reason parameter
@@ -248,7 +248,7 @@ export async function executeSimpleTool(
   const durationMs = Date.now() - startTime;
 
   // Log tool execution end
-  logger.logToolEnd(
+  logger?.logToolEnd(
     toolName,
     result.success,
     result.success ? result.result : undefined,
