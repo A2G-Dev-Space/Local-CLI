@@ -15,7 +15,21 @@ const FLUSH_INTERVAL_MS = 1000;
 
 export interface StreamLogEntry {
   timestamp: string;
-  type: 'user_input' | 'assistant_response' | 'system_message' | 'error' | 'tool_call' | 'todo_update' | 'debug' | 'info';
+  type:
+    | 'user_input'
+    | 'assistant_response'
+    | 'system_message'
+    | 'error'
+    | 'tool_call'
+    | 'tool_start'      // Tool 실행 시작
+    | 'tool_end'        // Tool 실행 완료
+    | 'todo_update'
+    | 'planning_start'  // Planning 시작
+    | 'planning_end'    // Planning 완료
+    | 'server_request'  // Windows 서버 요청
+    | 'server_response' // Windows 서버 응답
+    | 'debug'
+    | 'info';
   content: string;
   metadata?: Record<string, unknown>;
 }
@@ -372,6 +386,130 @@ export class JsonStreamLogger {
       content: message,
       metadata: data ? { data } : undefined,
     });
+  }
+
+  /**
+   * Log tool execution start
+   */
+  logToolStart(toolName: string, args: unknown, reason?: string): void {
+    this.log({
+      timestamp: new Date().toISOString(),
+      type: 'tool_start',
+      content: `Tool Start: ${toolName}`,
+      metadata: {
+        toolName,
+        args,
+        reason,
+      },
+    });
+  }
+
+  /**
+   * Log tool execution end
+   */
+  logToolEnd(toolName: string, success: boolean, result?: unknown, error?: string, durationMs?: number): void {
+    this.log({
+      timestamp: new Date().toISOString(),
+      type: 'tool_end',
+      content: `Tool End: ${toolName} (${success ? 'success' : 'failed'})`,
+      metadata: {
+        toolName,
+        success,
+        result: result ? (typeof result === 'string' ? result.substring(0, 1000) : result) : undefined,
+        error,
+        durationMs,
+      },
+    });
+  }
+
+  /**
+   * Log planning phase start
+   */
+  logPlanningStart(userMessage: string, context?: Record<string, unknown>): void {
+    this.log({
+      timestamp: new Date().toISOString(),
+      type: 'planning_start',
+      content: `Planning Start: ${userMessage.substring(0, 100)}...`,
+      metadata: {
+        userMessage,
+        messageLength: userMessage.length,
+        ...context,
+      },
+    });
+  }
+
+  /**
+   * Log planning phase end
+   */
+  logPlanningEnd(todoCount: number, todos?: unknown[], directResponse?: boolean, durationMs?: number): void {
+    this.log({
+      timestamp: new Date().toISOString(),
+      type: 'planning_end',
+      content: directResponse ? 'Planning End: Direct response' : `Planning End: ${todoCount} TODOs created`,
+      metadata: {
+        todoCount,
+        todos,
+        directResponse,
+        durationMs,
+      },
+    });
+  }
+
+  /**
+   * Log server request (for Windows servers like browser-server, office-server)
+   */
+  logServerRequest(serverType: 'browser' | 'office', method: string, endpoint: string, body?: unknown): void {
+    this.log({
+      timestamp: new Date().toISOString(),
+      type: 'server_request',
+      content: `${serverType.toUpperCase()} Server: ${method} ${endpoint}`,
+      metadata: {
+        serverType,
+        method,
+        endpoint,
+        body,
+      },
+    });
+  }
+
+  /**
+   * Log server response (for Windows servers)
+   */
+  logServerResponse(
+    serverType: 'browser' | 'office',
+    endpoint: string,
+    success: boolean,
+    response?: unknown,
+    error?: string,
+    durationMs?: number
+  ): void {
+    this.log({
+      timestamp: new Date().toISOString(),
+      type: 'server_response',
+      content: `${serverType.toUpperCase()} Server Response: ${endpoint} (${success ? 'success' : 'failed'})`,
+      metadata: {
+        serverType,
+        endpoint,
+        success,
+        response: response ? (typeof response === 'string' ? response.substring(0, 500) : response) : undefined,
+        error,
+        durationMs,
+      },
+    });
+  }
+
+  /**
+   * Get the log directory path (for server log files)
+   */
+  getLogDirectory(): string {
+    return dirname(this.filePath);
+  }
+
+  /**
+   * Get the log file path
+   */
+  getLogFilePath(): string {
+    return this.filePath;
   }
 
   /**

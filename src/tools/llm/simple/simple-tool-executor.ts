@@ -6,6 +6,7 @@
  */
 
 import { ToolResult, isLLMSimpleTool } from '../../types.js';
+import { getStreamLogger } from '../../../utils/json-stream-logger.js';
 
 /**
  * Callback for tool execution events (reason display to user)
@@ -213,19 +214,28 @@ export async function executeSimpleTool(
   toolName: string,
   args: Record<string, unknown>
 ): Promise<ToolResult> {
+  const startTime = Date.now();
+  const logger = getStreamLogger();
+
   // Dynamic import to avoid circular dependency
   const { toolRegistry } = await import('../../registry.js');
   const tool = toolRegistry.get(toolName);
 
   if (!tool || !isLLMSimpleTool(tool)) {
+    const error = `Unknown or not a simple tool: ${toolName}`;
+    // Log tool execution failure
+    logger.logToolEnd(toolName, false, undefined, error, Date.now() - startTime);
     return {
       success: false,
-      error: `Unknown or not a simple tool: ${toolName}`,
+      error,
     };
   }
 
   // Extract reason from args (not required for TODO tools)
   const reason = args['reason'] as string | undefined;
+
+  // Log tool execution start
+  logger.logToolStart(toolName, args, reason);
 
   // Call the callback to notify UI about tool execution (pass all args)
   // Skip for TODO tools which don't have reason parameter
@@ -235,6 +245,16 @@ export async function executeSimpleTool(
 
   // Execute the tool
   const result = await tool.execute(args);
+  const durationMs = Date.now() - startTime;
+
+  // Log tool execution end
+  logger.logToolEnd(
+    toolName,
+    result.success,
+    result.success ? result.result : undefined,
+    result.success ? undefined : result.error,
+    durationMs
+  );
 
   // Call the response callback to notify UI about tool result
   // Skip response callback for TODO tools to avoid cluttering UI
