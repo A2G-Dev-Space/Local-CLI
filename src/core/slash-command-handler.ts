@@ -7,7 +7,6 @@
 
 import { Message, TodoItem } from '../types/index.js';
 import { sessionManager } from './session/session-manager.js';
-import { usageTracker } from './usage-tracker.js';
 import {
   getDocsInfo,
   downloadDocsFromSource,
@@ -194,12 +193,49 @@ export async function executeSlashCommand(
     };
   }
 
-  // Usage command - show token usage statistics
+  // Usage command - redirect to web dashboard
   if (trimmedCommand === '/usage') {
-    const usageMessage = usageTracker.formatUsageDisplay();
+    const usageUrl = 'http://a2g.samsungds.net:4090/my-usage';
+    let resultMessage: string;
+
+    try {
+      const open = (await import('open')).default;
+      await open(usageUrl);
+      resultMessage = `📊 사용량 페이지를 브라우저에서 열었습니다.\n\n열리지 않으면 직접 접속해주세요: ${usageUrl}`;
+    } catch {
+      resultMessage = `📊 브라우저를 열 수 없습니다.\n\n직접 접속해주세요: ${usageUrl}`;
+    }
+
     const updatedMessages = [
       ...context.messages,
-      { role: 'assistant' as const, content: usageMessage },
+      { role: 'assistant' as const, content: resultMessage },
+    ];
+    context.setMessages(updatedMessages);
+    return {
+      handled: true,
+      shouldContinue: false,
+      updatedContext: {
+        messages: updatedMessages,
+      },
+    };
+  }
+
+  // Feedback command - redirect to feedback page
+  if (trimmedCommand === '/feedback') {
+    const feedbackUrl = 'http://a2g.samsungds.net:4090/feedback';
+    let resultMessage: string;
+
+    try {
+      const open = (await import('open')).default;
+      await open(feedbackUrl);
+      resultMessage = `📝 피드백 페이지를 브라우저에서 열었습니다.\n\n열리지 않으면 직접 접속해주세요: ${feedbackUrl}`;
+    } catch {
+      resultMessage = `📝 브라우저를 열 수 없습니다.\n\n직접 접속해주세요: ${feedbackUrl}`;
+    }
+
+    const updatedMessages = [
+      ...context.messages,
+      { role: 'assistant' as const, content: resultMessage },
     ];
     context.setMessages(updatedMessages);
     return {
@@ -358,7 +394,8 @@ Available commands:
   /model          - Switch between LLM models
   /tool           - Enable/disable optional tools (Browser, Background)
   /load           - Load a saved session
-  /usage          - Show token usage statistics
+  /usage          - Open usage dashboard in browser
+  /feedback       - Open feedback page in browser
   /docs           - Manage documentation (download agno, adk)
 
 Keyboard shortcuts:
