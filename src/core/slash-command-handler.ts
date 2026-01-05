@@ -21,6 +21,7 @@ export interface CompactResult {
   success: boolean;
   originalMessageCount: number;
   newMessageCount: number;
+  compactedMessages?: Message[];
   error?: string;
 }
 
@@ -85,8 +86,12 @@ export async function executeSlashCommand(
       const compactMessage = result.success
         ? `✅ 대화가 압축되었습니다. (${result.originalMessageCount}개 → ${result.newMessageCount}개 메시지)`
         : `❌ 압축 실패: ${result.error}`;
+      // Use compacted messages if available, otherwise fall back to original
+      const baseMessages = (result.success && result.compactedMessages)
+        ? result.compactedMessages
+        : context.messages;
       const updatedMessages = [
-        ...context.messages,
+        ...baseMessages,
         { role: 'assistant' as const, content: compactMessage },
       ];
       context.setMessages(updatedMessages);
