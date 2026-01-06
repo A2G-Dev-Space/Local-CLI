@@ -106,9 +106,10 @@ export const CustomTextInput: React.FC<CustomTextInputProps> = ({
     // Handle different key sequences
     // Check for special escape sequences first
     if (str.startsWith('\x1b')) {
-      // Alt + Enter - insert newline (multi-line input)
-      // Alt+Enter sends ESC + CR (\x1b\r) or ESC + LF (\x1b\n)
-      if (str === '\x1b\r' || str === '\x1b\n') {
+      // Alt+Enter or Shift+Enter - insert newline (multi-line input)
+      // Alt+Enter: ESC + CR (\x1b\r) or ESC + LF (\x1b\n)
+      // Shift+Enter: Kitty/modern terminals send \x1b[13;2u or \x1b[27;2;13~
+      if (str === '\x1b\r' || str === '\x1b\n' || str === '\x1b[13;2u' || str === '\x1b[27;2;13~') {
         const newValue = currentValue.slice(0, currentCursor) + '\n' + currentValue.slice(currentCursor);
         onChangeRef.current(newValue);
         setCursorPosition(currentCursor + 1);
