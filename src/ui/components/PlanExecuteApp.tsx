@@ -68,6 +68,7 @@ import { ActivityIndicator, type ActivityType, type SubActivity } from './Activi
 import { useFileBrowserState } from '../hooks/useFileBrowserState.js';
 import { useCommandBrowserState } from '../hooks/useCommandBrowserState.js';
 import { usePlanExecution } from '../hooks/usePlanExecution.js';
+import { useInputHistory } from '../hooks/useInputHistory.js';
 import { isValidCommand } from '../hooks/slashCommandProcessor.js';
 import { processFileReferences } from '../hooks/atFileProcessor.js';
 import {
@@ -182,7 +183,7 @@ interface PlanExecuteAppProps {
 export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initialLlmClient, modelInfo }) => {
   const { exit } = useApp();
   const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState('');
+  const { input, setInput, handleHistoryPrev, handleHistoryNext, addToHistory } = useInputHistory();
   const [isProcessing, setIsProcessing] = useState(false);
   // Planning mode is always 'auto' - mode selection has been removed
   const planningMode: PlanningMode = 'auto';
@@ -1068,6 +1069,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
     }
 
     setInput('');
+    addToHistory(userMessage);
 
     // Handle slash commands
     if (isSlashCommand(userMessage)) {
@@ -1885,6 +1887,8 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
                 setInput(value);
               }}
               onSubmit={handleSubmit}
+              onHistoryPrev={handleHistoryPrev}
+              onHistoryNext={handleHistoryNext}
               placeholder={
                 isProcessing
                   ? "AI is working..."
