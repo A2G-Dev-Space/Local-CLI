@@ -40,6 +40,9 @@ export const CustomTextInput: React.FC<CustomTextInputProps> = ({
   const onSubmitRef = useRef(onSubmit);
   const setIsCollapsedViewRef = useRef(setIsCollapsedView);
 
+  // Flag to distinguish internal input from external value changes
+  const isInternalChangeRef = useRef(false);
+
   // Keep refs in sync
   useEffect(() => {
     valueRef.current = value;
@@ -56,12 +59,19 @@ export const CustomTextInput: React.FC<CustomTextInputProps> = ({
       setCursorPosition(0);
       previousValueLength.current = 0;
       setIsCollapsedView(false);
+      isInternalChangeRef.current = false;
       return;
     }
 
     // When value increases (e.g., file inserted), move cursor to end
+    // But only if it's an external change, not internal typing
     if (value.length > previousValueLength.current) {
-      setCursorPosition(value.length);
+      if (!isInternalChangeRef.current) {
+        // External change (e.g., file inserted) - move cursor to end
+        setCursorPosition(value.length);
+      }
+      // Reset the flag after processing
+      isInternalChangeRef.current = false;
       previousValueLength.current = value.length;
       return;
     }
@@ -71,6 +81,7 @@ export const CustomTextInput: React.FC<CustomTextInputProps> = ({
       setCursorPosition(value.length);
     }
 
+    isInternalChangeRef.current = false;
     previousValueLength.current = value.length;
   }, [value, cursorPosition]);
 
@@ -98,6 +109,7 @@ export const CustomTextInput: React.FC<CustomTextInputProps> = ({
         }
 
         const newValue = beforeCursor.slice(0, newPos) + afterCursor;
+        isInternalChangeRef.current = true;
         onChangeRef.current(newValue);
         setCursorPosition(newPos);
       }
@@ -111,6 +123,7 @@ export const CustomTextInput: React.FC<CustomTextInputProps> = ({
       // Shift+Enter: Kitty/modern terminals send \x1b[13;2u or \x1b[27;2;13~
       if (str === '\x1b\r' || str === '\x1b\n' || str === '\x1b[13;2u' || str === '\x1b[27;2;13~') {
         const newValue = currentValue.slice(0, currentCursor) + '\n' + currentValue.slice(currentCursor);
+        isInternalChangeRef.current = true;
         onChangeRef.current(newValue);
         setCursorPosition(currentCursor + 1);
         return;
@@ -131,6 +144,7 @@ export const CustomTextInput: React.FC<CustomTextInputProps> = ({
         // Delete key - delete character after cursor
         if (currentCursor < currentValue.length) {
           const newValue = currentValue.slice(0, currentCursor) + currentValue.slice(currentCursor + 1);
+          isInternalChangeRef.current = true;
           onChangeRef.current(newValue);
         }
         return;
@@ -182,6 +196,7 @@ export const CustomTextInput: React.FC<CustomTextInputProps> = ({
     if (str === '\x7f' || str === '\x08') {
       if (currentCursor > 0) {
         const newValue = currentValue.slice(0, currentCursor - 1) + currentValue.slice(currentCursor);
+        isInternalChangeRef.current = true;
         onChangeRef.current(newValue);
         setCursorPosition(currentCursor - 1);
       }
@@ -209,6 +224,7 @@ export const CustomTextInput: React.FC<CustomTextInputProps> = ({
       const sanitized = str.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
       if (sanitized.length > 0) {
         const newValue = currentValue.slice(0, currentCursor) + sanitized + currentValue.slice(currentCursor);
+        isInternalChangeRef.current = true;
         onChangeRef.current(newValue);
         setCursorPosition(currentCursor + sanitized.length);
 
@@ -230,6 +246,7 @@ export const CustomTextInput: React.FC<CustomTextInputProps> = ({
     const charCode = str.charCodeAt(0);
     if (charCode >= 0x20 && charCode !== 0x7F) {
       const newValue = currentValue.slice(0, currentCursor) + str + currentValue.slice(currentCursor);
+      isInternalChangeRef.current = true;
       onChangeRef.current(newValue);
       setCursorPosition(currentCursor + str.length);
     }
