@@ -89,19 +89,22 @@ export class PlanningLLM {
         if (attempt > 1) {
           messages.push({
             role: 'user',
-            content: `[RETRY ${attempt}/${MAX_RETRIES}] You MUST respond. Either:
-1. Use the 'create_todos' tool to create a TODO list for this task, OR
-2. Provide a direct text response if this is a simple question.
+            content: `[RETRY ${attempt}/${MAX_RETRIES}] You MUST use one of the available tools:
 
-DO NOT return an empty response. The user is waiting for your response.`,
+1. 'create_todos' - If the request requires ANY action (code changes, commands, file operations, etc.)
+2. 'respond_to_user' - If this is ONLY a question/greeting that needs a text explanation
+
+You MUST choose one. Previous error: ${lastError?.message || 'Invalid response'}
+
+Choose the correct tool now.`,
           });
-          logger.warn(`Planning LLM retry attempt ${attempt}/${MAX_RETRIES}`);
+          logger.warn(`Planning LLM retry attempt ${attempt}/${MAX_RETRIES}`, { lastError: lastError?.message });
         }
 
         const response = await this.llmClient.chatCompletion({
           messages,
           tools: planningTools,
-          // tool_choice: auto (default) - LLM decides whether to use tool or respond directly
+          tool_choice: 'required', // Force LLM to choose either create_todos or respond_to_user
           temperature: 0.7,
           max_tokens: 2000,
         });
@@ -122,7 +125,7 @@ DO NOT return an empty response. The user is waiting for your response.`,
           toolCallsCount: toolCalls?.length ?? 0,
         });
 
-        // Handle tool call (create_todos)
+        // Handle tool call (must be either create_todos or respond_to_user)
         if (toolCalls && toolCalls.length > 0) {
           const toolCall = toolCalls[0]!;
           const toolName = toolCall.function?.name;
@@ -136,9 +139,9 @@ DO NOT return an empty response. The user is waiting for your response.`,
             continue; // Retry
           }
 
-          // Accept both create_todos (correct) and write_todos (LLM may confuse from context)
-          if (['create_todos', 'write_todos'].includes(toolName)) {
-            logger.flow(`TODO list created via ${toolName} tool`);
+          // Handle create_todos
+          if (toolName === 'create_todos') {
+            logger.flow('TODO list created via create_todos tool');
 
             // Validate todos is an array (handle string-wrapped JSON from LLM)
             let rawTodos = toolArgs.todos;
@@ -171,22 +174,35 @@ DO NOT return an empty response. The user is waiting for your response.`,
               complexity: toolArgs.complexity || 'moderate',
             };
           }
+
+          // Handle respond_to_user
+          if (toolName === 'respond_to_user') {
+            logger.flow('Direct response via respond_to_user tool');
+            const response = toolArgs.response || '';
+
+            if (!response) {
+              logger.warn('respond_to_user called with empty response');
+              lastError = new Error('Planning LLM returned empty response.');
+              continue; // Retry
+            }
+
+            return {
+              todos: [],
+              complexity: 'simple',
+              directResponse: response,
+            };
+          }
+
+          // Unknown tool - retry
+          logger.warn(`Unknown tool called: ${toolName}`);
+          lastError = new Error(`Invalid tool: ${toolName}. Must use create_todos or respond_to_user.`);
+          continue; // Retry
         }
 
-        // No tool call = direct text response (simple question/greeting)
-        const content = message?.content || '';
-        if (content) {
-          logger.flow('Direct text response - no planning needed');
-          return {
-            todos: [],
-            complexity: 'simple',
-            directResponse: content,
-          };
-        }
-
-        // Empty response - will retry
-        logger.warn(`Planning LLM returned empty response (attempt ${attempt}/${MAX_RETRIES})`);
-        lastError = new Error('Planning LLM returned empty response');
+        // No tool call - this should not happen with tool_choice: "required"
+        // But handle it defensively
+        logger.warn(`Planning LLM returned no tool call (attempt ${attempt}/${MAX_RETRIES})`);
+        lastError = new Error('Planning LLM must use either create_todos or respond_to_user tool');
         // Continue to next retry
       } catch (error) {
         // Network or API error - will retry
