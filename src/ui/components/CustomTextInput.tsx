@@ -15,6 +15,8 @@ interface CustomTextInputProps {
   value: string;
   onChange: (value: string) => void;
   onSubmit?: (value: string) => void;
+  onHistoryPrev?: () => void;
+  onHistoryNext?: () => void;
   placeholder?: string;
   focus?: boolean;
 }
@@ -23,6 +25,8 @@ export const CustomTextInput: React.FC<CustomTextInputProps> = ({
   value,
   onChange,
   onSubmit,
+  onHistoryPrev,
+  onHistoryNext,
   placeholder = '',
   focus = true,
 }) => {
@@ -38,6 +42,8 @@ export const CustomTextInput: React.FC<CustomTextInputProps> = ({
   const cursorPositionRef = useRef(cursorPosition);
   const onChangeRef = useRef(onChange);
   const onSubmitRef = useRef(onSubmit);
+  const onHistoryPrevRef = useRef(onHistoryPrev);
+  const onHistoryNextRef = useRef(onHistoryNext);
   const setIsCollapsedViewRef = useRef(setIsCollapsedView);
 
   // Flag to distinguish internal input from external value changes
@@ -49,6 +55,8 @@ export const CustomTextInput: React.FC<CustomTextInputProps> = ({
     cursorPositionRef.current = cursorPosition;
     onChangeRef.current = onChange;
     onSubmitRef.current = onSubmit;
+    onHistoryPrevRef.current = onHistoryPrev;
+    onHistoryNextRef.current = onHistoryNext;
     setIsCollapsedViewRef.current = setIsCollapsedView;
   });
 
@@ -157,6 +165,20 @@ export const CustomTextInput: React.FC<CustomTextInputProps> = ({
       if (str === '\x1b[C') {
         // Right arrow
         setCursorPosition(Math.min(currentValue.length, currentCursor + 1));
+        return;
+      }
+      if (str === '\x1b[A') {
+        // Up arrow - navigate to previous history entry
+        if (onHistoryPrevRef.current) {
+          onHistoryPrevRef.current();
+        }
+        return;
+      }
+      if (str === '\x1b[B') {
+        // Down arrow - navigate to next history entry
+        if (onHistoryNextRef.current) {
+          onHistoryNextRef.current();
+        }
         return;
       }
       if (str === '\x1b\x7f' || str === '\x1b\x08') {
