@@ -89,14 +89,18 @@ export class PlanningLLM {
         if (attempt > 1) {
           messages.push({
             role: 'user',
-            content: `[RETRY ${attempt}/${MAX_RETRIES}] You MUST use one of the available tools:
+            content: `[RETRY ${attempt}/${MAX_RETRIES}] ⚠️ CRITICAL: You are the PLANNING LLM, not the Execution LLM.
 
-1. 'create_todos' - If the request requires ANY action (code changes, commands, file operations, etc.)
-2. 'respond_to_user' - If this is ONLY a question/greeting that needs a text explanation
+You have ONLY 2 tools available:
+1. 'create_todos' - For ANY action/implementation request
+2. 'respond_to_user' - For questions/greetings only
 
-You MUST choose one. Previous error: ${lastError?.message || 'Invalid response'}
+❌ DO NOT use tools like 'write_todos', 'read_file', 'bash', etc. Those are for Execution LLM, NOT you.
+❌ You saw those tools in conversation history, but they are NOT available to you.
 
-Choose the correct tool now.`,
+Previous error: ${lastError?.message || 'Invalid response'}
+
+Choose either 'create_todos' or 'respond_to_user' now.`,
           });
           logger.warn(`Planning LLM retry attempt ${attempt}/${MAX_RETRIES}`, { lastError: lastError?.message });
         }
@@ -195,7 +199,7 @@ Choose the correct tool now.`,
 
           // Unknown tool - retry
           logger.warn(`Unknown tool called: ${toolName}`);
-          lastError = new Error(`Invalid tool: ${toolName}. Must use create_todos or respond_to_user.`);
+          lastError = new Error(`Invalid tool "${toolName}". You only have 2 tools: create_todos or respond_to_user. Tools like write_todos are for Execution LLM, not Planning LLM.`);
           continue; // Retry
         }
 
