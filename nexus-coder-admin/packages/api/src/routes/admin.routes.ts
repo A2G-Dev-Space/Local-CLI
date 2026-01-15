@@ -163,7 +163,7 @@ adminRoutes.delete('/models/:id', async (req: AuthenticatedRequest, res) => {
 
 /**
  * GET /admin/users
- * Get all users with usage stats (excluding anonymous)
+ * Get all users with usage stats (excluding anonymous and users with 0 calls)
  */
 adminRoutes.get('/users', async (req: AuthenticatedRequest, res) => {
   try {
@@ -171,11 +171,17 @@ adminRoutes.get('/users', async (req: AuthenticatedRequest, res) => {
     const limit = parseInt(req.query['limit'] as string) || 50;
     const skip = (page - 1) * limit;
 
+    // Filter: exclude anonymous AND only users with at least 1 usage log
+    const whereClause = {
+      loginid: { not: 'anonymous' },
+      usageLogs: {
+        some: {}, // At least one usage log exists
+      },
+    };
+
     const [users, total] = await Promise.all([
       prisma.user.findMany({
-        where: {
-          loginid: { not: 'anonymous' },
-        },
+        where: whereClause,
         skip,
         take: limit,
         orderBy: { lastActive: 'desc' },
@@ -186,9 +192,7 @@ adminRoutes.get('/users', async (req: AuthenticatedRequest, res) => {
         },
       }),
       prisma.user.count({
-        where: {
-          loginid: { not: 'anonymous' },
-        },
+        where: whereClause,
       }),
     ]);
 
@@ -314,13 +318,21 @@ adminRoutes.delete('/admins/:id', requireSuperAdmin as RequestHandler, async (re
 /**
  * GET /admin/stats/overview
  * Get dashboard overview statistics
+ * totalUsers: only counts users with at least 1 call (excluding anonymous)
  */
 adminRoutes.get('/stats/overview', async (_req: AuthenticatedRequest, res) => {
   try {
     const [activeUsers, todayUsage, totalUsers, totalModels] = await Promise.all([
       getActiveUserCount(redis),
       getTodayUsage(redis),
-      prisma.user.count({ where: { isActive: true, loginid: { not: 'anonymous' } } }),
+      // Only count users with at least 1 usage log
+      prisma.user.count({
+        where: {
+          isActive: true,
+          loginid: { not: 'anonymous' },
+          usageLogs: { some: {} },
+        },
+      }),
       prisma.model.count({ where: { enabled: true } }),
     ]);
 
