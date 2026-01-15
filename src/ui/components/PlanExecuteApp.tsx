@@ -1576,6 +1576,15 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
               <Text color="yellow" dimColor>10.229.95.228</Text>
               <Text color="red" dimColor>이 포함되어 있는지 꼭 확인해주세요.</Text>
             </Box>
+            <Text>{' '}</Text>
+            <Box>
+              <Text color="gray"> 💬 Feedback: </Text>
+              <Text color="cyan">a2g.samsungds.net:4090/feedback</Text>
+            </Box>
+            <Box>
+              <Text color="gray"> 📖 Documentation: </Text>
+              <Text color="cyan">a2g.samsungds.net:4090/docs</Text>
+            </Box>
           </Box>
         );
 
