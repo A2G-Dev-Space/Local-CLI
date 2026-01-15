@@ -12,6 +12,7 @@ import * as os from 'os';
 import { logger } from '../../utils/logger.js';
 import { getStreamLogger } from '../../utils/json-stream-logger.js';
 import { LOCAL_HOME_DIR } from '../../constants.js';
+import { findPowerShellPath } from '../../utils/wsl-utils.js';
 
 /**
  * Check if WSL2 mirrored networking is enabled
@@ -33,36 +34,6 @@ function isMirroredNetworking(): boolean {
     // Ignore errors
   }
   return false;
-}
-
-/**
- * Find powershell.exe path for WSL
- * Tries multiple locations since PATH may not include Windows System32
- */
-function findPowerShellPath(): string {
-  const possiblePaths = [
-    'powershell.exe', // Try PATH first
-    '/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe',
-    '/mnt/c/WINDOWS/System32/WindowsPowerShell/v1.0/powershell.exe',
-    '/mnt/c/windows/system32/WindowsPowerShell/v1.0/powershell.exe',
-  ];
-
-  for (const psPath of possiblePaths) {
-    try {
-      if (psPath === 'powershell.exe') {
-        // Check if powershell.exe is in PATH by trying to execute it
-        execSync('which powershell.exe 2>/dev/null', { encoding: 'utf-8' });
-        return psPath;
-      } else if (fs.existsSync(psPath)) {
-        return psPath;
-      }
-    } catch {
-      // Continue to next path
-    }
-  }
-
-  // Fallback to powershell.exe and let the spawn error provide details
-  return 'powershell.exe';
 }
 
 /**
