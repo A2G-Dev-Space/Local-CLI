@@ -13,6 +13,7 @@ import * as os from 'os';
 import { logger } from '../../utils/logger.js';
 import { getStreamLogger } from '../../utils/json-stream-logger.js';
 import { LOCAL_HOME_DIR } from '../../constants.js';
+import { findPowerShellPath } from '../../utils/wsl-utils.js';
 
 /**
  * Check if WSL2 mirrored networking is enabled
@@ -325,8 +326,8 @@ class BrowserClient {
         const windowsLogPath = this.toWindowsPath(serverLogPath);
 
         if (this.isWSL) {
-          command = 'cmd.exe';
-          args = ['/C', windowsExePath, '--port', String(this.port), '--log-path', windowsLogPath];
+          command = findPowerShellPath();
+          args = ['-Command', `& '${windowsExePath}' --port ${this.port} --log-path '${windowsLogPath}'`];
         } else {
           command = windowsExePath;
           args = ['--port', String(this.port), '--log-path', windowsLogPath];
