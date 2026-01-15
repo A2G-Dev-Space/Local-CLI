@@ -9,7 +9,8 @@
 import { logger } from '../utils/logger.js';
 import { usageTracker } from './usage-tracker.js';
 import { configManager } from './config/config-manager.js';
-import { ADMIN_SERVER_URL } from '../constants.js';
+import { ADMIN_SERVER_URL, SERVICE_ID } from '../constants.js';
+import { authManager } from './auth/index.js';
 
 const RATING_INTERVAL = 20;  // 20 요청마다 평점 요청
 const STAR_INTERVAL = 15;    // 15 요청마다 Star 요청
@@ -118,15 +119,16 @@ class NotificationManager {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...authManager.getAuthHeaders(),
         },
-        body: JSON.stringify({ modelName, rating }),
+        body: JSON.stringify({ modelName, rating, serviceId: SERVICE_ID }),
       });
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
 
-      logger.debug('Rating submitted', { modelName, rating });
+      logger.debug('Rating submitted', { modelName, rating, serviceId: SERVICE_ID });
       return true;
     } catch (error) {
       logger.error('Failed to submit rating', error as Error);

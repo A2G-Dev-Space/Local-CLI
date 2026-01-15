@@ -9,7 +9,7 @@
 
 import fs from 'fs';
 import axios from 'axios';
-import { NEXUS_HOME_DIR, AUTH_FILE_PATH, ADMIN_SERVER_URL } from '../../constants.js';
+import { NEXUS_HOME_DIR, AUTH_FILE_PATH, ADMIN_SERVER_URL, SERVICE_ID } from '../../constants.js';
 import { AuthState, AuthFileData, SSOUser } from './types.js';
 import { ssoClient } from './sso-client.js';
 import { logger } from '../../utils/logger.js';
@@ -155,13 +155,19 @@ class AuthManager {
    * 한글 등 비ASCII 문자는 encodeURIComponent로 인코딩
    */
   getAuthHeaders(): Record<string, string> {
+    // 서비스 ID는 로그인 여부와 관계없이 항상 전송
+    const headers: Record<string, string> = {
+      'X-Service-Id': SERVICE_ID,
+    };
+
     if (!this.authState) {
-      // 로그인 안 된 경우 빈 헤더 (SSO 로그인 필요)
-      return {};
+      // 로그인 안 된 경우 서비스 ID만 전송
+      return headers;
     }
 
-    // 폐쇄망 모드: 토큰 인증 없이 사용자 정보만 전송
+    // 폐쇄망 모드: 토큰 인증 없이 사용자 정보 + 서비스 ID 전송
     return {
+      ...headers,
       'X-User-Id': encodeURIComponent(this.authState.user.loginid),
       'X-User-Name': encodeURIComponent(this.authState.user.username),
       'X-User-Dept': encodeURIComponent(this.authState.user.deptname),

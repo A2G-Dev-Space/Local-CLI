@@ -123,3 +123,9 @@ export const SSO_CONFIG = {
  * Admin Server 설정 (환경변수로 오버라이드 가능)
  */
 export const ADMIN_SERVER_URL = process.env['NEXUS_ADMIN_URL'] || 'http://10.229.95.228:4090';
+
+/**
+ * Service ID (멀티서비스 지원용)
+ * 환경변수로 오버라이드 가능
+ */
+export const SERVICE_ID = process.env['NEXUS_SERVICE_ID'] || 'nexus-coder';
