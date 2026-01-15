@@ -396,24 +396,37 @@ export class GitAutoUpdater {
       rcFile = path.join(os.homedir(), '.bashrc');
     }
 
-
     try {
-      // Check if already configured
+      // Check if already configured by marker
       let content = '';
       if (fs.existsSync(rcFile)) {
         content = fs.readFileSync(rcFile, 'utf-8');
       }
 
-      if (content.includes(marker) || content.includes(binDir)) {
+      // Only check for our specific marker, not the binDir string
+      // (binDir might appear in comments or other contexts)
+      if (content.includes(marker)) {
+        logger.debug('PATH already configured (marker found)');
+        return;
+      }
+
+      // Also check if PATH actually contains binDir (runtime check)
+      const currentPath = process.env['PATH'] || '';
+      if (currentPath.split(':').includes(binDir)) {
+        logger.debug('PATH already contains binDir, adding marker for future reference');
+        // Add marker comment only so we don't re-check every time
+        fs.appendFileSync(rcFile, `\n${marker}\n# PATH already configured elsewhere\n`);
         return;
       }
 
       // Append PATH configuration
       const addition = `\n${marker}\n${pathExport}\n`;
       fs.appendFileSync(rcFile, addition);
+      logger.debug('PATH configuration added to ' + rcFile);
 
     } catch (error) {
       // Non-fatal - user can add manually
+      logger.debug('Failed to configure PATH: ' + (error instanceof Error ? error.message : String(error)));
     }
   }
 
