@@ -1,8 +1,9 @@
 /**
  * Browser Tools Module
  *
- * Browser automation tools using browser-server.exe (HTTP API)
- * Similar pattern to office tools
+ * Browser automation tools using CDP (Chrome DevTools Protocol)
+ * PowerShell로 브라우저를 시작하고 Playwright로 제어합니다.
+ * server.exe 없이 동작합니다.
  */
 
 import { browserClient } from './browser-client.js';
@@ -33,15 +34,12 @@ export {
 } from './browser-tools.js';
 
 /**
- * Start browser server
- * Called when browser tool group is enabled
+ * Start browser server (for compatibility)
+ * CDP 방식에서는 별도 서버가 필요 없음
  */
 export async function startBrowserServer(): Promise<boolean> {
-  try {
-    return await browserClient.startServer();
-  } catch {
-    return false;
-  }
+  // CDP 방식에서는 launch()가 호출될 때 브라우저가 시작됨
+  return true;
 }
 
 /**
@@ -57,8 +55,11 @@ export async function shutdownBrowserServer(): Promise<void> {
 }
 
 /**
- * Check if browser-server.exe is available
+ * Check if browser tools are available
+ * CDP 방식에서는 항상 사용 가능 (Chrome/Edge가 설치되어 있으면)
  */
 export function isBrowserServerAvailable(): boolean {
-  return browserClient.getServerExePath() !== null;
+  // CDP 방식에서는 server.exe가 필요 없으므로 항상 true
+  // 실제 브라우저 유무는 launch 시 확인됨
+  return true;
 }
