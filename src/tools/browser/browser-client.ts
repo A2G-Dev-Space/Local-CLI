@@ -1,20 +1,24 @@
 /**
- * Browser Automation Client (CDP 방식)
+ * Browser Automation Client (순수 CDP 방식)
  *
  * PowerShell을 통해 Chrome을 CDP 포트와 함께 시작하고,
- * Playwright의 connectOverCDP로 연결하여 브라우저를 제어합니다.
+ * WebSocket으로 CDP (Chrome DevTools Protocol)에 직접 연결하여 브라우저를 제어합니다.
  *
- * server.exe 없이 직접 브라우저를 제어합니다.
+ * 외부 의존성 없이 (playwright 없이) 동작합니다.
  */
 
 import { spawn, ChildProcess, execSync } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
-import { chromium, Browser, BrowserContext, Page } from 'playwright';
+import WebSocket from 'ws';
 import { logger } from '../../utils/logger.js';
 import { LOCAL_HOME_DIR } from '../../constants.js';
-import { findPowerShellPath, getWindowsHostIP } from '../../utils/wsl-utils.js';
+import { findPowerShellPath } from '../../utils/wsl-utils.js';
+
+// ===========================================================================
+// Types
+// ===========================================================================
 
 interface BrowserResponse {
   success: boolean;
@@ -81,30 +85,157 @@ interface NetworkResponse extends BrowserResponse {
   count?: number;
 }
 
+// CDP Protocol types
+interface CDPTarget {
+  id: string;
+  type: string;
+  title: string;
+  url: string;
+  webSocketDebuggerUrl: string;
+}
+
+interface CDPMessage {
+  id: number;
+  method?: string;
+  params?: Record<string, unknown>;
+  result?: unknown;
+  error?: {
+    code: number;
+    message: string;
+  };
+}
+
+// ===========================================================================
+// CDP Client (WebSocket 기반)
+// ===========================================================================
+
+class CDPConnection {
+  private ws: WebSocket | null = null;
+  private messageId: number = 0;
+  private pendingMessages: Map<number, {
+    resolve: (value: unknown) => void;
+    reject: (error: Error) => void;
+  }> = new Map();
+  private eventHandlers: Map<string, ((params: unknown) => void)[]> = new Map();
+
+  async connect(wsUrl: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.ws = new WebSocket(wsUrl);
+
+      this.ws.on('open', () => {
+        logger.debug('[CDP] WebSocket connected');
+        resolve();
+      });
+
+      this.ws.on('message', (data: WebSocket.Data) => {
+        try {
+          const message: CDPMessage = JSON.parse(data.toString());
+
+          if (message.id !== undefined) {
+            // Response to a command
+            const pending = this.pendingMessages.get(message.id);
+            if (pending) {
+              this.pendingMessages.delete(message.id);
+              if (message.error) {
+                pending.reject(new Error(message.error.message));
+              } else {
+                pending.resolve(message.result);
+              }
+            }
+          } else if (message.method) {
+            // Event from browser
+            const handlers = this.eventHandlers.get(message.method) || [];
+            for (const handler of handlers) {
+              handler(message.params);
+            }
+          }
+        } catch (e) {
+          logger.debug('[CDP] Failed to parse message: ' + e);
+        }
+      });
+
+      this.ws.on('error', (error) => {
+        logger.debug('[CDP] WebSocket error: ' + error.message);
+        reject(error);
+      });
+
+      this.ws.on('close', () => {
+        logger.debug('[CDP] WebSocket closed');
+        // Reject all pending messages
+        for (const [, pending] of this.pendingMessages) {
+          pending.reject(new Error('WebSocket closed'));
+        }
+        this.pendingMessages.clear();
+      });
+    });
+  }
+
+  async send(method: string, params?: Record<string, unknown>): Promise<unknown> {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      throw new Error('WebSocket not connected');
+    }
+
+    const id = ++this.messageId;
+    const message: CDPMessage = { id, method, params };
+
+    return new Promise((resolve, reject) => {
+      this.pendingMessages.set(id, { resolve, reject });
+      this.ws!.send(JSON.stringify(message));
+
+      // Timeout after 30 seconds
+      setTimeout(() => {
+        if (this.pendingMessages.has(id)) {
+          this.pendingMessages.delete(id);
+          reject(new Error(`CDP command timeout: ${method}`));
+        }
+      }, 30000);
+    });
+  }
+
+  on(event: string, handler: (params: unknown) => void): void {
+    if (!this.eventHandlers.has(event)) {
+      this.eventHandlers.set(event, []);
+    }
+    this.eventHandlers.get(event)!.push(handler);
+  }
+
+  off(event: string): void {
+    this.eventHandlers.delete(event);
+  }
+
+  close(): void {
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
+    }
+    this.pendingMessages.clear();
+    this.eventHandlers.clear();
+  }
+
+  isConnected(): boolean {
+    return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
+  }
+}
+
+// ===========================================================================
+// Browser Client
+// ===========================================================================
+
 class BrowserClient {
-  private browser: Browser | null = null;
-  private context: BrowserContext | null = null;
-  private page: Page | null = null;
+  private cdp: CDPConnection | null = null;
   private browserProcess: ChildProcess | null = null;
   private isWSL: boolean = false;
   private cdpPort: number = 9222;
   private browserType: 'chrome' | 'edge' = 'chrome';
   private screenshotDir: string;
-  private windowsHostIP: string = 'localhost';
 
   // Console/Network 로그 수집
   private consoleLogs: ConsoleLogEntry[] = [];
   private networkLogs: NetworkLogEntry[] = [];
-  private requestCounter: number = 0;
 
   constructor() {
     this.isWSL = this.detectWSL();
     logger.debug('[BrowserClient] constructor: isWSL = ' + this.isWSL);
-
-    if (this.isWSL) {
-      this.windowsHostIP = getWindowsHostIP();
-      logger.debug('[BrowserClient] constructor: Windows host IP = ' + this.windowsHostIP);
-    }
 
     // Create screenshot directory
     this.screenshotDir = path.join(LOCAL_HOME_DIR, 'screenshots', 'browser');
@@ -126,11 +257,8 @@ class BrowserClient {
 
   /**
    * Get CDP endpoint URL
-   * WSL2에서는 localhost forwarding이 기본 활성화되어 있으므로 localhost 사용
    */
   private getCDPUrl(): string {
-    // WSL2의 localhost forwarding 덕분에 localhost로 Windows에 접근 가능
-    // mirrored networking이 아니어도 작동함
     return `http://localhost:${this.cdpPort}`;
   }
 
@@ -143,11 +271,9 @@ class BrowserClient {
 
   /**
    * Find browser executable path on Windows
-   * @param paths - Array of possible paths to check
    */
   private findBrowserPath(paths: string[]): string | null {
     if (this.isWSL) {
-      // WSL에서는 PowerShell로 확인
       try {
         const conditions = paths.map(p => `if (Test-Path '${p}') { Write-Output '${p}' }`).join(' else');
         const result = execSync(
@@ -166,9 +292,6 @@ class BrowserClient {
     return null;
   }
 
-  /**
-   * Find Chrome executable path on Windows
-   */
   private findChromePath(): string | null {
     return this.findBrowserPath([
       'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
@@ -176,9 +299,6 @@ class BrowserClient {
     ]);
   }
 
-  /**
-   * Find Edge executable path on Windows
-   */
   private findEdgePath(): string | null {
     return this.findBrowserPath([
       'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
@@ -192,7 +312,6 @@ class BrowserClient {
   private killExistingBrowser(): void {
     logger.debug('[BrowserClient] killExistingBrowser: killing processes on port ' + this.cdpPort);
     try {
-      // WSL과 Windows 모두 동일한 명령 사용
       execSync(
         `powershell.exe -Command "Get-NetTCPConnection -LocalPort ${this.cdpPort} -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }"`,
         { stdio: 'ignore', timeout: 5000 }
@@ -217,14 +336,22 @@ class BrowserClient {
   }
 
   /**
-   * Check if server/browser is running
+   * Get list of available targets (tabs)
    */
-  async isRunning(): Promise<boolean> {
-    return this.browser !== null && this.page !== null;
+  private async getTargets(): Promise<CDPTarget[]> {
+    const response = await fetch(`${this.getCDPUrl()}/json`);
+    return await response.json() as CDPTarget[];
   }
 
   /**
-   * Get server health status (for compatibility)
+   * Check if browser is running
+   */
+  async isRunning(): Promise<boolean> {
+    return this.cdp !== null && this.cdp.isConnected();
+  }
+
+  /**
+   * Get server health status
    */
   async getHealth(): Promise<HealthResponse | null> {
     const chromePath = this.findChromePath();
@@ -233,9 +360,9 @@ class BrowserClient {
     return {
       success: true,
       status: 'running',
-      version: '2.0.0-cdp',
+      version: '2.0.0-pure-cdp',
       browser: {
-        active: this.browser !== null,
+        active: this.cdp !== null && this.cdp.isConnected(),
         type: this.browserType,
         chrome_available: chromePath !== null,
         edge_available: edgePath !== null,
@@ -244,11 +371,9 @@ class BrowserClient {
   }
 
   /**
-   * Start the browser server (for compatibility - now just ensures browser is ready)
+   * Start the browser server (for compatibility)
    */
   async startServer(): Promise<boolean> {
-    // CDP 방식에서는 별도 서버가 필요 없음
-    // launch()가 호출될 때 브라우저가 시작됨
     return true;
   }
 
@@ -260,47 +385,75 @@ class BrowserClient {
   }
 
   /**
-   * Setup console and network logging
+   * Setup console and network logging via CDP
    */
   private setupLogging(): void {
-    if (!this.page) return;
+    if (!this.cdp) return;
 
-    // Console 로그 수집
-    this.page.on('console', (msg) => {
+    // Enable Console domain
+    this.cdp.send('Console.enable').catch(err => logger.debug('[CDP] Failed to enable Console domain: ' + err));
+    this.cdp.on('Console.messageAdded', (params: unknown) => {
+      const p = params as { message: { level: string; text: string } };
       this.consoleLogs.push({
-        level: msg.type().toUpperCase(),
-        message: msg.text(),
+        level: p.message.level.toUpperCase(),
+        message: p.message.text,
         timestamp: Date.now(),
       });
     });
 
-    // Network 로그 수집
-    // requestId는 URL + timestamp + counter로 구성하여 고유성 보장
-    this.page.on('request', (request) => {
-      const timestamp = Date.now();
-      const requestId = `${++this.requestCounter}-${timestamp}-${request.url().substring(0, 50)}`;
-      this.networkLogs.push({
-        type: 'request',
-        url: request.url(),
-        method: request.method(),
-        timestamp,
-        requestId,
+    // Enable Runtime for console.log
+    this.cdp.send('Runtime.enable').catch(err => logger.debug('[CDP] Failed to enable Runtime domain: ' + err));
+    this.cdp.on('Runtime.consoleAPICalled', (params: unknown) => {
+      const p = params as { type: string; args: { value?: string; description?: string }[] };
+      const message = p.args.map(a => a.value || a.description || '').join(' ');
+      this.consoleLogs.push({
+        level: p.type.toUpperCase(),
+        message,
+        timestamp: Date.now(),
       });
     });
 
-    this.page.on('response', (response) => {
-      const timestamp = Date.now();
-      const requestId = `${++this.requestCounter}-${timestamp}-${response.url().substring(0, 50)}`;
+    // Enable Network domain
+    this.cdp.send('Network.enable').catch(err => logger.debug('[CDP] Failed to enable Network domain: ' + err));
+    this.cdp.on('Network.requestWillBeSent', (params: unknown) => {
+      const p = params as { requestId: string; request: { url: string; method: string } };
       this.networkLogs.push({
-        type: 'response',
-        url: response.url(),
-        status: response.status(),
-        statusText: response.statusText(),
-        mimeType: response.headers()['content-type'] || '',
-        timestamp,
-        requestId,
+        type: 'request',
+        url: p.request.url,
+        method: p.request.method,
+        timestamp: Date.now(),
+        requestId: p.requestId,
       });
     });
+
+    this.cdp.on('Network.responseReceived', (params: unknown) => {
+      const p = params as { requestId: string; response: { url: string; status: number; statusText: string; mimeType: string } };
+      this.networkLogs.push({
+        type: 'response',
+        url: p.response.url,
+        status: p.response.status,
+        statusText: p.response.statusText,
+        mimeType: p.response.mimeType,
+        timestamp: Date.now(),
+        requestId: p.requestId,
+      });
+    });
+  }
+
+  /**
+   * Get current page info (URL and title) - helper to reduce code duplication
+   */
+  private async getCurrentPageInfo(): Promise<{ url: string; title: string }> {
+    if (!this.cdp || !this.cdp.isConnected()) {
+      return { url: '', title: '' };
+    }
+
+    const evalResult = await this.cdp.send('Runtime.evaluate', {
+      expression: 'JSON.stringify({ url: window.location.href, title: document.title })',
+      returnByValue: true,
+    }) as { result: { value: string } };
+
+    return JSON.parse(evalResult.result.value);
   }
 
   // ===========================================================================
@@ -318,15 +471,9 @@ class BrowserClient {
 
     try {
       // 기존 연결 정리
-      if (this.browser) {
-        try {
-          await this.browser.close();
-        } catch {
-          // Ignore
-        }
-        this.browser = null;
-        this.context = null;
-        this.page = null;
+      if (this.cdp) {
+        this.cdp.close();
+        this.cdp = null;
       }
 
       // 기존 CDP 프로세스 종료
@@ -363,12 +510,10 @@ class BrowserClient {
 
       logger.debug(`[BrowserClient] launch: using ${this.browserType} at ${browserPath}`);
 
-      // PowerShell로 브라우저 시작 (CDP 포트 활성화)
-      // 중요: 별도의 user-data-dir을 사용해야 기존 Chrome과 충돌하지 않음
-      // $env:LOCALAPPDATA를 먼저 확장한 후 ArgumentList에 전달
+      // PowerShell로 브라우저 시작
       const args = [
         `--remote-debugging-port=${this.cdpPort}`,
-        '--user-data-dir=$dir',  // $dir는 psCommand에서 정의됨
+        '--user-data-dir=$dir',
         '--no-first-run',
         '--no-default-browser-check',
         '--disable-popup-blocking',
@@ -379,13 +524,11 @@ class BrowserClient {
         args.push('--headless=new');
       }
 
-      // ArgumentList를 올바르게 구성 - $env:LOCALAPPDATA를 먼저 변수로 확장
       const argsString = args.map(arg => `"${arg}"`).join(',');
       const psCommand = `$dir = "$env:LOCALAPPDATA\\local-cli-browser-profile"; Start-Process -FilePath '${browserPath}' -ArgumentList ${argsString}`;
 
       logger.debug(`[BrowserClient] launch: executing PowerShell command`);
 
-      // WSL과 Windows 모두 동일한 방식 사용 (shell: true 제거로 보안 강화)
       const powershellPath = this.isWSL ? findPowerShellPath() : 'powershell.exe';
       this.browserProcess = spawn(powershellPath, ['-Command', psCommand], {
         detached: true,
@@ -414,32 +557,31 @@ class BrowserClient {
         };
       }
 
-      // Playwright로 CDP 연결
-      logger.debug('[BrowserClient] launch: connecting via CDP...');
-      this.browser = await chromium.connectOverCDP(this.getCDPUrl());
+      // 타겟 (페이지) 가져오기
+      const targets = await this.getTargets();
+      const pageTarget = targets.find(t => t.type === 'page');
 
-      // 기존 컨텍스트와 페이지 가져오기 또는 새로 생성
-      const contexts = this.browser.contexts();
-      if (contexts.length > 0) {
-        const existingContext = contexts[0];
-        if (existingContext) {
-          this.context = existingContext;
-          const pages = this.context.pages();
-          const existingPage = pages[0];
-          this.page = existingPage ? existingPage : await this.context.newPage();
-        } else {
-          this.context = await this.browser.newContext();
-          this.page = await this.context.newPage();
-        }
-      } else {
-        this.context = await this.browser.newContext();
-        this.page = await this.context.newPage();
+      if (!pageTarget) {
+        return {
+          success: false,
+          error: 'No page target found',
+          details: 'Browser started but no page available',
+        };
       }
+
+      // WebSocket으로 CDP 연결
+      logger.debug('[BrowserClient] launch: connecting to page via WebSocket...');
+      this.cdp = new CDPConnection();
+      await this.cdp.connect(pageTarget.webSocketDebuggerUrl);
+      // Target connected
 
       // 로깅 설정
       this.consoleLogs = [];
       this.networkLogs = [];
       this.setupLogging();
+
+      // Page 도메인 활성화
+      await this.cdp.send('Page.enable');
 
       logger.debug('[BrowserClient] launch: browser connected successfully');
 
@@ -465,25 +607,18 @@ class BrowserClient {
    */
   async close(): Promise<BrowserResponse> {
     try {
-      // 1. Playwright 연결 해제
-      if (this.browser) {
-        try {
-          await this.browser.close();
-        } catch {
-          // CDP 연결이 이미 끊어진 경우 무시
-        }
+      // 1. CDP 연결 해제
+      if (this.cdp) {
+        this.cdp.close();
       }
-      this.browser = null;
-      this.context = null;
-      this.page = null;
+      this.cdp = null;
+      // Target disconnected
       this.consoleLogs = [];
       this.networkLogs = [];
 
-      // 2. 실제 브라우저 프로세스 종료 (Get-WmiObject로 CommandLine 검색)
+      // 2. 브라우저 프로세스 종료
       try {
-        // browserType에 따라 프로세스 이름 결정 (Chrome 또는 Edge)
         const processName = this.browserType === 'chrome' ? 'chrome.exe' : 'msedge.exe';
-        // user-data-dir로 시작된 브라우저 프로세스 찾아서 종료
         execSync(
           `powershell.exe -Command "Get-WmiObject Win32_Process -Filter \\"name='${processName}'\\" | Where-Object { \\$_.CommandLine -like '*local-cli*' } | ForEach-Object { Stop-Process -Id \\$_.ProcessId -Force -ErrorAction SilentlyContinue }"`,
           { stdio: 'ignore', timeout: 10000 }
@@ -510,17 +645,36 @@ class BrowserClient {
    */
   async navigate(url: string): Promise<NavigateResponse> {
     try {
-      if (!this.page) {
+      if (!this.cdp || !this.cdp.isConnected()) {
         return { success: false, error: 'Browser not running. Use launch first.' };
       }
 
-      await this.page.goto(url, { waitUntil: 'domcontentloaded' });
+      await this.cdp.send('Page.navigate', { url });
+
+      // Page.loadEventFired 이벤트를 기다려 안정적으로 페이지 로드 완료 확인
+      await new Promise<void>((resolve, reject) => {
+        const timeoutId = setTimeout(() => {
+          this.cdp?.off('Page.loadEventFired');
+          reject(new Error(`Navigation to ${url} timed out after 30 seconds`));
+        }, 30000);
+
+        const handler = () => {
+          clearTimeout(timeoutId);
+          this.cdp?.off('Page.loadEventFired');
+          resolve();
+        };
+
+        this.cdp?.on('Page.loadEventFired', handler);
+      });
+
+      // 현재 URL과 타이틀 가져오기
+      const pageInfo = await this.getCurrentPageInfo();
 
       return {
         success: true,
         message: 'Navigated successfully',
-        url: this.page.url(),
-        title: await this.page.title(),
+        url: pageInfo.url,
+        title: pageInfo.title,
       };
     } catch (error) {
       return {
@@ -536,21 +690,42 @@ class BrowserClient {
    */
   async screenshot(fullPage: boolean = false): Promise<ScreenshotResponse> {
     try {
-      if (!this.page) {
+      if (!this.cdp || !this.cdp.isConnected()) {
         return { success: false, error: 'Browser not running. Use launch first.' };
       }
 
-      const buffer = await this.page.screenshot({ fullPage });
-      const base64 = buffer.toString('base64');
+      // 스크린샷 옵션
+      const params: Record<string, unknown> = { format: 'png' };
+
+      if (fullPage) {
+        // 전체 페이지 크기 가져오기
+        const layoutMetrics = await this.cdp.send('Page.getLayoutMetrics') as {
+          contentSize: { width: number; height: number };
+        };
+
+        params['clip'] = {
+          x: 0,
+          y: 0,
+          width: layoutMetrics.contentSize.width,
+          height: layoutMetrics.contentSize.height,
+          scale: 1,
+        };
+        params['captureBeyondViewport'] = true;
+      }
+
+      const result = await this.cdp.send('Page.captureScreenshot', params) as { data: string };
+
+      // 현재 페이지 정보
+      const pageInfo = await this.getCurrentPageInfo();
 
       return {
         success: true,
         message: 'Screenshot captured',
-        image: base64,
+        image: result.data,
         format: 'png',
         encoding: 'base64',
-        url: this.page.url(),
-        title: await this.page.title(),
+        url: pageInfo.url,
+        title: pageInfo.title,
       };
     } catch (error) {
       return {
@@ -562,21 +737,45 @@ class BrowserClient {
   }
 
   /**
-   * Click element
+   * Click element by selector
    */
   async click(selector: string): Promise<BrowserResponse> {
     try {
-      if (!this.page) {
+      if (!this.cdp || !this.cdp.isConnected()) {
         return { success: false, error: 'Browser not running. Use launch first.' };
       }
 
-      await this.page.click(selector, { timeout: 10000 });
+      // JavaScript로 요소 클릭
+      const result = await this.cdp.send('Runtime.evaluate', {
+        expression: `
+          (function() {
+            const el = document.querySelector(${JSON.stringify(selector)});
+            if (!el) return { success: false, error: 'Element not found' };
+            el.click();
+            return { success: true };
+          })()
+        `,
+        returnByValue: true,
+      }) as { result: { value: { success: boolean; error?: string } } };
+
+      if (!result.result.value.success) {
+        return {
+          success: false,
+          error: result.result.value.error || 'Click failed',
+        };
+      }
+
+      // 현재 URL 가져오기
+      const urlResult = await this.cdp.send('Runtime.evaluate', {
+        expression: 'window.location.href',
+        returnByValue: true,
+      }) as { result: { value: string } };
 
       return {
         success: true,
         message: 'Element clicked',
         selector,
-        current_url: this.page.url(),
+        current_url: urlResult.result.value,
       };
     } catch (error) {
       return {
@@ -592,11 +791,32 @@ class BrowserClient {
    */
   async fill(selector: string, value: string): Promise<BrowserResponse> {
     try {
-      if (!this.page) {
+      if (!this.cdp || !this.cdp.isConnected()) {
         return { success: false, error: 'Browser not running. Use launch first.' };
       }
 
-      await this.page.fill(selector, value, { timeout: 10000 });
+      // JavaScript로 요소에 값 입력
+      const result = await this.cdp.send('Runtime.evaluate', {
+        expression: `
+          (function() {
+            const el = document.querySelector(${JSON.stringify(selector)});
+            if (!el) return { success: false, error: 'Element not found' };
+            el.focus();
+            el.value = ${JSON.stringify(value)};
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+            return { success: true };
+          })()
+        `,
+        returnByValue: true,
+      }) as { result: { value: { success: boolean; error?: string } } };
+
+      if (!result.result.value.success) {
+        return {
+          success: false,
+          error: result.result.value.error || 'Fill failed',
+        };
+      }
 
       return {
         success: true,
@@ -618,17 +838,33 @@ class BrowserClient {
    */
   async getText(selector: string): Promise<BrowserResponse> {
     try {
-      if (!this.page) {
+      if (!this.cdp || !this.cdp.isConnected()) {
         return { success: false, error: 'Browser not running. Use launch first.' };
       }
 
-      const text = await this.page.textContent(selector, { timeout: 10000 });
+      const result = await this.cdp.send('Runtime.evaluate', {
+        expression: `
+          (function() {
+            const el = document.querySelector(${JSON.stringify(selector)});
+            if (!el) return { success: false, error: 'Element not found' };
+            return { success: true, text: el.textContent || '' };
+          })()
+        `,
+        returnByValue: true,
+      }) as { result: { value: { success: boolean; text?: string; error?: string } } };
+
+      if (!result.result.value.success) {
+        return {
+          success: false,
+          error: result.result.value.error || 'Get text failed',
+        };
+      }
 
       return {
         success: true,
         message: 'Text retrieved',
         selector,
-        text: text || '',
+        text: result.result.value.text || '',
       };
     } catch (error) {
       return {
@@ -644,15 +880,17 @@ class BrowserClient {
    */
   async getPageInfo(): Promise<PageInfoResponse> {
     try {
-      if (!this.page) {
+      if (!this.cdp || !this.cdp.isConnected()) {
         return { success: false, error: 'Browser not running. Use launch first.' };
       }
+
+      const pageInfo = await this.getCurrentPageInfo();
 
       return {
         success: true,
         message: 'Page info retrieved',
-        url: this.page.url(),
-        title: await this.page.title(),
+        url: pageInfo.url,
+        title: pageInfo.title,
       };
     } catch (error) {
       return {
@@ -668,18 +906,23 @@ class BrowserClient {
    */
   async getHtml(): Promise<PageInfoResponse> {
     try {
-      if (!this.page) {
+      if (!this.cdp || !this.cdp.isConnected()) {
         return { success: false, error: 'Browser not running. Use launch first.' };
       }
 
-      const html = await this.page.content();
+      const result = await this.cdp.send('Runtime.evaluate', {
+        expression: 'JSON.stringify({ url: window.location.href, title: document.title, html: document.documentElement.outerHTML })',
+        returnByValue: true,
+      }) as { result: { value: string } };
+
+      const pageInfo = JSON.parse(result.result.value);
 
       return {
         success: true,
         message: 'HTML retrieved',
-        url: this.page.url(),
-        title: await this.page.title(),
-        html,
+        url: pageInfo.url,
+        title: pageInfo.title,
+        html: pageInfo.html,
       };
     } catch (error) {
       return {
@@ -695,16 +938,19 @@ class BrowserClient {
    */
   async executeScript(script: string): Promise<BrowserResponse> {
     try {
-      if (!this.page) {
+      if (!this.cdp || !this.cdp.isConnected()) {
         return { success: false, error: 'Browser not running. Use launch first.' };
       }
 
-      const result = await this.page.evaluate(script);
+      const result = await this.cdp.send('Runtime.evaluate', {
+        expression: script,
+        returnByValue: true,
+      }) as { result: { value: unknown } };
 
       return {
         success: true,
         message: 'Script executed',
-        result,
+        result: result.result.value,
       };
     } catch (error) {
       return {
@@ -732,15 +978,33 @@ class BrowserClient {
    */
   async waitFor(selector: string, timeout: number = 10): Promise<BrowserResponse> {
     try {
-      if (!this.page) {
+      if (!this.cdp || !this.cdp.isConnected()) {
         return { success: false, error: 'Browser not running. Use launch first.' };
       }
 
-      await this.page.waitForSelector(selector, { timeout: timeout * 1000 });
+      const startTime = Date.now();
+      const timeoutMs = timeout * 1000;
+
+      while (Date.now() - startTime < timeoutMs) {
+        const result = await this.cdp.send('Runtime.evaluate', {
+          expression: `document.querySelector(${JSON.stringify(selector)}) !== null`,
+          returnByValue: true,
+        }) as { result: { value: boolean } };
+
+        if (result.result.value) {
+          return {
+            success: true,
+            message: 'Element found',
+            selector,
+          };
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
 
       return {
-        success: true,
-        message: 'Element found',
+        success: false,
+        error: 'Timeout waiting for element',
         selector,
       };
     } catch (error) {
@@ -769,13 +1033,11 @@ class BrowserClient {
    */
   async focus(): Promise<BrowserResponse> {
     try {
-      if (!this.page) {
+      if (!this.cdp || !this.cdp.isConnected()) {
         return { success: false, error: 'Browser not running. Use launch first.' };
       }
 
-      // Playwright에서는 직접적인 윈도우 포커스가 제한적
-      // bringToFront를 사용
-      await this.page.bringToFront();
+      await this.cdp.send('Page.bringToFront');
 
       return {
         success: true,
@@ -798,17 +1060,115 @@ class BrowserClient {
    */
   async pressKey(key: string, selector?: string): Promise<BrowserResponse> {
     try {
-      if (!this.page) {
+      if (!this.cdp || !this.cdp.isConnected()) {
         return { success: false, error: 'Browser not running. Use launch first.' };
       }
 
+      // 특수 키 매핑 (확장된 버전)
+      const keyMap: Record<string, { key: string; code: string; keyCode: number }> = {
+        // 네비게이션 키
+        'Enter': { key: 'Enter', code: 'Enter', keyCode: 13 },
+        'Tab': { key: 'Tab', code: 'Tab', keyCode: 9 },
+        'Escape': { key: 'Escape', code: 'Escape', keyCode: 27 },
+        'Backspace': { key: 'Backspace', code: 'Backspace', keyCode: 8 },
+        'Delete': { key: 'Delete', code: 'Delete', keyCode: 46 },
+        'Space': { key: ' ', code: 'Space', keyCode: 32 },
+        // 화살표 키
+        'ArrowUp': { key: 'ArrowUp', code: 'ArrowUp', keyCode: 38 },
+        'ArrowDown': { key: 'ArrowDown', code: 'ArrowDown', keyCode: 40 },
+        'ArrowLeft': { key: 'ArrowLeft', code: 'ArrowLeft', keyCode: 37 },
+        'ArrowRight': { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39 },
+        // 페이지 네비게이션
+        'Home': { key: 'Home', code: 'Home', keyCode: 36 },
+        'End': { key: 'End', code: 'End', keyCode: 35 },
+        'PageUp': { key: 'PageUp', code: 'PageUp', keyCode: 33 },
+        'PageDown': { key: 'PageDown', code: 'PageDown', keyCode: 34 },
+        'Insert': { key: 'Insert', code: 'Insert', keyCode: 45 },
+        // 수정 키
+        'Control': { key: 'Control', code: 'ControlLeft', keyCode: 17 },
+        'Alt': { key: 'Alt', code: 'AltLeft', keyCode: 18 },
+        'Shift': { key: 'Shift', code: 'ShiftLeft', keyCode: 16 },
+        'Meta': { key: 'Meta', code: 'MetaLeft', keyCode: 91 },
+        // Function 키
+        'F1': { key: 'F1', code: 'F1', keyCode: 112 },
+        'F2': { key: 'F2', code: 'F2', keyCode: 113 },
+        'F3': { key: 'F3', code: 'F3', keyCode: 114 },
+        'F4': { key: 'F4', code: 'F4', keyCode: 115 },
+        'F5': { key: 'F5', code: 'F5', keyCode: 116 },
+        'F6': { key: 'F6', code: 'F6', keyCode: 117 },
+        'F7': { key: 'F7', code: 'F7', keyCode: 118 },
+        'F8': { key: 'F8', code: 'F8', keyCode: 119 },
+        'F9': { key: 'F9', code: 'F9', keyCode: 120 },
+        'F10': { key: 'F10', code: 'F10', keyCode: 121 },
+        'F11': { key: 'F11', code: 'F11', keyCode: 122 },
+        'F12': { key: 'F12', code: 'F12', keyCode: 123 },
+      };
+
       if (selector) {
-        // Press key on specific element
-        await this.page.locator(selector).press(key);
-      } else {
-        // Press key on the page (focused element)
-        await this.page.keyboard.press(key);
+        // 특정 요소에 포커스
+        await this.cdp.send('Runtime.evaluate', {
+          expression: `document.querySelector(${JSON.stringify(selector)})?.focus()`,
+        });
       }
+
+      // 조합 키 처리 (예: Control+A, Shift+Tab)
+      const parts = key.split('+');
+      const modifiers: { ctrl?: boolean; alt?: boolean; shift?: boolean; meta?: boolean } = {};
+      let mainKey = key;
+
+      if (parts.length > 1) {
+        for (let i = 0; i < parts.length - 1; i++) {
+          const mod = parts[i]?.toLowerCase();
+          if (mod === 'control' || mod === 'ctrl') modifiers.ctrl = true;
+          else if (mod === 'alt') modifiers.alt = true;
+          else if (mod === 'shift') modifiers.shift = true;
+          else if (mod === 'meta' || mod === 'cmd') modifiers.meta = true;
+        }
+        mainKey = parts[parts.length - 1] || key;
+      }
+
+      // 단일 문자의 경우 대문자/소문자 처리
+      let keyInfo = keyMap[mainKey];
+      if (!keyInfo) {
+        if (mainKey.length === 1) {
+          const charCode = mainKey.charCodeAt(0);
+          const isUpper = mainKey >= 'A' && mainKey <= 'Z';
+          keyInfo = {
+            key: mainKey,
+            code: `Key${mainKey.toUpperCase()}`,
+            keyCode: isUpper ? charCode : charCode - 32,
+          };
+        } else {
+          keyInfo = { key: mainKey, code: mainKey, keyCode: 0 };
+        }
+      }
+
+      // 수정자 플래그 계산 (CDP용)
+      let modifierFlags = 0;
+      if (modifiers.alt) modifierFlags |= 1;
+      if (modifiers.ctrl) modifierFlags |= 2;
+      if (modifiers.meta) modifierFlags |= 4;
+      if (modifiers.shift) modifierFlags |= 8;
+
+      // keyDown
+      await this.cdp.send('Input.dispatchKeyEvent', {
+        type: 'keyDown',
+        key: keyInfo.key,
+        code: keyInfo.code,
+        windowsVirtualKeyCode: keyInfo.keyCode,
+        nativeVirtualKeyCode: keyInfo.keyCode,
+        modifiers: modifierFlags,
+      });
+
+      // keyUp
+      await this.cdp.send('Input.dispatchKeyEvent', {
+        type: 'keyUp',
+        key: keyInfo.key,
+        code: keyInfo.code,
+        windowsVirtualKeyCode: keyInfo.keyCode,
+        nativeVirtualKeyCode: keyInfo.keyCode,
+        modifiers: modifierFlags,
+      });
 
       return {
         success: true,
@@ -826,18 +1186,28 @@ class BrowserClient {
   }
 
   /**
-   * Type text (character by character, triggers key events)
+   * Type text character by character
    */
   async type(text: string, selector?: string): Promise<BrowserResponse> {
     try {
-      if (!this.page) {
+      if (!this.cdp || !this.cdp.isConnected()) {
         return { success: false, error: 'Browser not running. Use launch first.' };
       }
 
       if (selector) {
-        await this.page.locator(selector).type(text);
-      } else {
-        await this.page.keyboard.type(text);
+        // 특정 요소에 포커스
+        await this.cdp.send('Runtime.evaluate', {
+          expression: `document.querySelector(${JSON.stringify(selector)})?.focus()`,
+        });
+      }
+
+      // 한 글자씩 입력
+      for (const char of text) {
+        await this.cdp.send('Input.dispatchKeyEvent', {
+          type: 'char',
+          text: char,
+        });
+        await new Promise(resolve => setTimeout(resolve, 50));
       }
 
       return {
@@ -858,7 +1228,7 @@ class BrowserClient {
    * Check if browser is currently active
    */
   async isBrowserActive(): Promise<boolean> {
-    return this.browser !== null && this.page !== null;
+    return this.cdp !== null && this.cdp.isConnected();
   }
 
   /**
@@ -877,10 +1247,10 @@ class BrowserClient {
   }
 
   /**
-   * For compatibility: getServerExePath (no longer needed)
+   * For compatibility: getServerExePath
    */
   getServerExePath(): string | null {
-    return null; // CDP 방식에서는 server.exe 불필요
+    return null;
   }
 
   /**
