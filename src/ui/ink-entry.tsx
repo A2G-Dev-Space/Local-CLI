@@ -11,7 +11,6 @@ import { PlanExecuteApp } from './components/PlanExecuteApp.js';
 import { createLLMClient } from '../core/llm/llm-client.js';
 import { configManager } from '../core/config/config-manager.js';
 import { initializeOptionalTools } from '../tools/registry.js';
-import { ensureOfficeServerOnStartup } from '../tools/office/index.js';
 
 // Async 초기화
 (async () => {
@@ -19,11 +18,8 @@ import { ensureOfficeServerOnStartup } from '../tools/office/index.js';
     // ConfigManager 초기화
     await configManager.initialize();
 
-    // Load saved optional tool states (e.g., browser tools)
+    // Load saved optional tool states (e.g., browser tools, Office tools)
     await initializeOptionalTools();
-
-    // Ensure Office server is running if Office tools are enabled
-    await ensureOfficeServerOnStartup();
 
     // LLM Client 생성
     const llmClient = createLLMClient();
