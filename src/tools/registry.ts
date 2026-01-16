@@ -32,7 +32,7 @@ import { docsSearchAgentTool } from './llm/simple/docs-search-agent-tool.js';
 import { LLM_AGENT_TOOLS } from './llm/agents/index.js';
 
 // Import optional tools
-import { BROWSER_TOOLS, startBrowserServer, shutdownBrowserServer } from './browser/index.js';
+import { BROWSER_TOOLS, startBrowserServer, shutdownBrowserServer, isBrowserServerAvailable } from './browser/index.js';
 import { WORD_TOOLS, EXCEL_TOOLS, POWERPOINT_TOOLS, shutdownOfficeServer, startOfficeServer, registerOfficeGroupEnabled } from './office/index.js';
 // Background bash tools are always enabled, imported in initializeToolRegistry
 import { BACKGROUND_BASH_TOOLS } from './llm/simple/background-bash-tool.js';
@@ -59,21 +59,41 @@ export interface OptionalToolGroup {
 }
 
 /**
- * Validation: Check if browser tools are available
- * CDP 방식에서는 별도 서버가 필요 없음
+ * Validation: Check if browser-server.exe is available and start it
  */
 async function validateBrowserTools(): Promise<EnableResult> {
-  // CDP 방식에서는 server.exe가 필요 없음
-  // 브라우저(Chrome/Edge)가 설치되어 있으면 사용 가능
-  // 실제 브라우저 유무는 launch 시 확인됨
+  // Check if browser-server.exe exists
+  if (!isBrowserServerAvailable()) {
+    return {
+      success: false,
+      error: `browser-server.exe를 찾을 수 없습니다.
+
+위치 확인:
+  - ~/.nexus-coder/repo/bin/browser-server.exe (auto-update)
+  - ./bin/browser-server.exe (development)
+  - BROWSER_SERVER_PATH 환경변수
+
+설치:
+  browser-server 폴더에서 빌드하거나
+  최신 버전으로 업데이트하세요.`,
+    };
+  }
+
+  // Try to start the server
   try {
-    // startBrowserServer는 CDP 방식에서 항상 true 반환
-    await startBrowserServer();
+    const started = await startBrowserServer();
+    if (!started) {
+      return {
+        success: false,
+        error: `Browser 서버에 연결할 수 없습니다.
+WSL 사용 시 mirrored networking 설정이 필요할 수 있습니다.`,
+      };
+    }
     return { success: true };
   } catch (error) {
     return {
       success: false,
-      error: `Browser 도구 활성화 실패: ${error instanceof Error ? error.message : String(error)}`,
+      error: `Browser 서버 시작 실패: ${error instanceof Error ? error.message : String(error)}`,
     };
   }
 }
