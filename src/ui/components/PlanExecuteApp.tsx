@@ -1620,7 +1620,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
               </Box>
               {truncatedReason && (
                 <Box marginLeft={2}>
-                  <Text color="gray">ㄴ {truncatedReason}</Text>
+                  <Text color="gray">⎿ {truncatedReason}</Text>
                 </Box>
               )}
             </Box>
@@ -1683,13 +1683,34 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
           }
         }
 
-        // browser, office tools: 3줄 넘으면 축약
-        if (entry.content?.startsWith('browser_') || entry.content?.startsWith('word_') ||
-            entry.content?.startsWith('excel_') || entry.content?.startsWith('powerpoint_')) {
+        // Office/Browser 도구: 2줄 포맷
+        const isLongRunningTool = entry.content?.startsWith('word_') ||
+          entry.content?.startsWith('excel_') ||
+          entry.content?.startsWith('powerpoint_') ||
+          entry.content?.startsWith('browser_');
+
+        if (isLongRunningTool) {
           const lines = displayText.split('\n');
-          if (lines.length > 3) {
-            displayText = lines.slice(0, 3).join('\n') + `\n... (${lines.length - 3} more lines)`;
-          }
+          const firstLine = lines[0] || '';
+          const restLines = lines.slice(1);
+          const truncatedFirst = firstLine.length > 50 ? firstLine.substring(0, 50) + '...' : firstLine;
+          const icon = entry.content?.startsWith('word_') ? '📄' :
+                       entry.content?.startsWith('excel_') ? '📊' :
+                       entry.content?.startsWith('powerpoint_') ? '📽️' : '🌐';
+
+          return (
+            <Box key={entry.id} flexDirection="column" marginTop={1}>
+              <Box>
+                <Text color="cyan" bold>{icon} {entry.content}</Text>
+                <Text color={entry.success ? 'cyan' : 'red'}> ({entry.success ? '✓' : '✗'} {truncatedFirst})</Text>
+              </Box>
+              {restLines.length > 0 && (
+                <Box marginLeft={2}>
+                  <Text color="gray">⎿ {restLines.slice(0, 2).join(' | ')}{restLines.length > 2 ? '...' : ''}</Text>
+                </Box>
+              )}
+            </Box>
+          );
         }
 
         // list_files, find_files, list_directory: 개수와 미리보기
