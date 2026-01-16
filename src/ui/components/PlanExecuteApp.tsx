@@ -1548,6 +1548,23 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         // Tool별 핵심 파라미터 추출
         const getToolParams = (toolName: string, args: Record<string, unknown> | undefined): string => {
           if (!args) return '';
+
+          // Office 도구 파라미터 (prefix 매칭)
+          if (toolName.startsWith('word_') || toolName.startsWith('excel_') || toolName.startsWith('powerpoint_')) {
+            // 파일 경로가 있으면 표시
+            const filePath = args['file_path'] as string;
+            if (filePath) return filePath;
+            // 셀/범위가 있으면 표시
+            const cell = args['cell'] as string;
+            const range = args['range'] as string;
+            if (cell) return cell;
+            if (range) return range;
+            // 슬라이드 번호가 있으면 표시
+            const slideNumber = args['slide_number'] as number;
+            if (slideNumber) return `slide ${slideNumber}`;
+            return '';
+          }
+
           switch (toolName) {
             case 'read_file':
               return args['file_path'] as string || '';
