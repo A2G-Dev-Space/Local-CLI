@@ -225,7 +225,7 @@ class BrowserClient {
   private cdp: CDPConnection | null = null;
   private browserProcess: ChildProcess | null = null;
   private isWSL: boolean = false;
-  private cdpPort: number = 9222;
+  private cdpPort: number = 8766;  // 8766: browser-server.exe와 동일 포트 (사내망 호환)
   private browserType: 'chrome' | 'edge' = 'chrome';
   private screenshotDir: string;
 
