@@ -391,7 +391,7 @@ class BrowserClient {
     if (!this.cdp) return;
 
     // Enable Console domain
-    this.cdp.send('Console.enable').catch(() => {});
+    this.cdp.send('Console.enable').catch(err => logger.debug('[CDP] Failed to enable Console domain: ' + err));
     this.cdp.on('Console.messageAdded', (params: unknown) => {
       const p = params as { message: { level: string; text: string } };
       this.consoleLogs.push({
@@ -402,7 +402,7 @@ class BrowserClient {
     });
 
     // Enable Runtime for console.log
-    this.cdp.send('Runtime.enable').catch(() => {});
+    this.cdp.send('Runtime.enable').catch(err => logger.debug('[CDP] Failed to enable Runtime domain: ' + err));
     this.cdp.on('Runtime.consoleAPICalled', (params: unknown) => {
       const p = params as { type: string; args: { value?: string; description?: string }[] };
       const message = p.args.map(a => a.value || a.description || '').join(' ');
@@ -414,7 +414,7 @@ class BrowserClient {
     });
 
     // Enable Network domain
-    this.cdp.send('Network.enable').catch(() => {});
+    this.cdp.send('Network.enable').catch(err => logger.debug('[CDP] Failed to enable Network domain: ' + err));
     this.cdp.on('Network.requestWillBeSent', (params: unknown) => {
       const p = params as { requestId: string; request: { url: string; method: string } };
       this.networkLogs.push({
@@ -438,6 +438,22 @@ class BrowserClient {
         requestId: p.requestId,
       });
     });
+  }
+
+  /**
+   * Get current page info (URL and title) - helper to reduce code duplication
+   */
+  private async getCurrentPageInfo(): Promise<{ url: string; title: string }> {
+    if (!this.cdp || !this.cdp.isConnected()) {
+      return { url: '', title: '' };
+    }
+
+    const evalResult = await this.cdp.send('Runtime.evaluate', {
+      expression: 'JSON.stringify({ url: window.location.href, title: document.title })',
+      returnByValue: true,
+    }) as { result: { value: string } };
+
+    return JSON.parse(evalResult.result.value);
   }
 
   // ===========================================================================
@@ -635,16 +651,24 @@ class BrowserClient {
 
       await this.cdp.send('Page.navigate', { url });
 
-      // 페이지 로드 대기
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Page.loadEventFired 이벤트를 기다려 안정적으로 페이지 로드 완료 확인
+      await new Promise<void>((resolve, reject) => {
+        const timeoutId = setTimeout(() => {
+          this.cdp?.off('Page.loadEventFired');
+          reject(new Error(`Navigation to ${url} timed out after 30 seconds`));
+        }, 30000);
+
+        const handler = () => {
+          clearTimeout(timeoutId);
+          this.cdp?.off('Page.loadEventFired');
+          resolve();
+        };
+
+        this.cdp?.on('Page.loadEventFired', handler);
+      });
 
       // 현재 URL과 타이틀 가져오기
-      const evalResult = await this.cdp.send('Runtime.evaluate', {
-        expression: 'JSON.stringify({ url: window.location.href, title: document.title })',
-        returnByValue: true,
-      }) as { result: { value: string } };
-
-      const pageInfo = JSON.parse(evalResult.result.value);
+      const pageInfo = await this.getCurrentPageInfo();
 
       return {
         success: true,
@@ -692,12 +716,7 @@ class BrowserClient {
       const result = await this.cdp.send('Page.captureScreenshot', params) as { data: string };
 
       // 현재 페이지 정보
-      const evalResult = await this.cdp.send('Runtime.evaluate', {
-        expression: 'JSON.stringify({ url: window.location.href, title: document.title })',
-        returnByValue: true,
-      }) as { result: { value: string } };
-
-      const pageInfo = JSON.parse(evalResult.result.value);
+      const pageInfo = await this.getCurrentPageInfo();
 
       return {
         success: true,
@@ -865,12 +884,7 @@ class BrowserClient {
         return { success: false, error: 'Browser not running. Use launch first.' };
       }
 
-      const result = await this.cdp.send('Runtime.evaluate', {
-        expression: 'JSON.stringify({ url: window.location.href, title: document.title })',
-        returnByValue: true,
-      }) as { result: { value: string } };
-
-      const pageInfo = JSON.parse(result.result.value);
+      const pageInfo = await this.getCurrentPageInfo();
 
       return {
         success: true,
@@ -1040,6 +1054,9 @@ class BrowserClient {
 
   /**
    * Press a keyboard key
+   * Supports: Enter, Tab, Escape, ArrowUp, ArrowDown, ArrowLeft, ArrowRight,
+   *           Backspace, Delete, Home, End, PageUp, PageDown, F1-F12,
+   *           Control, Alt, Shift, Meta, and combinations like Control+A
    */
   async pressKey(key: string, selector?: string): Promise<BrowserResponse> {
     try {
@@ -1047,17 +1064,44 @@ class BrowserClient {
         return { success: false, error: 'Browser not running. Use launch first.' };
       }
 
-      // 특수 키 매핑
+      // 특수 키 매핑 (확장된 버전)
       const keyMap: Record<string, { key: string; code: string; keyCode: number }> = {
+        // 네비게이션 키
         'Enter': { key: 'Enter', code: 'Enter', keyCode: 13 },
         'Tab': { key: 'Tab', code: 'Tab', keyCode: 9 },
         'Escape': { key: 'Escape', code: 'Escape', keyCode: 27 },
         'Backspace': { key: 'Backspace', code: 'Backspace', keyCode: 8 },
         'Delete': { key: 'Delete', code: 'Delete', keyCode: 46 },
+        'Space': { key: ' ', code: 'Space', keyCode: 32 },
+        // 화살표 키
         'ArrowUp': { key: 'ArrowUp', code: 'ArrowUp', keyCode: 38 },
         'ArrowDown': { key: 'ArrowDown', code: 'ArrowDown', keyCode: 40 },
         'ArrowLeft': { key: 'ArrowLeft', code: 'ArrowLeft', keyCode: 37 },
         'ArrowRight': { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39 },
+        // 페이지 네비게이션
+        'Home': { key: 'Home', code: 'Home', keyCode: 36 },
+        'End': { key: 'End', code: 'End', keyCode: 35 },
+        'PageUp': { key: 'PageUp', code: 'PageUp', keyCode: 33 },
+        'PageDown': { key: 'PageDown', code: 'PageDown', keyCode: 34 },
+        'Insert': { key: 'Insert', code: 'Insert', keyCode: 45 },
+        // 수정 키
+        'Control': { key: 'Control', code: 'ControlLeft', keyCode: 17 },
+        'Alt': { key: 'Alt', code: 'AltLeft', keyCode: 18 },
+        'Shift': { key: 'Shift', code: 'ShiftLeft', keyCode: 16 },
+        'Meta': { key: 'Meta', code: 'MetaLeft', keyCode: 91 },
+        // Function 키
+        'F1': { key: 'F1', code: 'F1', keyCode: 112 },
+        'F2': { key: 'F2', code: 'F2', keyCode: 113 },
+        'F3': { key: 'F3', code: 'F3', keyCode: 114 },
+        'F4': { key: 'F4', code: 'F4', keyCode: 115 },
+        'F5': { key: 'F5', code: 'F5', keyCode: 116 },
+        'F6': { key: 'F6', code: 'F6', keyCode: 117 },
+        'F7': { key: 'F7', code: 'F7', keyCode: 118 },
+        'F8': { key: 'F8', code: 'F8', keyCode: 119 },
+        'F9': { key: 'F9', code: 'F9', keyCode: 120 },
+        'F10': { key: 'F10', code: 'F10', keyCode: 121 },
+        'F11': { key: 'F11', code: 'F11', keyCode: 122 },
+        'F12': { key: 'F12', code: 'F12', keyCode: 123 },
       };
 
       if (selector) {
@@ -1067,7 +1111,44 @@ class BrowserClient {
         });
       }
 
-      const keyInfo = keyMap[key] || { key, code: `Key${key.toUpperCase()}`, keyCode: key.charCodeAt(0) };
+      // 조합 키 처리 (예: Control+A, Shift+Tab)
+      const parts = key.split('+');
+      const modifiers: { ctrl?: boolean; alt?: boolean; shift?: boolean; meta?: boolean } = {};
+      let mainKey = key;
+
+      if (parts.length > 1) {
+        for (let i = 0; i < parts.length - 1; i++) {
+          const mod = parts[i]?.toLowerCase();
+          if (mod === 'control' || mod === 'ctrl') modifiers.ctrl = true;
+          else if (mod === 'alt') modifiers.alt = true;
+          else if (mod === 'shift') modifiers.shift = true;
+          else if (mod === 'meta' || mod === 'cmd') modifiers.meta = true;
+        }
+        mainKey = parts[parts.length - 1] || key;
+      }
+
+      // 단일 문자의 경우 대문자/소문자 처리
+      let keyInfo = keyMap[mainKey];
+      if (!keyInfo) {
+        if (mainKey.length === 1) {
+          const charCode = mainKey.charCodeAt(0);
+          const isUpper = mainKey >= 'A' && mainKey <= 'Z';
+          keyInfo = {
+            key: mainKey,
+            code: `Key${mainKey.toUpperCase()}`,
+            keyCode: isUpper ? charCode : charCode - 32,
+          };
+        } else {
+          keyInfo = { key: mainKey, code: mainKey, keyCode: 0 };
+        }
+      }
+
+      // 수정자 플래그 계산 (CDP용)
+      let modifierFlags = 0;
+      if (modifiers.alt) modifierFlags |= 1;
+      if (modifiers.ctrl) modifierFlags |= 2;
+      if (modifiers.meta) modifierFlags |= 4;
+      if (modifiers.shift) modifierFlags |= 8;
 
       // keyDown
       await this.cdp.send('Input.dispatchKeyEvent', {
@@ -1076,6 +1157,7 @@ class BrowserClient {
         code: keyInfo.code,
         windowsVirtualKeyCode: keyInfo.keyCode,
         nativeVirtualKeyCode: keyInfo.keyCode,
+        modifiers: modifierFlags,
       });
 
       // keyUp
@@ -1085,6 +1167,7 @@ class BrowserClient {
         code: keyInfo.code,
         windowsVirtualKeyCode: keyInfo.keyCode,
         nativeVirtualKeyCode: keyInfo.keyCode,
+        modifiers: modifierFlags,
       });
 
       return {
