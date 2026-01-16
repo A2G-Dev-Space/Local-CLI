@@ -365,11 +365,10 @@ class BrowserClient {
 
       // PowerShell로 브라우저 시작 (CDP 포트 활성화)
       // 중요: 별도의 user-data-dir을 사용해야 기존 Chrome과 충돌하지 않음
-      // %LOCALAPPDATA%는 PowerShell에서 자동으로 확장됨
-      const userDataDir = '$env:LOCALAPPDATA\\local-cli-browser-profile';
+      // $env:LOCALAPPDATA를 먼저 확장한 후 ArgumentList에 전달
       const args = [
         `--remote-debugging-port=${this.cdpPort}`,
-        `--user-data-dir=${userDataDir}`,
+        '--user-data-dir=$dir',  // $dir는 psCommand에서 정의됨
         '--no-first-run',
         '--no-default-browser-check',
         '--disable-popup-blocking',
@@ -380,9 +379,9 @@ class BrowserClient {
         args.push('--headless=new');
       }
 
-      // ArgumentList를 올바르게 구성
-      const argsString = args.map(arg => `'${arg}'`).join(',');
-      const psCommand = `Start-Process -FilePath '${browserPath}' -ArgumentList ${argsString}`;
+      // ArgumentList를 올바르게 구성 - $env:LOCALAPPDATA를 먼저 변수로 확장
+      const argsString = args.map(arg => `"${arg}"`).join(',');
+      const psCommand = `$dir = "$env:LOCALAPPDATA\\local-cli-browser-profile"; Start-Process -FilePath '${browserPath}' -ArgumentList ${argsString}`;
 
       logger.debug(`[BrowserClient] launch: executing PowerShell command`);
 
