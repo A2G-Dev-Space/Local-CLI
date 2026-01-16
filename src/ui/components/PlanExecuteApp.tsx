@@ -1864,9 +1864,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
 
       {/* TODO Panel (always visible when there are todos) */}
       {planExecutionState.todos.length > 0 && (
-        <Box flexDirection="column">
-          <Text>{' '}</Text>
-          <Text>{' '}</Text>
+        <Box marginTop={2}>
           <TodoPanel
             todos={planExecutionState.todos}
             currentTodoId={planExecutionState.currentTodoId}
