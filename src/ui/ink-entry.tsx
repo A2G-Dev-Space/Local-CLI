@@ -12,7 +12,6 @@ import { createLLMClient } from '../core/llm/llm-client.js';
 import { configManager } from '../core/config/config-manager.js';
 import { authManager } from '../core/auth/index.js';
 import { initializeOptionalTools } from '../tools/registry.js';
-import { ensureOfficeServerOnStartup } from '../tools/office/index.js';
 
 // Async 초기화
 (async () => {
@@ -23,11 +22,8 @@ import { ensureOfficeServerOnStartup } from '../tools/office/index.js';
     // AuthManager 초기화 (LLMClient 생성 전에 auth headers 준비)
     await authManager.initialize();
 
-    // Load saved optional tool states (e.g., browser tools)
+    // Load saved optional tool states (e.g., browser tools, Office tools)
     await initializeOptionalTools();
-
-    // Ensure Office server is running if Office tools are enabled
-    await ensureOfficeServerOnStartup();
 
     // LLM Client 생성
     const llmClient = createLLMClient();

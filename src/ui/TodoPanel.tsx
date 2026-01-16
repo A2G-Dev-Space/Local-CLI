@@ -53,8 +53,9 @@ const ProgressBar: React.FC<{ completed: number; total: number; width?: number }
 
 /**
  * TODO Panel Component
+ * Memoized to prevent unnecessary re-renders that cause duplicate terminal output
  */
-export const TodoPanel: React.FC<TodoPanelProps> = ({
+export const TodoPanel: React.FC<TodoPanelProps> = React.memo(({
   todos,
   currentTodoId,
   isProcessing = false,
@@ -172,13 +173,29 @@ export const TodoPanel: React.FC<TodoPanelProps> = ({
       </Box>
     </Box>
   );
-};
+}, (prevProps, nextProps) => {
+  // Custom comparison: only re-render when todos or processing state actually changes
+  if (prevProps.isProcessing !== nextProps.isProcessing) return false;
+  if (prevProps.currentTodoId !== nextProps.currentTodoId) return false;
+  if (prevProps.todos.length !== nextProps.todos.length) return false;
+  // Deep compare todos by status and title
+  for (let i = 0; i < prevProps.todos.length; i++) {
+    const prev = prevProps.todos[i];
+    const next = nextProps.todos[i];
+    if (!prev || !next) return false;
+    if (prev.status !== next.status || prev.title !== next.title || prev.error !== next.error) {
+      return false;
+    }
+  }
+  return true; // Props are equal, skip re-render
+});
 
 /**
  * Compact TODO Status Bar
  * Shows inline status for space-constrained layouts
+ * Memoized to prevent unnecessary re-renders
  */
-export const TodoStatusBar: React.FC<{ todos: TodoItem[] }> = ({ todos }) => {
+export const TodoStatusBar: React.FC<{ todos: TodoItem[] }> = React.memo(({ todos }) => {
   // Log component render
   useEffect(() => {
     logger.debug('TodoStatusBar rendered', { todoCount: todos.length });
@@ -218,6 +235,6 @@ export const TodoStatusBar: React.FC<{ todos: TodoItem[] }> = ({ todos }) => {
       )}
     </Box>
   );
-};
+});
 
 export default TodoPanel;

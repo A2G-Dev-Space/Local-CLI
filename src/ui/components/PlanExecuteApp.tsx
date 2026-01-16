@@ -1657,6 +1657,12 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
       case 'tool_start': {
         // Tool별 아이콘 매핑
         const getToolIcon = (toolName: string): string => {
+          // Office 도구 (prefix 매칭)
+          if (toolName.startsWith('word_')) return '📄';       // Word
+          if (toolName.startsWith('excel_')) return '📊';      // Excel
+          if (toolName.startsWith('powerpoint_')) return '📽️';  // PowerPoint
+          if (toolName.startsWith('browser_')) return '🌐';    // Browser
+
           switch (toolName) {
             case 'read_file':
               return '📖';  // 읽기
@@ -1680,6 +1686,23 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         // Tool별 핵심 파라미터 추출
         const getToolParams = (toolName: string, args: Record<string, unknown> | undefined): string => {
           if (!args) return '';
+
+          // Office 도구 파라미터 (prefix 매칭)
+          if (toolName.startsWith('word_') || toolName.startsWith('excel_') || toolName.startsWith('powerpoint_')) {
+            // 파일 경로가 있으면 표시
+            const filePath = args['file_path'] as string;
+            if (filePath) return filePath;
+            // 셀/범위가 있으면 표시
+            const cell = args['cell'] as string;
+            const range = args['range'] as string;
+            if (cell) return cell;
+            if (range) return range;
+            // 슬라이드 번호가 있으면 표시
+            const slideNumber = args['slide_number'] as number;
+            if (slideNumber) return `slide ${slideNumber}`;
+            return '';
+          }
+
           switch (toolName) {
             case 'read_file':
               return args['file_path'] as string || '';
@@ -1711,128 +1734,36 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
 
         const icon = getToolIcon(entry.content);
         const params = getToolParams(entry.content, entry.toolArgs);
+        const toolName = entry.content;
 
+        // Truncate reason if too long
+        const reason = entry.details || '';
+        const maxReasonLen = 80;
+        const truncatedReason = reason.length > maxReasonLen
+          ? reason.substring(0, maxReasonLen) + '...'
+          : reason;
+
+        // 모든 도구 통일된 2줄 포맷
         return (
           <Box key={entry.id} flexDirection="column" marginTop={1}>
             <Box>
-              <Text color="cyan" bold>{icon} {entry.content}</Text>
-              {params && <Text color="gray">({params})</Text>}
+              <Text color="cyan" bold>{icon} {toolName}</Text>
+              {params && <Text color="gray"> ({params})</Text>}
             </Box>
-            {entry.details && (
+            {truncatedReason && (
               <Box marginLeft={2}>
-                <Text color="gray">⎿  </Text>
-                <Text>{entry.details}</Text>
+                <Text color="gray">⎿ </Text>
+                <Text color="yellow">💭 </Text>
+                <Text color="gray">{truncatedReason}</Text>
               </Box>
             )}
           </Box>
         );
       }
 
-      case 'tool_result': {
-        // diff가 있으면 전체 diff 표시
-        if (entry.diff && entry.diff.length > 0) {
-          return (
-            <Box key={entry.id} flexDirection="column" marginLeft={2}>
-              <Box>
-                <Text color="gray">⎿  </Text>
-                <Text color={entry.success ? 'cyan' : 'red'}>{entry.success ? '✓' : '✗'} </Text>
-                <Text color="gray">{entry.success ? 'Updated' : 'Failed'}</Text>
-              </Box>
-              {entry.diff.map((line, idx) => (
-                <Box key={idx} marginLeft={3}>
-                  <Text
-                    color={line.startsWith('+ ') ? 'green' : line.startsWith('- ') ? 'red' : 'gray'}
-                  >
-                    {line}
-                  </Text>
-                </Box>
-              ))}
-            </Box>
-          );
-        }
-
-        // tell_to_user 결과는 표시하지 않음 (tell_user 로그에서 이미 표시)
-        if (entry.content === 'tell_to_user') {
-          return null;
-        }
-
-        // Tool별 결과 축약
-        let displayText = entry.details || '';
-
-        // read_file, read_docs_file, preview_file, submit_findings: 5줄 넘으면 축약
-        if (entry.content === 'read_file' || entry.content === 'read_docs_file' || entry.content === 'preview_file' || entry.content === 'submit_findings') {
-          const lines = displayText.split('\n');
-          if (lines.length > 5) {
-            displayText = lines.slice(0, 5).join('\n') + `\n... (${lines.length - 5} more lines)`;
-          }
-        }
-
-        // bash: 3줄 넘으면 축약 (bash, bash_background, bash_background_status, etc.)
-        if (entry.content?.startsWith('bash')) {
-          const lines = displayText.split('\n');
-          if (lines.length > 3) {
-            displayText = lines.slice(0, 3).join('\n') + `\n... (${lines.length - 3} more lines)`;
-          }
-        }
-
-        // browser, office tools: 3줄 넘으면 축약
-        if (entry.content?.startsWith('browser_') || entry.content?.startsWith('word_') ||
-            entry.content?.startsWith('excel_') || entry.content?.startsWith('powerpoint_')) {
-          const lines = displayText.split('\n');
-          if (lines.length > 3) {
-            displayText = lines.slice(0, 3).join('\n') + `\n... (${lines.length - 3} more lines)`;
-          }
-        }
-
-        // list_files, find_files, list_directory: 개수와 미리보기
-        if (entry.content === 'list_files' || entry.content === 'find_files' || entry.content === 'list_directory') {
-          try {
-            const parsed = JSON.parse(displayText);
-            if (Array.isArray(parsed)) {
-              const count = parsed.length;
-              const preview = parsed.slice(0, 3).map((f: { name?: string; path?: string }) => f.name || f.path || '').join(', ');
-              displayText = `${count}개 항목${count > 3 ? ` (${preview}, ...)` : count > 0 ? ` (${preview})` : ''}`;
-            }
-          } catch {
-            // JSON 파싱 실패시 원본 텍스트 축약
-            if (displayText.length > 100) {
-              displayText = displayText.substring(0, 100) + '...';
-            }
-          }
-        }
-
-        // create_file: diff 형식으로 전체 내용 표시 (+ 로)
-        if (entry.content === 'create_file' && entry.toolArgs) {
-          const content = entry.toolArgs['content'] as string;
-          const filePath = entry.toolArgs['file_path'] as string;
-          if (content) {
-            const contentLines = content.split('\n');
-            return (
-              <Box key={entry.id} flexDirection="column" marginLeft={2}>
-                <Box>
-                  <Text color="gray">⎿  </Text>
-                  <Text color={entry.success ? 'cyan' : 'red'}>{entry.success ? '✓' : '✗'} </Text>
-                  <Text color="gray">Created {filePath} ({contentLines.length} lines)</Text>
-                </Box>
-                {contentLines.map((line, idx) => (
-                  <Box key={idx} marginLeft={3}>
-                    <Text color="white" backgroundColor="#1e40af">+ {line}</Text>
-                  </Box>
-                ))}
-              </Box>
-            );
-          }
-        }
-
-        // 일반 결과
-        return (
-          <Box key={entry.id} marginLeft={2}>
-            <Text color="gray">⎿  </Text>
-            <Text color={entry.success ? 'cyan' : 'red'}>{entry.success ? '✓' : '✗'} </Text>
-            <Text color={entry.success ? 'gray' : 'red'}>{displayText}</Text>
-          </Box>
-        );
-      }
+      case 'tool_result':
+        // tool_result 표시 제거 - tool_start에서 reason만 표시
+        return null;
 
       case 'tell_user':
         return (
@@ -2021,7 +1952,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
 
       {/* TODO Panel (always visible when there are todos) */}
       {planExecutionState.todos.length > 0 && (
-        <Box marginY={1}>
+        <Box marginTop={2} marginBottom={1}>
           <TodoPanel
             todos={planExecutionState.todos}
             currentTodoId={planExecutionState.currentTodoId}
