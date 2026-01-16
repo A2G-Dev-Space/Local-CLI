@@ -5,7 +5,7 @@
  * Provides PowerShell execution and WSL path conversion.
  */
 
-import { execSync } from 'child_process';
+import { execSync, spawn } from 'child_process';
 import * as os from 'os';
 import { logger } from '../../utils/logger.js';
 import { findPowerShellPath } from '../../utils/wsl-utils.js';
@@ -87,7 +87,7 @@ export class OfficeClientBase {
   }
 
   /**
-   * Execute PowerShell script and return JSON result
+   * Execute PowerShell script and return JSON result (async, non-blocking)
    */
   protected async executePowerShell(script: string): Promise<OfficeResponse> {
     return new Promise((resolve) => {
@@ -108,21 +108,48 @@ ${script}
 
       logger.debug('[OfficeClientBase] executePowerShell: executing script');
 
-      try {
-        // Use -EncodedCommand for Unicode support
-        const encodedCommand = Buffer.from(wrappedScript, 'utf16le').toString('base64');
+      // Use -EncodedCommand for Unicode support
+      const encodedCommand = Buffer.from(wrappedScript, 'utf16le').toString('base64');
 
-        const result = execSync(
-          `"${this.powerShellPath}" -NoProfile -NonInteractive -EncodedCommand ${encodedCommand}`,
-          {
-            encoding: 'utf-8',
-            timeout: this.commandTimeout,
-            maxBuffer: 50 * 1024 * 1024, // 50MB for screenshots
-          }
-        );
+      // Use spawn instead of execSync for non-blocking execution
+      const child = spawn(this.powerShellPath, [
+        '-NoProfile',
+        '-NonInteractive',
+        '-EncodedCommand',
+        encodedCommand,
+      ], {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        windowsHide: true,
+      });
+
+      let stdout = '';
+      let stderr = '';
+
+      child.stdout.on('data', (data) => {
+        stdout += data.toString('utf-8');
+      });
+
+      child.stderr.on('data', (data) => {
+        stderr += data.toString('utf-8');
+      });
+
+      // Timeout handling
+      const timeoutId = setTimeout(() => {
+        child.kill();
+        resolve({ success: false, error: 'PowerShell execution timed out' });
+      }, this.commandTimeout);
+
+      child.on('close', (code) => {
+        clearTimeout(timeoutId);
+
+        if (code !== 0 && !stdout.trim()) {
+          logger.debug('[OfficeClientBase] executePowerShell: error - ' + stderr);
+          resolve({ success: false, error: stderr || `PowerShell exited with code ${code}` });
+          return;
+        }
 
         // Parse JSON output
-        const trimmed = result.trim();
+        const trimmed = stdout.trim();
         if (trimmed) {
           try {
             const parsed = JSON.parse(trimmed);
@@ -134,11 +161,13 @@ ${script}
         } else {
           resolve({ success: true });
         }
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        logger.debug('[OfficeClientBase] executePowerShell: error - ' + errorMsg);
-        resolve({ success: false, error: errorMsg });
-      }
+      });
+
+      child.on('error', (error) => {
+        clearTimeout(timeoutId);
+        logger.debug('[OfficeClientBase] executePowerShell: error - ' + error.message);
+        resolve({ success: false, error: error.message });
+      });
     });
   }
 
