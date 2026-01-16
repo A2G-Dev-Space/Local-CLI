@@ -1519,6 +1519,12 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
       case 'tool_start': {
         // Tool별 아이콘 매핑
         const getToolIcon = (toolName: string): string => {
+          // Office 도구 (prefix 매칭)
+          if (toolName.startsWith('word_')) return '📄';       // Word
+          if (toolName.startsWith('excel_')) return '📊';      // Excel
+          if (toolName.startsWith('powerpoint_')) return '📽️';  // PowerPoint
+          if (toolName.startsWith('browser_')) return '🌐';    // Browser
+
           switch (toolName) {
             case 'read_file':
               return '📖';  // 읽기
