@@ -1574,18 +1574,18 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         const icon = getToolIcon(entry.content);
         const params = getToolParams(entry.content, entry.toolArgs);
 
+        // Truncate reason if too long
+        const reason = entry.details || '';
+        const maxReasonLen = 60;
+        const truncatedReason = reason.length > maxReasonLen
+          ? reason.substring(0, maxReasonLen) + '...'
+          : reason;
+
         return (
-          <Box key={entry.id} flexDirection="column" marginTop={1}>
-            <Box>
-              <Text color="cyan" bold>{icon} {entry.content}</Text>
-              {params && <Text color="gray">({params})</Text>}
-            </Box>
-            {entry.details && (
-              <Box marginLeft={2}>
-                <Text color="gray">⎿  </Text>
-                <Text>{entry.details}</Text>
-              </Box>
-            )}
+          <Box key={entry.id} marginTop={1}>
+            <Text color="cyan" bold>{icon} {entry.content}</Text>
+            {params && <Text color="gray"> ({params})</Text>}
+            {truncatedReason && <Text color="gray"> — {truncatedReason}</Text>}
           </Box>
         );
       }
@@ -1864,7 +1864,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
 
       {/* TODO Panel (always visible when there are todos) */}
       {planExecutionState.todos.length > 0 && (
-        <Box marginY={1}>
+        <Box marginTop={2} marginBottom={1}>
           <TodoPanel
             todos={planExecutionState.todos}
             currentTodoId={planExecutionState.currentTodoId}
