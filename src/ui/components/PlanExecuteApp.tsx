@@ -1600,166 +1600,32 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
 
         // Truncate reason if too long
         const reason = entry.details || '';
-        const maxReasonLen = 60;
+        const maxReasonLen = 80;
         const truncatedReason = reason.length > maxReasonLen
           ? reason.substring(0, maxReasonLen) + '...'
           : reason;
 
-        // Office/Browser 도구는 2줄 포맷 (tool name + reason 분리)
-        const isLongRunningTool = toolName.startsWith('word_') ||
-          toolName.startsWith('excel_') ||
-          toolName.startsWith('powerpoint_') ||
-          toolName.startsWith('browser_');
-
-        if (isLongRunningTool) {
-          return (
-            <Box key={entry.id} flexDirection="column" marginTop={1}>
-              <Box>
-                <Text color="cyan" bold>{icon} {toolName}</Text>
-                {params && <Text color="gray"> ({params})</Text>}
-              </Box>
-              {truncatedReason && (
-                <Box marginLeft={2}>
-                  <Text color="gray">⎿ {truncatedReason}</Text>
-                </Box>
-              )}
-            </Box>
-          );
-        }
-
+        // 모든 도구 통일된 2줄 포맷
         return (
-          <Box key={entry.id} marginTop={1}>
-            <Text color="cyan" bold>{icon} {entry.content}</Text>
-            {params && <Text color="gray"> ({params})</Text>}
-            {truncatedReason && <Text color="gray"> — {truncatedReason}</Text>}
-          </Box>
-        );
-      }
-
-      case 'tool_result': {
-        // diff가 있으면 전체 diff 표시
-        if (entry.diff && entry.diff.length > 0) {
-          return (
-            <Box key={entry.id} flexDirection="column" marginLeft={2}>
-              <Box>
-                <Text color="gray">⎿  </Text>
-                <Text color={entry.success ? 'cyan' : 'red'}>{entry.success ? '✓' : '✗'} </Text>
-                <Text color="gray">{entry.success ? 'Updated' : 'Failed'}</Text>
-              </Box>
-              {entry.diff.map((line, idx) => (
-                <Box key={idx} marginLeft={3}>
-                  <Text
-                    color={line.startsWith('+ ') ? 'green' : line.startsWith('- ') ? 'red' : 'gray'}
-                  >
-                    {line}
-                  </Text>
-                </Box>
-              ))}
+          <Box key={entry.id} flexDirection="column" marginTop={1}>
+            <Box>
+              <Text color="cyan" bold>{icon} {toolName}</Text>
+              {params && <Text color="gray"> ({params})</Text>}
             </Box>
-          );
-        }
-
-        // tell_to_user 결과는 표시하지 않음 (tell_user 로그에서 이미 표시)
-        if (entry.content === 'tell_to_user') {
-          return null;
-        }
-
-        // Tool별 결과 축약
-        let displayText = entry.details || '';
-
-        // read_file, read_docs_file, preview_file, submit_findings: 5줄 넘으면 축약
-        if (entry.content === 'read_file' || entry.content === 'read_docs_file' || entry.content === 'preview_file' || entry.content === 'submit_findings') {
-          const lines = displayText.split('\n');
-          if (lines.length > 5) {
-            displayText = lines.slice(0, 5).join('\n') + `\n... (${lines.length - 5} more lines)`;
-          }
-        }
-
-        // bash: 3줄 넘으면 축약 (bash, bash_background, bash_background_status, etc.)
-        if (entry.content?.startsWith('bash')) {
-          const lines = displayText.split('\n');
-          if (lines.length > 3) {
-            displayText = lines.slice(0, 3).join('\n') + `\n... (${lines.length - 3} more lines)`;
-          }
-        }
-
-        // Office/Browser 도구: 2줄 포맷 (항상)
-        const isLongRunningTool = entry.content?.startsWith('word_') ||
-          entry.content?.startsWith('excel_') ||
-          entry.content?.startsWith('powerpoint_') ||
-          entry.content?.startsWith('browser_');
-
-        if (isLongRunningTool) {
-          const icon = entry.content?.startsWith('word_') ? '📄' :
-                       entry.content?.startsWith('excel_') ? '📊' :
-                       entry.content?.startsWith('powerpoint_') ? '📽️' : '🌐';
-          // 결과 메시지 축약 (80자)
-          const resultMsg = displayText || (entry.success ? 'Success' : 'Failed');
-          const truncatedMsg = resultMsg.length > 80 ? resultMsg.substring(0, 80) + '...' : resultMsg;
-
-          return (
-            <Box key={entry.id} flexDirection="column" marginTop={1}>
-              <Box>
-                <Text color="cyan" bold>{icon} {entry.content}</Text>
-              </Box>
+            {truncatedReason && (
               <Box marginLeft={2}>
                 <Text color="gray">⎿ </Text>
-                <Text color={entry.success ? 'cyan' : 'red'}>{entry.success ? '✓' : '✗'} </Text>
-                <Text color={entry.success ? 'gray' : 'red'}>{truncatedMsg}</Text>
+                <Text color="yellow">💭 </Text>
+                <Text color="gray">{truncatedReason}</Text>
               </Box>
-            </Box>
-          );
-        }
-
-        // list_files, find_files, list_directory: 개수와 미리보기
-        if (entry.content === 'list_files' || entry.content === 'find_files' || entry.content === 'list_directory') {
-          try {
-            const parsed = JSON.parse(displayText);
-            if (Array.isArray(parsed)) {
-              const count = parsed.length;
-              const preview = parsed.slice(0, 3).map((f: { name?: string; path?: string }) => f.name || f.path || '').join(', ');
-              displayText = `${count}개 항목${count > 3 ? ` (${preview}, ...)` : count > 0 ? ` (${preview})` : ''}`;
-            }
-          } catch {
-            // JSON 파싱 실패시 원본 텍스트 축약
-            if (displayText.length > 100) {
-              displayText = displayText.substring(0, 100) + '...';
-            }
-          }
-        }
-
-        // create_file: diff 형식으로 전체 내용 표시 (+ 로)
-        if (entry.content === 'create_file' && entry.toolArgs) {
-          const content = entry.toolArgs['content'] as string;
-          const filePath = entry.toolArgs['file_path'] as string;
-          if (content) {
-            const contentLines = content.split('\n');
-            return (
-              <Box key={entry.id} flexDirection="column" marginLeft={2}>
-                <Box>
-                  <Text color="gray">⎿  </Text>
-                  <Text color={entry.success ? 'cyan' : 'red'}>{entry.success ? '✓' : '✗'} </Text>
-                  <Text color="gray">Created {filePath} ({contentLines.length} lines)</Text>
-                </Box>
-                {contentLines.map((line, idx) => (
-                  <Box key={idx} marginLeft={3}>
-                    <Text color="white" backgroundColor="#1e40af">+ {line}</Text>
-                  </Box>
-                ))}
-              </Box>
-            );
-          }
-        }
-
-        // 일반 결과
-        return (
-          <Box key={entry.id} marginLeft={2}>
-            <Text color="gray">⎿  </Text>
-            <Text color={entry.success ? 'cyan' : 'red'}>{entry.success ? '✓' : '✗'} </Text>
-            <Text color={entry.success ? 'gray' : 'red'}>{displayText}</Text>
+            )}
           </Box>
         );
       }
+
+      case 'tool_result':
+        // tool_result 표시 제거 - tool_start에서 reason만 표시
+        return null;
 
       case 'tell_user':
         return (
