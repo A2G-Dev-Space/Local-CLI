@@ -10,29 +10,25 @@ import { Box, Text, useInput } from 'ink';
 import SelectInput from 'ink-select-input';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
 import Spinner from 'ink-spinner';
 import { toolRegistry, OptionalToolGroup } from '../../tools/registry.js';
 
 /**
- * Check if Chrome/Chromium is installed (or browser-server.exe is available)
+ * Check if browser is available for CDP connection
+ * CDP approach uses PowerShell to launch Chrome/Edge directly (no browser-server.exe needed)
  */
-function isChromeInstalled(): boolean {
-  // Check if browser-server.exe exists (handles Chrome/Edge on Windows)
-  const homeDir = os.homedir();
-  const browserServerPaths = [
-    path.join(homeDir, '.local-cli', 'repo', 'bin', 'browser-server.exe'),
-    path.join(homeDir, '.local', 'bin', 'browser-server.exe'),
-  ];
+function isBrowserAvailable(): boolean {
+  // Check if running in WSL
+  const isWSL = fs.existsSync('/proc/version') &&
+    fs.readFileSync('/proc/version', 'utf-8').toLowerCase().includes('microsoft');
 
-  for (const p of browserServerPaths) {
-    if (fs.existsSync(p)) {
-      return true;
-    }
+  if (isWSL) {
+    // WSL: browser-client.ts uses PowerShell to launch Windows Chrome/Edge
+    // Actual browser detection happens at launch time
+    return true;
   }
 
-  // Fallback: check Linux Chrome installation
+  // Native Linux: check if Chrome/Chromium is installed
   try {
     execSync('which google-chrome || which chromium-browser || which chromium', { stdio: 'ignore' });
     return true;
@@ -79,9 +75,9 @@ export const ToolSelector: React.FC<ToolSelectorProps> = ({ onClose }) => {
       const groupName = group?.name || groupId;
       const isEnabling = !group?.enabled;
 
-      // Check Chrome installation when enabling browser tools
-      if (groupId === 'browser' && isEnabling && !isChromeInstalled()) {
-        setErrorMessage('Chrome/browser-server.exe not found');
+      // Check browser availability when enabling browser tools (Linux only)
+      if (groupId === 'browser' && isEnabling && !isBrowserAvailable()) {
+        setErrorMessage('Chrome/Chromium not found. Please install Chrome or Chromium.');
         return;
       }
 
