@@ -4,7 +4,8 @@
  * LLM이 브라우저를 제어할 수 있는 도구들
  * Category: LLM Simple Tools - LLM이 tool_call로 호출, Sub-LLM 없음
  *
- * Uses browser-server.exe via HTTP API (similar to office tools)
+ * Uses CDP (Chrome DevTools Protocol) via Playwright
+ * PowerShell로 브라우저를 시작하고 Playwright로 제어합니다.
  */
 
 import { ToolDefinition } from '../../types/index.js';
@@ -22,7 +23,7 @@ const BROWSER_LAUNCH_DEFINITION: ToolDefinition = {
     name: 'browser_launch',
     description: `Launch Chrome/Edge browser for web testing and automation.
 Use this tool to start a browser session before navigating to pages.
-The browser runs on Windows via browser-server.exe for better stability.`,
+The browser runs on Windows via CDP (Chrome DevTools Protocol).`,
     parameters: {
       type: 'object',
       properties: {
@@ -782,6 +783,161 @@ export const browserFocusTool: LLMSimpleTool = {
 };
 
 /**
+ * browser_press_key Tool Definition
+ */
+const BROWSER_PRESS_KEY_DEFINITION: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'browser_press_key',
+    description: `Press a keyboard key in the browser.
+
+Supports special keys:
+- Enter, Tab, Escape, Space
+- ArrowUp, ArrowDown, ArrowLeft, ArrowRight
+- Backspace, Delete, Home, End, PageUp, PageDown
+- F1-F12
+- Control, Alt, Shift, Meta
+
+Key combinations (use + to combine):
+- Control+A (select all)
+- Control+C (copy)
+- Control+V (paste)
+- Shift+Tab (reverse tab)
+
+Use this for form submission (Enter), navigation, or keyboard shortcuts.`,
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: {
+          type: 'string',
+          description: 'Explanation of why you are pressing this key',
+        },
+        key: {
+          type: 'string',
+          description: 'Key to press (e.g., "Enter", "Tab", "Escape", "Control+A")',
+        },
+        selector: {
+          type: 'string',
+          description: 'Optional CSS selector of element to focus before pressing key',
+        },
+      },
+      required: ['reason', 'key'],
+    },
+  },
+};
+
+async function executeBrowserPressKey(args: Record<string, unknown>): Promise<ToolResult> {
+  const key = args['key'] as string;
+  const selector = args['selector'] as string | undefined;
+
+  try {
+    if (!(await browserClient.isBrowserActive())) {
+      return {
+        success: false,
+        error: 'Browser is not running. Use browser_launch first.',
+      };
+    }
+
+    const response = await browserClient.pressKey(key, selector);
+
+    if (!response.success) {
+      return {
+        success: false,
+        error: response.error || `Failed to press key: ${key}`,
+      };
+    }
+
+    return {
+      success: true,
+      result: `Key "${key}" pressed${selector ? ` on ${selector}` : ''}`,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: `Failed to press key: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+export const browserPressKeyTool: LLMSimpleTool = {
+  definition: BROWSER_PRESS_KEY_DEFINITION,
+  execute: executeBrowserPressKey,
+  categories: BROWSER_CATEGORIES,
+  description: 'Press keyboard key',
+};
+
+/**
+ * browser_type Tool Definition
+ */
+const BROWSER_TYPE_DEFINITION: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'browser_type',
+    description: `Type text character by character (triggers key events).
+Unlike browser_fill which sets value directly, this simulates actual typing.
+Useful for inputs that have keystroke handlers or autocomplete.`,
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: {
+          type: 'string',
+          description: 'Explanation of why you are typing this text',
+        },
+        text: {
+          type: 'string',
+          description: 'Text to type',
+        },
+        selector: {
+          type: 'string',
+          description: 'Optional CSS selector of element to type into',
+        },
+      },
+      required: ['reason', 'text'],
+    },
+  },
+};
+
+async function executeBrowserType(args: Record<string, unknown>): Promise<ToolResult> {
+  const text = args['text'] as string;
+  const selector = args['selector'] as string | undefined;
+
+  try {
+    if (!(await browserClient.isBrowserActive())) {
+      return {
+        success: false,
+        error: 'Browser is not running. Use browser_launch first.',
+      };
+    }
+
+    const response = await browserClient.type(text, selector);
+
+    if (!response.success) {
+      return {
+        success: false,
+        error: response.error || 'Failed to type text',
+      };
+    }
+
+    return {
+      success: true,
+      result: `Typed ${text.length} characters${selector ? ` into ${selector}` : ''}`,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: `Failed to type: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+export const browserTypeTool: LLMSimpleTool = {
+  definition: BROWSER_TYPE_DEFINITION,
+  execute: executeBrowserType,
+  categories: BROWSER_CATEGORIES,
+  description: 'Type text character by character',
+};
+
+/**
  * All browser tools
  */
 export const BROWSER_TOOLS: LLMSimpleTool[] = [
@@ -795,5 +951,7 @@ export const BROWSER_TOOLS: LLMSimpleTool[] = [
   browserGetConsoleTool,
   browserGetNetworkTool,
   browserFocusTool,
+  browserPressKeyTool,
+  browserTypeTool,
   browserCloseTool,
 ];
