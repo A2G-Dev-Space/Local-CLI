@@ -14,7 +14,7 @@ import * as os from 'os';
 import WebSocket from 'ws';
 import { logger } from '../../utils/logger.js';
 import { LOCAL_HOME_DIR } from '../../constants.js';
-import { findPowerShellPath } from '../../utils/wsl-utils.js';
+import { findPowerShellPath, getWindowsHostIP } from '../../utils/wsl-utils.js';
 
 // ===========================================================================
 // Types
@@ -257,9 +257,11 @@ class BrowserClient {
 
   /**
    * Get CDP endpoint URL
+   * WSL에서는 Windows host IP를 사용해야 CDP에 연결 가능
    */
   private getCDPUrl(): string {
-    return `http://localhost:${this.cdpPort}`;
+    const host = this.isWSL ? getWindowsHostIP() : 'localhost';
+    return `http://${host}:${this.cdpPort}`;
   }
 
   /**
