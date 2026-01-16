@@ -28,7 +28,8 @@ from flask_cors import CORS
 
 # Selenium for browser automation
 from selenium import webdriver
-# Note: Service classes not needed with Selenium 4.6+ built-in driver manager
+from selenium.webdriver.chrome.service import Service as ChromeService
+from selenium.webdriver.edge.service import Service as EdgeService
 from selenium.webdriver.chrome.options import Options as ChromeOptions
 from selenium.webdriver.edge.options import Options as EdgeOptions
 from selenium.webdriver.common.by import By
@@ -210,6 +211,34 @@ def find_edge_path() -> Optional[str]:
     return None
 
 
+def find_local_driver(driver_name: str) -> Optional[str]:
+    """
+    Find locally bundled driver (chromedriver.exe or msedgedriver.exe).
+    Checks exe directory first for corporate networks where auto-download fails.
+    """
+    # Get the directory where this exe/script is located
+    if getattr(sys, 'frozen', False):
+        # Running as compiled exe
+        exe_dir = os.path.dirname(sys.executable)
+    else:
+        # Running as script
+        exe_dir = os.path.dirname(os.path.abspath(__file__))
+
+    # Possible locations for bundled driver
+    possible_paths = [
+        os.path.join(exe_dir, driver_name),
+        os.path.join(exe_dir, 'drivers', driver_name),
+        os.path.join(exe_dir, '..', 'drivers', driver_name),
+    ]
+
+    for path in possible_paths:
+        if os.path.exists(path):
+            print(f"[driver] Found local driver: {path}", flush=True)
+            return path
+
+    return None
+
+
 def bring_window_to_front(window_title_contains: str) -> bool:
     """Bring a window to the foreground by partial title match"""
     if not HAS_WIN32:
@@ -349,9 +378,16 @@ def browser_launch():
                 'browser': 'ALL'
             })
 
-            print("[launch] Starting Chrome browser (Selenium built-in driver manager)...", flush=True)
-            # Selenium 4.6+ automatically manages chromedriver
-            browser = webdriver.Chrome(options=options)
+            # Try local chromedriver first (for corporate networks)
+            local_chromedriver = find_local_driver('chromedriver.exe')
+            if local_chromedriver:
+                print(f"[launch] Using local chromedriver: {local_chromedriver}", flush=True)
+                service = ChromeService(executable_path=local_chromedriver)
+                browser = webdriver.Chrome(service=service, options=options)
+            else:
+                print("[launch] Starting Chrome browser (Selenium built-in driver manager)...", flush=True)
+                # Selenium 4.6+ automatically manages chromedriver
+                browser = webdriver.Chrome(options=options)
             browser_type = 'chrome'
             print("[launch] Chrome started successfully!", flush=True)
 
@@ -371,8 +407,16 @@ def browser_launch():
                 'browser': 'ALL'
             })
 
-            # Selenium 4.6+ automatically manages edgedriver
-            browser = webdriver.Edge(options=options)
+            # Try local edgedriver first (for corporate networks)
+            local_edgedriver = find_local_driver('msedgedriver.exe')
+            if local_edgedriver:
+                print(f"[launch] Using local edgedriver: {local_edgedriver}", flush=True)
+                service = EdgeService(executable_path=local_edgedriver)
+                browser = webdriver.Edge(service=service, options=options)
+            else:
+                print("[launch] Starting Edge browser (Selenium built-in driver manager)...", flush=True)
+                # Selenium 4.6+ automatically manages edgedriver
+                browser = webdriver.Edge(options=options)
             browser_type = 'edge'
 
         else:
