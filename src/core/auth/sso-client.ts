@@ -75,10 +75,10 @@ export class SSOClient {
     const dataPromise = new Promise<SSOCallbackResponse>((resolve) => {
       resolveData = resolve;
 
-      // Timeout after 5 minutes
+      // Timeout after 50 minutes (extended for corporate network delays)
       timeoutId = setTimeout(() => {
-        resolve({ success: false, error: 'Login timeout (5 minutes)' });
-      }, 5 * 60 * 1000);
+        resolve({ success: false, error: 'Login timeout (50 minutes)' });
+      }, 50 * 60 * 1000);
     });
 
     // Increase maxHeaderSize to handle large SSO data in URL query params
