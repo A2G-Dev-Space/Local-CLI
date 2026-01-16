@@ -95,6 +95,7 @@ class BrowserClient {
   // Console/Network 로그 수집
   private consoleLogs: ConsoleLogEntry[] = [];
   private networkLogs: NetworkLogEntry[] = [];
+  private requestCounter: number = 0;
 
   constructor() {
     this.isWSL = this.detectWSL();
@@ -141,19 +142,16 @@ class BrowserClient {
   }
 
   /**
-   * Find Chrome executable path on Windows
+   * Find browser executable path on Windows
+   * @param paths - Array of possible paths to check
    */
-  private findChromePath(): string | null {
-    const paths = [
-      'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-      'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-    ];
-
-    // WSL에서는 PowerShell로 확인
+  private findBrowserPath(paths: string[]): string | null {
     if (this.isWSL) {
+      // WSL에서는 PowerShell로 확인
       try {
+        const conditions = paths.map(p => `if (Test-Path '${p}') { Write-Output '${p}' }`).join(' else');
         const result = execSync(
-          `powershell.exe -Command "if (Test-Path 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe') { Write-Output 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe' } elseif (Test-Path 'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe') { Write-Output 'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe' }"`,
+          `powershell.exe -Command "${conditions}"`,
           { encoding: 'utf-8', timeout: 5000 }
         ).trim();
         if (result) return result;
@@ -169,30 +167,23 @@ class BrowserClient {
   }
 
   /**
+   * Find Chrome executable path on Windows
+   */
+  private findChromePath(): string | null {
+    return this.findBrowserPath([
+      'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+      'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+    ]);
+  }
+
+  /**
    * Find Edge executable path on Windows
    */
   private findEdgePath(): string | null {
-    const paths = [
+    return this.findBrowserPath([
       'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
       'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
-    ];
-
-    if (this.isWSL) {
-      try {
-        const result = execSync(
-          `powershell.exe -Command "if (Test-Path 'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe') { Write-Output 'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe' } elseif (Test-Path 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe') { Write-Output 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe' }"`,
-          { encoding: 'utf-8', timeout: 5000 }
-        ).trim();
-        if (result) return result;
-      } catch {
-        // Ignore
-      }
-    } else {
-      for (const p of paths) {
-        if (fs.existsSync(p)) return p;
-      }
-    }
-    return null;
+    ]);
   }
 
   /**
@@ -201,18 +192,11 @@ class BrowserClient {
   private killExistingBrowser(): void {
     logger.debug('[BrowserClient] killExistingBrowser: killing processes on port ' + this.cdpPort);
     try {
-      if (this.isWSL) {
-        // Kill Chrome/Edge processes that are using CDP port
-        execSync(
-          `powershell.exe -Command "Get-NetTCPConnection -LocalPort ${this.cdpPort} -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }"`,
-          { stdio: 'ignore', timeout: 5000 }
-        );
-      } else {
-        execSync(
-          `powershell.exe -Command "Get-NetTCPConnection -LocalPort ${this.cdpPort} -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }"`,
-          { stdio: 'ignore', timeout: 5000 }
-        );
-      }
+      // WSL과 Windows 모두 동일한 명령 사용
+      execSync(
+        `powershell.exe -Command "Get-NetTCPConnection -LocalPort ${this.cdpPort} -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }"`,
+        { stdio: 'ignore', timeout: 5000 }
+      );
     } catch {
       // Ignore errors
     }
@@ -291,25 +275,30 @@ class BrowserClient {
     });
 
     // Network 로그 수집
+    // requestId는 URL + timestamp + counter로 구성하여 고유성 보장
     this.page.on('request', (request) => {
+      const timestamp = Date.now();
+      const requestId = `${++this.requestCounter}-${timestamp}-${request.url().substring(0, 50)}`;
       this.networkLogs.push({
         type: 'request',
         url: request.url(),
         method: request.method(),
-        timestamp: Date.now(),
-        requestId: request.url(), // Use URL as ID
+        timestamp,
+        requestId,
       });
     });
 
     this.page.on('response', (response) => {
+      const timestamp = Date.now();
+      const requestId = `${++this.requestCounter}-${timestamp}-${response.url().substring(0, 50)}`;
       this.networkLogs.push({
         type: 'response',
         url: response.url(),
         status: response.status(),
         statusText: response.statusText(),
         mimeType: response.headers()['content-type'] || '',
-        timestamp: Date.now(),
-        requestId: response.url(),
+        timestamp,
+        requestId,
       });
     });
   }
@@ -376,7 +365,8 @@ class BrowserClient {
 
       // PowerShell로 브라우저 시작 (CDP 포트 활성화)
       // 중요: 별도의 user-data-dir을 사용해야 기존 Chrome과 충돌하지 않음
-      const userDataDir = 'C:\\temp\\local-cli-browser-profile';
+      // %LOCALAPPDATA%는 PowerShell에서 자동으로 확장됨
+      const userDataDir = '$env:LOCALAPPDATA\\local-cli-browser-profile';
       const args = [
         `--remote-debugging-port=${this.cdpPort}`,
         `--user-data-dir=${userDataDir}`,
@@ -396,19 +386,12 @@ class BrowserClient {
 
       logger.debug(`[BrowserClient] launch: executing PowerShell command`);
 
-      if (this.isWSL) {
-        const powershellPath = findPowerShellPath();
-        this.browserProcess = spawn(powershellPath, ['-Command', psCommand], {
-          detached: true,
-          stdio: 'ignore',
-        });
-      } else {
-        this.browserProcess = spawn('powershell.exe', ['-Command', psCommand], {
-          detached: true,
-          stdio: 'ignore',
-          shell: true,
-        });
-      }
+      // WSL과 Windows 모두 동일한 방식 사용 (shell: true 제거로 보안 강화)
+      const powershellPath = this.isWSL ? findPowerShellPath() : 'powershell.exe';
+      this.browserProcess = spawn(powershellPath, ['-Command', psCommand], {
+        detached: true,
+        stdio: 'ignore',
+      });
 
       this.browserProcess.unref();
 
@@ -499,9 +482,11 @@ class BrowserClient {
 
       // 2. 실제 브라우저 프로세스 종료 (Get-WmiObject로 CommandLine 검색)
       try {
-        // user-data-dir로 시작된 Chrome 프로세스 찾아서 종료
+        // browserType에 따라 프로세스 이름 결정 (Chrome 또는 Edge)
+        const processName = this.browserType === 'chrome' ? 'chrome.exe' : 'msedge.exe';
+        // user-data-dir로 시작된 브라우저 프로세스 찾아서 종료
         execSync(
-          `powershell.exe -Command "Get-WmiObject Win32_Process -Filter \\"name='chrome.exe'\\" | Where-Object { \\$_.CommandLine -like '*local-cli*' } | ForEach-Object { Stop-Process -Id \\$_.ProcessId -Force -ErrorAction SilentlyContinue }"`,
+          `powershell.exe -Command "Get-WmiObject Win32_Process -Filter \\"name='${processName}'\\" | Where-Object { \\$_.CommandLine -like '*local-cli*' } | ForEach-Object { Stop-Process -Id \\$_.ProcessId -Force -ErrorAction SilentlyContinue }"`,
           { stdio: 'ignore', timeout: 10000 }
         );
       } catch {
