@@ -1596,6 +1596,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
 
         const icon = getToolIcon(entry.content);
         const params = getToolParams(entry.content, entry.toolArgs);
+        const toolName = entry.content;
 
         // Truncate reason if too long
         const reason = entry.details || '';
@@ -1603,6 +1604,28 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         const truncatedReason = reason.length > maxReasonLen
           ? reason.substring(0, maxReasonLen) + '...'
           : reason;
+
+        // Office/Browser 도구는 2줄 포맷 (tool name + reason 분리)
+        const isLongRunningTool = toolName.startsWith('word_') ||
+          toolName.startsWith('excel_') ||
+          toolName.startsWith('powerpoint_') ||
+          toolName.startsWith('browser_');
+
+        if (isLongRunningTool) {
+          return (
+            <Box key={entry.id} flexDirection="column" marginTop={1}>
+              <Box>
+                <Text color="cyan" bold>{icon} {toolName}</Text>
+                {params && <Text color="gray"> ({params})</Text>}
+              </Box>
+              {truncatedReason && (
+                <Box marginLeft={2}>
+                  <Text color="gray">ㄴ {truncatedReason}</Text>
+                </Box>
+              )}
+            </Box>
+          );
+        }
 
         return (
           <Box key={entry.id} marginTop={1}>
