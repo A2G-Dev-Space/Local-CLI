@@ -13,60 +13,7 @@ import * as os from 'os';
 import { logger } from '../../utils/logger.js';
 import { getStreamLogger } from '../../utils/json-stream-logger.js';
 import { LOCAL_HOME_DIR } from '../../constants.js';
-import { findPowerShellPath } from '../../utils/wsl-utils.js';
-
-/**
- * Check if WSL2 mirrored networking is enabled
- */
-function isMirroredNetworking(): boolean {
-  try {
-    const winUser = execSync('whoami.exe 2>/dev/null', { encoding: 'utf-8' }).trim().split('\\').pop();
-    const wslConfigPath = '/mnt/c/Users/' + winUser + '/.wslconfig';
-
-    if (fs.existsSync(wslConfigPath)) {
-      const content = fs.readFileSync(wslConfigPath, 'utf-8').toLowerCase();
-      if (content.includes('networkingmode=mirrored')) {
-        return true;
-      }
-    }
-  } catch {
-    // Ignore errors
-  }
-  return false;
-}
-
-/**
- * Get Windows host IP from WSL
- */
-function getWindowsHostIP(): string {
-  try {
-    if (isMirroredNetworking()) {
-      return '127.0.0.1';
-    }
-
-    if (fs.existsSync('/etc/resolv.conf')) {
-      const content = fs.readFileSync('/etc/resolv.conf', 'utf-8');
-      const match = content.match(/nameserver\s+(\d+\.\d+\.\d+\.\d+)/);
-      if (match && match[1]) {
-        return match[1];
-      }
-    }
-
-    if (process.env['WSL_HOST_IP']) {
-      return process.env['WSL_HOST_IP'];
-    }
-
-    const routeOutput = execSync('ip route show default 2>/dev/null', { encoding: 'utf-8' });
-    const routeMatch = routeOutput.match(/via\s+(\d+\.\d+\.\d+\.\d+)/);
-    if (routeMatch && routeMatch[1]) {
-      return routeMatch[1];
-    }
-  } catch {
-    // Ignore errors
-  }
-
-  return '127.0.0.1';
-}
+import { findPowerShellPath, getWindowsHostIP } from '../../utils/wsl-utils.js';
 
 interface BrowserResponse {
   success: boolean;
