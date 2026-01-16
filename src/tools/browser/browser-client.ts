@@ -11,10 +11,23 @@ import { spawn, ChildProcess, execSync } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
-import { chromium, Browser, BrowserContext, Page } from 'playwright';
 import { logger } from '../../utils/logger.js';
 import { LOCAL_HOME_DIR } from '../../constants.js';
 import { findPowerShellPath, getWindowsHostIP } from '../../utils/wsl-utils.js';
+
+// Playwright types (dynamic import를 위해 인라인 정의)
+type Browser = import('playwright').Browser;
+type BrowserContext = import('playwright').BrowserContext;
+type Page = import('playwright').Page;
+
+// Dynamic import helper for playwright
+async function getPlaywright() {
+  try {
+    return await import('playwright');
+  } catch (error) {
+    throw new Error('Playwright is not available. Please install it with: npm install playwright');
+  }
+}
 
 interface BrowserResponse {
   success: boolean;
@@ -414,8 +427,9 @@ class BrowserClient {
         };
       }
 
-      // Playwright로 CDP 연결
+      // Playwright로 CDP 연결 (dynamic import)
       logger.debug('[BrowserClient] launch: connecting via CDP...');
+      const { chromium } = await getPlaywright();
       this.browser = await chromium.connectOverCDP(this.getCDPUrl());
 
       // 기존 컨텍스트와 페이지 가져오기 또는 새로 생성

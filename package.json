@@ -27,7 +27,7 @@
     "pkg:win": "npm run bundle && pkg bundle/cli.cjs --targets node20-win-x64 --out-path ./bin -o bin/nexus-win.exe",
     "pkg:mac": "npm run bundle && pkg bundle/cli.cjs --targets node20-macos-x64 --out-path ./bin -o bin/nexus-macos",
     "pkg:all": "npm run bundle && pkg bundle/cli.cjs --targets node20-linux-x64,node20-win-x64,node20-macos-x64 --out-path ./bin",
-    "bun:build": "node scripts/inject-version.js && npm run build && bun build dist/cli.js --compile --outfile bin/nexus && cp node_modules/yoga-wasm-web/dist/yoga.wasm bin/"
+    "bun:build": "node scripts/inject-version.js && npm run build && bun build dist/cli.js --compile --outfile bin/nexus --external playwright --external playwright-core && cp node_modules/yoga-wasm-web/dist/yoga.wasm bin/"
   },
   "pkg": {
     "assets": [
