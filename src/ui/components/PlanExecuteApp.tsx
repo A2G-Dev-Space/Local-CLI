@@ -1683,32 +1683,30 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
           }
         }
 
-        // Office/Browser 도구: 2줄 포맷
+        // Office/Browser 도구: 2줄 포맷 (항상)
         const isLongRunningTool = entry.content?.startsWith('word_') ||
           entry.content?.startsWith('excel_') ||
           entry.content?.startsWith('powerpoint_') ||
           entry.content?.startsWith('browser_');
 
         if (isLongRunningTool) {
-          const lines = displayText.split('\n');
-          const firstLine = lines[0] || '';
-          const restLines = lines.slice(1);
-          const truncatedFirst = firstLine.length > 50 ? firstLine.substring(0, 50) + '...' : firstLine;
           const icon = entry.content?.startsWith('word_') ? '📄' :
                        entry.content?.startsWith('excel_') ? '📊' :
                        entry.content?.startsWith('powerpoint_') ? '📽️' : '🌐';
+          // 결과 메시지 축약 (80자)
+          const resultMsg = displayText || (entry.success ? 'Success' : 'Failed');
+          const truncatedMsg = resultMsg.length > 80 ? resultMsg.substring(0, 80) + '...' : resultMsg;
 
           return (
             <Box key={entry.id} flexDirection="column" marginTop={1}>
               <Box>
                 <Text color="cyan" bold>{icon} {entry.content}</Text>
-                <Text color={entry.success ? 'cyan' : 'red'}> ({entry.success ? '✓' : '✗'} {truncatedFirst})</Text>
               </Box>
-              {restLines.length > 0 && (
-                <Box marginLeft={2}>
-                  <Text color="gray">⎿ {restLines.slice(0, 2).join(' | ')}{restLines.length > 2 ? '...' : ''}</Text>
-                </Box>
-              )}
+              <Box marginLeft={2}>
+                <Text color="gray">⎿ </Text>
+                <Text color={entry.success ? 'cyan' : 'red'}>{entry.success ? '✓' : '✗'} </Text>
+                <Text color={entry.success ? 'gray' : 'red'}>{truncatedMsg}</Text>
+              </Box>
             </Box>
           );
         }
