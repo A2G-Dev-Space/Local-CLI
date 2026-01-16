@@ -33,7 +33,7 @@ import { LLM_AGENT_TOOLS } from './llm/agents/index.js';
 
 // Import optional tools
 import { BROWSER_TOOLS, startBrowserServer, shutdownBrowserServer } from './browser/index.js';
-import { WORD_TOOLS, EXCEL_TOOLS, POWERPOINT_TOOLS, shutdownOfficeServer, startOfficeServer, registerOfficeGroupEnabled } from './office/index.js';
+import { WORD_TOOLS, EXCEL_TOOLS, POWERPOINT_TOOLS } from './office/index.js';
 // Background bash tools are always enabled, imported in initializeToolRegistry
 import { BACKGROUND_BASH_TOOLS } from './llm/simple/background-bash-tool.js';
 
@@ -79,53 +79,9 @@ async function validateBrowserTools(): Promise<EnableResult> {
 }
 
 /**
- * Validation: Start Office server and check connection
- * Returns a factory that creates enable callbacks with groupId registration
- */
-function createOfficeEnableCallback(groupId: string): () => Promise<EnableResult> {
-  return async () => {
-    try {
-      const started = await startOfficeServer();
-      if (!started) {
-        return {
-          success: false,
-          error: `Office 서버에 연결할 수 없습니다.
-
-WSL 사용 시 mirrored networking 설정이 필요합니다:
-1. Windows에서 %USERPROFILE%\\.wslconfig 파일 생성
-2. 다음 내용 추가:
-   [wsl2]
-   networkingMode=mirrored
-3. PowerShell에서 'wsl --shutdown' 실행 후 WSL 재시작
-
-자세한 내용: docs/05_OFFICE_TOOLS.md`,
-        };
-      }
-      // Register this group as enabled for smart shutdown
-      registerOfficeGroupEnabled(groupId);
-      return { success: true };
-    } catch (error) {
-      return {
-        success: false,
-        error: `Office 서버 시작 실패: ${error instanceof Error ? error.message : String(error)}`,
-      };
-    }
-  };
-}
-
-/**
- * Create disable callback that passes groupId for smart shutdown
- */
-function createOfficeDisableCallback(groupId: string): () => Promise<void> {
-  return async () => {
-    await shutdownOfficeServer(groupId);
-  };
-}
-
-/**
  * Available optional tool groups
  * Note: Browser tools require Chrome to be installed, so they are optional
- * Note: Office tools require Windows + Microsoft Office + office-server.exe
+ * Note: Office tools require Windows + Microsoft Office (PowerShell COM automation)
  */
 export const OPTIONAL_TOOL_GROUPS: OptionalToolGroup[] = [
   {
@@ -140,29 +96,23 @@ export const OPTIONAL_TOOL_GROUPS: OptionalToolGroup[] = [
   {
     id: 'word',
     name: 'Microsoft Word',
-    description: 'Control Word for document editing (write, read, save, screenshot)',
+    description: 'Control Word for document editing (write, read, save, export PDF, header/footer)',
     tools: WORD_TOOLS,
     enabled: false,
-    onEnable: createOfficeEnableCallback('word'),
-    onDisable: createOfficeDisableCallback('word'),
   },
   {
     id: 'excel',
     name: 'Microsoft Excel',
-    description: 'Control Excel for spreadsheet editing (cells, ranges, formulas)',
+    description: 'Control Excel for spreadsheet editing (cells, ranges, formulas, charts)',
     tools: EXCEL_TOOLS,
     enabled: false,
-    onEnable: createOfficeEnableCallback('excel'),
-    onDisable: createOfficeDisableCallback('excel'),
   },
   {
     id: 'powerpoint',
     name: 'Microsoft PowerPoint',
-    description: 'Control PowerPoint for presentations (slides, text, images)',
+    description: 'Control PowerPoint for presentations (slides, shapes, transitions, PDF export)',
     tools: POWERPOINT_TOOLS,
     enabled: false,
-    onEnable: createOfficeEnableCallback('powerpoint'),
-    onDisable: createOfficeDisableCallback('powerpoint'),
   },
 ];
 
@@ -493,7 +443,7 @@ export function initializeToolRegistry(): void {
   // LLM Agent Tools (docs-search internal tools)
   toolRegistry.registerAll(LLM_AGENT_TOOLS);
 
-  // Note: Optional tools (Browser) are registered via /tool command
+  // Note: Optional tools (Browser, Word, Excel, PowerPoint) are registered via /tool command
 }
 
 /**
