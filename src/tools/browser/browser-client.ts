@@ -340,9 +340,8 @@ class BrowserClient {
     try {
       if (this.platform === 'native-windows' || this.platform === 'wsl') {
         // Use PowerShell to kill processes on Windows
-        const psPath = this.platform === 'wsl' ? 'powershell.exe' : 'powershell.exe';
         execSync(
-          `${psPath} -Command "Get-NetTCPConnection -LocalPort ${this.cdpPort} -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }"`,
+          `powershell.exe -Command "Get-NetTCPConnection -LocalPort ${this.cdpPort} -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }"`,
           { stdio: 'ignore', timeout: 5000 }
         );
       } else {
@@ -552,7 +551,7 @@ class BrowserClient {
 
       logger.debug(`[BrowserClient] launch: using ${this.browserType} at ${browserPath}`);
 
-      // Browser arguments
+      // Common browser arguments (without user-data-dir)
       const baseArgs = [
         `--remote-debugging-port=${this.cdpPort}`,
         '--no-first-run',
@@ -578,19 +577,9 @@ class BrowserClient {
         });
       } else if (this.platform === 'wsl') {
         // WSL - use PowerShell to launch Windows browser
-        const argsWithDir = [
-          `--remote-debugging-port=${this.cdpPort}`,
-          '--user-data-dir=$dir',
-          '--no-first-run',
-          '--no-default-browser-check',
-          '--disable-popup-blocking',
-          '--start-maximized',
-        ];
-        if (headless) {
-          argsWithDir.push('--headless=new');
-        }
-
-        const argsString = argsWithDir.map(arg => `"${arg}"`).join(',');
+        // We need to use a PowerShell variable ($dir) for user-data-dir
+        const argsForPowerShell = ['--user-data-dir=$dir', ...baseArgs];
+        const argsString = argsForPowerShell.map(arg => `"${arg}"`).join(',');
         const psCommand = `$dir = "$env:LOCALAPPDATA\\local-cli-browser-profile"; Start-Process -FilePath '${browserPath}' -ArgumentList ${argsString}`;
 
         logger.debug(`[BrowserClient] launch: executing PowerShell command from WSL`);
@@ -697,9 +686,8 @@ class BrowserClient {
       try {
         if (this.platform === 'native-windows' || this.platform === 'wsl') {
           const processName = this.browserType === 'chrome' ? 'chrome.exe' : 'msedge.exe';
-          const psPath = this.platform === 'wsl' ? 'powershell.exe' : 'powershell.exe';
           execSync(
-            `${psPath} -Command "Get-WmiObject Win32_Process -Filter \\"name='${processName}'\\" | Where-Object { \\$_.CommandLine -like '*local-cli*' } | ForEach-Object { Stop-Process -Id \\$_.ProcessId -Force -ErrorAction SilentlyContinue }"`,
+            `powershell.exe -Command "Get-WmiObject Win32_Process -Filter \\"name='${processName}'\\" | Where-Object { \\$_.CommandLine -like '*local-cli*' } | ForEach-Object { Stop-Process -Id \\$_.ProcessId -Force -ErrorAction SilentlyContinue }"`,
             { stdio: 'ignore', timeout: 10000 }
           );
         } else {
