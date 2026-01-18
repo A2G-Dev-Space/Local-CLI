@@ -10,11 +10,14 @@
 import { spawn, ChildProcess, execSync } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
-import * as os from 'os';
 import WebSocket from 'ws';
 import { logger } from '../../utils/logger.js';
 import { LOCAL_HOME_DIR } from '../../constants.js';
-import { findPowerShellPath } from '../../utils/wsl-utils.js';
+import {
+  getPlatform,
+  getPowerShellPath,
+  Platform,
+} from '../../utils/platform-utils.js';
 
 // ===========================================================================
 // Types
@@ -224,7 +227,7 @@ class CDPConnection {
 class BrowserClient {
   private cdp: CDPConnection | null = null;
   private browserProcess: ChildProcess | null = null;
-  private isWSL: boolean = false;
+  private platform: Platform;
   private cdpPort: number = 9222;
   private browserType: 'chrome' | 'edge' = 'chrome';
   private screenshotDir: string;
@@ -234,8 +237,8 @@ class BrowserClient {
   private networkLogs: NetworkLogEntry[] = [];
 
   constructor() {
-    this.isWSL = this.detectWSL();
-    logger.debug('[BrowserClient] constructor: isWSL = ' + this.isWSL);
+    this.platform = getPlatform();
+    logger.debug('[BrowserClient] constructor: platform = ' + this.platform);
 
     // Create screenshot directory
     this.screenshotDir = path.join(LOCAL_HOME_DIR, 'screenshots', 'browser');
@@ -244,15 +247,6 @@ class BrowserClient {
     }
 
     logger.debug('[BrowserClient] constructor: CDP URL = ' + this.getCDPUrl());
-  }
-
-  private detectWSL(): boolean {
-    try {
-      const release = os.release().toLowerCase();
-      return release.includes('wsl') || release.includes('microsoft');
-    } catch {
-      return false;
-    }
   }
 
   /**
@@ -270,12 +264,21 @@ class BrowserClient {
   }
 
   /**
-   * Find browser executable path on Windows
+   * Find browser executable path based on platform
    */
-  private findBrowserPath(paths: string[]): string | null {
-    if (this.isWSL) {
+  private findBrowserPath(windowsPaths: string[], linuxPaths?: string[]): string | null {
+    // Native Windows - direct file system check
+    if (this.platform === 'native-windows') {
+      for (const p of windowsPaths) {
+        if (fs.existsSync(p)) return p;
+      }
+      return null;
+    }
+
+    // WSL - use PowerShell to check Windows paths
+    if (this.platform === 'wsl') {
       try {
-        const conditions = paths.map(p => `if (Test-Path '${p}') { Write-Output '${p}' }`).join(' else');
+        const conditions = windowsPaths.map(p => `if (Test-Path '${p}') { Write-Output '${p}' }`).join(' elseif ');
         const result = execSync(
           `powershell.exe -Command "${conditions}"`,
           { encoding: 'utf-8', timeout: 5000 }
@@ -284,8 +287,12 @@ class BrowserClient {
       } catch {
         // Ignore
       }
-    } else {
-      for (const p of paths) {
+      return null;
+    }
+
+    // Native Linux - check Linux paths
+    if (linuxPaths) {
+      for (const p of linuxPaths) {
         if (fs.existsSync(p)) return p;
       }
     }
@@ -293,17 +300,36 @@ class BrowserClient {
   }
 
   private findChromePath(): string | null {
-    return this.findBrowserPath([
-      'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-      'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-    ]);
+    return this.findBrowserPath(
+      // Windows paths
+      [
+        'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+        'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+      ],
+      // Linux paths
+      [
+        '/usr/bin/google-chrome',
+        '/usr/bin/google-chrome-stable',
+        '/usr/bin/chromium',
+        '/usr/bin/chromium-browser',
+        '/snap/bin/chromium',
+      ]
+    );
   }
 
   private findEdgePath(): string | null {
-    return this.findBrowserPath([
-      'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
-      'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
-    ]);
+    return this.findBrowserPath(
+      // Windows paths
+      [
+        'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+        'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+      ],
+      // Linux paths (Edge for Linux)
+      [
+        '/usr/bin/microsoft-edge',
+        '/usr/bin/microsoft-edge-stable',
+      ]
+    );
   }
 
   /**
@@ -312,10 +338,26 @@ class BrowserClient {
   private killExistingBrowser(): void {
     logger.debug('[BrowserClient] killExistingBrowser: killing processes on port ' + this.cdpPort);
     try {
-      execSync(
-        `powershell.exe -Command "Get-NetTCPConnection -LocalPort ${this.cdpPort} -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }"`,
-        { stdio: 'ignore', timeout: 5000 }
-      );
+      if (this.platform === 'native-windows' || this.platform === 'wsl') {
+        // Use PowerShell to kill processes on Windows
+        const psPath = this.platform === 'wsl' ? 'powershell.exe' : 'powershell.exe';
+        execSync(
+          `${psPath} -Command "Get-NetTCPConnection -LocalPort ${this.cdpPort} -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }"`,
+          { stdio: 'ignore', timeout: 5000 }
+        );
+      } else {
+        // Native Linux - use fuser or lsof
+        try {
+          execSync(`fuser -k ${this.cdpPort}/tcp 2>/dev/null || true`, { stdio: 'ignore', timeout: 5000 });
+        } catch {
+          // Try lsof as fallback
+          try {
+            execSync(`lsof -ti:${this.cdpPort} | xargs -r kill -9 2>/dev/null || true`, { stdio: 'ignore', timeout: 5000 });
+          } catch {
+            // Ignore
+          }
+        }
+      }
     } catch {
       // Ignore errors
     }
@@ -510,10 +552,9 @@ class BrowserClient {
 
       logger.debug(`[BrowserClient] launch: using ${this.browserType} at ${browserPath}`);
 
-      // PowerShell로 브라우저 시작
-      const args = [
+      // Browser arguments
+      const baseArgs = [
         `--remote-debugging-port=${this.cdpPort}`,
-        '--user-data-dir=$dir',
         '--no-first-run',
         '--no-default-browser-check',
         '--disable-popup-blocking',
@@ -521,19 +562,55 @@ class BrowserClient {
       ];
 
       if (headless) {
-        args.push('--headless=new');
+        baseArgs.push('--headless=new');
       }
 
-      const argsString = args.map(arg => `"${arg}"`).join(',');
-      const psCommand = `$dir = "$env:LOCALAPPDATA\\local-cli-browser-profile"; Start-Process -FilePath '${browserPath}' -ArgumentList ${argsString}`;
+      // Launch browser based on platform
+      if (this.platform === 'native-windows') {
+        // Native Windows - spawn directly with user data dir
+        const userDataDir = `${process.env['LOCALAPPDATA']}\\local-cli-browser-profile`;
+        const args = [...baseArgs, `--user-data-dir=${userDataDir}`];
 
-      logger.debug(`[BrowserClient] launch: executing PowerShell command`);
+        logger.debug(`[BrowserClient] launch: spawning browser directly on Windows`);
+        this.browserProcess = spawn(browserPath, args, {
+          detached: true,
+          stdio: 'ignore',
+        });
+      } else if (this.platform === 'wsl') {
+        // WSL - use PowerShell to launch Windows browser
+        const argsWithDir = [
+          `--remote-debugging-port=${this.cdpPort}`,
+          '--user-data-dir=$dir',
+          '--no-first-run',
+          '--no-default-browser-check',
+          '--disable-popup-blocking',
+          '--start-maximized',
+        ];
+        if (headless) {
+          argsWithDir.push('--headless=new');
+        }
 
-      const powershellPath = this.isWSL ? findPowerShellPath() : 'powershell.exe';
-      this.browserProcess = spawn(powershellPath, ['-Command', psCommand], {
-        detached: true,
-        stdio: 'ignore',
-      });
+        const argsString = argsWithDir.map(arg => `"${arg}"`).join(',');
+        const psCommand = `$dir = "$env:LOCALAPPDATA\\local-cli-browser-profile"; Start-Process -FilePath '${browserPath}' -ArgumentList ${argsString}`;
+
+        logger.debug(`[BrowserClient] launch: executing PowerShell command from WSL`);
+
+        const powershellPath = getPowerShellPath();
+        this.browserProcess = spawn(powershellPath, ['-Command', psCommand], {
+          detached: true,
+          stdio: 'ignore',
+        });
+      } else {
+        // Native Linux - spawn directly
+        const userDataDir = `${process.env['HOME']}/.local-cli-browser-profile`;
+        const args = [...baseArgs, `--user-data-dir=${userDataDir}`];
+
+        logger.debug(`[BrowserClient] launch: spawning browser directly on Linux`);
+        this.browserProcess = spawn(browserPath, args, {
+          detached: true,
+          stdio: 'ignore',
+        });
+      }
 
       this.browserProcess.unref();
 
@@ -616,13 +693,23 @@ class BrowserClient {
       this.consoleLogs = [];
       this.networkLogs = [];
 
-      // 2. 브라우저 프로세스 종료
+      // 2. 브라우저 프로세스 종료 (platform-specific)
       try {
-        const processName = this.browserType === 'chrome' ? 'chrome.exe' : 'msedge.exe';
-        execSync(
-          `powershell.exe -Command "Get-WmiObject Win32_Process -Filter \\"name='${processName}'\\" | Where-Object { \\$_.CommandLine -like '*local-cli*' } | ForEach-Object { Stop-Process -Id \\$_.ProcessId -Force -ErrorAction SilentlyContinue }"`,
-          { stdio: 'ignore', timeout: 10000 }
-        );
+        if (this.platform === 'native-windows' || this.platform === 'wsl') {
+          const processName = this.browserType === 'chrome' ? 'chrome.exe' : 'msedge.exe';
+          const psPath = this.platform === 'wsl' ? 'powershell.exe' : 'powershell.exe';
+          execSync(
+            `${psPath} -Command "Get-WmiObject Win32_Process -Filter \\"name='${processName}'\\" | Where-Object { \\$_.CommandLine -like '*local-cli*' } | ForEach-Object { Stop-Process -Id \\$_.ProcessId -Force -ErrorAction SilentlyContinue }"`,
+            { stdio: 'ignore', timeout: 10000 }
+          );
+        } else {
+          // Native Linux - kill browser processes with our profile
+          const processName = this.browserType === 'chrome' ? 'chrome' : 'msedge';
+          execSync(
+            `pkill -f "${processName}.*local-cli-browser-profile" 2>/dev/null || true`,
+            { stdio: 'ignore', timeout: 10000 }
+          );
+        }
       } catch {
         // 프로세스가 없거나 이미 종료된 경우
       }

@@ -1,16 +1,15 @@
 /**
- * Background Bash Tool (WSL/Linux Only)
+ * Background PowerShell Tool (Native Windows Only)
  *
- * 백그라운드에서 bash 프로세스를 실행하고 관리하는 도구
+ * 백그라운드에서 PowerShell 프로세스를 실행하고 관리하는 도구
  * npm run dev, npm start 등 장시간 실행되는 명령어에 유용
- * Native Windows에서는 background-powershell-tool 사용
  */
 
 import { spawn, ChildProcess } from 'child_process';
 import { ToolDefinition } from '../../../types/index.js';
 import { LLMSimpleTool, ToolResult, ToolCategory } from '../../types.js';
 import { logger } from '../../../utils/logger.js';
-import { isNativeWindows } from '../../../utils/platform-utils.js';
+import { isNativeWindows, findNativePowerShellPath } from '../../../utils/platform-utils.js';
 
 /**
  * Background process info
@@ -26,9 +25,9 @@ interface BackgroundProcess {
 }
 
 /**
- * Background Process Manager
+ * Background PowerShell Process Manager
  */
-class BackgroundProcessManager {
+class BackgroundPowerShellProcessManager {
   private processes: Map<string, BackgroundProcess> = new Map();
   private nextId = 1;
 
@@ -36,14 +35,12 @@ class BackgroundProcessManager {
    * Start a background process
    */
   start(command: string, cwd?: string): { id: string; pid: number } {
-    const id = `bg-${this.nextId++}`;
+    const id = `ps-bg-${this.nextId++}`;
     const workingDir = cwd || process.cwd();
 
-    // Always use bash on WSL/Linux
-    const shell = '/bin/bash';
-    const shellArgs = ['-c', command];
+    const psPath = findNativePowerShellPath();
 
-    const child = spawn(shell, shellArgs, {
+    const child = spawn(psPath, ['-NoProfile', '-Command', command], {
       cwd: workingDir,
       env: { ...process.env },
       detached: false,
@@ -166,23 +163,23 @@ class BackgroundProcessManager {
 }
 
 // Global instance
-export const backgroundProcessManager = new BackgroundProcessManager();
+export const backgroundPowerShellProcessManager = new BackgroundPowerShellProcessManager();
 
 /**
- * bash_background Tool Definition
+ * powershell_background Tool Definition
  */
-const BASH_BACKGROUND_DEFINITION: ToolDefinition = {
+const POWERSHELL_BACKGROUND_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
-    name: 'bash_background',
-    description: `Start a command in the background. Use this for long-running processes like:
+    name: 'powershell_background',
+    description: `Start a PowerShell command in the background on Windows. Use this for long-running processes like:
 - npm run dev (development server)
 - npm start (application server)
 - python -m http.server (simple HTTP server)
 - docker-compose up
 
 The command will continue running after this tool returns.
-Use bash_background_status to check output, or bash_background_kill to stop it.`,
+Use powershell_background_status to check output, or powershell_background_kill to stop it.`,
     parameters: {
       type: 'object',
       properties: {
@@ -192,7 +189,7 @@ Use bash_background_status to check output, or bash_background_kill to stop it.`
         },
         command: {
           type: 'string',
-          description: 'The command to run in background',
+          description: 'The PowerShell command to run in background',
         },
         cwd: {
           type: 'string',
@@ -204,27 +201,27 @@ Use bash_background_status to check output, or bash_background_kill to stop it.`
   },
 };
 
-async function executeBashBackground(args: Record<string, unknown>): Promise<ToolResult> {
+async function executePowerShellBackground(args: Record<string, unknown>): Promise<ToolResult> {
   const command = args['command'] as string;
   const cwd = args['cwd'] as string | undefined;
 
-  logger.enter('bashBackground.execute', { command, cwd });
+  logger.enter('powershellBackground.execute', { command, cwd });
 
-  // Check platform - should only run on WSL/Linux
-  if (isNativeWindows()) {
+  // Check platform - should only run on Native Windows
+  if (!isNativeWindows()) {
     return {
       success: false,
-      error: 'bash_background tool is not available on Native Windows. Use powershell_background instead.',
+      error: 'powershell_background tool is only available on Native Windows. Use bash_background instead.',
     };
   }
 
   try {
-    const { id, pid } = backgroundProcessManager.start(command, cwd);
+    const { id, pid } = backgroundPowerShellProcessManager.start(command, cwd);
 
     // Wait a moment to check if it started successfully
     await new Promise(r => setTimeout(r, 1000));
 
-    const status = backgroundProcessManager.getStatus(id);
+    const status = backgroundPowerShellProcessManager.getStatus(id);
     const running = status?.running ?? false;
 
     if (!running) {
@@ -235,11 +232,11 @@ async function executeBashBackground(args: Record<string, unknown>): Promise<Too
       };
     }
 
-    logger.exit('bashBackground.execute', { id, pid });
+    logger.exit('powershellBackground.execute', { id, pid });
 
     return {
       success: true,
-      result: `Background process started\nID: ${id}\nPID: ${pid}\nCommand: ${command}\n\nUse bash_background_status with id="${id}" to check output.\nUse bash_background_kill with id="${id}" to stop it.`,
+      result: `Background process started\nID: ${id}\nPID: ${pid}\nCommand: ${command}\n\nUse powershell_background_status with id="${id}" to check output.\nUse powershell_background_kill with id="${id}" to stop it.`,
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -250,21 +247,21 @@ async function executeBashBackground(args: Record<string, unknown>): Promise<Too
   }
 }
 
-export const bashBackgroundTool: LLMSimpleTool = {
-  definition: BASH_BACKGROUND_DEFINITION,
-  execute: executeBashBackground,
+export const powershellBackgroundTool: LLMSimpleTool = {
+  definition: POWERSHELL_BACKGROUND_DEFINITION,
+  execute: executePowerShellBackground,
   categories: ['llm-simple'] as ToolCategory[],
-  description: 'Run command in background',
+  description: 'Run PowerShell command in background',
 };
 
 /**
- * bash_background_status Tool Definition
+ * powershell_background_status Tool Definition
  */
-const BASH_BACKGROUND_STATUS_DEFINITION: ToolDefinition = {
+const POWERSHELL_BACKGROUND_STATUS_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
-    name: 'bash_background_status',
-    description: `Check the status and recent output of a background process.
+    name: 'powershell_background_status',
+    description: `Check the status and recent output of a background PowerShell process.
 Use this to see if a server started successfully or to check for errors.`,
     parameters: {
       type: 'object',
@@ -275,7 +272,7 @@ Use this to see if a server started successfully or to check for errors.`,
         },
         id: {
           type: 'string',
-          description: 'The process ID (e.g., "bg-1") returned by bash_background',
+          description: 'The process ID (e.g., "ps-bg-1") returned by powershell_background',
         },
       },
       required: ['reason', 'id'],
@@ -283,27 +280,27 @@ Use this to see if a server started successfully or to check for errors.`,
   },
 };
 
-async function executeBashBackgroundStatus(args: Record<string, unknown>): Promise<ToolResult> {
+async function executePowerShellBackgroundStatus(args: Record<string, unknown>): Promise<ToolResult> {
   const id = args['id'] as string;
 
   // Check platform
-  if (isNativeWindows()) {
+  if (!isNativeWindows()) {
     return {
       success: false,
-      error: 'bash_background_status tool is not available on Native Windows.',
+      error: 'powershell_background_status tool is only available on Native Windows.',
     };
   }
 
-  const status = backgroundProcessManager.getStatus(id);
+  const status = backgroundPowerShellProcessManager.getStatus(id);
 
   if (!status) {
     // Check if it's a list request
     if (!id || id === 'list') {
-      const processes = backgroundProcessManager.list();
+      const processes = backgroundPowerShellProcessManager.list();
       if (processes.length === 0) {
         return {
           success: true,
-          result: 'No background processes running.',
+          result: 'No background PowerShell processes running.',
         };
       }
 
@@ -314,7 +311,7 @@ async function executeBashBackgroundStatus(args: Record<string, unknown>): Promi
 
       return {
         success: true,
-        result: `Background processes:\n${list}`,
+        result: `Background PowerShell processes:\n${list}`,
       };
     }
 
@@ -335,21 +332,21 @@ async function executeBashBackgroundStatus(args: Record<string, unknown>): Promi
   };
 }
 
-export const bashBackgroundStatusTool: LLMSimpleTool = {
-  definition: BASH_BACKGROUND_STATUS_DEFINITION,
-  execute: executeBashBackgroundStatus,
+export const powershellBackgroundStatusTool: LLMSimpleTool = {
+  definition: POWERSHELL_BACKGROUND_STATUS_DEFINITION,
+  execute: executePowerShellBackgroundStatus,
   categories: ['llm-simple'] as ToolCategory[],
-  description: 'Check background process status',
+  description: 'Check background PowerShell process status',
 };
 
 /**
- * bash_background_kill Tool Definition
+ * powershell_background_kill Tool Definition
  */
-const BASH_BACKGROUND_KILL_DEFINITION: ToolDefinition = {
+const POWERSHELL_BACKGROUND_KILL_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
-    name: 'bash_background_kill',
-    description: `Stop a background process.
+    name: 'powershell_background_kill',
+    description: `Stop a background PowerShell process.
 Use this to stop development servers, watchers, or other long-running processes.`,
     parameters: {
       type: 'object',
@@ -360,7 +357,7 @@ Use this to stop development servers, watchers, or other long-running processes.
         },
         id: {
           type: 'string',
-          description: 'The process ID (e.g., "bg-1") to kill, or "all" to kill all background processes',
+          description: 'The process ID (e.g., "ps-bg-1") to kill, or "all" to kill all background processes',
         },
       },
       required: ['reason', 'id'],
@@ -368,26 +365,26 @@ Use this to stop development servers, watchers, or other long-running processes.
   },
 };
 
-async function executeBashBackgroundKill(args: Record<string, unknown>): Promise<ToolResult> {
+async function executePowerShellBackgroundKill(args: Record<string, unknown>): Promise<ToolResult> {
   const id = args['id'] as string;
 
   // Check platform
-  if (isNativeWindows()) {
+  if (!isNativeWindows()) {
     return {
       success: false,
-      error: 'bash_background_kill tool is not available on Native Windows.',
+      error: 'powershell_background_kill tool is only available on Native Windows.',
     };
   }
 
   if (id === 'all') {
-    const killed = backgroundProcessManager.killAll();
+    const killed = backgroundPowerShellProcessManager.killAll();
     return {
       success: true,
-      result: `Killed ${killed} background process(es).`,
+      result: `Killed ${killed} background PowerShell process(es).`,
     };
   }
 
-  const success = backgroundProcessManager.kill(id);
+  const success = backgroundPowerShellProcessManager.kill(id);
 
   if (!success) {
     return {
@@ -402,18 +399,18 @@ async function executeBashBackgroundKill(args: Record<string, unknown>): Promise
   };
 }
 
-export const bashBackgroundKillTool: LLMSimpleTool = {
-  definition: BASH_BACKGROUND_KILL_DEFINITION,
-  execute: executeBashBackgroundKill,
+export const powershellBackgroundKillTool: LLMSimpleTool = {
+  definition: POWERSHELL_BACKGROUND_KILL_DEFINITION,
+  execute: executePowerShellBackgroundKill,
   categories: ['llm-simple'] as ToolCategory[],
-  description: 'Kill background process',
+  description: 'Kill background PowerShell process',
 };
 
 /**
- * All background bash tools
+ * All background PowerShell tools
  */
-export const BACKGROUND_BASH_TOOLS: LLMSimpleTool[] = [
-  bashBackgroundTool,
-  bashBackgroundStatusTool,
-  bashBackgroundKillTool,
+export const BACKGROUND_POWERSHELL_TOOLS: LLMSimpleTool[] = [
+  powershellBackgroundTool,
+  powershellBackgroundStatusTool,
+  powershellBackgroundKillTool,
 ];

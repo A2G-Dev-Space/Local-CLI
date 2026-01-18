@@ -1,31 +1,33 @@
 /**
- * Bash Tool (WSL/Linux Only)
+ * PowerShell Tool (Native Windows Only)
  *
- * LLM이 bash shell 명령어를 실행할 수 있게 해주는 도구
- * WSL 및 Native Linux 환경에서만 등록됨
- * Native Windows에서는 powershell 도구를 사용
+ * LLM이 PowerShell 명령어를 실행할 수 있게 해주는 도구
+ * Native Windows 환경에서만 등록됨
  */
 
 import { spawn } from 'child_process';
 import { ToolDefinition } from '../../../types/index.js';
 import { LLMSimpleTool, ToolResult, ToolCategory } from '../../types.js';
 import { logger } from '../../../utils/logger.js';
-import { isNativeWindows, isDangerousBashCommand } from '../../../utils/platform-utils.js';
+import {
+  isNativeWindows,
+  findNativePowerShellPath,
+  isDangerousPowerShellCommand,
+} from '../../../utils/platform-utils.js';
 
 /**
- * Bash 명령어 실행 (WSL/Linux only)
+ * Execute PowerShell command
  */
-async function executeBash(
+async function executePowerShell(
   command: string,
   cwd?: string,
   timeout: number = 30000
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   return new Promise((resolve, reject) => {
-    // Always use bash on WSL/Linux
-    const shell = '/bin/bash';
-    const shellArgs = ['-c', command];
+    const psPath = findNativePowerShellPath();
 
-    const child = spawn(shell, shellArgs, {
+    // Use -NoProfile for faster startup, -Command for direct execution
+    const child = spawn(psPath, ['-NoProfile', '-Command', command], {
       cwd: cwd || process.cwd(),
       env: { ...process.env },
     });
@@ -70,19 +72,20 @@ async function executeBash(
 }
 
 /**
- * Bash Tool Definition
+ * PowerShell Tool Definition
  */
-const BASH_TOOL_DEFINITION: ToolDefinition = {
+const POWERSHELL_TOOL_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
-    name: 'bash',
-    description: `Execute a shell command. Use this to run terminal commands like git, npm, docker, python, etc.
+    name: 'powershell',
+    description: `Execute a PowerShell command on Windows. Use this to run terminal commands like git, npm, docker, python, etc.
 
 IMPORTANT:
 - Do NOT use for file reading/writing - use read_file, create_file, edit_file instead
 - Commands have a 30 second timeout by default
-- Dangerous commands (rm -rf /, sudo rm, etc.) are blocked
-- Output is truncated if too long`,
+- Dangerous commands (Remove-Item -Recurse -Force C:\\, Stop-Computer, etc.) are blocked
+- Output is truncated if too long
+- PowerShell 7 (pwsh) is used if available, otherwise PowerShell 5.1`,
     parameters: {
       type: 'object',
       properties: {
@@ -98,7 +101,7 @@ Examples:
         },
         command: {
           type: 'string',
-          description: 'The shell command to execute',
+          description: 'The PowerShell command to execute',
         },
         cwd: {
           type: 'string',
@@ -115,10 +118,10 @@ Examples:
 };
 
 /**
- * Bash Tool (LLM Simple)
+ * PowerShell Tool (LLM Simple)
  */
-export const bashTool: LLMSimpleTool = {
-  definition: BASH_TOOL_DEFINITION,
+export const powershellTool: LLMSimpleTool = {
+  definition: POWERSHELL_TOOL_DEFINITION,
   categories: ['llm-simple'] as ToolCategory[],
 
   async execute(args: Record<string, unknown>): Promise<ToolResult> {
@@ -126,13 +129,13 @@ export const bashTool: LLMSimpleTool = {
     const cwd = args['cwd'] as string | undefined;
     const timeout = (args['timeout'] as number) || 30000;
 
-    logger.enter('bashTool.execute', { command, cwd, timeout });
+    logger.enter('powershellTool.execute', { command, cwd, timeout });
 
-    // Check platform - should only run on WSL/Linux
-    if (isNativeWindows()) {
+    // Check platform - should only run on Native Windows
+    if (!isNativeWindows()) {
       return {
         success: false,
-        error: 'bash tool is not available on Native Windows. Use powershell instead.',
+        error: 'powershell tool is only available on Native Windows. Use bash instead.',
       };
     }
 
@@ -145,8 +148,8 @@ export const bashTool: LLMSimpleTool = {
     }
 
     // Check for dangerous commands
-    if (isDangerousBashCommand(command)) {
-      logger.warn('Dangerous command blocked', { command });
+    if (isDangerousPowerShellCommand(command)) {
+      logger.warn('Dangerous PowerShell command blocked', { command });
       return {
         success: false,
         error: 'This command is blocked for safety reasons',
@@ -154,7 +157,7 @@ export const bashTool: LLMSimpleTool = {
     }
 
     try {
-      const execResult = await executeBash(command, cwd, timeout);
+      const execResult = await executePowerShell(command, cwd, timeout);
 
       // Combine output
       let output = '';
@@ -176,7 +179,7 @@ export const bashTool: LLMSimpleTool = {
         output += `\n\n[Exit code: ${execResult.exitCode}]`;
       }
 
-      logger.exit('bashTool.execute', { exitCode: execResult.exitCode, outputLength: output.length });
+      logger.exit('powershellTool.execute', { exitCode: execResult.exitCode, outputLength: output.length });
 
       // Return with error field when command fails
       if (execResult.exitCode !== 0) {
@@ -192,7 +195,7 @@ export const bashTool: LLMSimpleTool = {
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error('bashTool.execute failed', error as Error);
+      logger.error('powershellTool.execute failed', error as Error);
 
       return {
         success: false,
@@ -202,4 +205,4 @@ export const bashTool: LLMSimpleTool = {
   },
 };
 
-export default bashTool;
+export default powershellTool;
