@@ -7,6 +7,7 @@
  */
 
 import { spawn, ChildProcess } from 'child_process';
+import * as fs from 'fs';
 import { ToolDefinition } from '../../../types/index.js';
 import { LLMSimpleTool, ToolResult, ToolCategory } from '../../types.js';
 import { logger } from '../../../utils/logger.js';
@@ -216,6 +217,24 @@ async function executeBashBackground(args: Record<string, unknown>): Promise<Too
       success: false,
       error: 'bash_background tool is not available on Native Windows. Use powershell_background instead.',
     };
+  }
+
+  // Validate cwd exists and is a directory
+  if (cwd) {
+    if (!fs.existsSync(cwd)) {
+      logger.warn('Invalid cwd provided (does not exist)', { cwd });
+      return {
+        success: false,
+        error: `Working directory does not exist: ${cwd}`,
+      };
+    }
+    if (!fs.statSync(cwd).isDirectory()) {
+      logger.warn('Invalid cwd provided (not a directory)', { cwd });
+      return {
+        success: false,
+        error: `Working directory path is not a directory: ${cwd}`,
+      };
+    }
   }
 
   try {
