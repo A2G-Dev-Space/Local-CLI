@@ -282,12 +282,22 @@ $found = $findObj.Execute([ref]'${escapedFind}', [ref]$false, [ref]$false, [ref]
 `);
   }
 
-  async wordSetStyle(styleName: string): Promise<OfficeResponse> {
+  async wordSetStyle(styleName: string, preserveKoreanFont: boolean = true): Promise<OfficeResponse> {
     const escapedStyle = styleName.replace(/'/g, "''");
+
+    // Preserve Korean font after style change to prevent garbled text
+    const fontPreserveScript = preserveKoreanFont ? `
+# Check if selection contains Korean text and preserve font
+$selectedText = $selection.Text
+if ($selectedText -match '[가-힣ㄱ-ㅎㅏ-ㅣ]') {
+  $selection.Font.Name = 'Malgun Gothic'
+}` : '';
+
     return this.executePowerShell(`
 $word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
 $selection = $word.Selection
 $selection.Style = '${escapedStyle}'
+${fontPreserveScript}
 @{ success = $true; message = "Style '${escapedStyle}' applied" } | ConvertTo-Json -Compress
 `);
   }
@@ -350,7 +360,7 @@ $doc = $word.ActiveDocument
 $section = $doc.Sections(1)
 $header = $section.Headers(1).Range
 $header.Text = '${escapedText}'
-${fontName ? `$header.Font.Name = '${fontName.replace(/'/g, "''")}'` : ''}
+${fontName ? `$header.Font.Name = '${fontName}'` : ''}
 ${options?.fontSize ? `$header.Font.Size = ${options.fontSize}` : ''}
 @{ success = $true; message = "Header added" } | ConvertTo-Json -Compress
 `);
@@ -538,7 +548,7 @@ $startCell.Merge($endCell)
 `);
   }
 
-  async wordSetTableStyle(tableIndex: number, styleName: string): Promise<OfficeResponse> {
+  async wordSetTableStyle(tableIndex: number, styleName: string, preserveKoreanFont: boolean = true): Promise<OfficeResponse> {
     const escapedStyle = styleName.replace(/'/g, "''");
 
     // Map common style names to Word's built-in style constants (wdBuiltinStyle)
@@ -553,6 +563,14 @@ $startCell.Merge($endCell)
     const lowerStyleName = styleName.toLowerCase();
     const styleConst = styleConstMap[lowerStyleName];
 
+    // Preserve Korean font after style change to prevent garbled text
+    const fontPreserveScript = preserveKoreanFont ? `
+# Check if table contains Korean text and preserve font
+$tableText = $table.Range.Text
+if ($tableText -match '[가-힣ㄱ-ㅎㅏ-ㅣ]') {
+  $table.Range.Font.Name = 'Malgun Gothic'
+}` : '';
+
     return this.executePowerShell(`
 $word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
 $doc = $word.ActiveDocument
@@ -561,11 +579,13 @@ try {
   ${styleConst !== undefined
     ? `$table.Style = ${styleConst}`
     : `$table.Style = '${escapedStyle}'`}
+  ${fontPreserveScript}
   @{ success = $true; message = "Table style set" } | ConvertTo-Json -Compress
 } catch {
   # Try with style name directly if constant fails
   try {
     $table.Style = '${escapedStyle}'
+    ${fontPreserveScript}
     @{ success = $true; message = "Table style set to '${escapedStyle}'" } | ConvertTo-Json -Compress
   } catch {
     @{ success = $false; error = "Style '${escapedStyle}' not found. Try: 'Table Grid', 'Table Normal', or numeric style index." } | ConvertTo-Json -Compress
@@ -874,40 +894,44 @@ $doc.PageSetup.PaperSize = ${paperSize}
       const rgb = this.hexToRgb(options.color);
       return rgb ? rgb.r + rgb.g * 256 + rgb.b * 65536 : 12632256; // default light gray
     })() : 12632256;
-    const semitransparent = options?.semitransparent !== false ? '$true' : '$false';
+    const semitransparent = options?.semitransparent !== false ? '0.5' : '0';
 
     return this.executePowerShell(`
 $word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
 $doc = $word.ActiveDocument
 
-# Switch to Print Layout view to access headers (wdPrintView = 3)
-$word.ActiveWindow.View.Type = 3
+# Store original view and switch to Print Layout to access headers
+$originalView = $word.ActiveWindow.View.Type
+$word.ActiveWindow.View.Type = 3  # wdPrintView
 
-# Add watermark to header
-$section = $doc.Sections(1)
-$header = $section.Headers(1)  # wdHeaderFooterPrimary = 1
-$headerRange = $header.Range
+try {
+  # Add watermark to header
+  $section = $doc.Sections(1)
+  $header = $section.Headers(1)  # wdHeaderFooterPrimary = 1
 
-# Create text effect shape
-$shape = $header.Shapes.AddTextEffect(0, '${escapedText}', '${fontName}', ${fontSize}, 0, 0, 0, 0)
-$shape.Select()
-$shape.Name = "PowerPlusWaterMarkObject"
-$shape.TextEffect.NormalizedHeight = 0
-$shape.Line.Visible = 0
-$shape.Fill.Visible = -1
-$shape.Fill.Solid()
-$shape.Fill.ForeColor.RGB = ${colorValue}
-$shape.Fill.Transparency = $(if (${semitransparent}) { 0.5 } else { 0 })
-$shape.Rotation = 315
-$shape.LockAspectRatio = -1
-$shape.Height = 100
-$shape.Width = 350
-$shape.Left = -999995  # wdShapeCenter
-$shape.Top = -999995   # wdShapeCenter
-$shape.WrapFormat.AllowOverlap = -1
-$shape.WrapFormat.Type = 3  # wdWrapBehind
+  # Create text effect shape (without Select to avoid view access issues)
+  $shape = $header.Shapes.AddTextEffect(0, '${escapedText}', '${fontName}', ${fontSize}, 0, 0, 0, 0)
+  $shape.Name = "PowerPlusWaterMarkObject"
+  $shape.TextEffect.NormalizedHeight = 0
+  $shape.Line.Visible = 0
+  $shape.Fill.Visible = -1
+  $shape.Fill.Solid()
+  $shape.Fill.ForeColor.RGB = ${colorValue}
+  $shape.Fill.Transparency = ${semitransparent}
+  $shape.Rotation = 315
+  $shape.LockAspectRatio = -1
+  $shape.Height = 100
+  $shape.Width = 350
+  $shape.Left = -999995  # wdShapeCenter
+  $shape.Top = -999995   # wdShapeCenter
+  $shape.WrapFormat.AllowOverlap = -1
+  $shape.WrapFormat.Type = 3  # wdWrapBehind
 
-@{ success = $true; message = "Watermark added" } | ConvertTo-Json -Compress
+  @{ success = $true; message = "Watermark added" } | ConvertTo-Json -Compress
+} finally {
+  # Restore original view
+  $word.ActiveWindow.View.Type = $originalView
+}
 `);
   }
 
@@ -1097,14 +1121,15 @@ $stats = $doc.ComputeStatistics(0)  # wdStatisticWords
   // -------------------------------------------------------------------------
 
   async wordSetColumns(count: number, spacing?: number): Promise<OfficeResponse> {
-    const spacingScript = spacing !== undefined ? `$pageSetup.ColumnWidth = ${spacing}` : '';
+    // spacing is the gap between columns in points (1 inch = 72 points)
+    const spacingScript = spacing !== undefined ? `$pageSetup.TextColumns.Spacing = ${spacing}` : '';
     return this.executePowerShell(`
 $word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
 $doc = $word.ActiveDocument
 $pageSetup = $doc.PageSetup
 $pageSetup.TextColumns.SetCount(${count})
 ${spacingScript}
-@{ success = $true; message = "Columns set to ${count}" } | ConvertTo-Json -Compress
+@{ success = $true; message = "Columns set to ${count}${spacing !== undefined ? ` with spacing ${spacing}pt` : ''}" } | ConvertTo-Json -Compress
 `);
   }
 
