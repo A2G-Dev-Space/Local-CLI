@@ -125,30 +125,46 @@ export class LLMClient {
   /**
    * Preprocess messages for model-specific requirements
    *
-   * Handles model-specific quirks like Harmony format for gpt-oss models
+   * Handles:
+   * 1. reasoning_content → content conversion (for reasoning LLM responses)
+   * 2. Harmony format for gpt-oss models
    */
   private preprocessMessages(messages: Message[], modelId: string): Message[] {
-    // gpt-oss-120b / gpt-oss-20b: Harmony format handling
-    // These models require content field even when tool_calls are present
-    if (/^gpt-oss-(120b|20b)$/i.test(modelId)) {
-      return messages.map((msg) => {
-        // Check if this is an assistant message with tool_calls but no content
-        if (msg.role === 'assistant' && msg.tool_calls && msg.tool_calls.length > 0) {
-          if (!msg.content || msg.content.trim() === '') {
-            // Add default content to satisfy Harmony format requirements
+    return messages.map((msg) => {
+      // Skip non-assistant messages
+      if (msg.role !== 'assistant') {
+        return msg;
+      }
+
+      const msgAny = msg as any;
+      let processedMsg = { ...msg };
+
+      // Handle reasoning_content from reasoning LLMs (DeepSeek-V3, etc.)
+      // When switching between reasoning LLM and regular LLM, content field is required
+      if (msgAny.reasoning_content && (!msg.content || msg.content.trim() === '')) {
+        processedMsg.content = msgAny.reasoning_content;
+        // Remove reasoning_content to avoid confusion
+        delete (processedMsg as any).reasoning_content;
+      }
+
+      // gpt-oss-120b / gpt-oss-20b: Harmony format handling
+      // These models require content field even when tool_calls are present
+      if (/^gpt-oss-(120b|20b)$/i.test(modelId)) {
+        if (msg.tool_calls && msg.tool_calls.length > 0) {
+          if (!processedMsg.content || processedMsg.content.trim() === '') {
             const toolNames = msg.tool_calls.map(tc => tc.function.name).join(', ');
-            return {
-              ...msg,
-              content: (msg as any).reasoning || `Calling tools: ${toolNames}`,
-            };
+            processedMsg.content = msgAny.reasoning || `Calling tools: ${toolNames}`;
           }
         }
-        return msg;
-      });
-    }
+      }
 
-    // Default: return messages as-is for standard OpenAI-compatible models
-    return messages;
+      // Ensure content is at least empty string for assistant messages
+      if (processedMsg.content === undefined || processedMsg.content === null) {
+        processedMsg.content = '';
+      }
+
+      return processedMsg;
+    });
   }
 
   /**

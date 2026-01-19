@@ -1,0 +1,111 @@
+/**
+ * Office Common Utilities
+ *
+ * Shared utility functions for Office tools (Word, Excel, PowerPoint)
+ */
+
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import { OFFICE_SCREENSHOT_DIR } from './constants.js';
+
+/**
+ * Save a base64-encoded screenshot to the office screenshots directory
+ * @param base64Image - Base64 encoded image data
+ * @param appName - Application name (e.g., 'word', 'excel', 'powerpoint')
+ * @returns The full path to the saved screenshot file
+ */
+export async function saveScreenshot(base64Image: string, appName: string): Promise<string> {
+  await fs.mkdir(OFFICE_SCREENSHOT_DIR, { recursive: true });
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const filename = `${appName}_${timestamp}.png`;
+  const filePath = path.join(OFFICE_SCREENSHOT_DIR, filename);
+  const buffer = Buffer.from(base64Image, 'base64');
+  await fs.writeFile(filePath, buffer);
+  return filePath;
+}
+
+/**
+ * Convert hex color string to RGB values
+ * @param hex - Hex color string (e.g., '#FF0000' or 'FF0000')
+ * @returns RGB object or null if invalid format
+ */
+export function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!result || !result[1] || !result[2] || !result[3]) return null;
+  return {
+    r: parseInt(result[1], 16),
+    g: parseInt(result[2], 16),
+    b: parseInt(result[3], 16),
+  };
+}
+
+/**
+ * Convert RGB to Office BGR color value
+ * Office COM uses BGR format: B + G*256 + R*65536
+ * @param hex - Hex color string
+ * @returns BGR color value for Office COM or 0 if invalid
+ */
+export function hexToBgrColor(hex: string): number {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return 0;
+  return rgb.r + rgb.g * 256 + rgb.b * 65536;
+}
+
+/**
+ * Check if text contains Korean characters
+ * @param text - Text to check
+ * @returns true if contains Korean characters
+ */
+export function hasKoreanText(text: string): boolean {
+  return /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(text);
+}
+
+/**
+ * Get recommended font name for text (auto-detect Korean)
+ * @param text - Text to check
+ * @param defaultFont - Default font for non-Korean text (optional)
+ * @returns Font name ('맑은 고딕' for Korean, defaultFont otherwise)
+ */
+export function getRecommendedFont(text: string, defaultFont?: string): string | undefined {
+  if (hasKoreanText(text)) {
+    return '맑은 고딕';
+  }
+  return defaultFont;
+}
+
+/**
+ * Escape single quotes for PowerShell string
+ * @param str - String to escape
+ * @returns Escaped string
+ */
+export function escapePowerShellString(str: string): string {
+  return str.replace(/'/g, "''");
+}
+
+/**
+ * Convert column letter (A, B, ..., Z, AA, AB, ...) to number (1, 2, ..., 26, 27, 28, ...)
+ * @param column - Column letter(s)
+ * @returns Column number (1-based)
+ */
+export function columnLetterToNumber(column: string): number {
+  let result = 0;
+  for (let i = 0; i < column.length; i++) {
+    result = result * 26 + (column.charCodeAt(i) - 'A'.charCodeAt(0) + 1);
+  }
+  return result;
+}
+
+/**
+ * Convert column number (1, 2, ..., 26, 27, 28, ...) to letter (A, B, ..., Z, AA, AB, ...)
+ * @param num - Column number (1-based)
+ * @returns Column letter(s)
+ */
+export function columnNumberToLetter(num: number): string {
+  let result = '';
+  while (num > 0) {
+    num--;
+    result = String.fromCharCode('A'.charCodeAt(0) + (num % 26)) + result;
+    num = Math.floor(num / 26);
+  }
+  return result;
+}
