@@ -73,13 +73,18 @@ export async function loadFileList(): Promise<FileItem[]> {
     // ============================================================
     const filesOnly = filteredFiles.filter((file) => file.type === 'file');
 
-    // Sort files alphabetically
-    // (When directories are enabled, uncomment the sorting logic below)
+    // Sort files by depth first (root files first), then alphabetically
     filesOnly.sort((a, b) => {
-      // if (a.type === b.type) {
-      //   return a.path.localeCompare(b.path);
-      // }
-      // return a.type === 'directory' ? -1 : 1;
+      // Count path depth (number of slashes)
+      const depthA = (a.path.match(/\//g) || []).length;
+      const depthB = (b.path.match(/\//g) || []).length;
+
+      // Sort by depth first (shallower paths come first)
+      if (depthA !== depthB) {
+        return depthA - depthB;
+      }
+
+      // Same depth - sort alphabetically
       return a.path.localeCompare(b.path);
     });
 

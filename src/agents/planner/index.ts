@@ -204,9 +204,20 @@ Choose either 'create_todos' or 'respond_to_user' now.`,
         }
 
         // No tool call - this should not happen with tool_choice: "required"
-        // But handle it defensively
-        logger.warn(`Planning LLM returned no tool call (attempt ${attempt}/${MAX_RETRIES})`);
-        lastError = new Error('Planning LLM must use either create_todos or respond_to_user tool');
+        // But some LLMs ignore tool_choice and return content only - force retry
+        const contentOnly = message?.content;
+        if (contentOnly) {
+          logger.warn(`Planning LLM returned content without tool call (attempt ${attempt}/${MAX_RETRIES})`, {
+            contentPreview: contentOnly.substring(0, 100),
+          });
+          lastError = new Error(
+            'You MUST call either create_todos or respond_to_user tool. ' +
+            'Do NOT respond with plain text. Use the tools provided.'
+          );
+        } else {
+          logger.warn(`Planning LLM returned no tool call and no content (attempt ${attempt}/${MAX_RETRIES})`);
+          lastError = new Error('Planning LLM must use either create_todos or respond_to_user tool');
+        }
         // Continue to next retry
       } catch (error) {
         // Network or API error - will retry
