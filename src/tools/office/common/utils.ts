@@ -61,14 +61,19 @@ export function hasKoreanText(text: string): boolean {
 }
 
 /**
+ * Default Korean font name (English name works on all Windows regardless of UI language)
+ */
+export const KOREAN_FONT = 'Malgun Gothic';
+
+/**
  * Get recommended font name for text (auto-detect Korean)
  * @param text - Text to check
  * @param defaultFont - Default font for non-Korean text (optional)
- * @returns Font name ('맑은 고딕' for Korean, defaultFont otherwise)
+ * @returns Font name ('Malgun Gothic' for Korean, defaultFont otherwise)
  */
 export function getRecommendedFont(text: string, defaultFont?: string): string | undefined {
   if (hasKoreanText(text)) {
-    return '맑은 고딕';
+    return KOREAN_FONT;
   }
   return defaultFont;
 }

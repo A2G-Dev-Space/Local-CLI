@@ -29,13 +29,13 @@ By default, a new paragraph is created after the text (new_paragraph=true).
 This prevents formatting from bleeding between sections.
 Set new_paragraph=false only when continuing on the same line.
 IMPORTANT: Always specify font_name and font_size for proper formatting.
-Recommended: font_name="맑은 고딕" or "Arial", font_size=11 for body text, 16-24 for titles.`,
+Recommended: font_name="Malgun Gothic" or "Arial", font_size=11 for body text, 16-24 for titles.`,
     parameters: {
       type: 'object',
       properties: {
         reason: { type: 'string', description: 'Explanation of why you are writing this text' },
         text: { type: 'string', description: 'The text to write to the document' },
-        font_name: { type: 'string', description: 'Font name (e.g., "Arial", "Times New Roman", "맑은 고딕")' },
+        font_name: { type: 'string', description: 'Font name (e.g., "Arial", "Times New Roman", "Malgun Gothic")' },
         font_size: { type: 'number', description: 'Font size in points (e.g., 12, 14, 16)' },
         bold: { type: 'boolean', description: 'Whether to make the text bold' },
         italic: { type: 'boolean', description: 'Whether to make the text italic' },

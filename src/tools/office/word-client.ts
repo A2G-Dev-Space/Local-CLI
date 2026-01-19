@@ -46,10 +46,11 @@ $doc = $word.Documents.Add()
     const escapedText = text.replace(/'/g, "''").replace(/`/g, '``');
 
     // Auto-detect Korean text and set appropriate font if not specified
+    // Use 'Malgun Gothic' (English name) for compatibility with all Windows language settings
     const hasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(text);
     let fontName = options?.fontName?.replace(/'/g, "''") || '';
     if (!fontName && hasKorean) {
-      fontName = '맑은 고딕'; // Malgun Gothic - default Korean font in Windows
+      fontName = 'Malgun Gothic'; // Korean font (works on all Windows regardless of UI language)
     }
 
     const fontSize = options?.fontSize || 0;
@@ -215,7 +216,7 @@ $doc.Hyperlinks.Add($range, '${escapedUrl}', '', '', '${escapedText}')
     }
 
     // Set Korean font for the table if Korean text is detected
-    const fontScript = hasKorean ? "$table.Range.Font.Name = '맑은 고딕'" : '';
+    const fontScript = hasKorean ? "$table.Range.Font.Name = 'Malgun Gothic'" : '';
 
     return this.executePowerShell(`
 $word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
@@ -341,7 +342,7 @@ ${isBookmark
     const escapedText = text.replace(/'/g, "''");
     // Auto-detect Korean and set font
     const hasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(text);
-    const fontName = options?.fontName || (hasKorean ? '맑은 고딕' : '');
+    const fontName = options?.fontName || (hasKorean ? 'Malgun Gothic' : '');
 
     return this.executePowerShell(`
 $word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
@@ -359,7 +360,7 @@ ${options?.fontSize ? `$header.Font.Size = ${options.fontSize}` : ''}
     const escapedText = text.replace(/'/g, "''");
     // Auto-detect Korean and set font
     const hasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(text);
-    const fontName = options?.fontName || (hasKorean ? '맑은 고딕' : '');
+    const fontName = options?.fontName || (hasKorean ? 'Malgun Gothic' : '');
 
     return this.executePowerShell(`
 $word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
@@ -503,7 +504,7 @@ try {
     const hasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(text);
     let fontName = options?.fontName?.replace(/'/g, "''") || '';
     if (!fontName && hasKorean) {
-      fontName = '맑은 고딕';
+      fontName = 'Malgun Gothic';
     }
 
     return this.executePowerShell(`
@@ -632,7 +633,7 @@ try {
 $word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
 $doc = $word.ActiveDocument
 $selection = $word.Selection
-${text ? `${hasKorean ? "$selection.Font.Name = '맑은 고딕'" : ''}
+${text ? `${hasKorean ? "$selection.Font.Name = 'Malgun Gothic'" : ''}
 $selection.TypeText('${escapedText}')
 $selection.MoveLeft(1, ${originalTextLength}, 1)` : ''}
 $doc.Bookmarks.Add('${escapedName}', $selection.Range)
@@ -755,7 +756,7 @@ while ($doc.Comments.Count -gt 0) {
       const escaped = item.replace(/'/g, "''");
       const hasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(item);
       // Set font BEFORE TypeText to prevent garbled Korean
-      return `${hasKorean ? "$selection.Font.Name = '맑은 고딕'" : ''}
+      return `${hasKorean ? "$selection.Font.Name = 'Malgun Gothic'" : ''}
 $selection.TypeText('${escaped}')
 $selection.TypeParagraph()`;
     }).join('\n');
@@ -775,7 +776,7 @@ $selection.Range.ListFormat.RemoveNumbers()
       const escaped = item.replace(/'/g, "''");
       const hasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(item);
       // Set font BEFORE TypeText to prevent garbled Korean
-      return `${hasKorean ? "$selection.Font.Name = '맑은 고딕'" : ''}
+      return `${hasKorean ? "$selection.Font.Name = 'Malgun Gothic'" : ''}
 $selection.TypeText('${escaped}')
 $selection.TypeParagraph()`;
     }).join('\n');
@@ -946,7 +947,7 @@ foreach ($section in $doc.Sections) {
     const hasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(text);
     let fontName = options?.fontName?.replace(/'/g, "''") || '';
     if (!fontName && hasKorean) {
-      fontName = '맑은 고딕';
+      fontName = 'Malgun Gothic';
     }
 
     const commands: string[] = [];
