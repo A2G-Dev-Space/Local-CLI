@@ -76,8 +76,8 @@ export async function loadFileList(): Promise<FileItem[]> {
     // Sort files by depth first (root files first), then alphabetically
     filesOnly.sort((a, b) => {
       // Count path depth (number of slashes)
-      const depthA = (a.path.match(/\//g) || []).length;
-      const depthB = (b.path.match(/\//g) || []).length;
+      const depthA = a.path.split('/').length - 1;
+      const depthB = b.path.split('/').length - 1;
 
       // Sort by depth first (shallower paths come first)
       if (depthA !== depthB) {

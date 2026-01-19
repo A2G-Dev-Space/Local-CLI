@@ -211,8 +211,7 @@ Choose either 'create_todos' or 'respond_to_user' now.`,
             contentPreview: contentOnly.substring(0, 100),
           });
           lastError = new Error(
-            'You MUST call either create_todos or respond_to_user tool. ' +
-            'Do NOT respond with plain text. Use the tools provided.'
+            'You MUST call either create_todos or respond_to_user tool. Do NOT respond with plain text. Use the tools provided.'
           );
         } else {
           logger.warn(`Planning LLM returned no tool call and no content (attempt ${attempt}/${MAX_RETRIES})`);
