@@ -22,6 +22,7 @@ export type LogEntryType =
   | 'assistant_message'
   | 'tool_start'
   | 'tool_result'
+  | 'shell_result'
   | 'tell_user'
   | 'plan_created'
   | 'todo_start'
@@ -1119,7 +1120,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
           const success = code === 0;
 
           addLog({
-            type: 'tool_result',
+            type: 'shell_result',
             content: output.trim() || (success ? '(no output)' : `Exit code: ${code}`),
             success,
           });
@@ -1127,14 +1128,14 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
 
         child.on('error', (err: Error) => {
           addLog({
-            type: 'tool_result',
+            type: 'shell_result',
             content: `Error: ${err.message}`,
             success: false,
           });
         });
       } catch (err) {
         addLog({
-          type: 'tool_result',
+          type: 'shell_result',
           content: `Error: ${err instanceof Error ? err.message : String(err)}`,
           success: false,
         });
@@ -1485,6 +1486,16 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
     return activityType;
   };
 
+  // Check if any panel is open (for disabling history navigation)
+  const isAnyPanelOpen =
+    fileBrowserState.showFileBrowser ||
+    commandBrowserState.showCommandBrowser ||
+    showToolSelector ||
+    showSettings ||
+    showModelSelector ||
+    showSessionBrowser ||
+    showDocsBrowser;
+
   // Render a single log entry
   const renderLogEntry = (entry: LogEntry) => {
     switch (entry.type) {
@@ -1700,6 +1711,14 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         // tool_result 표시 제거 - tool_start에서 reason만 표시
         return null;
 
+      case 'shell_result':
+        return (
+          <Box key={entry.id} marginLeft={2}>
+            <Text color="gray">⎿ </Text>
+            <Text color={entry.success ? 'white' : 'red'}>{entry.content}</Text>
+          </Box>
+        );
+
       case 'tell_user':
         return (
           <Box key={entry.id} marginTop={1}>
@@ -1891,8 +1910,8 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
                 setInput(value);
               }}
               onSubmit={handleSubmit}
-              onHistoryPrev={fileBrowserState.showFileBrowser || commandBrowserState.showCommandBrowser ? undefined : handleHistoryPrev}
-              onHistoryNext={fileBrowserState.showFileBrowser || commandBrowserState.showCommandBrowser ? undefined : handleHistoryNext}
+              onHistoryPrev={isAnyPanelOpen ? undefined : handleHistoryPrev}
+              onHistoryNext={isAnyPanelOpen ? undefined : handleHistoryNext}
               placeholder={
                 isProcessing
                   ? "AI is working..."
