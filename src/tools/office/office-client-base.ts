@@ -108,9 +108,12 @@ export class OfficeClientBase {
    */
   protected async executePowerShell(script: string): Promise<OfficeResponse> {
     return new Promise((resolve) => {
-      // Wrap script with JSON error handling and UTF-8 output encoding
+      // Wrap script with JSON error handling and comprehensive UTF-8 encoding
+      // This ensures Korean/CJK text is handled correctly
       const wrappedScript = `
+[Console]::InputEncoding = [System.Text.Encoding]::UTF8
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
 $ErrorActionPreference = "Stop"
 try {
 ${script}
