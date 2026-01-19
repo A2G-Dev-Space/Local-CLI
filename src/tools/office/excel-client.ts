@@ -147,16 +147,30 @@ $value = $sheet.Range('${cell}').Value2
     // Check for Korean text in any cell
     let hasKorean = false;
 
+    // Helper to convert value to PowerShell format
+    const toPsValue = (v: unknown): string => {
+      const str = String(v);
+      if (/[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(str)) hasKorean = true;
+
+      // Numbers: output without quotes
+      if (typeof v === 'number' || (str !== '' && !isNaN(Number(str)) && str.trim() !== '')) {
+        return str;
+      }
+      // ISO date (YYYY-MM-DD): convert to OADate expression
+      if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+        const [year, month, day] = str.split('-');
+        return `([DateTime]::new(${year},${month},${day})).ToOADate()`;
+      }
+      // Default: string with escaped quotes
+      return `'${str.replace(/'/g, "''")}'`;
+    };
+
     // Build PowerShell 2D array
     const arrayLines: string[] = [];
     for (let i = 0; i < values.length; i++) {
       const row = values[i];
       if (!row) continue;
-      const rowValues = row.map(v => {
-        const str = String(v);
-        if (/[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(str)) hasKorean = true;
-        return `'${str.replace(/'/g, "''")}'`;
-      }).join(',');
+      const rowValues = row.map(v => toPsValue(v)).join(',');
       arrayLines.push(`@(${rowValues})`);
     }
     const arrayScript = `@(${arrayLines.join(',')})`;
