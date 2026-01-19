@@ -6,7 +6,7 @@
 
 import { ToolDefinition } from '../../../types/index.js';
 import { LLMSimpleTool, ToolResult } from '../../types.js';
-import { officeClient } from '../office-client.js';
+import { wordClient } from '../word-client.js';
 import { OFFICE_CATEGORIES } from '../common/index.js';
 
 // =============================================================================
@@ -34,7 +34,7 @@ const WORD_SET_PAGE_MARGINS_DEFINITION: ToolDefinition = {
 
 async function executeWordSetPageMargins(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.wordSetPageMargins({
+    const response = await wordClient.wordSetPageMargins({
       top: args['top'] as number | undefined,
       bottom: args['bottom'] as number | undefined,
       left: args['left'] as number | undefined,
@@ -78,7 +78,7 @@ const WORD_SET_PAGE_ORIENTATION_DEFINITION: ToolDefinition = {
 
 async function executeWordSetPageOrientation(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.wordSetPageOrientation(args['orientation'] as 'portrait' | 'landscape');
+    const response = await wordClient.wordSetPageOrientation(args['orientation'] as 'portrait' | 'landscape');
     if (response.success) {
       return { success: true, result: `Page orientation set to ${args['orientation']}` };
     }
@@ -119,7 +119,7 @@ const WORD_SET_PAGE_SIZE_DEFINITION: ToolDefinition = {
 
 async function executeWordSetPageSize(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.wordSetPageSize(
+    const response = await wordClient.wordSetPageSize(
       args['size'] as 'A4' | 'Letter' | 'Legal' | 'A3' | 'B5' | 'custom',
       args['width'] as number | undefined,
       args['height'] as number | undefined
@@ -163,7 +163,7 @@ const WORD_SET_COLUMNS_DEFINITION: ToolDefinition = {
 
 async function executeWordSetColumns(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.wordSetColumns(
+    const response = await wordClient.wordSetColumns(
       args['count'] as number,
       args['spacing'] as number | undefined
     );

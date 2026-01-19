@@ -9,7 +9,7 @@
 
 import { ToolDefinition } from '../../../types/index.js';
 import { LLMSimpleTool, ToolResult } from '../../types.js';
-import { officeClient } from '../office-client.js';
+import { excelClient } from '../excel-client.js';
 import { OFFICE_CATEGORIES } from '../common/constants.js';
 
 // =============================================================================
@@ -35,7 +35,7 @@ const EXCEL_ADD_SHEET_DEFINITION: ToolDefinition = {
 
 async function executeExcelAddSheet(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.excelAddSheet(
+    const response = await excelClient.excelAddSheet(
       args['name'] as string | undefined,
       args['position'] as string | undefined
     );
@@ -77,7 +77,7 @@ const EXCEL_DELETE_SHEET_DEFINITION: ToolDefinition = {
 
 async function executeExcelDeleteSheet(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.excelDeleteSheet(args['name'] as string);
+    const response = await excelClient.excelDeleteSheet(args['name'] as string);
     if (response.success) {
       return { success: true, result: `Sheet deleted: ${args['name']}` };
     }
@@ -117,7 +117,7 @@ const EXCEL_RENAME_SHEET_DEFINITION: ToolDefinition = {
 
 async function executeExcelRenameSheet(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.excelRenameSheet(
+    const response = await excelClient.excelRenameSheet(
       args['old_name'] as string,
       args['new_name'] as string
     );
@@ -158,7 +158,7 @@ const EXCEL_GET_SHEETS_DEFINITION: ToolDefinition = {
 
 async function executeExcelGetSheets(_args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.excelGetSheets();
+    const response = await excelClient.excelGetSheets();
     if (response.success) {
       const sheets = response['sheets'] as string[] || [];
       return { success: true, result: `Sheets: ${sheets.join(', ')}` };
@@ -198,7 +198,7 @@ const EXCEL_SELECT_SHEET_DEFINITION: ToolDefinition = {
 
 async function executeExcelSelectSheet(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.excelSelectSheet(args['name'] as string);
+    const response = await excelClient.excelSelectSheet(args['name'] as string);
     if (response.success) {
       return { success: true, result: `Sheet "${args['name']}" activated` };
     }

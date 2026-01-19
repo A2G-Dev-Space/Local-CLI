@@ -6,7 +6,7 @@
 
 import { ToolDefinition } from '../../../types/index.js';
 import { LLMSimpleTool, ToolResult } from '../../types.js';
-import { officeClient } from '../office-client.js';
+import { excelClient } from '../excel-client.js';
 import { OFFICE_CATEGORIES } from '../common/constants.js';
 
 // =============================================================================
@@ -32,7 +32,7 @@ const EXCEL_EXPORT_PDF_DEFINITION: ToolDefinition = {
 
 async function executeExcelExportPDF(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.excelExportPDF(
+    const response = await excelClient.excelExportPDF(
       args['path'] as string,
       args['sheet'] as string | undefined
     );
@@ -75,7 +75,7 @@ const EXCEL_PRINT_DEFINITION: ToolDefinition = {
 
 async function executeExcelPrint(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.excelPrint(
+    const response = await excelClient.excelPrint(
       args['copies'] as number ?? 1,
       args['sheet'] as string | undefined
     );

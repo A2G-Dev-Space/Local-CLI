@@ -5,10 +5,9 @@
  */
 
 import { ToolDefinition } from '../../../types/index.js';
-import { LLMSimpleTool, ToolResult, ToolCategory } from '../../types.js';
-import { officeClient } from '../office-client.js';
-
-const OFFICE_CATEGORIES: ToolCategory[] = ['llm-simple'];
+import { LLMSimpleTool, ToolResult } from '../../types.js';
+import { wordClient } from '../word-client.js';
+import { OFFICE_CATEGORIES } from '../common/constants.js';
 
 // =============================================================================
 // Word Undo
@@ -32,7 +31,7 @@ const WORD_UNDO_DEFINITION: ToolDefinition = {
 
 async function executeWordUndo(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.wordUndo(args['times'] as number ?? 1);
+    const response = await wordClient.wordUndo(args['times'] as number ?? 1);
     if (response.success) {
       return { success: true, result: response.message || 'Undo performed' };
     }
@@ -71,7 +70,7 @@ const WORD_REDO_DEFINITION: ToolDefinition = {
 
 async function executeWordRedo(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.wordRedo(args['times'] as number ?? 1);
+    const response = await wordClient.wordRedo(args['times'] as number ?? 1);
     if (response.success) {
       return { success: true, result: response.message || 'Redo performed' };
     }

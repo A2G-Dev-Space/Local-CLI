@@ -7,7 +7,7 @@
 
 import { ToolDefinition } from '../../../types/index.js';
 import { LLMSimpleTool, ToolResult } from '../../types.js';
-import { officeClient } from '../office-client.js';
+import { excelClient } from '../excel-client.js';
 import { OFFICE_CATEGORIES } from '../common/index.js';
 
 // =============================================================================
@@ -38,7 +38,7 @@ const EXCEL_SET_FONT_DEFINITION: ToolDefinition = {
 
 async function executeExcelSetFont(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.excelSetFont(
+    const response = await excelClient.excelSetFont(
       args['range'] as string,
       {
         fontName: args['font_name'] as string | undefined,
@@ -89,7 +89,7 @@ const EXCEL_SET_FILL_DEFINITION: ToolDefinition = {
 
 async function executeExcelSetFill(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.excelSetFill(
+    const response = await excelClient.excelSetFill(
       args['range'] as string,
       args['color'] as string,
       args['sheet'] as string | undefined
@@ -135,7 +135,7 @@ Common formats: "#,##0" (thousands), "0.00" (2 decimals), "0%" (percent), "yyyy-
 
 async function executeExcelSetNumberFormat(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.excelSetNumberFormat(
+    const response = await excelClient.excelSetNumberFormat(
       args['range'] as string,
       args['format'] as string,
       args['sheet'] as string | undefined
@@ -181,7 +181,7 @@ const EXCEL_SET_BORDER_DEFINITION: ToolDefinition = {
 
 async function executeExcelSetBorder(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.excelSetBorder(
+    const response = await excelClient.excelSetBorder(
       args['range'] as string,
       {
         style: args['style'] as 'thin' | 'medium' | 'thick' | 'double' | 'dotted' | 'dashed' | undefined,
@@ -231,7 +231,7 @@ const EXCEL_SET_ALIGNMENT_DEFINITION: ToolDefinition = {
 
 async function executeExcelSetAlignment(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.excelSetAlignment(
+    const response = await excelClient.excelSetAlignment(
       args['range'] as string,
       {
         horizontal: args['horizontal'] as 'left' | 'center' | 'right' | undefined,
@@ -279,7 +279,7 @@ const EXCEL_MERGE_CELLS_DEFINITION: ToolDefinition = {
 
 async function executeExcelMergeCells(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.excelMergeCells(
+    const response = await excelClient.excelMergeCells(
       args['range'] as string,
       args['sheet'] as string | undefined
     );
@@ -322,7 +322,7 @@ const EXCEL_UNMERGE_CELLS_DEFINITION: ToolDefinition = {
 
 async function executeExcelUnmergeCells(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.excelUnmergeCells(
+    const response = await excelClient.excelUnmergeCells(
       args['range'] as string,
       args['sheet'] as string | undefined
     );

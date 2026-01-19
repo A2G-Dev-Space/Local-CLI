@@ -5,10 +5,9 @@
  */
 
 import { ToolDefinition } from '../../../types/index.js';
-import { LLMSimpleTool, ToolResult, ToolCategory } from '../../types.js';
-import { officeClient } from '../office-client.js';
-
-const OFFICE_CATEGORIES: ToolCategory[] = ['llm-simple'];
+import { LLMSimpleTool, ToolResult } from '../../types.js';
+import { wordClient } from '../word-client.js';
+import { OFFICE_CATEGORIES } from '../common/constants.js';
 
 // =============================================================================
 // Word Add Comment
@@ -33,7 +32,7 @@ const WORD_ADD_COMMENT_DEFINITION: ToolDefinition = {
 
 async function executeWordAddComment(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.wordAddComment(
+    const response = await wordClient.wordAddComment(
       args['text'] as string,
       args['author'] as string | undefined
     );
@@ -74,7 +73,7 @@ const WORD_GET_COMMENTS_DEFINITION: ToolDefinition = {
 
 async function executeWordGetComments(_args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.wordGetComments();
+    const response = await wordClient.wordGetComments();
     if (response.success) {
       const comments = response['comments'] as Array<{ index: number; author: string; text: string; scope: string }> || [];
       const count = response['count'] as number || 0;
@@ -119,7 +118,7 @@ const WORD_DELETE_COMMENT_DEFINITION: ToolDefinition = {
 
 async function executeWordDeleteComment(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.wordDeleteComment(args['index'] as number);
+    const response = await wordClient.wordDeleteComment(args['index'] as number);
     if (response.success) {
       return { success: true, result: `Comment ${args['index']} deleted` };
     }
@@ -157,7 +156,7 @@ const WORD_DELETE_ALL_COMMENTS_DEFINITION: ToolDefinition = {
 
 async function executeWordDeleteAllComments(_args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.wordDeleteAllComments();
+    const response = await wordClient.wordDeleteAllComments();
     if (response.success) {
       return { success: true, result: response.message || 'All comments deleted' };
     }

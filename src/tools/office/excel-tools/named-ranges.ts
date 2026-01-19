@@ -7,7 +7,7 @@
 
 import { ToolDefinition } from '../../../types/index.js';
 import { LLMSimpleTool, ToolResult } from '../../types.js';
-import { officeClient } from '../office-client.js';
+import { excelClient } from '../excel-client.js';
 import { OFFICE_CATEGORIES } from '../common/index.js';
 
 // =============================================================================
@@ -34,7 +34,7 @@ const EXCEL_CREATE_NAMED_RANGE_DEFINITION: ToolDefinition = {
 
 async function executeExcelCreateNamedRange(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.excelCreateNamedRange(
+    const response = await excelClient.excelCreateNamedRange(
       args['name'] as string,
       args['range'] as string,
       args['sheet'] as string | undefined
@@ -76,7 +76,7 @@ const EXCEL_GET_NAMED_RANGES_DEFINITION: ToolDefinition = {
 
 async function executeExcelGetNamedRanges(_args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.excelGetNamedRanges();
+    const response = await excelClient.excelGetNamedRanges();
     if (response.success) {
       const ranges = response['named_ranges'] as Array<{ name: string; refersTo: string }> || [];
       if (ranges.length === 0) {
@@ -120,7 +120,7 @@ const EXCEL_DELETE_NAMED_RANGE_DEFINITION: ToolDefinition = {
 
 async function executeExcelDeleteNamedRange(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.excelDeleteNamedRange(args['name'] as string);
+    const response = await excelClient.excelDeleteNamedRange(args['name'] as string);
     if (response.success) {
       return { success: true, result: `Named range "${args['name']}" deleted` };
     }

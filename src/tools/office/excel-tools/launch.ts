@@ -7,7 +7,7 @@
 
 import { ToolDefinition } from '../../../types/index.js';
 import { LLMSimpleTool, ToolResult } from '../../types.js';
-import { officeClient } from '../office-client.js';
+import { excelClient } from '../excel-client.js';
 import { saveScreenshot } from '../common/utils.js';
 import { OFFICE_SCREENSHOT_PATH_DESC, OFFICE_CATEGORIES } from '../common/constants.js';
 
@@ -34,7 +34,7 @@ The Excel window will be visible so you can see the changes in real-time.`,
 
 async function executeExcelLaunch(_args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.excelLaunch();
+    const response = await excelClient.excelLaunch();
     if (response.success) {
       return { success: true, result: response.message || 'Excel launched successfully' };
     }
@@ -72,7 +72,7 @@ const EXCEL_CREATE_DEFINITION: ToolDefinition = {
 
 async function executeExcelCreate(_args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.excelCreate();
+    const response = await excelClient.excelCreate();
     if (response.success) {
       return { success: true, result: response.message || 'New workbook created' };
     }
@@ -111,7 +111,7 @@ const EXCEL_OPEN_DEFINITION: ToolDefinition = {
 
 async function executeExcelOpen(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.excelOpen(args['path'] as string);
+    const response = await excelClient.excelOpen(args['path'] as string);
     if (response.success) {
       return { success: true, result: `Workbook opened: ${response['workbook_name'] || args['path']}` };
     }
@@ -150,7 +150,7 @@ const EXCEL_SAVE_DEFINITION: ToolDefinition = {
 
 async function executeExcelSave(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.excelSave(args['path'] as string | undefined);
+    const response = await excelClient.excelSave(args['path'] as string | undefined);
     if (response.success) {
       return { success: true, result: `Workbook saved: ${response['path'] || 'current location'}` };
     }
@@ -189,7 +189,7 @@ Captures the used range and saves to ${OFFICE_SCREENSHOT_PATH_DESC}.`,
 
 async function executeExcelScreenshot(_args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.excelScreenshot();
+    const response = await excelClient.excelScreenshot();
     if (response.success && response.image) {
       const filePath = await saveScreenshot(response.image, 'excel');
       return {
@@ -232,7 +232,7 @@ const EXCEL_CLOSE_DEFINITION: ToolDefinition = {
 
 async function executeExcelClose(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.excelClose(args['save'] === true);
+    const response = await excelClient.excelClose(args['save'] === true);
     if (response.success) {
       return { success: true, result: `Workbook closed${args['save'] ? ' (saved)' : ''}` };
     }
@@ -271,7 +271,7 @@ const EXCEL_QUIT_DEFINITION: ToolDefinition = {
 
 async function executeExcelQuit(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.excelQuit(args['save'] === true);
+    const response = await excelClient.excelQuit(args['save'] === true);
     if (response.success) {
       return { success: true, result: `Excel closed${args['save'] ? ' (all workbooks saved)' : ''}` };
     }

@@ -7,7 +7,7 @@
 
 import { ToolDefinition } from '../../../types/index.js';
 import { LLMSimpleTool, ToolResult } from '../../types.js';
-import { officeClient } from '../office-client.js';
+import { excelClient } from '../excel-client.js';
 import { OFFICE_CATEGORIES } from '../common/index.js';
 
 // =============================================================================
@@ -39,7 +39,7 @@ const EXCEL_ADD_CONDITIONAL_FORMAT_DEFINITION: ToolDefinition = {
 
 async function executeExcelAddConditionalFormat(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.excelAddConditionalFormat(
+    const response = await excelClient.excelAddConditionalFormat(
       args['range'] as string,
       args['format_type'] as 'cellValue' | 'colorScale' | 'dataBar' | 'iconSet' | 'duplicates' | 'top10',
       {
@@ -90,7 +90,7 @@ const EXCEL_CLEAR_CONDITIONAL_FORMAT_DEFINITION: ToolDefinition = {
 
 async function executeExcelClearConditionalFormat(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.excelClearConditionalFormat(
+    const response = await excelClient.excelClearConditionalFormat(
       args['range'] as string,
       args['sheet'] as string | undefined
     );
@@ -141,7 +141,7 @@ const EXCEL_SET_DATA_VALIDATION_DEFINITION: ToolDefinition = {
 
 async function executeExcelSetDataValidation(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.excelSetDataValidation(
+    const response = await excelClient.excelSetDataValidation(
       args['range'] as string,
       args['validation_type'] as 'list' | 'whole' | 'decimal' | 'date' | 'textLength' | 'custom',
       {
@@ -194,7 +194,7 @@ const EXCEL_CLEAR_DATA_VALIDATION_DEFINITION: ToolDefinition = {
 
 async function executeExcelClearDataValidation(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.excelClearDataValidation(
+    const response = await excelClient.excelClearDataValidation(
       args['range'] as string,
       args['sheet'] as string | undefined
     );

@@ -6,7 +6,7 @@
 
 import { ToolDefinition } from '../../../types/index.js';
 import { LLMSimpleTool, ToolResult } from '../../types.js';
-import { officeClient } from '../office-client.js';
+import { wordClient } from '../word-client.js';
 import { OFFICE_CATEGORIES } from '../common/constants.js';
 
 // =============================================================================
@@ -31,7 +31,7 @@ const WORD_CREATE_BULLET_LIST_DEFINITION: ToolDefinition = {
 
 async function executeWordCreateBulletList(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.wordCreateBulletList(args['items'] as string[]);
+    const response = await wordClient.wordCreateBulletList(args['items'] as string[]);
     if (response.success) {
       return { success: true, result: response.message || 'Bullet list created' };
     }
@@ -70,7 +70,7 @@ const WORD_CREATE_NUMBERED_LIST_DEFINITION: ToolDefinition = {
 
 async function executeWordCreateNumberedList(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.wordCreateNumberedList(args['items'] as string[]);
+    const response = await wordClient.wordCreateNumberedList(args['items'] as string[]);
     if (response.success) {
       return { success: true, result: response.message || 'Numbered list created' };
     }

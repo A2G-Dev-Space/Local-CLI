@@ -7,7 +7,7 @@
 
 import { ToolDefinition } from '../../../types/index.js';
 import { LLMSimpleTool, ToolResult } from '../../types.js';
-import { officeClient } from '../office-client.js';
+import { wordClient } from '../word-client.js';
 import { OFFICE_CATEGORIES } from '../common/constants.js';
 
 // =============================================================================
@@ -34,7 +34,7 @@ const WORD_ADD_TABLE_DEFINITION: ToolDefinition = {
 
 async function executeWordAddTable(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.wordAddTable(
+    const response = await wordClient.wordAddTable(
       args['rows'] as number,
       args['cols'] as number,
       args['data'] as string[][] | undefined
@@ -83,7 +83,7 @@ const WORD_SET_TABLE_CELL_DEFINITION: ToolDefinition = {
 
 async function executeWordSetTableCell(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.wordSetTableCell(
+    const response = await wordClient.wordSetTableCell(
       args['table_index'] as number,
       args['row'] as number,
       args['col'] as number,
@@ -136,7 +136,7 @@ const WORD_MERGE_TABLE_CELLS_DEFINITION: ToolDefinition = {
 
 async function executeWordMergeTableCells(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.wordMergeTableCells(
+    const response = await wordClient.wordMergeTableCells(
       args['table_index'] as number,
       args['start_row'] as number,
       args['start_col'] as number,
@@ -182,7 +182,7 @@ const WORD_SET_TABLE_STYLE_DEFINITION: ToolDefinition = {
 
 async function executeWordSetTableStyle(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.wordSetTableStyle(
+    const response = await wordClient.wordSetTableStyle(
       args['table_index'] as number,
       args['style'] as string
     );
@@ -226,7 +226,7 @@ const WORD_SET_TABLE_BORDER_DEFINITION: ToolDefinition = {
 
 async function executeWordSetTableBorder(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.wordSetTableBorder(
+    const response = await wordClient.wordSetTableBorder(
       args['table_index'] as number,
       {
         style: args['style'] as 'single' | 'double' | 'thick' | 'none' | undefined,

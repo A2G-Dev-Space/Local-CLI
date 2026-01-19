@@ -6,7 +6,7 @@
 
 import { ToolDefinition } from '../../../types/index.js';
 import { LLMSimpleTool, ToolResult } from '../../types.js';
-import { officeClient } from '../office-client.js';
+import { excelClient } from '../excel-client.js';
 import { OFFICE_CATEGORIES } from '../common/constants.js';
 
 // =============================================================================
@@ -35,7 +35,7 @@ const EXCEL_ADD_IMAGE_DEFINITION: ToolDefinition = {
 
 async function executeExcelAddImage(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.excelAddImage(
+    const response = await excelClient.excelAddImage(
       args['image_path'] as string,
       args['cell'] as string,
       {
@@ -85,7 +85,7 @@ const EXCEL_ADD_HYPERLINK_DEFINITION: ToolDefinition = {
 
 async function executeExcelAddHyperlink(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.excelAddHyperlink(
+    const response = await excelClient.excelAddHyperlink(
       args['cell'] as string,
       args['url'] as string,
       args['display_text'] as string | undefined,

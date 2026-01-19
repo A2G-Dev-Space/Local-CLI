@@ -6,7 +6,7 @@
 
 import { ToolDefinition } from '../../../types/index.js';
 import { LLMSimpleTool, ToolResult } from '../../types.js';
-import { officeClient } from '../office-client.js';
+import { excelClient } from '../excel-client.js';
 import { OFFICE_CATEGORIES } from '../common/constants.js';
 
 // =============================================================================
@@ -33,7 +33,7 @@ const EXCEL_ADD_COMMENT_DEFINITION: ToolDefinition = {
 
 async function executeExcelAddComment(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.excelAddComment(
+    const response = await excelClient.excelAddComment(
       args['cell'] as string,
       args['text'] as string,
       undefined,
@@ -78,7 +78,7 @@ const EXCEL_GET_COMMENT_DEFINITION: ToolDefinition = {
 
 async function executeExcelGetComment(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.excelGetComment(
+    const response = await excelClient.excelGetComment(
       args['cell'] as string,
       args['sheet'] as string | undefined
     );
@@ -124,7 +124,7 @@ const EXCEL_DELETE_COMMENT_DEFINITION: ToolDefinition = {
 
 async function executeExcelDeleteComment(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.excelDeleteComment(
+    const response = await excelClient.excelDeleteComment(
       args['cell'] as string,
       args['sheet'] as string | undefined
     );

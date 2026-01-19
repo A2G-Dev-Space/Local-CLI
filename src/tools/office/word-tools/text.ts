@@ -12,7 +12,7 @@
 
 import { ToolDefinition } from '../../../types/index.js';
 import { LLMSimpleTool, ToolResult } from '../../types.js';
-import { officeClient } from '../office-client.js';
+import { wordClient } from '../word-client.js';
 import { OFFICE_CATEGORIES } from '../common/constants.js';
 
 // =============================================================================
@@ -55,7 +55,7 @@ async function executeWordWrite(args: Record<string, unknown>): Promise<ToolResu
   const newParagraph = args['new_paragraph'] as boolean | undefined;
 
   try {
-    const response = await officeClient.wordWrite(text, { fontName, fontSize, bold, italic, newParagraph });
+    const response = await wordClient.wordWrite(text, { fontName, fontSize, bold, italic, newParagraph });
     if (response.success) {
       return { success: true, result: `Text written to document (${text.length} characters)` };
     }
@@ -94,7 +94,7 @@ Returns the full text content of the document.`,
 
 async function executeWordRead(_args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.wordRead();
+    const response = await wordClient.wordRead();
     if (response.success) {
       const content = response['content'] as string || '';
       const docName = response['document_name'] as string || 'Unknown';
@@ -140,7 +140,7 @@ const WORD_FIND_REPLACE_DEFINITION: ToolDefinition = {
 
 async function executeWordFindReplace(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.wordFindReplace(
+    const response = await wordClient.wordFindReplace(
       args['find'] as string,
       args['replace'] as string,
       args['replace_all'] as boolean ?? true
@@ -183,7 +183,7 @@ const WORD_SET_STYLE_DEFINITION: ToolDefinition = {
 
 async function executeWordSetStyle(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.wordSetStyle(args['style'] as string);
+    const response = await wordClient.wordSetStyle(args['style'] as string);
     if (response.success) {
       return { success: true, result: `Style "${args['style']}" applied` };
     }
@@ -221,7 +221,7 @@ const WORD_GET_SELECTED_TEXT_DEFINITION: ToolDefinition = {
 
 async function executeWordGetSelectedText(_args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.wordGetSelectedText();
+    const response = await wordClient.wordGetSelectedText();
     if (response.success) {
       const text = response['text'] as string || '';
       if (!text || text.length === 0) {
@@ -263,7 +263,7 @@ const WORD_SELECT_ALL_DEFINITION: ToolDefinition = {
 
 async function executeWordSelectAll(_args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.wordSelectAll();
+    const response = await wordClient.wordSelectAll();
     if (response.success) {
       return { success: true, result: 'All content selected' };
     }

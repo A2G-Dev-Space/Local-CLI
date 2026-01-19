@@ -5,7 +5,7 @@
  */
 
 import { ToolDefinition } from '../../../types/index.js';
-import { LLMSimpleTool, ToolResult, ToolCategory } from '../../types.js';
+import { LLMSimpleTool, ToolResult } from '../../types.js';
 import { wordClient } from '../word-client.js';
 import { OFFICE_CATEGORIES } from '../common/constants.js';
 
@@ -44,7 +44,7 @@ async function executeWordExportPDF(args: Record<string, unknown>): Promise<Tool
 export const wordExportPDFTool: LLMSimpleTool = {
   definition: WORD_EXPORT_PDF_DEFINITION,
   execute: executeWordExportPDF,
-  categories: OFFICE_CATEGORIES as ToolCategory[],
+  categories: OFFICE_CATEGORIES,
   description: 'Export Word to PDF',
 };
 
@@ -83,7 +83,7 @@ async function executeWordPrint(args: Record<string, unknown>): Promise<ToolResu
 export const wordPrintTool: LLMSimpleTool = {
   definition: WORD_PRINT_DEFINITION,
   execute: executeWordPrint,
-  categories: OFFICE_CATEGORIES as ToolCategory[],
+  categories: OFFICE_CATEGORIES,
   description: 'Print Word document',
 };
 

@@ -10,7 +10,7 @@
 
 import { ToolDefinition } from '../../../types/index.js';
 import { LLMSimpleTool, ToolResult } from '../../types.js';
-import { officeClient } from '../office-client.js';
+import { wordClient } from '../word-client.js';
 import { OFFICE_CATEGORIES } from '../common/constants.js';
 
 // =============================================================================
@@ -37,7 +37,7 @@ const WORD_ADD_IMAGE_DEFINITION: ToolDefinition = {
 
 async function executeWordAddImage(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.wordAddImage(
+    const response = await wordClient.wordAddImage(
       args['path'] as string,
       args['width'] as number | undefined,
       args['height'] as number | undefined
@@ -81,7 +81,7 @@ const WORD_ADD_HYPERLINK_DEFINITION: ToolDefinition = {
 
 async function executeWordAddHyperlink(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.wordAddHyperlink(
+    const response = await wordClient.wordAddHyperlink(
       args['text'] as string,
       args['url'] as string
     );
@@ -131,7 +131,7 @@ const WORD_ADD_TEXTBOX_DEFINITION: ToolDefinition = {
 
 async function executeWordAddTextbox(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.wordAddTextbox(
+    const response = await wordClient.wordAddTextbox(
       args['text'] as string,
       args['left'] as number,
       args['top'] as number,
@@ -189,7 +189,7 @@ const WORD_ADD_SHAPE_DEFINITION: ToolDefinition = {
 
 async function executeWordAddShape(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.wordAddShape(
+    const response = await wordClient.wordAddShape(
       args['shape_type'] as 'rectangle' | 'oval' | 'roundedRectangle' | 'triangle' | 'diamond' | 'arrow' | 'line',
       args['left'] as number,
       args['top'] as number,

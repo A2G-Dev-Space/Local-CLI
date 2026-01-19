@@ -7,7 +7,7 @@
 
 import { ToolDefinition } from '../../../types/index.js';
 import { LLMSimpleTool, ToolResult } from '../../types.js';
-import { officeClient } from '../office-client.js';
+import { excelClient } from '../excel-client.js';
 import { OFFICE_CATEGORIES } from '../common/index.js';
 
 // =============================================================================
@@ -39,7 +39,7 @@ const EXCEL_ADD_CHART_DEFINITION: ToolDefinition = {
 
 async function executeExcelAddChart(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.excelAddChart(
+    const response = await excelClient.excelAddChart(
       args['data_range'] as string,
       args['chart_type'] as 'column' | 'bar' | 'line' | 'pie' | 'area' | 'scatter' | 'doughnut',
       {
@@ -91,7 +91,7 @@ const EXCEL_SET_CHART_TITLE_DEFINITION: ToolDefinition = {
 
 async function executeExcelSetChartTitle(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.excelSetChartTitle(
+    const response = await excelClient.excelSetChartTitle(
       args['chart_index'] as number,
       args['title'] as string,
       args['sheet'] as string | undefined
@@ -135,7 +135,7 @@ const EXCEL_DELETE_CHART_DEFINITION: ToolDefinition = {
 
 async function executeExcelDeleteChart(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.excelDeleteChart(
+    const response = await excelClient.excelDeleteChart(
       args['chart_index'] as number,
       args['sheet'] as string | undefined
     );

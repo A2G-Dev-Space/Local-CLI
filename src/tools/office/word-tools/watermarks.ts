@@ -5,10 +5,9 @@
  */
 
 import { ToolDefinition } from '../../../types/index.js';
-import { LLMSimpleTool, ToolResult, ToolCategory } from '../../types.js';
-import { officeClient } from '../office-client.js';
-
-const OFFICE_CATEGORIES: ToolCategory[] = ['llm-simple'];
+import { LLMSimpleTool, ToolResult } from '../../types.js';
+import { wordClient } from '../word-client.js';
+import { OFFICE_CATEGORIES } from '../common/constants.js';
 
 // =============================================================================
 // Word Add Watermark
@@ -36,7 +35,7 @@ const WORD_ADD_WATERMARK_DEFINITION: ToolDefinition = {
 
 async function executeWordAddWatermark(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.wordAddWatermark(args['text'] as string, {
+    const response = await wordClient.wordAddWatermark(args['text'] as string, {
       fontName: args['font_name'] as string | undefined,
       fontSize: args['font_size'] as number | undefined,
       color: args['color'] as string | undefined,
@@ -79,7 +78,7 @@ const WORD_REMOVE_WATERMARK_DEFINITION: ToolDefinition = {
 
 async function executeWordRemoveWatermark(_args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.wordRemoveWatermark();
+    const response = await wordClient.wordRemoveWatermark();
     if (response.success) {
       return { success: true, result: 'Watermark removed' };
     }

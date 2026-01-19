@@ -6,7 +6,7 @@
 
 import { ToolDefinition } from '../../../types/index.js';
 import { LLMSimpleTool, ToolResult } from '../../types.js';
-import { officeClient } from '../office-client.js';
+import { wordClient } from '../word-client.js';
 import { OFFICE_CATEGORIES } from '../common/constants.js';
 
 // =============================================================================
@@ -33,7 +33,7 @@ const WORD_INSERT_HEADER_DEFINITION: ToolDefinition = {
 
 async function executeWordInsertHeader(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.wordInsertHeader(
+    const response = await wordClient.wordInsertHeader(
       args['text'] as string,
       {
         fontName: args['font_name'] as string | undefined,
@@ -80,7 +80,7 @@ const WORD_INSERT_FOOTER_DEFINITION: ToolDefinition = {
 
 async function executeWordInsertFooter(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.wordInsertFooter(
+    const response = await wordClient.wordInsertFooter(
       args['text'] as string,
       {
         fontName: args['font_name'] as string | undefined,
@@ -125,7 +125,7 @@ const WORD_INSERT_PAGE_NUMBER_DEFINITION: ToolDefinition = {
 
 async function executeWordInsertPageNumber(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await officeClient.wordInsertPageNumber(
+    const response = await wordClient.wordInsertPageNumber(
       args['alignment'] as 'left' | 'center' | 'right' ?? 'center'
     );
     if (response.success) {
