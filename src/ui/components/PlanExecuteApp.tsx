@@ -799,8 +799,8 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
       // Force stop processing state
       setIsProcessing(false);
     }
-    // Tab key: toggle execution mode (auto/supervised)
-    if (key.tab && !isProcessing && !pendingToolApproval) {
+    // Tab key: toggle execution mode (auto/supervised) - only when no dropdown is open
+    if (key.tab && !isProcessing && !pendingToolApproval && !fileBrowserState.showFileBrowser && !commandBrowserState.showCommandBrowser) {
       const newMode = executionMode === 'auto' ? 'supervised' : 'auto';
       setExecutionMode(newMode);
       // Clear auto-approved tools when switching to auto mode
@@ -817,7 +817,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
     if (key.ctrl && inputChar === 'o') {
       setShowLogFiles(prev => !prev);
     }
-  }, { isActive: !fileBrowserState.showFileBrowser && !commandBrowserState.showCommandBrowser && !pendingToolApproval });
+  }); // Ctrl+C must always work, other keys have internal conditions
 
   // Handle file selection from browser
   const handleFileSelect = useCallback((filePaths: string[]) => {
@@ -1904,7 +1904,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
                   ? "Select a doc source or press ESC..."
                   : "Type your message... (@ files, / commands, Alt+Enter newline)"
               }
-              focus={!showSessionBrowser && !showSettings && !showDocsBrowser && !planExecutionState.askUserRequest && !fileBrowserState.showFileBrowser && !commandBrowserState.showCommandBrowser}
+              focus={!showSessionBrowser && !showSettings && !showDocsBrowser && !planExecutionState.askUserRequest}
             />
           </Box>
           {/* Character counter */}
