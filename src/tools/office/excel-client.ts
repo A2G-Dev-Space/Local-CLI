@@ -84,7 +84,7 @@ $workbook = $excel.Workbooks.Open('${windowsPath}')
 
     // Auto-detect Korean and set font
     const hasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(String(value));
-    const fontName = options?.fontName || (hasKorean ? '맑은 고딕' : '');
+    const fontName = options?.fontName || (hasKorean ? 'Malgun Gothic' : '');
 
     const formatScript: string[] = [];
     if (fontName) formatScript.push(`$range.Font.Name = '${fontName.replace(/'/g, "''")}'`);
@@ -136,7 +136,7 @@ $value = $sheet.Range('${cell}').Value2
     const arrayScript = `@(${arrayLines.join(',')})`;
 
     // Set Korean font if Korean text detected
-    const fontScript = hasKorean ? "$range.Font.Name = '맑은 고딕'" : '';
+    const fontScript = hasKorean ? "$range.Font.Name = 'Malgun Gothic'" : '';
 
     return this.executePowerShell(`
 $excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
@@ -606,7 +606,7 @@ $img.Dispose()
 
     const titleScript = escapedTitle ? `
 $chart.HasTitle = $true
-${hasKorean ? "$chart.ChartTitle.Font.Name = '맑은 고딕'" : ''}
+${hasKorean ? "$chart.ChartTitle.Font.Name = 'Malgun Gothic'" : ''}
 $chart.ChartTitle.Text = '${escapedTitle}'` : '';
 
     return this.executePowerShell(`
@@ -635,7 +635,7 @@ ${sheetScript}
 $chartObj = $sheet.ChartObjects(${chartIndex})
 $chart = $chartObj.Chart
 $chart.HasTitle = $true
-${hasKorean ? "$chart.ChartTitle.Font.Name = '맑은 고딕'" : ''}
+${hasKorean ? "$chart.ChartTitle.Font.Name = 'Malgun Gothic'" : ''}
 $chart.ChartTitle.Text = '${escapedTitle}'
 @{ success = $true; message = "Chart title set" } | ConvertTo-Json -Compress
 `);

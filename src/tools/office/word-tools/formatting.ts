@@ -22,7 +22,7 @@ const WORD_SET_FONT_DEFINITION: ToolDefinition = {
       type: 'object',
       properties: {
         reason: { type: 'string', description: 'Why you are setting font' },
-        font_name: { type: 'string', description: 'Font name (e.g., "Arial", "맑은 고딕")' },
+        font_name: { type: 'string', description: 'Font name (e.g., "Arial", "Malgun Gothic")' },
         font_size: { type: 'number', description: 'Font size in points' },
         bold: { type: 'boolean', description: 'Bold text' },
         italic: { type: 'boolean', description: 'Italic text' },
