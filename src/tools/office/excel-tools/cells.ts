@@ -19,7 +19,10 @@ const EXCEL_WRITE_CELL_DEFINITION: ToolDefinition = {
   function: {
     name: 'excel_write_cell',
     description: `Write a value to a specific cell in Excel with optional font settings.
-Use cell references like "A1", "B2", "C10", etc.`,
+Use cell references like "A1", "B2", "C10", etc.
+- Numbers are automatically recognized (e.g., "123", "45.67")
+- Dates in YYYY-MM-DD format are converted to Excel dates (e.g., "2024-01-19")
+- Use as_text=true to force text format (prevents auto-conversion)`,
     parameters: {
       type: 'object',
       properties: {
@@ -30,6 +33,7 @@ Use cell references like "A1", "B2", "C10", etc.`,
         font_name: { type: 'string', description: 'Font name (e.g., "Arial", "Malgun Gothic")' },
         font_size: { type: 'number', description: 'Font size in points' },
         bold: { type: 'boolean', description: 'Whether to make the text bold' },
+        as_text: { type: 'boolean', description: 'Force text format (prevents number/date conversion)' },
       },
       required: ['reason', 'cell', 'value'],
     },
@@ -46,6 +50,7 @@ async function executeExcelWriteCell(args: Record<string, unknown>): Promise<Too
         fontName: args['font_name'] as string | undefined,
         fontSize: args['font_size'] as number | undefined,
         bold: args['bold'] as boolean | undefined,
+        asText: args['as_text'] as boolean | undefined,
       }
     );
     if (response.success) {
