@@ -77,13 +77,14 @@ $workbook = $excel.Workbooks.Open('${windowsPath}')
     cell: string,
     value: unknown,
     sheet?: string,
-    options?: { fontName?: string; fontSize?: number; bold?: boolean }
+    options?: { fontName?: string; fontSize?: number; bold?: boolean; asText?: boolean }
   ): Promise<OfficeResponse> {
-    const escapedValue = String(value).replace(/'/g, "''");
+    const strValue = String(value);
+    const escapedValue = strValue.replace(/'/g, "''");
     const sheetScript = sheet ? `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}')` : '$sheet = $workbook.ActiveSheet';
 
     // Auto-detect Korean and set font
-    const hasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(String(value));
+    const hasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(strValue);
     const fontName = options?.fontName || (hasKorean ? 'Malgun Gothic' : '');
 
     const formatScript: string[] = [];
@@ -91,13 +92,38 @@ $workbook = $excel.Workbooks.Open('${windowsPath}')
     if (options?.fontSize) formatScript.push(`$range.Font.Size = ${options.fontSize}`);
     if (options?.bold !== undefined) formatScript.push(`$range.Font.Bold = ${options.bold ? '$true' : '$false'}`);
 
+    // Determine how to set the value:
+    // - Numbers: set without quotes so Excel recognizes them
+    // - Dates (YYYY-MM-DD, MM/DD/YYYY): use DateValue or let Excel parse
+    // - asText option: force text format
+    // - Otherwise: let Excel auto-detect (without forcing string)
+    let valueScript: string;
+
+    if (options?.asText) {
+      // Force text format
+      valueScript = `$range.NumberFormat = '@'; $range.Value = '${escapedValue}'`;
+    } else if (typeof value === 'number' || (strValue !== '' && !isNaN(Number(strValue)) && strValue.trim() !== '')) {
+      // Numeric value - don't quote
+      valueScript = `$range.Value = ${strValue}`;
+    } else if (/^\d{4}-\d{2}-\d{2}$/.test(strValue)) {
+      // ISO date format (YYYY-MM-DD) - convert to Excel date
+      const [year, month, day] = strValue.split('-');
+      valueScript = `$range.Value = (Get-Date -Year ${year} -Month ${month} -Day ${day}).ToOADate()`;
+    } else if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(strValue)) {
+      // US date format (MM/DD/YYYY) - let Excel parse
+      valueScript = `$range.Value = '${escapedValue}'`;
+    } else {
+      // Default: set as-is and let Excel auto-detect
+      valueScript = `$range.Value = '${escapedValue}'`;
+    }
+
     return this.executePowerShell(`
 $excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
 $workbook = $excel.ActiveWorkbook
 ${sheetScript}
 $range = $sheet.Range('${cell}')
 ${formatScript.join('\n')}
-$range.Value = '${escapedValue}'
+${valueScript}
 @{ success = $true; message = "Value written to ${cell}" } | ConvertTo-Json -Compress
 `);
   }
@@ -121,16 +147,30 @@ $value = $sheet.Range('${cell}').Value2
     // Check for Korean text in any cell
     let hasKorean = false;
 
+    // Helper to convert value to PowerShell format
+    const toPsValue = (v: unknown): string => {
+      const str = String(v);
+      if (/[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(str)) hasKorean = true;
+
+      // Numbers: output without quotes
+      if (typeof v === 'number' || (str !== '' && !isNaN(Number(str)) && str.trim() !== '')) {
+        return str;
+      }
+      // ISO date (YYYY-MM-DD): convert to OADate expression
+      if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+        const [year, month, day] = str.split('-');
+        return `([DateTime]::new(${year},${month},${day})).ToOADate()`;
+      }
+      // Default: string with escaped quotes
+      return `'${str.replace(/'/g, "''")}'`;
+    };
+
     // Build PowerShell 2D array
     const arrayLines: string[] = [];
     for (let i = 0; i < values.length; i++) {
       const row = values[i];
       if (!row) continue;
-      const rowValues = row.map(v => {
-        const str = String(v);
-        if (/[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(str)) hasKorean = true;
-        return `'${str.replace(/'/g, "''")}'`;
-      }).join(',');
+      const rowValues = row.map(v => toPsValue(v)).join(',');
       arrayLines.push(`@(${rowValues})`);
     }
     const arrayScript = `@(${arrayLines.join(',')})`;
