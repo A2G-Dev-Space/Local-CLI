@@ -117,6 +117,25 @@ type InitStep = 'git_update' | 'login' | 'models' | 'health' | 'docs' | 'config'
 // File-modifying tools and bash commands need approval (read-only and internal tools are auto-approved)
 const TOOLS_REQUIRING_APPROVAL = new Set(['create_file', 'edit_file', 'bash']);
 
+// Startup tips - rotates one at a time based on total requests
+const STARTUP_TIPS = [
+  {
+    icon: '📚',
+    en: { prefix: 'Local RAG documents available. Use ', cmd: '/docs', suffix: ' to configure offline documentation.' },
+    ko: { prefix: '로컬 RAG 문서를 구성할 수 있습니다. ', cmd: '/docs', suffix: ' 명령어를 사용해보세요.' },
+  },
+  {
+    icon: '🔧',
+    en: { prefix: 'Optional tools available! Use ', cmd: '/tool', suffix: ' to enable browser automation and more.' },
+    ko: { prefix: '선택적 도구를 사용할 수 있습니다. ', cmd: '/tool', suffix: ' 명령어로 브라우저 자동화 등을 활성화하세요.' },
+  },
+  {
+    icon: '🎯',
+    en: { prefix: 'Switch models anytime! Use ', cmd: '/model', suffix: ' to select your preferred LLM.' },
+    ko: { prefix: '언제든 모델을 변경할 수 있습니다. ', cmd: '/model', suffix: ' 명령어로 선호하는 LLM을 선택하세요.' },
+  },
+];
+
 // Helper function to shorten path with ~ for home directory
 function shortenPath(fullPath: string): string {
   const homeDir = os.homedir();
@@ -1605,7 +1624,11 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
   // Render a single log entry
   const renderLogEntry = (entry: LogEntry) => {
     switch (entry.type) {
-      case 'logo':
+      case 'logo': {
+        // Rotating tips - show one at a time based on total requests
+        const tipIndex = usageTracker.getSummary().allTime.totalRequests % STARTUP_TIPS.length;
+        const tip = STARTUP_TIPS[tipIndex]!;
+
         return (
           <Box key={entry.id} flexDirection="column" marginBottom={1}>
             <Logo
@@ -1617,25 +1640,14 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
             />
             <Text>{' '}</Text>
             <Box>
-              <Text color="gray"> 📚 Local RAG documents available. Use </Text>
-              <Text color="cyan">/docs</Text>
-              <Text color="gray"> to configure offline documentation.</Text>
+              <Text color="gray"> {tip.icon} {tip.en.prefix}</Text>
+              <Text color="cyan">{tip.en.cmd}</Text>
+              <Text color="gray">{tip.en.suffix}</Text>
             </Box>
             <Box>
-              <Text color="gray">    로컬 RAG 문서를 구성할 수 있습니다. </Text>
-              <Text color="cyan">/docs</Text>
-              <Text color="gray"> 명령어를 사용해보세요.</Text>
-            </Box>
-            <Text>{' '}</Text>
-            <Box>
-              <Text color="gray"> 🔧 Optional tools available! Use </Text>
-              <Text color="cyan">/tool</Text>
-              <Text color="gray"> to enable browser automation and more.</Text>
-            </Box>
-            <Box>
-              <Text color="gray">    선택적 도구를 사용할 수 있습니다. </Text>
-              <Text color="cyan">/tool</Text>
-              <Text color="gray"> 명령어로 브라우저 자동화 등을 활성화하세요.</Text>
+              <Text color="gray">    {tip.ko.prefix}</Text>
+              <Text color="cyan">{tip.ko.cmd}</Text>
+              <Text color="gray">{tip.ko.suffix}</Text>
             </Box>
             <Box marginTop={1}>
               <Text color="red" dimColor>⚠️  Warning: If no_proxy is not configured correctly, LLM usage may be restricted.</Text>
@@ -1671,6 +1683,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
             </Box>
           </Box>
         );
+      }
 
       case 'user_input':
         return (
