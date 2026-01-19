@@ -77,7 +77,11 @@ export function buildTodoContext(todos: TodoItem[]): string {
 ${todoList}
 
 ${pendingCount > 0 || inProgressCount > 0
-  ? '**Continue working on the TODO list. Update status using write_todos tool.**'
+  ? `**⚠️ CRITICAL: You MUST use write_todos tool to update TODO status.**
+- When starting a task: call write_todos with status "in_progress"
+- When completing a task: call write_todos with status "completed"
+- Do NOT skip calling write_todos - execution will stall without it.
+- After finishing current in_progress task, immediately mark it completed and start next pending task.`
   : '**All TODOs are completed! Provide a brief summary of what was accomplished.**'}
 ---`;
 }
