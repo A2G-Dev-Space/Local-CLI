@@ -9,7 +9,6 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { ToolDefinition } from '../../../types/index.js';
 import { LLMSimpleTool, ToolResult, ToolCategory } from '../../types.js';
-import { bashTool } from './bash-tool.js';
 
 // Safety limits
 const EXCLUDED_DIRS = new Set([
@@ -758,11 +757,13 @@ export const FILE_TOOLS: LLMSimpleTool[] = [
 ];
 
 /**
- * System utility tools (bash)
+ * System utility tools
+ *
+ * Note: Shell tools (bash/powershell) are now managed separately by platform.
+ * Use `getShellTools()` from index.ts for platform-specific shell tools.
+ * This array is kept for backward compatibility but is now empty.
  */
-export const SYSTEM_TOOLS: LLMSimpleTool[] = [
-  bashTool,
-];
+export const SYSTEM_TOOLS: LLMSimpleTool[] = [];
 
 // Re-export user interaction tools
 export {

@@ -9,9 +9,9 @@ import React, { useState, useCallback } from 'react';
 import { Box, Text, useInput } from 'ink';
 import SelectInput from 'ink-select-input';
 import { execSync } from 'child_process';
-import * as fs from 'fs';
 import Spinner from 'ink-spinner';
 import { toolRegistry, OptionalToolGroup } from '../../tools/registry.js';
+import { getPlatform } from '../../utils/platform-utils.js';
 
 const BROWSER_TOOLS_GUIDE_URL = 'http://a2g.samsungds.net:4090/docs/guide/browser-tools.html';
 const OFFICE_TOOLS_GUIDE_URL = 'http://a2g.samsungds.net:4090/docs/guide/office-tools.html';
@@ -24,13 +24,17 @@ const OFFICE_TOOL_GROUPS = ['word', 'excel', 'powerpoint'];
  * CDP approach uses PowerShell to launch Chrome/Edge directly (no browser-server.exe needed)
  */
 function isBrowserAvailable(): boolean {
-  // Check if running in WSL
-  const isWSL = fs.existsSync('/proc/version') &&
-    fs.readFileSync('/proc/version', 'utf-8').toLowerCase().includes('microsoft');
+  const platform = getPlatform();
 
-  if (isWSL) {
-    // WSL: browser-client.ts uses PowerShell to launch Windows Chrome/Edge
-    // Actual browser detection happens at launch time
+  // Native Windows: browser-client.ts launches Chrome/Edge directly
+  // Actual browser detection happens at launch time
+  if (platform === 'native-windows') {
+    return true;
+  }
+
+  // WSL: browser-client.ts uses PowerShell to launch Windows Chrome/Edge
+  // Actual browser detection happens at launch time
+  if (platform === 'wsl') {
     return true;
   }
 

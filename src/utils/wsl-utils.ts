@@ -1,7 +1,11 @@
 /**
  * WSL Utilities
  *
- * Common utilities for WSL (Windows Subsystem for Linux) environment
+ * Utilities specific to WSL (Windows Subsystem for Linux) environment.
+ * These are specialized functions for WSL networking and Windows interop.
+ *
+ * NOTE: For platform detection, use `platform-utils.ts` instead.
+ * This file only contains WSL-specific networking utilities.
  */
 
 import { execSync } from 'child_process';
@@ -77,6 +81,8 @@ export function getWindowsHostIP(): string {
 }
 
 /**
+ * @deprecated Use `getPowerShellPath()` from `platform-utils.ts` instead.
+ *
  * Find powershell.exe path for WSL
  * Tries multiple locations since PATH may not include Windows System32
  */

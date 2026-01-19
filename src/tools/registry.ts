@@ -23,6 +23,9 @@ import {
 } from './types.js';
 import { configManager } from '../core/config/config-manager.js';
 
+// Import platform utilities
+import { hasWindowsAccess } from '../utils/platform-utils.js';
+
 // Import active tools
 import { FILE_TOOLS, SYSTEM_TOOLS } from './llm/simple/file-tools.js';
 import { USER_INTERACTION_TOOLS } from './llm/simple/user-interaction-tools.js';
@@ -30,12 +33,11 @@ import { TODO_TOOLS } from './llm/simple/todo-tools.js';
 import { PLANNING_TOOLS } from './llm/simple/planning-tools.js';
 import { docsSearchAgentTool } from './llm/simple/docs-search-agent-tool.js';
 import { LLM_AGENT_TOOLS } from './llm/agents/index.js';
+import { getShellTools } from './llm/simple/index.js';
 
 // Import optional tools
 import { BROWSER_TOOLS, startBrowserServer, shutdownBrowserServer } from './browser/index.js';
 import { WORD_TOOLS, EXCEL_TOOLS, POWERPOINT_TOOLS } from './office/index.js';
-// Background bash tools are always enabled, imported in initializeToolRegistry
-import { BACKGROUND_BASH_TOOLS } from './llm/simple/background-bash-tool.js';
 
 /**
  * Enable result with optional error message
@@ -82,42 +84,53 @@ async function validateBrowserTools(): Promise<EnableResult> {
  * Available optional tool groups
  * Note: Browser tools require Chrome to be installed, so they are optional
  * Note: Office tools require Windows + Microsoft Office (PowerShell COM automation)
+ *
+ * Office tools are only available on Native Windows and WSL (where Windows access is possible)
  */
-export const OPTIONAL_TOOL_GROUPS: OptionalToolGroup[] = [
-  {
-    id: 'browser',
-    name: 'Browser Automation',
-    description: 'Control Chrome/Edge browser for web testing (navigate, click, screenshot, etc.)',
-    tools: BROWSER_TOOLS,
-    enabled: false,
-    onEnable: validateBrowserTools,
-    onDisable: shutdownBrowserServer,
-  },
-  {
-    id: 'word',
-    name: 'Microsoft Word',
-    description: 'Control Word for document editing (write, read, save, export PDF, header/footer)',
-    tools: WORD_TOOLS,
-    enabled: false,
-  },
-  {
-    id: 'excel',
-    name: 'Microsoft Excel',
-    description: 'Control Excel for spreadsheet editing (cells, ranges, formulas, charts)',
-    tools: EXCEL_TOOLS,
-    enabled: false,
-  },
-  {
-    id: 'powerpoint',
-    name: 'Microsoft PowerPoint',
-    description: 'Control PowerPoint for presentations (slides, shapes, transitions, PDF export)',
-    tools: POWERPOINT_TOOLS,
-    enabled: false,
-  },
-];
+function getOptionalToolGroupsConfig(): OptionalToolGroup[] {
+  const groups: OptionalToolGroup[] = [
+    {
+      id: 'browser',
+      name: 'Browser Automation',
+      description: 'Control Chrome/Edge browser for web testing (navigate, click, screenshot, etc.)',
+      tools: BROWSER_TOOLS,
+      enabled: false,
+      onEnable: validateBrowserTools,
+      onDisable: shutdownBrowserServer,
+    },
+  ];
 
-// Re-export for use in initializeToolRegistry
-export { BACKGROUND_BASH_TOOLS };
+  // Office tools only available with Windows access
+  if (hasWindowsAccess()) {
+    groups.push(
+      {
+        id: 'word',
+        name: 'Microsoft Word',
+        description: 'Control Word for document editing (write, read, save, export PDF, header/footer)',
+        tools: WORD_TOOLS,
+        enabled: false,
+      },
+      {
+        id: 'excel',
+        name: 'Microsoft Excel',
+        description: 'Control Excel for spreadsheet editing (cells, ranges, formulas, charts)',
+        tools: EXCEL_TOOLS,
+        enabled: false,
+      },
+      {
+        id: 'powerpoint',
+        name: 'Microsoft PowerPoint',
+        description: 'Control PowerPoint for presentations (slides, shapes, transitions, PDF export)',
+        tools: POWERPOINT_TOOLS,
+        enabled: false,
+      }
+    );
+  }
+
+  return groups;
+}
+
+export const OPTIONAL_TOOL_GROUPS: OptionalToolGroup[] = getOptionalToolGroupsConfig();
 
 /**
  * Tool Registry class
@@ -425,11 +438,14 @@ export function initializeToolRegistry(): void {
   // LLM Simple Tools - User interaction (tell_to_user, ask_to_user)
   toolRegistry.registerAll(USER_INTERACTION_TOOLS);
 
-  // LLM Simple Tools - System utilities (bash)
+  // LLM Simple Tools - System utilities (bash on WSL/Linux, or powershell on Native Windows)
   toolRegistry.registerAll(SYSTEM_TOOLS);
 
-  // LLM Simple Tools - Background process management (bash_background, bash_background_status, bash_background_kill)
-  toolRegistry.registerAll(BACKGROUND_BASH_TOOLS);
+  // LLM Simple Tools - Shell tools (platform-specific)
+  // Native Windows: powershell + powershell_background_*
+  // WSL/Linux: bash + bash_background_*
+  const shellTools = getShellTools();
+  toolRegistry.registerAll(shellTools);
 
   // LLM Simple Tools - TODO management
   toolRegistry.registerAll(TODO_TOOLS);
@@ -444,6 +460,7 @@ export function initializeToolRegistry(): void {
   toolRegistry.registerAll(LLM_AGENT_TOOLS);
 
   // Note: Optional tools (Browser, Word, Excel, PowerPoint) are registered via /tool command
+  // Office tools only available when hasWindowsAccess() is true
 }
 
 /**

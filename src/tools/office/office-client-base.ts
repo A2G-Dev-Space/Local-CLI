@@ -3,12 +3,18 @@
  *
  * Common functionality for all Office automation clients.
  * Provides PowerShell execution and WSL path conversion.
+ *
+ * Office tools require Windows access (Native Windows or WSL)
  */
 
 import { execSync, spawn } from 'child_process';
-import * as os from 'os';
 import { logger } from '../../utils/logger.js';
-import { findPowerShellPath } from '../../utils/wsl-utils.js';
+import {
+  getPlatform,
+  hasWindowsAccess,
+  getPowerShellPath,
+  Platform,
+} from '../../utils/platform-utils.js';
 
 export interface OfficeResponse {
   success: boolean;
@@ -25,24 +31,23 @@ export interface ScreenshotResponse extends OfficeResponse {
 }
 
 export class OfficeClientBase {
-  protected isWSL: boolean = false;
+  protected platform: Platform;
   protected powerShellPath: string = '';
   protected commandTimeout: number = 30000; // 30 seconds
 
   constructor() {
-    this.isWSL = this.detectWSL();
-    this.powerShellPath = findPowerShellPath();
-    logger.debug('[OfficeClientBase] constructor: isWSL = ' + this.isWSL);
-    logger.debug('[OfficeClientBase] constructor: PowerShell path = ' + this.powerShellPath);
-  }
+    this.platform = getPlatform();
 
-  private detectWSL(): boolean {
-    try {
-      const release = os.release().toLowerCase();
-      return release.includes('wsl') || release.includes('microsoft');
-    } catch {
-      return false;
+    // Office tools require Windows access
+    if (!hasWindowsAccess()) {
+      logger.warn('[OfficeClientBase] Office tools require Windows (Native or WSL)');
+      this.powerShellPath = '';
+    } else {
+      this.powerShellPath = getPowerShellPath();
     }
+
+    logger.debug('[OfficeClientBase] constructor: platform = ' + this.platform);
+    logger.debug('[OfficeClientBase] constructor: PowerShell path = ' + this.powerShellPath);
   }
 
   /**
@@ -59,31 +64,43 @@ export class OfficeClientBase {
   }
 
   /**
-   * Convert WSL path to Windows path
+   * Convert path to Windows path (handles both Native Windows and WSL)
    */
-  protected toWindowsPath(linuxPath: string): string {
+  protected toWindowsPath(inputPath: string): string {
     // First resolve relative paths
-    const resolvedPath = this.resolvePath(linuxPath);
+    const resolvedPath = this.resolvePath(inputPath);
 
-    if (!this.isWSL || !resolvedPath.startsWith('/')) {
+    // Native Windows - no conversion needed
+    if (this.platform === 'native-windows') {
       return resolvedPath;
     }
 
-    // /mnt/c/... -> C:\...
-    const match = resolvedPath.match(/^\/mnt\/([a-z])\/(.*)$/i);
-    if (match && match[1] && match[2]) {
-      const drive = match[1].toUpperCase();
-      const rest = match[2].replace(/\//g, '\\');
-      return `${drive}:\\${rest}`;
+    // WSL - convert Linux path to Windows path
+    if (this.platform === 'wsl') {
+      // Already a Windows path?
+      if (/^[A-Za-z]:/.test(resolvedPath)) {
+        return resolvedPath;
+      }
+
+      // /mnt/c/... -> C:\...
+      const match = resolvedPath.match(/^\/mnt\/([a-z])\/(.*)$/i);
+      if (match && match[1] && match[2]) {
+        const drive = match[1].toUpperCase();
+        const rest = match[2].replace(/\//g, '\\');
+        return `${drive}:\\${rest}`;
+      }
+
+      // WSL internal paths (/home/..., /usr/..., etc) -> \\wsl$\<distro>\...
+      try {
+        const windowsPath = execSync(`wslpath -w "${resolvedPath}"`, { encoding: 'utf-8' }).trim();
+        return windowsPath;
+      } catch {
+        return resolvedPath;
+      }
     }
 
-    // WSL internal paths (/home/..., /usr/..., etc) -> \\wsl$\<distro>\...
-    try {
-      const windowsPath = execSync(`wslpath -w "${resolvedPath}"`, { encoding: 'utf-8' }).trim();
-      return windowsPath;
-    } catch {
-      return resolvedPath;
-    }
+    // Native Linux - Office tools not supported
+    throw new Error('Office tools require Windows (Native or WSL)');
   }
 
   /**
@@ -172,9 +189,14 @@ ${script}
   }
 
   /**
-   * Check if Office COM is available (PowerShell can run)
+   * Check if Office COM is available (requires Windows access)
    */
   async isAvailable(): Promise<boolean> {
+    // Office requires Windows access
+    if (!hasWindowsAccess()) {
+      return false;
+    }
+
     try {
       const result = await this.executePowerShell(`
 @{
