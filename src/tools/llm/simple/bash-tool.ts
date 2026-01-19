@@ -7,6 +7,7 @@
  */
 
 import { spawn } from 'child_process';
+import * as fs from 'fs';
 import { ToolDefinition } from '../../../types/index.js';
 import { LLMSimpleTool, ToolResult, ToolCategory } from '../../types.js';
 import { logger } from '../../../utils/logger.js';
@@ -151,6 +152,24 @@ export const bashTool: LLMSimpleTool = {
         success: false,
         error: 'This command is blocked for safety reasons',
       };
+    }
+
+    // Validate cwd exists and is a directory
+    if (cwd) {
+      if (!fs.existsSync(cwd)) {
+        logger.warn('Invalid cwd provided (does not exist)', { cwd });
+        return {
+          success: false,
+          error: `Working directory does not exist: ${cwd}`,
+        };
+      }
+      if (!fs.statSync(cwd).isDirectory()) {
+        logger.warn('Invalid cwd provided (not a directory)', { cwd });
+        return {
+          success: false,
+          error: `Working directory path is not a directory: ${cwd}`,
+        };
+      }
     }
 
     try {
