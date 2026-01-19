@@ -287,7 +287,7 @@ export const CustomTextInput: React.FC<CustomTextInputProps> = ({
 
     return () => {
       stdin.off('data', handler);
-      setRawMode?.(false);
+      // Note: Don't call setRawMode(false) here - other components (SelectInput) may still need raw mode
     };
   }, [focus, stdin, setRawMode]); // handleDataRef.current is stable
 
