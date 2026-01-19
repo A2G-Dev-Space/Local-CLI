@@ -9,7 +9,9 @@ import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Box, Text, useInput, useApp, Static } from 'ink';
 import Spinner from 'ink-spinner';
 import os from 'os';
+import { spawn } from 'child_process';
 import { detectGitRepo } from '../../utils/git-utils.js';
+import { getShellConfig, isNativeWindows } from '../../utils/platform-utils.js';
 
 /**
  * Log entry types for Static scrollable output
@@ -797,8 +799,8 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
       // Force stop processing state
       setIsProcessing(false);
     }
-    // Tab key: toggle execution mode (auto/supervised)
-    if (key.tab && !isProcessing && !pendingToolApproval) {
+    // Tab key: toggle execution mode (auto/supervised) - only when no dropdown is open
+    if (key.tab && !isProcessing && !pendingToolApproval && !fileBrowserState.showFileBrowser && !commandBrowserState.showCommandBrowser) {
       const newMode = executionMode === 'auto' ? 'supervised' : 'auto';
       setExecutionMode(newMode);
       // Clear auto-approved tools when switching to auto mode
@@ -815,7 +817,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
     if (key.ctrl && inputChar === 'o') {
       setShowLogFiles(prev => !prev);
     }
-  }, { isActive: !fileBrowserState.showFileBrowser && !commandBrowserState.showCommandBrowser && !pendingToolApproval });
+  }); // Ctrl+C must always work, other keys have internal conditions
 
   // Handle file selection from browser
   const handleFileSelect = useCallback((filePaths: string[]) => {
@@ -1070,6 +1072,77 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
 
     setInput('');
     addToHistory(userMessage);
+
+    // Handle shell commands (! prefix)
+    if (userMessage.startsWith('!')) {
+      const shellCommand = userMessage.slice(1).trim();
+      if (!shellCommand) {
+        addLog({
+          type: 'assistant_message',
+          content: '사용법: !<명령어> (예: !ls -la, !dir)',
+        });
+        return;
+      }
+
+      addLog({
+        type: 'user_input',
+        content: userMessage,
+      });
+
+      const shellConfig = getShellConfig();
+      const shellLabel = isNativeWindows() ? 'PowerShell' : 'Bash';
+
+      addLog({
+        type: 'tool_start',
+        content: `${shellLabel}: ${shellCommand}`,
+      });
+
+      try {
+        const child = spawn(shellConfig.shell, shellConfig.args(shellCommand), {
+          cwd: process.cwd(),
+          env: process.env,
+        });
+
+        let stdout = '';
+        let stderr = '';
+
+        child.stdout?.on('data', (data: Buffer) => {
+          stdout += data.toString();
+        });
+
+        child.stderr?.on('data', (data: Buffer) => {
+          stderr += data.toString();
+        });
+
+        child.on('close', (code: number | null) => {
+          const output = stdout + (stderr ? `\n${stderr}` : '');
+          const success = code === 0;
+
+          addLog({
+            type: 'tool_result',
+            content: output.trim() || (success ? '(no output)' : `Exit code: ${code}`),
+            success,
+          });
+        });
+
+        child.on('error', (err: Error) => {
+          addLog({
+            type: 'tool_result',
+            content: `Error: ${err.message}`,
+            success: false,
+          });
+        });
+      } catch (err) {
+        addLog({
+          type: 'tool_result',
+          content: `Error: ${err instanceof Error ? err.message : String(err)}`,
+          success: false,
+        });
+      }
+
+      logger.exit('handleSubmit', { shellCommand: true });
+      return;
+    }
 
     // Handle slash commands
     if (isSlashCommand(userMessage)) {
@@ -1818,8 +1891,8 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
                 setInput(value);
               }}
               onSubmit={handleSubmit}
-              onHistoryPrev={handleHistoryPrev}
-              onHistoryNext={handleHistoryNext}
+              onHistoryPrev={fileBrowserState.showFileBrowser || commandBrowserState.showCommandBrowser ? undefined : handleHistoryPrev}
+              onHistoryNext={fileBrowserState.showFileBrowser || commandBrowserState.showCommandBrowser ? undefined : handleHistoryNext}
               placeholder={
                 isProcessing
                   ? "AI is working..."
@@ -1831,7 +1904,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
                   ? "Select a doc source or press ESC..."
                   : "Type your message... (@ files, / commands, Alt+Enter newline)"
               }
-              focus={!showSessionBrowser && !showSettings && !showDocsBrowser && !planExecutionState.askUserRequest && !fileBrowserState.showFileBrowser && !commandBrowserState.showCommandBrowser}
+              focus={!showSessionBrowser && !showSettings && !showDocsBrowser && !planExecutionState.askUserRequest}
             />
           </Box>
           {/* Character counter */}
