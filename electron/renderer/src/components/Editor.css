@@ -1,0 +1,359 @@
+/* =====================================================
+   Editor Component Styles
+   ===================================================== */
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background-color: var(--color-bg-base);
+  overflow: hidden;
+}
+
+/* ============ Tab Bar ============ */
+.editor-tabs {
+  display: flex;
+  align-items: center;
+  height: var(--tab-height);
+  background-color: var(--color-bg-surface);
+  border-bottom: 1px solid var(--color-border-muted);
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.editor-tabs::-webkit-scrollbar {
+  height: 3px;
+}
+
+.editor-tab {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 100%;
+  padding: 0 var(--space-3);
+  min-width: 120px;
+  max-width: 200px;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  background-color: transparent;
+  border-right: 1px solid var(--color-border-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  user-select: none;
+}
+
+.editor-tab:hover {
+  background-color: var(--color-bg-overlay);
+}
+
+.editor-tab.active {
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-base);
+  border-bottom: 2px solid var(--color-accent-primary);
+}
+
+.tab-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab-dirty {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--color-text-secondary);
+}
+
+.tab-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  opacity: 0;
+  transition: all var(--transition-fast);
+}
+
+.editor-tab:hover .tab-close {
+  opacity: 1;
+}
+
+.tab-close:hover {
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-overlay);
+}
+
+/* ============ Editor Content ============ */
+.editor-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ============ Breadcrumb ============ */
+.editor-breadcrumb {
+  display: flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 var(--space-3);
+  background-color: var(--color-bg-elevated);
+  border-bottom: 1px solid var(--color-border-muted);
+  overflow: hidden;
+}
+
+.breadcrumb-item {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ============ Code Area ============ */
+.editor-code-area {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ============ Line Numbers ============ */
+.editor-line-numbers {
+  display: flex;
+  flex-direction: column;
+  width: 50px;
+  padding: var(--space-3) var(--space-2);
+  background-color: var(--color-bg-base);
+  border-right: 1px solid var(--color-border-muted);
+  overflow: hidden;
+  user-select: none;
+}
+
+.line-number {
+  height: 20px;
+  line-height: 20px;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  text-align: right;
+  padding-right: var(--space-2);
+}
+
+.line-number.active {
+  color: var(--color-text-primary);
+}
+
+/* ============ Code Container ============ */
+.editor-code-container {
+  flex: 1;
+  position: relative;
+  overflow: auto;
+}
+
+.editor-code-highlight {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  line-height: 20px;
+  white-space: pre;
+  pointer-events: none;
+}
+
+.editor-line {
+  height: 20px;
+}
+
+.editor-textarea {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  padding: var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  line-height: 20px;
+  color: transparent;
+  caret-color: var(--color-text-primary);
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  overflow: auto;
+  white-space: pre;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ============ Syntax Highlighting ============ */
+.syntax-keyword {
+  color: var(--syntax-keyword);
+  font-weight: var(--font-weight-medium);
+}
+
+.syntax-string {
+  color: var(--syntax-string);
+}
+
+.syntax-number {
+  color: var(--syntax-number);
+}
+
+.syntax-comment {
+  color: var(--syntax-comment);
+  font-style: italic;
+}
+
+.syntax-function {
+  color: var(--syntax-function);
+}
+
+.syntax-variable {
+  color: var(--syntax-variable);
+}
+
+.syntax-operator {
+  color: var(--syntax-operator);
+}
+
+.syntax-type {
+  color: var(--syntax-type);
+}
+
+/* ============ Minimap ============ */
+.editor-minimap {
+  width: 80px;
+  background-color: var(--color-bg-elevated);
+  border-left: 1px solid var(--color-border-muted);
+  position: relative;
+  overflow: hidden;
+}
+
+.minimap-content {
+  padding: var(--space-2);
+  font-size: 2px;
+  line-height: 3px;
+  font-family: var(--font-mono);
+  color: var(--color-text-muted);
+  opacity: 0.6;
+  overflow: hidden;
+}
+
+.minimap-line {
+  height: 3px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.minimap-viewport {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  background-color: rgba(56, 189, 248, 0.2);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  pointer-events: none;
+}
+
+/* ============ Editor Status ============ */
+.editor-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0 var(--space-3);
+  height: 22px;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  background-color: var(--color-bg-elevated);
+  border-top: 1px solid var(--color-border-muted);
+}
+
+.selection-info {
+  color: var(--color-accent-tertiary);
+}
+
+.status-separator {
+  color: var(--color-border-default);
+}
+
+/* ============ Empty State ============ */
+.editor-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  background-color: var(--color-bg-base);
+}
+
+.editor-empty-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: var(--space-8);
+  animation: fadeIn var(--transition-slow);
+}
+
+.editor-logo {
+  color: var(--color-text-muted);
+  opacity: 0.3;
+  margin-bottom: var(--space-6);
+}
+
+.editor-title {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  margin-bottom: var(--space-2);
+}
+
+.editor-subtitle {
+  font-size: var(--font-size-md);
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-8);
+}
+
+.editor-shortcuts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.shortcut {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.shortcut kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  background-color: var(--color-bg-overlay);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+}
+
+.shortcut span {
+  color: var(--color-text-muted);
+}
+
+/* ============ Focus Styles ============ */
+.editor-textarea:focus {
+  outline: none;
+}

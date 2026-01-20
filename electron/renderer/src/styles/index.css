@@ -1,0 +1,12 @@
+/* =====================================================
+   LOCAL-CLI PowerShell UI - Style Index
+   Main entry point for all styles
+   ===================================================== */
+
+/* Import global styles and theme system */
+@import './global.css';
+
+/*
+ * Note: Component-specific styles are imported directly in their TSX files.
+ * This file serves as the base style layer that components build upon.
+ */

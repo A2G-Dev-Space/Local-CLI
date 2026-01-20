@@ -1,0 +1,100 @@
+/* =====================================================
+   Status Bar Component Styles
+   ===================================================== */
+
+.statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--statusbar-height);
+  padding: 0 var(--space-3);
+  background: var(--color-accent-gradient);
+  color: white;
+  font-size: var(--font-size-xs);
+  user-select: none;
+}
+
+/* ============ Sections ============ */
+.statusbar-left,
+.statusbar-center,
+.statusbar-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.statusbar-center {
+  flex: 1;
+  justify-content: center;
+}
+
+/* ============ Items ============ */
+.statusbar-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
+  height: 100%;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+  transition: background-color var(--transition-fast);
+}
+
+.statusbar-item:hover {
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+.statusbar-item svg {
+  opacity: 0.9;
+}
+
+/* ============ Session Status ============ */
+.session-status {
+  position: relative;
+}
+
+.session-indicator {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.3);
+  transition: background-color var(--transition-fast);
+}
+
+.session-status.active .session-indicator {
+  background-color: var(--color-success);
+  box-shadow: 0 0 6px var(--color-success);
+}
+
+/* ============ File Name ============ */
+.statusbar-file {
+  font-weight: var(--font-weight-medium);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ============ Focus State ============ */
+.statusbar-item:focus-visible {
+  outline: 2px solid white;
+  outline-offset: -2px;
+}
+
+/* ============ Responsive ============ */
+@media (max-width: 800px) {
+  .statusbar-center {
+    display: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .statusbar-item span:not(.session-indicator) {
+    display: none;
+  }
+
+  .statusbar-item svg {
+    margin: 0;
+  }
+}

@@ -1,0 +1,257 @@
+/* =====================================================
+   File Explorer Component Styles
+   ===================================================== */
+
+.file-explorer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ============ Header ============ */
+.file-explorer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border-muted);
+}
+
+.file-explorer-folder-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  max-width: 180px;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.file-explorer-folder-btn:hover {
+  background-color: var(--color-bg-overlay);
+  color: var(--color-text-primary);
+}
+
+.folder-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-explorer-actions {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  transition: all var(--transition-fast);
+}
+
+.action-btn:hover {
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-overlay);
+}
+
+/* ============ File Tree ============ */
+.file-tree {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--space-2) 0;
+}
+
+.file-tree-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: var(--space-6);
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.file-tree-empty p {
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--space-2);
+}
+
+.empty-hint {
+  font-size: var(--font-size-xs);
+  opacity: 0.7;
+}
+
+/* ============ Tree Item ============ */
+.file-tree-item-wrapper {
+  user-select: none;
+}
+
+.file-tree-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 22px;
+  padding-right: var(--space-3);
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+
+.file-tree-item:hover {
+  background-color: var(--color-bg-overlay);
+}
+
+.file-tree-item.selected {
+  background-color: var(--color-bg-surface);
+}
+
+.file-tree-item.selected:hover {
+  background-color: var(--color-bg-overlay);
+}
+
+.file-tree-item.dragging {
+  opacity: 0.5;
+}
+
+/* ============ Tree Arrow ============ */
+.file-tree-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--color-text-muted);
+  transition: transform var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.file-tree-arrow.expanded {
+  transform: rotate(90deg);
+}
+
+.file-tree-arrow.hidden {
+  visibility: hidden;
+}
+
+/* ============ File Icons ============ */
+.file-icon {
+  flex-shrink: 0;
+  transition: color var(--transition-fast);
+}
+
+.file-icon.folder {
+  color: #dcb67a;
+}
+
+.file-icon.typescript {
+  color: #3178c6;
+}
+
+.file-icon.javascript {
+  color: #f7df1e;
+}
+
+.file-icon.python {
+  color: #3776ab;
+}
+
+.file-icon.powershell {
+  color: #5391fe;
+}
+
+.file-icon.json {
+  color: #f5a623;
+}
+
+.file-icon.html {
+  color: #e34c26;
+}
+
+.file-icon.css {
+  color: #264de4;
+}
+
+.file-icon.markdown {
+  color: #519aba;
+}
+
+.file-icon.git {
+  color: #f14e32;
+}
+
+.file-icon.config {
+  color: var(--color-text-muted);
+}
+
+.file-icon.default {
+  color: var(--color-text-secondary);
+}
+
+/* ============ File Name ============ */
+.file-tree-name {
+  flex: 1;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ============ Children ============ */
+.file-tree-children {
+  overflow: hidden;
+}
+
+/* ============ Context Menu ============ */
+.context-menu {
+  position: fixed;
+  min-width: 180px;
+  padding: var(--space-1) 0;
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: var(--z-popover);
+  animation: slideInUp var(--transition-fast);
+}
+
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  text-align: left;
+  transition: background-color var(--transition-fast);
+}
+
+.context-menu-item:hover {
+  background-color: var(--color-bg-overlay);
+}
+
+.context-menu-item svg {
+  color: var(--color-text-muted);
+}
+
+.context-menu-separator {
+  height: 1px;
+  margin: var(--space-1) 0;
+  background-color: var(--color-border-muted);
+}
+
+/* ============ Drag & Drop ============ */
+.file-tree-item.drag-over {
+  background-color: var(--color-accent-primary);
+  background-opacity: 0.2;
+}

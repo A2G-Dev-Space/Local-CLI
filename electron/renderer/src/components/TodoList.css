@@ -1,0 +1,215 @@
+/* =====================================================
+   TodoList Component Styles
+   ===================================================== */
+
+.todo-list-container {
+  display: flex;
+  flex-direction: column;
+  margin: var(--space-3) 0;
+  margin-left: 40px; /* Account for avatar space (28px + margin) */
+  padding: var(--space-3);
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-muted);
+  border-radius: var(--radius-lg);
+  animation: slideInUp var(--transition-smooth);
+}
+
+/* ============ Header ============ */
+.todo-list-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--color-border-muted);
+}
+
+.todo-list-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.todo-list-title svg {
+  color: var(--color-accent-primary);
+}
+
+.todo-count {
+  margin-left: auto;
+  padding: 2px 8px;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+  background-color: var(--color-bg-overlay);
+  border-radius: var(--radius-full);
+}
+
+/* ============ Progress Bar ============ */
+.todo-progress-bar {
+  height: 4px;
+  background-color: var(--color-bg-inset);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.todo-progress-fill {
+  height: 100%;
+  background: var(--color-accent-gradient);
+  border-radius: var(--radius-full);
+  transition: width var(--transition-smooth);
+}
+
+/* ============ TODO Items ============ */
+.todo-list-items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.todo-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--color-bg-surface);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+}
+
+.todo-item.in_progress {
+  background-color: rgba(56, 189, 248, 0.1);
+  border: 1px solid var(--color-accent-primary);
+}
+
+.todo-item.completed {
+  opacity: 0.7;
+}
+
+.todo-item.failed {
+  background-color: rgba(239, 68, 68, 0.1);
+  border: 1px solid var(--color-error);
+}
+
+.todo-item-number {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+  background-color: var(--color-bg-overlay);
+  border-radius: var(--radius-sm);
+}
+
+/* ============ Status Icons ============ */
+.todo-icon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.todo-icon.completed {
+  color: var(--color-success);
+}
+
+.todo-icon.failed {
+  color: var(--color-error);
+}
+
+.todo-icon.pending .circle {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--color-text-muted);
+  border-radius: 50%;
+}
+
+.todo-icon.in-progress .spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--color-border-muted);
+  border-top-color: var(--color-accent-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ============ Item Content ============ */
+.todo-item-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.todo-item-title {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  line-height: 1.4;
+}
+
+.todo-item.completed .todo-item-title {
+  text-decoration: line-through;
+  color: var(--color-text-muted);
+}
+
+.todo-item-error {
+  font-size: var(--font-size-xs);
+  color: var(--color-error);
+}
+
+/* ============ Retry Button ============ */
+.todo-retry-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  color: var(--color-text-muted);
+  background-color: transparent;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.todo-retry-btn:hover {
+  color: var(--color-accent-primary);
+  background-color: var(--color-bg-overlay);
+}
+
+/* ============ Execution Status ============ */
+.todo-execution-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border-muted);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.execution-indicator {
+  width: 8px;
+  height: 8px;
+  background-color: var(--color-accent-primary);
+  border-radius: 50%;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}

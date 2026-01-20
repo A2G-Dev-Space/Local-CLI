@@ -1,0 +1,597 @@
+/**
+ * LogViewer Styles
+ * Linux CLI 스타일 디버깅 UI
+ */
+
+.log-viewer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-primary, #1e1e1e);
+  color: var(--text-primary, #cccccc);
+  font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
+  font-size: 12px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+/* 헤더 */
+.log-viewer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--bg-secondary, #252526);
+  border-bottom: 1px solid var(--border-color, #3c3c3c);
+  user-select: none;
+}
+
+.log-viewer-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-primary, #cccccc);
+}
+
+.log-viewer-title svg {
+  opacity: 0.7;
+}
+
+.streaming-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  background: #10b981;
+  color: white;
+  font-size: 9px;
+  font-weight: 700;
+  border-radius: 3px;
+  letter-spacing: 0.5px;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.log-viewer-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.log-action-btn,
+.log-close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-secondary, #888);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.log-action-btn:hover {
+  background: var(--bg-hover, #3c3c3c);
+  color: var(--text-primary, #cccccc);
+}
+
+.log-close-btn:hover {
+  background: #e81123;
+  color: white;
+}
+
+/* 툴바 */
+.log-viewer-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--bg-tertiary, #2d2d2d);
+  border-bottom: 1px solid var(--border-color, #3c3c3c);
+  flex-wrap: wrap;
+}
+
+/* 뷰 모드 토글 */
+.log-view-mode {
+  display: flex;
+  background: var(--bg-secondary, #252526);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.mode-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary, #888);
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.mode-btn:hover {
+  color: var(--text-primary, #cccccc);
+}
+
+.mode-btn.active {
+  background: var(--accent-color, #0078d4);
+  color: white;
+}
+
+.mode-btn.active svg {
+  animation: live-pulse 1.5s infinite;
+}
+
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* 파일 선택 */
+.log-file-select {
+  padding: 4px 8px;
+  background: var(--bg-secondary, #252526);
+  border: 1px solid var(--border-color, #3c3c3c);
+  border-radius: 4px;
+  color: var(--text-primary, #cccccc);
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  max-width: 200px;
+}
+
+.log-file-select:focus {
+  outline: none;
+  border-color: var(--accent-color, #0078d4);
+}
+
+/* 검색 */
+.log-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 150px;
+  max-width: 300px;
+  padding: 4px 8px;
+  background: var(--bg-secondary, #252526);
+  border: 1px solid var(--border-color, #3c3c3c);
+  border-radius: 4px;
+}
+
+.log-search:focus-within {
+  border-color: var(--accent-color, #0078d4);
+}
+
+.log-search svg {
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+.log-search input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-primary, #cccccc);
+  font-size: 11px;
+  font-family: inherit;
+  outline: none;
+}
+
+.log-search input::placeholder {
+  color: var(--text-secondary, #888);
+}
+
+.clear-search {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary, #888);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 2px;
+}
+
+.clear-search:hover {
+  color: var(--text-primary, #cccccc);
+  background: var(--bg-hover, #3c3c3c);
+}
+
+/* 레벨 필터 */
+.log-level-filters {
+  display: flex;
+  gap: 2px;
+}
+
+.level-filter-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: var(--text-secondary, #888);
+  font-size: 10px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.level-filter-btn:hover {
+  background: var(--bg-hover, #3c3c3c);
+}
+
+.level-filter-btn.active {
+  background: color-mix(in srgb, var(--level-color) 20%, transparent);
+  border-color: var(--level-color);
+  color: var(--level-color);
+}
+
+/* 옵션 버튼 */
+.log-options {
+  display: flex;
+  gap: 2px;
+}
+
+.option-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-secondary, #888);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.option-btn:hover {
+  background: var(--bg-hover, #3c3c3c);
+  color: var(--text-primary, #cccccc);
+}
+
+.option-btn.active {
+  color: var(--accent-color, #0078d4);
+}
+
+/* 로그 레벨 설정 */
+.log-level-setting {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border-color, #3c3c3c);
+  font-size: 11px;
+  color: var(--text-secondary, #888);
+}
+
+.log-level-setting select {
+  padding: 2px 6px;
+  background: var(--bg-secondary, #252526);
+  border: 1px solid var(--border-color, #3c3c3c);
+  border-radius: 3px;
+  color: var(--text-primary, #cccccc);
+  font-size: 10px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* 에러 메시지 */
+.log-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(239, 68, 68, 0.15);
+  border-bottom: 1px solid rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+  font-size: 12px;
+}
+
+.log-error svg {
+  flex-shrink: 0;
+}
+
+.log-error button {
+  margin-left: auto;
+  padding: 2px 8px;
+  background: transparent;
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  border-radius: 3px;
+  color: #ef4444;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.log-error button:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+/* 로그 컨텐츠 */
+.log-content {
+  flex: 1;
+  overflow: auto;
+  padding: 8px 0;
+  background: var(--bg-primary, #1e1e1e);
+  scroll-behavior: smooth;
+}
+
+.log-content.wrap .log-entry {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.log-content::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.log-content::-webkit-scrollbar-track {
+  background: var(--bg-secondary, #252526);
+}
+
+.log-content::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb, #424242);
+  border-radius: 5px;
+}
+
+.log-content::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover, #555);
+}
+
+/* 로딩 상태 */
+.log-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  color: var(--text-secondary, #888);
+  gap: 12px;
+}
+
+.spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--border-color, #3c3c3c);
+  border-top-color: var(--accent-color, #0078d4);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* 빈 상태 */
+.log-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+  color: var(--text-secondary, #888);
+  gap: 8px;
+}
+
+.log-empty span {
+  font-size: 13px;
+}
+
+.log-empty .hint {
+  font-size: 11px;
+  opacity: 0.6;
+}
+
+/* 로그 엔트리 */
+.log-entry {
+  display: flex;
+  padding: 2px 12px;
+  line-height: 1.5;
+  font-size: 11px;
+  white-space: nowrap;
+  border-left: 2px solid transparent;
+  transition: background 0.1s ease;
+}
+
+.log-entry:hover {
+  background: var(--bg-hover, rgba(255, 255, 255, 0.04));
+}
+
+.log-entry.log-level-debug {
+  border-left-color: #6b7280;
+}
+
+.log-entry.log-level-info {
+  border-left-color: #38BDF8;
+}
+
+.log-entry.log-level-warn {
+  border-left-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.05);
+}
+
+.log-entry.log-level-error {
+  border-left-color: #ef4444;
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.log-entry.log-level-fatal {
+  border-left-color: #dc2626;
+  background: rgba(220, 38, 38, 0.12);
+}
+
+.log-timestamp {
+  color: #6b7280;
+  margin-right: 8px;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.log-level {
+  color: var(--level-color);
+  font-weight: 600;
+  margin-right: 8px;
+  flex-shrink: 0;
+  min-width: 24px;
+}
+
+.log-message {
+  color: var(--text-primary, #cccccc);
+  flex: 1;
+}
+
+.log-data {
+  color: var(--text-secondary, #888);
+  margin-left: 8px;
+  opacity: 0.7;
+  font-size: 10px;
+  max-width: 400px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.log-entry:hover .log-data {
+  max-width: none;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* 레벨별 메시지 색상 */
+.log-entry.log-level-debug .log-message {
+  color: #9ca3af;
+}
+
+.log-entry.log-level-warn .log-message {
+  color: #fbbf24;
+}
+
+.log-entry.log-level-error .log-message {
+  color: #f87171;
+}
+
+.log-entry.log-level-fatal .log-message {
+  color: #ef4444;
+  font-weight: 600;
+}
+
+/* 푸터 */
+.log-viewer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 12px;
+  background: var(--bg-tertiary, #2d2d2d);
+  border-top: 1px solid var(--border-color, #3c3c3c);
+  font-size: 10px;
+  color: var(--text-secondary, #888);
+}
+
+.log-count {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.log-file-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.log-file-actions button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  color: var(--text-secondary, #888);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.log-file-actions button:hover {
+  background: var(--bg-hover, #3c3c3c);
+  color: var(--text-primary, #cccccc);
+}
+
+/* 라이트 테마 지원 */
+[data-theme="light"] .log-viewer {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f3f3f3;
+  --bg-tertiary: #e8e8e8;
+  --bg-hover: rgba(0, 0, 0, 0.05);
+  --text-primary: #1e1e1e;
+  --text-secondary: #666666;
+  --border-color: #d4d4d4;
+  --scrollbar-thumb: #c4c4c4;
+  --scrollbar-thumb-hover: #a0a0a0;
+}
+
+[data-theme="light"] .log-entry.log-level-warn {
+  background: rgba(245, 158, 11, 0.08);
+}
+
+[data-theme="light"] .log-entry.log-level-error {
+  background: rgba(239, 68, 68, 0.06);
+}
+
+[data-theme="light"] .log-entry.log-level-fatal {
+  background: rgba(220, 38, 38, 0.1);
+}
+
+[data-theme="light"] .log-entry.log-level-debug .log-message {
+  color: #6b7280;
+}
+
+[data-theme="light"] .log-entry.log-level-warn .log-message {
+  color: #b45309;
+}
+
+[data-theme="light"] .log-entry.log-level-error .log-message {
+  color: #dc2626;
+}
+
+[data-theme="light"] .log-entry.log-level-fatal .log-message {
+  color: #b91c1c;
+}
+
+/* 반응형 */
+@media (max-width: 768px) {
+  .log-viewer-toolbar {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .log-search {
+    order: 10;
+    flex: 1 1 100%;
+    max-width: none;
+  }
+
+  .log-level-setting {
+    display: none;
+  }
+}

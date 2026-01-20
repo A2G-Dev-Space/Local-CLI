@@ -1,0 +1,249 @@
+/* =====================================================
+   Terminal Component Styles
+   ===================================================== */
+
+.terminal {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background-color: var(--color-bg-inset);
+  overflow: hidden;
+}
+
+/* ============ Toolbar ============ */
+.terminal-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--color-bg-surface);
+  border-bottom: 1px solid var(--color-border-muted);
+}
+
+.terminal-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.session-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--color-text-muted);
+  transition: all var(--transition-fast);
+}
+
+.session-indicator.active {
+  background-color: var(--color-success);
+  box-shadow: 0 0 6px var(--color-success);
+}
+
+.session-label {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-medium);
+}
+
+.terminal-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.terminal-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  background-color: var(--color-bg-overlay);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.terminal-btn:hover {
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-elevated);
+}
+
+.terminal-btn.primary {
+  color: white;
+  background: var(--color-accent-gradient);
+  border-color: transparent;
+}
+
+.terminal-btn.primary:hover {
+  opacity: 0.9;
+}
+
+.terminal-btn.danger {
+  color: white;
+  background-color: var(--color-error);
+  border-color: transparent;
+}
+
+.terminal-btn.danger:hover {
+  background-color: #d32f2f;
+}
+
+/* ============ Output ============ */
+.terminal-output {
+  flex: 1;
+  padding: var(--space-3);
+  overflow-y: auto;
+  overflow-x: hidden;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+}
+
+.terminal-line {
+  padding: var(--space-1) 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.terminal-line.stdout {
+  color: var(--terminal-white);
+}
+
+.terminal-line.stderr {
+  color: var(--terminal-red);
+}
+
+.terminal-line.command {
+  color: var(--terminal-cyan);
+  font-weight: var(--font-weight-medium);
+  margin-top: var(--space-2);
+  padding-left: var(--space-2);
+  border-left: 2px solid var(--color-accent-primary);
+}
+
+.terminal-line.system {
+  color: var(--terminal-bright-black);
+  font-style: italic;
+}
+
+.line-content {
+  display: inline;
+}
+
+/* ============ Spinner ============ */
+.spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: var(--space-2);
+  border: 2px solid var(--color-text-muted);
+  border-top-color: var(--color-accent-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+/* ============ Input Container ============ */
+.terminal-input-container {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--color-bg-surface);
+  border-top: 1px solid var(--color-border-muted);
+}
+
+.terminal-prompt {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--terminal-cyan);
+  user-select: none;
+}
+
+.terminal-input {
+  flex: 1;
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-inset);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  outline: none;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.terminal-input:focus {
+  border-color: var(--color-accent-primary);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+}
+
+.terminal-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.terminal-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.terminal-execute-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  color: white;
+  background: var(--color-accent-gradient);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+}
+
+.terminal-execute-btn:hover:not(:disabled) {
+  transform: scale(1.05);
+  box-shadow: var(--shadow-glow);
+}
+
+.terminal-execute-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ============ ANSI Colors ============ */
+.ansi-black { color: var(--terminal-black); }
+.ansi-red { color: var(--terminal-red); }
+.ansi-green { color: var(--terminal-green); }
+.ansi-yellow { color: var(--terminal-yellow); }
+.ansi-blue { color: var(--terminal-blue); }
+.ansi-magenta { color: var(--terminal-magenta); }
+.ansi-cyan { color: var(--terminal-cyan); }
+.ansi-white { color: var(--terminal-white); }
+.ansi-bright-black { color: var(--terminal-bright-black); }
+.ansi-bright-red { color: var(--terminal-bright-red); }
+.ansi-bright-green { color: var(--terminal-bright-green); }
+.ansi-bright-yellow { color: var(--terminal-bright-yellow); }
+.ansi-bright-blue { color: var(--terminal-bright-blue); }
+.ansi-bright-magenta { color: var(--terminal-bright-magenta); }
+.ansi-bright-cyan { color: var(--terminal-bright-cyan); }
+.ansi-bright-white { color: var(--terminal-bright-white); }
+.ansi-bold { font-weight: bold; }
+.ansi-italic { font-style: italic; }
+.ansi-underline { text-decoration: underline; }
+
+/* ============ Scrollbar ============ */
+.terminal-output::-webkit-scrollbar {
+  width: 8px;
+}
+
+.terminal-output::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.terminal-output::-webkit-scrollbar-thumb {
+  background: var(--color-border-default);
+  border-radius: var(--radius-full);
+}
+
+.terminal-output::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}

@@ -1,0 +1,126 @@
+/* =====================================================
+   Sidebar Component Styles
+   ===================================================== */
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background-color: var(--color-bg-elevated);
+  border-right: 1px solid var(--color-border-muted);
+  min-width: 200px;
+  max-width: 500px;
+  overflow: hidden;
+}
+
+.sidebar.resizing {
+  transition: none;
+}
+
+/* ============ Sidebar Header ============ */
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 35px;
+  padding: 0 var(--space-4) 0 var(--space-5);
+  border-bottom: 1px solid var(--color-border-muted);
+  flex-shrink: 0;
+}
+
+.sidebar-title {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.sidebar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.sidebar-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  transition: all var(--transition-fast);
+}
+
+.sidebar-action-btn:hover {
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-overlay);
+}
+
+/* ============ Sidebar Content ============ */
+.sidebar-content {
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ============ Resize Handle ============ */
+.sidebar-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 6px;
+  height: 100%;
+  cursor: ew-resize;
+  z-index: var(--z-sticky);
+  transition: background-color var(--transition-fast);
+}
+
+.sidebar-resize-handle:hover,
+.sidebar.resizing .sidebar-resize-handle {
+  background-color: var(--color-accent-primary);
+}
+
+/* ============ Section Styles ============ */
+.sidebar-section {
+  border-bottom: 1px solid var(--color-border-muted);
+}
+
+.sidebar-section:last-child {
+  border-bottom: none;
+}
+
+.sidebar-section-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color var(--transition-fast);
+}
+
+.sidebar-section-header:hover {
+  background-color: var(--color-bg-overlay);
+}
+
+.sidebar-section-header svg {
+  transition: transform var(--transition-fast);
+}
+
+.sidebar-section-header.collapsed svg {
+  transform: rotate(-90deg);
+}
+
+.sidebar-section-content {
+  overflow: hidden;
+}
+
+.sidebar-section-content.collapsed {
+  display: none;
+}
