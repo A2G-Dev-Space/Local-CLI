@@ -128,7 +128,8 @@ vLLM, Ollama, LM Studio, Azure OpenAI, 사내 LLM 서버 등.
 ---
 
 ## 문의
-  
+
+기업 온프레미스 환경 세팅이 필요하시면 문의 주세요.  
 Email: **gkstdmgk2731@naver.com**
 
 ---
@@ -149,3 +150,91 @@ MIT License
 ---
 
 **GitHub**: https://github.com/A2G-Dev-Space/Local-CLI
+
+---
+
+# LOCAL-CLI (English)
+
+**OpenAI-Compatible CLI Coding Agent**
+
+> A developer-focused coding agent for local or on-prem LLM environments.  
+> Works with vLLM, Ollama, LM Studio, and any OpenAI-compatible API.
+
+## What You Can Do
+
+- **Read/search/edit/create code** with safe, file-level changes.
+- **Plan & Execute**: breaks tasks into TODOs and runs them step by step.
+- **Supervised Mode**: approval required before file modifications.
+- **Browser automation**: Chrome/Edge CDP control (navigate, click, screenshot).
+- **Office automation**: PowerShell/COM control for Excel/Word/PowerPoint.
+- **Session management**: save and restore conversation history.
+- **Auto retry & recovery** for failed tool calls.
+
+## Quick Start
+
+```bash
+# 1. Install
+git clone https://github.com/A2G-Dev-Space/Local-CLI.git
+cd Local-CLI
+npm install && npm run build
+
+# 2. Run
+node dist/cli.js       # or use 'lcli' after npm link
+```
+
+The endpoint setup wizard launches automatically on first run.
+
+## Highlights
+
+### Supervised Mode
+Request approval before running file modification tools.
+
+### Plan & Execute
+Automatically turns requests into TODOs and executes them in order.
+
+### Automation Extensions
+- **Browser**: PowerShell/Chrome CDP, no external server required.
+- **Office**: PowerShell/COM automation for Excel/Word/PowerPoint.
+
+## Commands & Shortcuts
+
+### Slash Commands
+| Command | Description |
+|---------|-------------|
+| `/help` | Help |
+| `/clear` | Reset conversation |
+| `/compact` | Compress conversation |
+| `/load` | Load saved session |
+| `/model` | Switch model |
+| `/settings` | Settings menu |
+| `/usage` | Token usage |
+| `/docs` | Docs management |
+| `/tool` | Toggle optional tools (browser/office) |
+
+### Keyboard Shortcuts
+- `Ctrl+C` Exit
+- `ESC` Interrupt
+- `Tab` Auto ↔ Supervised
+- `@` File browser
+- `/` Command autocomplete
+
+## Configuration
+
+```bash
+lcli            # Setup wizard on first run
+/settings       # Settings menu while running
+```
+
+Any OpenAI-compatible API works:
+vLLM, Ollama, LM Studio, Azure OpenAI, or internal LLM servers.
+
+## Requirements
+
+- Node.js v20+
+- npm v10+
+- Git (for docs/repo usage)
+
+## Contact
+
+For on-premise enterprise setup, please contact:  
+Email: **gkstdmgk2731@naver.com**
