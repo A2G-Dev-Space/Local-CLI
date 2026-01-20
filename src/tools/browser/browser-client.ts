@@ -279,7 +279,12 @@ class BrowserClient {
     if (this.platform === 'wsl') {
       try {
         const powerShellPath = getPowerShellPath();
-        const conditions = windowsPaths.map(p => `if (Test-Path '${p}') { Write-Output '${p}' }`).join(' elseif ');
+        const conditions = windowsPaths
+          .map((p, index) => {
+            const keyword = index === 0 ? 'if' : 'elseif';
+            return `${keyword} (Test-Path '${p}') { Write-Output '${p}' }`;
+          })
+          .join(' ');
         const result = execSync(
           `${powerShellPath} -Command "${conditions}"`,
           { encoding: 'utf-8', timeout: 5000 }
