@@ -2125,15 +2125,10 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
       {showLogFiles && (() => {
         const streamLogger = getStreamLogger();
         const sessionLogPath = streamLogger?.getFilePath() ?? 'N/A';
-        const logDir = streamLogger?.getLogDirectory() ?? '';
-        const browserLogPath = logDir ? `${logDir}/browser-server_log.jsonl` : 'N/A';
-        const officeLogPath = logDir ? `${logDir}/office-server_log.jsonl` : 'N/A';
         return (
           <Box flexDirection="column" paddingX={1} borderStyle="single" borderColor="gray">
             <Text color="gray" dimColor>📁 Log Files (Ctrl+O to hide)</Text>
             <Text color="gray" dimColor>  Session: {sessionLogPath}</Text>
-            <Text color="gray" dimColor>  Browser: {browserLogPath}</Text>
-            <Text color="gray" dimColor>  Office:  {officeLogPath}</Text>
           </Box>
         );
       })()}

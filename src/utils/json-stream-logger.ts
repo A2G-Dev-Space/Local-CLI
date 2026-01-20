@@ -456,7 +456,7 @@ export class JsonStreamLogger {
   }
 
   /**
-   * Log server request (for Windows servers like browser-server, office-server)
+   * Log server request (legacy Windows servers)
    */
   logServerRequest(serverType: 'browser' | 'office', method: string, endpoint: string, body?: unknown): void {
     this.log({

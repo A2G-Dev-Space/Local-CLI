@@ -63,22 +63,9 @@ curl http://localhost:8765/health
 
 동일하게 `/tool` → 선택 → `Enter`로 토글
 
-## Office 서버
+## Office 실행 방식
 
-도구 활성화 시 `office-server.exe`가 자동으로 시작됩니다.
-
-### 수동 시작
-```bash
-# Windows에서
-office-server/dist/office-server.exe --port 8765
-```
-
-### 수동 종료
-```bash
-curl -X POST http://localhost:8765/shutdown
-```
-
-또는 도구 비활성화 시 자동 종료됩니다.
+Office 도구는 별도 `office-server.exe` 없이 PowerShell/COM 자동화로 직접 실행됩니다.
 
 ## 사용 예시
 
@@ -98,11 +85,10 @@ PowerPoint 프레젠테이션 만들고 첫 슬라이드에 "프로젝트 소개
 
 ## 문제 해결
 
-### "Server not responding" 오류
+### PowerShell 실행 오류
 
 1. WSL mirrored mode 설정 확인
-2. Windows 방화벽에서 포트 8765 허용
-3. Office가 설치되어 있는지 확인
+2. Office가 설치되어 있는지 확인
 
 ### 폰트/크기가 적용 안됨
 
@@ -113,4 +99,4 @@ PowerPoint 프레젠테이션 만들고 첫 슬라이드에 "프로젝트 소개
 
 ### Office 앱이 보이지 않음
 
-Office 서버는 앱을 visible 모드로 실행합니다. 작업 표시줄 또는 다른 모니터 확인.
+Office 앱은 visible 모드로 실행됩니다. 작업 표시줄 또는 다른 모니터 확인.
