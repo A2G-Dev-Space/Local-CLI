@@ -479,8 +479,12 @@ export class LLMClient {
 
       logger.verbose('Full Streaming Request Body', requestBody);
 
+      // Create AbortController for streaming request
+      this.currentAbortController = new AbortController();
+
       const response = await this.axiosInstance.post(url, requestBody, {
         responseType: 'stream',
+        signal: this.currentAbortController.signal,
       });
 
       logger.debug('Streaming response started', { status: response.status });
@@ -497,39 +501,50 @@ export class LLMClient {
       // Import emitReasoning once before loop
       const { emitReasoning } = await import('../../tools/llm/simple/file-tools.js');
 
-      for await (const chunk of stream) {
-        buffer += chunk.toString();
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
+      try {
+        for await (const chunk of stream) {
+          // Check for interrupt at the start of each chunk
+          if (this.isInterrupted) {
+            logger.flow('Interrupt detected during streaming - stopping');
+            throw new Error('INTERRUPTED');
+          }
 
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed || trimmed === 'data: [DONE]') continue;
+          buffer += chunk.toString();
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
 
-          if (trimmed.startsWith('data: ')) {
-            try {
-              const jsonStr = trimmed.slice(6);
-              const data = JSON.parse(jsonStr) as LLMStreamChunk;
-              chunkCount++;
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed === 'data: [DONE]') continue;
 
-              // Emit reasoning if present in stream (extended thinking)
-              // Skip for internal classifier calls
-              const reasoningDelta = data.choices[0]?.delta?.reasoning;
-              if (reasoningDelta && !isInternalCall) {
-                emitReasoning(reasoningDelta, true);
-                logger.debug('Reasoning delta emitted', { length: reasoningDelta.length });
-              } else if (reasoningDelta && isInternalCall) {
-                logger.debug('Reasoning delta skipped (internal call)', { maxTokens });
+            if (trimmed.startsWith('data: ')) {
+              try {
+                const jsonStr = trimmed.slice(6);
+                const data = JSON.parse(jsonStr) as LLMStreamChunk;
+                chunkCount++;
+
+                // Emit reasoning if present in stream (extended thinking)
+                // Skip for internal classifier calls
+                const reasoningDelta = data.choices[0]?.delta?.reasoning;
+                if (reasoningDelta && !isInternalCall) {
+                  emitReasoning(reasoningDelta, true);
+                  logger.debug('Reasoning delta emitted', { length: reasoningDelta.length });
+                } else if (reasoningDelta && isInternalCall) {
+                  logger.debug('Reasoning delta skipped (internal call)', { maxTokens });
+                }
+
+                yield data;
+              } catch (parseError) {
+                // JSON 파싱 에러 무시 (불완전한 청크)
+                logger.debug('Skipping invalid chunk', { line: trimmed });
+                continue;
               }
-
-              yield data;
-            } catch (parseError) {
-              // JSON 파싱 에러 무시 (불완전한 청크)
-              logger.debug('Skipping invalid chunk', { line: trimmed });
-              continue;
             }
           }
         }
+      } finally {
+        // Clear abort controller after streaming completes
+        this.currentAbortController = null;
       }
 
       logger.debug('Streaming response completed', { chunkCount });
@@ -1044,7 +1059,7 @@ export class LLMClient {
 
           logger.debug(`Executing tool: ${toolName}`, toolArgs);
 
-          let result: { success: boolean; result?: string; error?: string };
+          let result: { success: boolean; result?: string; error?: string; metadata?: Record<string, unknown> };
 
           try {
             result = await executeFileTool(toolName, toolArgs);
@@ -1053,6 +1068,39 @@ export class LLMClient {
             // LLM Log mode: Tool 결과 로깅
             if (isLLMLogEnabled()) {
               logger.llmToolResult(toolName, result.result || '', result.success);
+            }
+
+            // Handle final_response tool - return immediately on success
+            if (toolName === 'final_response' && result.success && result.metadata?.['isFinalResponse']) {
+              logger.flow('final_response tool executed successfully - returning');
+
+              // Emit assistant response for UI
+              const { emitAssistantResponse } = await import('../../tools/llm/simple/file-tools.js');
+              emitAssistantResponse(result.result || '');
+
+              // Add tool result to messages for completeness
+              workingMessages.push({
+                role: 'tool',
+                content: result.result || '',
+                tool_call_id: toolCall.id,
+              });
+
+              // Add to history
+              toolCallHistory.push({
+                tool: toolName,
+                args: toolArgs,
+                result: result.result || '',
+              });
+
+              // Return final response
+              return {
+                message: {
+                  role: 'assistant' as const,
+                  content: result.result || '',
+                },
+                toolCalls: toolCallHistory,
+                allMessages: workingMessages,
+              };
             }
           } catch (toolError) {
             logger.toolExecution(toolName, toolArgs, undefined, toolError as Error);
@@ -1082,24 +1130,44 @@ export class LLMClient {
             args: toolArgs,
             result: result.success ? result.result || '' : `Error: ${result.error}`,
           });
+
+          // Check for interrupt after tool execution
+          if (this.isInterrupted) {
+            logger.flow('Interrupt detected after tool execution - stopping');
+            throw new Error('INTERRUPTED');
+          }
         }
 
         // Tool 실행 완료 - 계속해서 LLM 호출 (continue)
         // LLM이 finish_reason: stop을 반환할 때까지 루프 계속
         continue;
       } else {
-        // Tool call 없음 - 최종 응답
-        // Emit assistant response event for UI
-        if (assistantMessage.content) {
-          const { emitAssistantResponse } = await import('../../tools/llm/simple/file-tools.js');
-          emitAssistantResponse(assistantMessage.content);
-        }
+        // Tool call 없음 - tool call 강제
+        // LLM은 반드시 tool을 사용해야 함 (final_response 포함)
+        logger.flow('No tool call - enforcing tool usage');
 
-        return {
-          message: assistantMessage,
-          toolCalls: toolCallHistory,
-          allMessages: workingMessages,
-        };
+        // Check for malformed tool call patterns in content
+        const hasMalformedToolCall = assistantMessage.content &&
+          (/<tool_call>/i.test(assistantMessage.content) ||
+           /<arg_key>/i.test(assistantMessage.content) ||
+           /<arg_value>/i.test(assistantMessage.content) ||
+           /<\/tool_call>/i.test(assistantMessage.content) ||
+           /bash<arg_key>/i.test(assistantMessage.content));
+
+        const retryMessage = hasMalformedToolCall
+          ? 'Your previous response contained a malformed tool call (XML tags in content). You MUST use the proper tool_calls API format. Use final_response tool to deliver your message to the user.'
+          : 'You must use tools for all actions. Use final_response tool to deliver your final message to the user after completing all tasks.';
+
+        // Add assistant message (to preserve context) and retry instruction
+        workingMessages.push({
+          role: 'user',
+          content: retryMessage,
+        });
+
+        logger.debug('Enforcing tool call - added retry message');
+
+        // Continue loop to retry
+        continue;
       }
     }
   }
