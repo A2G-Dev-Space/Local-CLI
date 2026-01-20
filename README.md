@@ -129,7 +129,6 @@ vLLM, Ollama, LM Studio, Azure OpenAI, 사내 LLM 서버 등.
 
 ## 문의
 
-기업 온프레미스 환경 세팅이 필요하시면 문의 주세요.  
 Email: **gkstdmgk2731@naver.com**
 
 ---
@@ -236,5 +235,4 @@ vLLM, Ollama, LM Studio, Azure OpenAI, or internal LLM servers.
 
 ## Contact
 
-For on-premise enterprise setup, please contact:  
 Email: **gkstdmgk2731@naver.com**
