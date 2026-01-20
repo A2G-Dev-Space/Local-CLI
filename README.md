@@ -1,4 +1,4 @@
-# LOCAL-CLI
+# LOCAL-CLI (English)
 
 [![GitHub release](https://img.shields.io/github/v/release/A2G-Dev-Space/Local-CLI)](https://github.com/A2G-Dev-Space/Local-CLI/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -6,12 +6,130 @@
 
 **OpenAI-Compatible CLI Coding Agent**
 
-> 로컬/사내 LLM 환경에서 바로 사용할 수 있는 개발자용 코딩 에이전트입니다.  
-> vLLM, Ollama, LM Studio 등 OpenAI 호환 API를 지원합니다.
+> A developer-focused coding agent for local or on-prem LLM environments.  
+> Works with vLLM, Ollama, LM Studio, and any OpenAI-compatible API.
 
 https://github.com/user-attachments/assets/77cc96c9-cb22-4411-8744-3a006b00c580
 
 ---
+
+## What You Can Do
+
+- **Read/search/edit/create code** with safe, file-level changes.
+- **Plan & Execute**: breaks tasks into TODOs and runs them step by step.
+- **Supervised Mode**: approval required before file modifications.
+- **Browser automation**: Chrome/Edge CDP control (navigate, click, screenshot).
+- **Office automation**: PowerShell/COM control for Excel/Word/PowerPoint.
+- **Session management**: save and restore conversation history.
+- **Auto retry & recovery** for failed tool calls.
+
+---
+
+## Quick Start
+
+```bash
+# 1. Install
+git clone https://github.com/A2G-Dev-Space/Local-CLI.git
+cd Local-CLI
+npm install && npm run build
+
+# 2. Run
+node dist/cli.js       # or use 'lcli' after npm link
+```
+
+The endpoint setup wizard launches automatically on first run.
+
+---
+
+## Highlights
+
+### Supervised Mode
+Request approval before running file modification tools.
+
+### Plan & Execute
+Automatically turns requests into TODOs and executes them in order.
+
+### Automation Extensions
+- **Browser**: PowerShell/Chrome CDP, no external server required.
+- **Office**: PowerShell/COM automation for Excel/Word/PowerPoint.
+
+---
+
+## Commands & Shortcuts
+
+### Slash Commands
+| Command | Description |
+|---------|-------------|
+| `/help` | Help |
+| `/clear` | Reset conversation |
+| `/compact` | Compress conversation |
+| `/load` | Load saved session |
+| `/model` | Switch model |
+| `/settings` | Settings menu |
+| `/usage` | Token usage |
+| `/docs` | Docs management |
+| `/tool` | Toggle optional tools (browser/office) |
+
+### Keyboard Shortcuts
+- `Ctrl+C` Exit
+- `ESC` Interrupt
+- `Tab` Auto ↔ Supervised
+- `@` File browser
+- `/` Command autocomplete
+
+---
+
+## Configuration
+
+```bash
+lcli            # Setup wizard on first run
+/settings       # Settings menu while running
+```
+
+Any OpenAI-compatible API works:
+vLLM, Ollama, LM Studio, Azure OpenAI, or internal LLM servers.
+
+---
+
+## Requirements
+
+- Node.js v20+
+- npm v10+
+- Git (for docs/repo usage)
+
+---
+
+## Contact
+
+Email: **gkstdmgk2731@naver.com**
+
+---
+
+## Documentation
+
+- [Developer Guide](docs/01_DEVELOPMENT.md)
+- [Logging System](docs/02_LOGGING.md)
+- [Testing Guide](docs/03_TESTING.md)
+- [Roadmap](docs/04_ROADMAP.md)
+
+---
+
+## License
+
+MIT License
+
+---
+
+**GitHub**: https://github.com/A2G-Dev-Space/Local-CLI
+
+---
+
+# LOCAL-CLI (한국어)
+
+**OpenAI-Compatible CLI Coding Agent**
+
+> 로컬/사내 LLM 환경에서 바로 사용할 수 있는 개발자용 코딩 에이전트입니다.  
+> vLLM, Ollama, LM Studio 등 OpenAI 호환 API를 지원합니다.
 
 ## 이 툴로 할 수 있는 것
 
@@ -22,8 +140,6 @@ https://github.com/user-attachments/assets/77cc96c9-cb22-4411-8744-3a006b00c580
 - **Office 자동화**: PowerShell/COM 기반 Excel/Word/PowerPoint 제어.
 - **세션 관리**: 대화 및 작업 히스토리 저장/복원.
 - **자동 재시도/에러 복구**: 도구 호출 실패 시 자동 재시도.
-
----
 
 ## Quick Start
 
@@ -149,90 +265,3 @@ MIT License
 ---
 
 **GitHub**: https://github.com/A2G-Dev-Space/Local-CLI
-
----
-
-# LOCAL-CLI (English)
-
-**OpenAI-Compatible CLI Coding Agent**
-
-> A developer-focused coding agent for local or on-prem LLM environments.  
-> Works with vLLM, Ollama, LM Studio, and any OpenAI-compatible API.
-
-## What You Can Do
-
-- **Read/search/edit/create code** with safe, file-level changes.
-- **Plan & Execute**: breaks tasks into TODOs and runs them step by step.
-- **Supervised Mode**: approval required before file modifications.
-- **Browser automation**: Chrome/Edge CDP control (navigate, click, screenshot).
-- **Office automation**: PowerShell/COM control for Excel/Word/PowerPoint.
-- **Session management**: save and restore conversation history.
-- **Auto retry & recovery** for failed tool calls.
-
-## Quick Start
-
-```bash
-# 1. Install
-git clone https://github.com/A2G-Dev-Space/Local-CLI.git
-cd Local-CLI
-npm install && npm run build
-
-# 2. Run
-node dist/cli.js       # or use 'lcli' after npm link
-```
-
-The endpoint setup wizard launches automatically on first run.
-
-## Highlights
-
-### Supervised Mode
-Request approval before running file modification tools.
-
-### Plan & Execute
-Automatically turns requests into TODOs and executes them in order.
-
-### Automation Extensions
-- **Browser**: PowerShell/Chrome CDP, no external server required.
-- **Office**: PowerShell/COM automation for Excel/Word/PowerPoint.
-
-## Commands & Shortcuts
-
-### Slash Commands
-| Command | Description |
-|---------|-------------|
-| `/help` | Help |
-| `/clear` | Reset conversation |
-| `/compact` | Compress conversation |
-| `/load` | Load saved session |
-| `/model` | Switch model |
-| `/settings` | Settings menu |
-| `/usage` | Token usage |
-| `/docs` | Docs management |
-| `/tool` | Toggle optional tools (browser/office) |
-
-### Keyboard Shortcuts
-- `Ctrl+C` Exit
-- `ESC` Interrupt
-- `Tab` Auto ↔ Supervised
-- `@` File browser
-- `/` Command autocomplete
-
-## Configuration
-
-```bash
-lcli            # Setup wizard on first run
-/settings       # Settings menu while running
-```
-
-Any OpenAI-compatible API works:
-vLLM, Ollama, LM Studio, Azure OpenAI, or internal LLM servers.
-
-## Requirements
-
-- Node.js v20+
-- npm v10+
-- Git (for docs/repo usage)
-
-## Contact
-
-Email: **gkstdmgk2731@naver.com**
