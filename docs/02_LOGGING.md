@@ -588,42 +588,15 @@ JSON 로그 파일에는 다음 타입의 이벤트가 기록됩니다:
 {"timestamp":"2025-01-05T10:30:02.500Z","type":"planning_end","content":"Planning End: 3 TODOs created","metadata":{"todoCount":3,"todos":[{"id":"1","title":"Analyze login function","status":"pending"}],"durationMs":1500}}
 ```
 
-### 10.4 Windows 서버 로깅 (browser-server, office-server)
-
-Windows 서버(.exe)는 별도의 로그 파일을 생성할 수 있습니다.
-
-#### 서버 로그 활성화
-
-`--log-path` 옵션을 사용하여 서버를 시작합니다:
-
-```bash
-# Browser Server
-browser-server.exe --port 8766 --log-path C:\logs\browser-server.jsonl
-
-# Office Server
-office-server.exe --port 8765 --log-path C:\logs\office-server.jsonl
-```
-
-#### 서버 로그 항목
-
-```json
-{"timestamp":"2025-01-05T10:30:00.000Z","type":"server_start","message":"Browser server started","port":8766}
-{"timestamp":"2025-01-05T10:30:01.000Z","type":"request","method":"POST","endpoint":"/browser/navigate","body":{"url":"https://example.com"}}
-{"timestamp":"2025-01-05T10:30:02.500Z","type":"response","endpoint":"/browser/navigate","success":true,"response":{"url":"https://example.com","title":"Example"},"duration_ms":1500}
-```
-
-### 10.5 문제 보고 시 로그 수집
+### 10.4 문제 보고 시 로그 수집
 
 사용자가 문제를 보고할 때 다음 로그 파일을 요청하세요:
 
 1. **Client 로그**: `~/.local-cli/projects/<project-hash>/<session>_log.json`
-2. **Browser 서버 로그**: (서버 시작 시 지정한 경로)
-3. **Office 서버 로그**: (서버 시작 시 지정한 경로)
 
 이 로그들을 통해 다음을 확인할 수 있습니다:
 - Tool 실행 시간 및 결과
 - Planning 단계에서 생성된 TODO 목록
-- Windows 서버와의 통신 내역 (요청/응답)
 - 에러 발생 시점 및 상세 정보
 
 ---
