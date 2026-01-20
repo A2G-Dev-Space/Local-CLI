@@ -1,15 +1,27 @@
-# LOCAL-CLI v3.0.1
+# LOCAL-CLI
 
 [![GitHub release](https://img.shields.io/github/v/release/A2G-Dev-Space/Local-CLI)](https://github.com/A2G-Dev-Space/Local-CLI/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/Node.js-20%2B-green)](https://nodejs.org/)
 
-**OpenAI-Compatible Local CLI Coding Agent**
+**OpenAI-Compatible CLI Coding Agent**
 
-> Standalone AI coding agent for local LLM environments.
-> Works with vLLM, Ollama, LM Studio, and any OpenAI-compatible API.
+> 로컬/사내 LLM 환경에서 바로 사용할 수 있는 개발자용 코딩 에이전트입니다.  
+> vLLM, Ollama, LM Studio 등 OpenAI 호환 API를 지원합니다.
 
 https://github.com/user-attachments/assets/77cc96c9-cb22-4411-8744-3a006b00c580
+
+---
+
+## 이 툴로 할 수 있는 것
+
+- **코드 읽기/검색/수정/생성**: 파일 단위로 안전하게 수정합니다.
+- **Plan & Execute**: 작업을 TODO로 분해하고 단계적으로 실행합니다.
+- **Supervised Mode**: 파일 변경 전 사용자 승인 기반 작업.
+- **브라우저 자동화**: Chrome/Edge CDP 제어(탭 이동, 클릭, 스크린샷 등).
+- **Office 자동화**: PowerShell/COM 기반 Excel/Word/PowerPoint 제어.
+- **세션 관리**: 대화 및 작업 히스토리 저장/복원.
+- **자동 재시도/에러 복구**: 도구 호출 실패 시 자동 재시도.
 
 ---
 
@@ -22,236 +34,88 @@ cd Local-CLI
 npm install && npm run build
 
 # 2. Run
-node dist/cli.js       # or use 'lcli' command after npm link
+node dist/cli.js       # 또는 npm link 후 'lcli'
 ```
 
-The LLM endpoint setup wizard will automatically run on first launch.
+첫 실행 시 LLM 엔드포인트 설정 마법사가 자동으로 열립니다.
 
 ---
 
-## Key Features
+## 주요 기능 하이라이트
 
 ### Supervised Mode
-Request user approval before executing file modification tools.
+파일 수정 도구 실행 전에 승인 요청:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  🔧 create_file                                              │
+│  🔧 edit_file                                                │
 │  ─────────────────────────────────────────────────────────   │
 │  📁 file_path: /src/utils/helper.ts                          │
-│  📝 content: export function helper() { ... }                │
+│  📝 diff: + added lines ...                                  │
 │  ─────────────────────────────────────────────────────────   │
 │  ▸ [1] ✅ Approve                                            │
 │    [2] ❌ Reject                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-- **Tab key** - Toggle Auto ↔ Supervised mode
-- **Only file modification tools** require approval (read_file, list_files, etc. run automatically)
-- **On Reject** - Enter comment → AI retries with feedback
+- **Tab**: Auto ↔ Supervised 모드 전환
+- **파일 수정 도구만** 승인 필요
+- **Reject** 시 피드백을 반영해 재시도
 
-### Plan & Execute Architecture
-Automatically breaks down user requests into TODO lists and executes them sequentially.
+### Plan & Execute
+요청을 TODO로 분해해 순차 실행:
 
 ```
-You: Add a logging system to the project
-
-✶ Thinking… (esc to interrupt · 5s · ↑ 1.2k tokens)
+You: 로깅 시스템 추가해줘
 
 ┌────────────────────────────────────────────────┐
 │ 📋 TODO List                            1/3    │
 │ ████████░░░░░░░░░░░░░░░░░ 33%                  │
-│ ├─ ☑ Create logger.ts file                    │
-│ ├─ ⣾ Add logger import to existing files      │
-│ └─ ☐ Apply logger to error handling           │
+│ ├─ ☑ logger.ts 생성                          │
+│ ├─ ⣾ 기존 코드에 import 추가                 │
+│ └─ ☐ 에러 핸들링 적용                         │
 └────────────────────────────────────────────────┘
-
-✶ 1/3 tasks · edit_file… (esc to interrupt · 12s)
 ```
 
-### Static Log UI
-Claude Code-style scrollable log history:
-- Tool-specific icons (📖 read, 📝 create, ✏️ edit, 📂 list, 🔍 find, 🔧 bash, 💬 message)
-- Diff format for file changes (blue: added, red: deleted)
-- Real-time progress display
-
-### LLM Tools
-| Tool | Description | Requires Approval |
-|------|-------------|-------------------|
-| `read_file` | Read file | ❌ |
-| `create_file` | Create new file | ✅ |
-| `edit_file` | Edit existing file (line-by-line) | ✅ |
-| `list_files` | List directory | ❌ |
-| `find_files` | Search files (glob pattern) | ❌ |
-| `bash` | Execute shell commands | ✅ |
-| `tell_to_user` | Send message to user | ❌ |
-| `ask_user` | Ask user a question | ❌ |
-
-### Optional Tools (via `/tool` command)
-| Tool Group | Description |
-|------------|-------------|
-| `browser` | Chrome/Edge automation via CDP (navigate, click, screenshot, etc.) |
-| `office` | Microsoft Office automation (Excel, Word, PowerPoint) |
-
-### Slash Commands
-| Command | Description |
-|---------|-------------|
-| `/help` | Show help |
-| `/clear` | Reset conversation |
-| `/compact` | Compress conversation (save context) |
-| `/load` | Load saved session |
-| `/model` | Switch LLM model |
-| `/settings` | Settings menu |
-| `/usage` | Token usage statistics |
-| `/docs` | Documentation management |
-| `/tool` | Enable/disable optional tools (browser, office) |
-
-### Keyboard Shortcuts
-- `Ctrl+C` - Exit
-- `ESC` - Interrupt current execution
-- `Tab` - Toggle Auto ↔ Supervised mode
-- `@` - File browser
-- `/` - Command autocomplete
+### 최신 자동화 확장
+- **브라우저 자동화**: PowerShell/Chrome CDP 기반, 별도 서버 없음
+- **Office 자동화**: PowerShell/COM 기반, Excel/Word/PowerPoint 직접 제어
 
 ---
 
-## Main Features
+## 명령어 & 단축키
 
-### v3.0.1 New Features
+### Slash Commands
+| Command | 설명 |
+|---------|------|
+| `/help` | 도움말 |
+| `/clear` | 대화 초기화 |
+| `/compact` | 대화 압축 |
+| `/load` | 세션 불러오기 |
+| `/model` | 모델 전환 |
+| `/settings` | 설정 메뉴 |
+| `/usage` | 토큰 사용량 |
+| `/docs` | 문서 관리 |
+| `/tool` | 선택 기능 토글 (browser/office) |
 
-| Feature | Description |
-|---------|-------------|
-| **Planning LLM Fix** | Fixed empty response and tool confusion errors |
-| **Progress Bar Visibility** | Improved color visibility for progress bars |
-| **TODO Complete Message** | Removed duplicate completion messages |
-
-### v3.0.0 New Features
-
-| Feature | Description |
-|---------|-------------|
-| **Microsoft Office Tools** | Excel, Word, PowerPoint automation via `/tool office` |
-| **Browser Automation** | Chrome/Edge CDP-based browser control via `/tool browser` |
-| **WSL2 Support** | Windows Chrome/Edge support in WSL2 environment |
-| **UI Visibility** | Improved startup messages and UI visibility |
-| **Multi-line Paste** | Support for pasting multi-line text in input |
-| **Auto Retry** | Automatic retry logic for LLM calls (up to 3 times) |
-
-### v2.7.x Features
-
-| Feature | Description |
-|---------|-------------|
-| **Git Repository Detection** | Shows startup notification when working in a git repo |
-| **Commit Assistance** | Prompts to commit changes after task completion |
-| **Co-Authored-By Support** | Automatically includes `Co-Authored-By` trailer in commits |
-| **Notion-style TODO UI** | Checkbox icons (☐ pending, ☑ completed, ☒ failed), strikethrough for completed items |
-| **Enhanced Status Bar** | Star spinner (✶), progress display (2/5 tasks), current tool name |
-| **Planning LLM Improvements** | create_todos tool, conversation history after compact, TODO sync emphasis |
-
-### v2.6.x Features
-
-| Feature | Description |
-|---------|-------------|
-| **Planning-Only Mode** | All requests use TODO-based plan mode (classifier removed) |
-| **Simplified TODO** | TodoItem uses `title` only (no `description`) |
-| **write_todos Tool** | Claude Code style - replaces entire TODO list |
-| **tell_to_user First** | LLM communicates results via `tell_to_user` before `write_todos` |
-
-### v2.5.x Features
-
-| Feature | Description |
-|---------|-------------|
-| **--eval mode** | Evaluation mode for Python automation tests (stdin JSON → stdout NDJSON) |
-| **Python Tests** | pytest-based test suite (`npm run test`) |
-| **NDJSON Event Stream** | start, tool_call, tool_result, response, end events |
-
-```bash
-# --eval mode usage
-echo '{"prompt": "1+1은?"}' | lcli --eval
-
-# Run Python tests
-npm run test        # Full test
-npm run test:quick  # Quick test
-```
-
-### v2.4.x New Features
-
-| Feature | Description |
-|---------|-------------|
-| **Markdown Rendering** | Assistant responses render markdown (bold, italic, code blocks, lists) in CLI |
-| **LLM-based Docs Search** | Intelligent documentation search - LLM decides when to search based on folder structure |
-| **Hierarchical Docs Navigation** | New docs search agent with folder-based navigation |
-| **Docs Search Progress UI** | Real-time progress display during documentation search |
-| **Centralized Prompts** | All prompts moved to `src/prompts/` |
-| **Restructured Agents** | Agents reorganized under `src/agents/` |
-
-### v2.2.0 New Features
-
-| Feature | Description |
-|---------|-------------|
-| **Unified Execution Loop** | Planning and Direct mode now share the same execution pattern |
-| **TODO Context Injection** | TODO state injected per-invoke, not stored in history (prevents context pollution) |
-| **Bash Tool** | Execute shell commands (git, npm, build, test) with security validation |
-| **Language Priority** | AI responds in the same language as user input (Korean → Korean, English → English) |
-| **Auto-Compact Enhancement** | Preserves last 2 messages when compacting for better continuity |
-| **Error Retry** | Auto-retry failed tool calls up to 3 times before giving up |
-
-### Supervised Mode
-- Request user approval before file modification
-- Toggle Auto/Supervised mode with Tab key
-- Provide feedback via comments on Reject
-
-### Session Management
-- Auto-save/restore conversation history between TODO tasks
-- Preserve full context including tool calls/responses
-- History only resets on `/compact`
-
-### Context Usage Display
-- Status bar shows `Context (1.3K / 13%)` format
-- Auto-Compact runs automatically at 80% usage
-
-### Single Tool Execution
-- `parallel_tool_calls: false` API parameter enforced
-- LLM calls only one tool at a time for stable execution
+### Keyboard Shortcuts
+- `Ctrl+C` 종료
+- `ESC` 작업 중단
+- `Tab` Auto ↔ Supervised
+- `@` 파일 브라우저
+- `/` 명령어 자동완성
 
 ---
 
 ## Configuration
 
-### Add LLM Endpoint
-
 ```bash
-# Run setup wizard
-lcli    # First run auto-launches wizard
-
-# Or via settings
-/settings
+lcli            # 최초 실행 시 설정 마법사
+/settings       # 실행 중 설정 메뉴
 ```
 
-Compatible with any OpenAI-compatible API server:
-- vLLM, Ollama, LM Studio
-- Azure OpenAI, Google Gemini (OpenAI Compatible)
-- Internal LLM servers
-
-### CLI Options
-
-```bash
-lcli              # Default run
-lcli --verbose    # Verbose logging
-lcli --debug      # Debug mode
-```
-
----
-
-## Directory Structure
-
-```
-~/.local-cli/
-├── config.json        # Configuration file
-├── endpoints.json     # Endpoint settings
-├── usage.json         # Usage statistics
-├── docs/              # Downloaded docs
-└── projects/          # Project-specific sessions
-```
+OpenAI 호환 API라면 대부분 연결 가능합니다:
+vLLM, Ollama, LM Studio, Azure OpenAI, 사내 LLM 서버 등.
 
 ---
 
@@ -259,7 +123,14 @@ lcli --debug      # Debug mode
 
 - Node.js v20+
 - npm v10+
-- Git (for doc downloads)
+- Git (문서/리포 사용 시)
+
+---
+
+## 문의
+
+기업 **온프레미스 환경 세팅**이 필요하시면 아래로 문의 주세요.  
+Email: **gkstdmgk2731@naver.com**
 
 ---
 
@@ -275,12 +146,6 @@ lcli --debug      # Debug mode
 ## License
 
 MIT License
-
----
-
-## Keywords
-
-`AI coding assistant` `local LLM` `offline AI` `CLI tool` `vLLM` `Ollama` `LM Studio` `OpenAI compatible` `code generation` `developer tools` `TypeScript` `Node.js` `coding agent`
 
 ---
 
