@@ -278,14 +278,17 @@ class BrowserClient {
     // WSL - use PowerShell to check Windows paths
     if (this.platform === 'wsl') {
       try {
+        const powerShellPath = getPowerShellPath();
         const conditions = windowsPaths.map(p => `if (Test-Path '${p}') { Write-Output '${p}' }`).join(' elseif ');
         const result = execSync(
-          `powershell.exe -Command "${conditions}"`,
+          `${powerShellPath} -Command "${conditions}"`,
           { encoding: 'utf-8', timeout: 5000 }
         ).trim();
         if (result) return result;
-      } catch {
-        // Ignore
+      } catch (error) {
+        logger.debug(
+          `[BrowserClient] findBrowserPath: PowerShell check failed (${error instanceof Error ? error.message : String(error)})`
+        );
       }
       return null;
     }
@@ -340,8 +343,9 @@ class BrowserClient {
     try {
       if (this.platform === 'native-windows' || this.platform === 'wsl') {
         // Use PowerShell to kill processes on Windows
+        const powerShellPath = getPowerShellPath();
         execSync(
-          `powershell.exe -Command "Get-NetTCPConnection -LocalPort ${this.cdpPort} -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }"`,
+          `${powerShellPath} -Command "Get-NetTCPConnection -LocalPort ${this.cdpPort} -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }"`,
           { stdio: 'ignore', timeout: 5000 }
         );
       } else {
