@@ -1,0 +1,345 @@
+/* =====================================================
+   Session Browser Component Styles
+   ===================================================== */
+
+.session-browser-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background-color: rgba(0, 0, 0, 0.5);
+  animation: fadeIn var(--transition-fast);
+  overflow: auto;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.session-browser {
+  display: flex;
+  flex-direction: column;
+  width: 560px;
+  max-width: 90vw;
+  max-height: 80vh;
+  background-color: var(--color-bg-surface);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  animation: slideInUp var(--transition-smooth);
+}
+
+/* ============ Header ============ */
+.session-browser-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--color-border-muted);
+}
+
+.session-browser-header h2 {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.session-browser-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  color: var(--color-text-muted);
+  background-color: transparent;
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+}
+
+.session-browser-close:hover {
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-overlay);
+}
+
+/* ============ Search ============ */
+.session-browser-search {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-4) var(--space-5);
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--color-bg-inset);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+}
+
+.session-browser-search svg {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+
+.session-browser-search input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+}
+
+.session-browser-search input::placeholder {
+  color: var(--color-text-muted);
+}
+
+/* ============ Session List ============ */
+.session-browser-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 var(--space-3);
+}
+
+.session-browser-loading,
+.session-browser-error,
+.session-browser-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-8);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.session-browser-empty svg {
+  opacity: 0.3;
+}
+
+.session-browser-empty p {
+  font-size: var(--font-size-sm);
+  margin: 0;
+}
+
+.loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--color-border-muted);
+  border-top-color: var(--color-accent-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ============ Session Item ============ */
+.session-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  margin-bottom: var(--space-2);
+  background-color: var(--color-bg-base);
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.session-item:hover {
+  background-color: var(--color-bg-elevated);
+  border-color: var(--color-border-muted);
+}
+
+.session-item.selected {
+  background-color: var(--color-bg-elevated);
+  border-color: var(--color-accent-primary);
+}
+
+.session-item.current {
+  background-color: rgba(56, 189, 248, 0.1);
+}
+
+.session-item-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: var(--color-accent-gradient);
+  border-radius: var(--radius-md);
+  color: white;
+}
+
+.session-item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.session-item-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+}
+
+.session-item-name {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-item-badge {
+  padding: 2px 6px;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-accent-primary);
+  background-color: rgba(56, 189, 248, 0.15);
+  border-radius: var(--radius-full);
+}
+
+.session-item-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.session-item-preview {
+  margin-top: var(--space-2);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-item-directory {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.session-item-directory svg {
+  flex-shrink: 0;
+}
+
+.session-item-directory span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-item-actions {
+  display: flex;
+  gap: var(--space-1);
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.session-item:hover .session-item-actions {
+  opacity: 1;
+}
+
+.session-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  color: var(--color-text-muted);
+  background-color: transparent;
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+}
+
+.session-action-btn:hover {
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-overlay);
+}
+
+.session-action-btn.delete:hover {
+  color: var(--color-error);
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+/* ============ Footer ============ */
+.session-browser-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid var(--color-border-muted);
+  background-color: var(--color-bg-surface);
+}
+
+.session-browser-footer-spacer {
+  flex: 1;
+}
+
+.session-browser-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+}
+
+.session-browser-btn.secondary {
+  color: var(--color-text-secondary);
+  background-color: var(--color-bg-overlay);
+}
+
+.session-browser-btn.secondary:hover {
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-elevated);
+}
+
+.session-browser-btn.primary {
+  color: white;
+  background: var(--color-accent-gradient);
+}
+
+.session-browser-btn.primary:hover:not(:disabled) {
+  box-shadow: var(--shadow-glow);
+}
+
+.session-browser-btn.primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ============ Scrollbar ============ */
+.session-browser-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.session-browser-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.session-browser-list::-webkit-scrollbar-thumb {
+  background: var(--color-border-default);
+  border-radius: var(--radius-full);
+}
+
+.session-browser-list::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}

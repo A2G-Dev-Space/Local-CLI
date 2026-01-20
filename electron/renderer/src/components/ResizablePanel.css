@@ -1,0 +1,212 @@
+/* =====================================================
+   ResizablePanel Component Styles
+   리사이즈 가능한 패널 스타일
+   ===================================================== */
+
+/* ============ 패널 컨테이너 ============ */
+.resizable-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--color-bg-elevated);
+  overflow: visible; /* Allow resize handle to be visible */
+  transition: width var(--transition-smooth), height var(--transition-smooth),
+              min-width var(--transition-smooth), min-height var(--transition-smooth);
+  will-change: width, height;
+}
+
+/* 리사이즈 중일 때 트랜지션 비활성화 */
+.resizable-panel.is-resizing {
+  transition: none;
+  user-select: none;
+}
+
+/* 접힌 상태 */
+.resizable-panel.is-collapsed {
+  overflow: hidden;
+}
+
+/* 방향별 스타일 */
+.resizable-panel-left {
+  border-right: 1px solid var(--color-border-muted);
+}
+
+.resizable-panel-right {
+  border-left: 1px solid var(--color-border-muted);
+}
+
+.resizable-panel-top {
+  border-bottom: 1px solid var(--color-border-muted);
+}
+
+.resizable-panel-bottom {
+  border-top: 1px solid var(--color-border-muted);
+}
+
+/* ============ 패널 헤더 ============ */
+.resizable-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 35px;
+  min-height: 35px;
+  padding: 0 var(--space-2) 0 var(--space-4);
+  background-color: var(--color-bg-surface);
+  border-bottom: 1px solid var(--color-border-muted);
+  flex-shrink: 0;
+}
+
+.resizable-panel-header-content {
+  flex: 1;
+  min-width: 0;
+  overflow: visible;
+}
+
+/* ============ 접기/펼치기 버튼 ============ */
+.resizable-panel-collapse-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.resizable-panel-collapse-btn:hover {
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-overlay);
+}
+
+.resizable-panel-collapse-btn:active {
+  background-color: var(--color-border-muted);
+}
+
+/* ============ 패널 컨텐츠 ============ */
+.resizable-panel-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.resizable-panel-content.hidden {
+  display: none;
+}
+
+/* ============ 리사이즈 핸들 ============ */
+.resize-handle {
+  position: absolute;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color var(--transition-fast);
+}
+
+/* 수평 핸들 (좌/우) */
+.resize-handle-left,
+.resize-handle-right {
+  top: 0;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+}
+
+.resize-handle-left {
+  left: -4px;
+}
+
+.resize-handle-right {
+  right: -4px;
+}
+
+/* 수직 핸들 (상/하) */
+.resize-handle-top,
+.resize-handle-bottom {
+  left: 0;
+  width: 100%;
+  height: 12px;
+  cursor: row-resize;
+  cursor: ns-resize;
+}
+
+.resize-handle-top {
+  top: -6px;
+}
+
+.resize-handle-bottom {
+  top: -6px;
+}
+
+/* 핸들 기본 스타일 - 항상 투명 (hover/드래그 효과 없음) */
+.resize-handle-top,
+.resize-handle-bottom,
+.resize-handle-left,
+.resize-handle-right {
+  background-color: transparent;
+}
+
+/* 핸들 인디케이터 - 사용 안함 */
+.resize-handle-indicator {
+  display: none;
+}
+
+/* ============ 터치 디바이스 지원 ============ */
+@media (pointer: coarse) {
+  .resize-handle-left,
+  .resize-handle-right {
+    width: 24px;
+  }
+
+  .resize-handle-left {
+    left: -12px;
+  }
+
+  .resize-handle-right {
+    right: -12px;
+  }
+
+  .resize-handle-top,
+  .resize-handle-bottom {
+    height: 24px;
+  }
+
+  .resize-handle-top {
+    top: -12px;
+  }
+
+  .resize-handle-bottom {
+    top: -12px;
+  }
+}
+
+/* ============ 리사이즈 중 전역 스타일 ============ */
+html.is-resizing {
+  user-select: none !important;
+}
+
+html.is-resizing * {
+  user-select: none !important;
+}
+
+html.is-resizing iframe,
+html.is-resizing webview {
+  pointer-events: none !important;
+}
+
+/* 수직 리사이즈 시 커서 */
+html.is-resizing[data-resize-direction="vertical"],
+html.is-resizing[data-resize-direction="vertical"] * {
+  cursor: ns-resize !important;
+}
+
+/* 수평 리사이즈 시 커서 */
+html.is-resizing[data-resize-direction="horizontal"],
+html.is-resizing[data-resize-direction="horizontal"] * {
+  cursor: ew-resize !important;
+}

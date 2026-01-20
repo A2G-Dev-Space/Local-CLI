@@ -1,0 +1,87 @@
+/* =====================================================
+   Title Bar Component Styles
+   ===================================================== */
+
+.titlebar {
+  display: flex;
+  align-items: center;
+  height: var(--titlebar-height);
+  background: var(--color-bg-elevated);
+  border-bottom: 1px solid var(--color-border-muted);
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.titlebar.unfocused {
+  background: var(--color-bg-surface);
+}
+
+.titlebar.unfocused .titlebar-title {
+  color: var(--color-text-muted);
+}
+
+/* ============ App Icon ============ */
+.titlebar-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--titlebar-height);
+  height: var(--titlebar-height);
+  color: var(--color-accent-tertiary);
+}
+
+/* ============ Title ============ */
+.titlebar-title {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+.title-text {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  letter-spacing: 0.3px;
+}
+
+/* ============ Window Controls ============ */
+.titlebar-controls {
+  display: flex;
+  height: 100%;
+}
+
+.titlebar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 100%;
+  color: var(--color-text-secondary);
+  transition: background-color var(--transition-fast);
+}
+
+.titlebar-btn:hover {
+  background-color: var(--color-bg-overlay);
+}
+
+.titlebar-btn:active {
+  background-color: var(--color-bg-surface);
+}
+
+/* Close button special styling */
+.titlebar-btn.close:hover {
+  background-color: #e81123;
+  color: white;
+}
+
+.titlebar-btn.close:active {
+  background-color: #bf0f1d;
+}
+
+/* ============ Focus States ============ */
+.titlebar-btn:focus-visible {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: -2px;
+}

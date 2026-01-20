@@ -1,0 +1,269 @@
+/* =====================================================
+   ToolExecution Component Styles
+   Tool call visualization from LLM execution
+   ===================================================== */
+
+.tool-executions-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-left: 40px; /* Account for avatar space (28px + margin) */
+}
+
+/* ============ Execution Item ============ */
+.tool-execution {
+  background-color: var(--color-bg-surface);
+  border: 1px solid var(--color-border-muted);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  transition: all var(--transition-fast);
+}
+
+.tool-execution:hover {
+  border-color: var(--color-border-default);
+}
+
+.tool-execution.success {
+  border-left: 2px solid var(--color-success);
+}
+
+.tool-execution.error {
+  border-left: 2px solid var(--color-error);
+}
+
+.tool-execution.running {
+  border-left: 2px solid var(--color-accent-primary);
+}
+
+.tool-execution.pending {
+  border-left: 2px solid var(--color-text-muted);
+}
+
+/* ============ Header ============ */
+.tool-execution-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  user-select: none;
+}
+
+.tool-execution-header:hover {
+  background-color: var(--color-bg-overlay);
+}
+
+.tool-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.tool-category {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  color: white;
+}
+
+.tool-category.file {
+  background-color: #3b82f6;
+}
+
+.tool-category.shell {
+  background-color: #10b981;
+}
+
+.tool-category.browser {
+  background-color: #0EA5E9;
+}
+
+.tool-category.office {
+  background-color: #f59e0b;
+}
+
+.tool-category.user {
+  background-color: #ec4899;
+}
+
+.tool-category.todo {
+  background-color: #38BDF8;
+}
+
+.tool-category.other {
+  background-color: #6b7280;
+}
+
+.tool-name {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Message tool (tell_to_user) - show actual message */
+.tool-name.tool-message {
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.4;
+  font-weight: var(--font-weight-normal);
+}
+
+.tool-execution.message-tool .tool-execution-header {
+  align-items: flex-start;
+}
+
+.tool-execution.message-tool .tool-info {
+  align-items: flex-start;
+}
+
+.tool-execution.message-tool .tool-category {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.tool-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.tool-duration {
+  font-size: var(--font-size-xs);
+  font-family: var(--font-mono);
+  color: var(--color-text-muted);
+}
+
+/* ============ Status Icons ============ */
+.status-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+}
+
+.status-icon.success {
+  color: var(--color-success);
+}
+
+.status-icon.error {
+  color: var(--color-error);
+}
+
+.status-icon.running .spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--color-border-muted);
+  border-top-color: var(--color-accent-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.status-icon.pending .dot {
+  width: 8px;
+  height: 8px;
+  background-color: var(--color-text-muted);
+  border-radius: 50%;
+}
+
+.expand-icon {
+  color: var(--color-text-muted);
+  transition: transform var(--transition-fast);
+}
+
+.expand-icon.expanded {
+  transform: rotate(180deg);
+}
+
+/* ============ Details ============ */
+.tool-execution-details {
+  padding: var(--space-3);
+  border-top: 1px solid var(--color-border-muted);
+  background-color: var(--color-bg-inset);
+  animation: slideDown var(--transition-fast);
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    max-height: 500px;
+  }
+}
+
+.tool-section {
+  margin-bottom: var(--space-3);
+}
+
+.tool-section:last-child {
+  margin-bottom: 0;
+}
+
+.section-label {
+  display: block;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: var(--space-1);
+}
+
+.section-content {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  background-color: var(--color-bg-surface);
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+  margin: 0;
+}
+
+.section-content.output {
+  color: var(--color-success);
+}
+
+.tool-section.error .section-content {
+  color: var(--color-error);
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+/* ============ Retry Button ============ */
+.retry-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  background-color: var(--color-bg-overlay);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.retry-btn:hover {
+  color: var(--color-accent-primary);
+  border-color: var(--color-accent-primary);
+}
