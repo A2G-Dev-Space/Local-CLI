@@ -24,6 +24,11 @@ import {
   TodoInput,
 } from '../tools/llm/simple/todo-tools.js';
 import {
+  setGetTodosCallback,
+  setFinalResponseCallback,
+  clearFinalResponseCallbacks,
+} from '../tools/llm/simple/final-response-tool.js';
+import {
   setDocsSearchLLMClientGetter,
   clearDocsSearchLLMClientGetter,
 } from '../tools/llm/simple/docs-search-agent-tool.js';
@@ -276,6 +281,7 @@ export class PlanExecutor {
     } finally {
       callbacks.setExecutionPhase('idle');
       clearTodoCallbacks();
+      clearFinalResponseCallbacks();
       clearDocsSearchLLMClientGetter();
       this.currentLLMClient = null;
     }
@@ -391,6 +397,7 @@ export class PlanExecutor {
     } finally {
       callbacks.setExecutionPhase('idle');
       clearTodoCallbacks();
+      clearFinalResponseCallbacks();
       clearDocsSearchLLMClientGetter();
       this.currentLLMClient = null;
     }
@@ -523,16 +530,20 @@ export class PlanExecutor {
   /**
    * TODO 콜백 설정 (내부 헬퍼)
    * write_todos: 전체 목록 교체 방식
+   * final_response: 최종 응답 전달 (모든 TODO 완료 필요)
    */
   private setupTodoCallbacks(
     currentTodos: TodoItem[],
     callbacks: StateCallbacks,
     updateLocalTodos: (todos: TodoItem[]) => void
   ): void {
+    // Mutable reference for getTodos callback
+    let todosRef = currentTodos;
+
     // write_todos callback: 전체 목록 교체
     setTodoWriteCallback(async (newTodos: TodoInput[]) => {
       // Find status changes for UI events
-      const oldStatusMap = new Map(currentTodos.map(t => [t.id, t.status]));
+      const oldStatusMap = new Map(todosRef.map(t => [t.id, t.status]));
 
       // Convert to TodoItem format
       const updatedTodos: TodoItem[] = newTodos.map(t => ({
@@ -555,10 +566,20 @@ export class PlanExecutor {
         }
       }
 
+      // Update both local ref and external state
+      todosRef = updatedTodos;
       updateLocalTodos(updatedTodos);
       callbacks.setTodos([...updatedTodos]);
 
       return true;
+    });
+
+    // getTodos callback for final_response tool
+    setGetTodosCallback(() => todosRef);
+
+    // finalResponse callback - emit as assistant response
+    setFinalResponseCallback((message: string) => {
+      emitAssistantResponse(message);
     });
   }
 

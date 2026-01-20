@@ -31,6 +31,7 @@ import { FILE_TOOLS, SYSTEM_TOOLS } from './llm/simple/file-tools.js';
 import { USER_INTERACTION_TOOLS } from './llm/simple/user-interaction-tools.js';
 import { TODO_TOOLS } from './llm/simple/todo-tools.js';
 import { PLANNING_TOOLS } from './llm/simple/planning-tools.js';
+import { FinalResponseTool } from './llm/simple/final-response-tool.js';
 import { docsSearchAgentTool } from './llm/simple/docs-search-agent-tool.js';
 import { LLM_AGENT_TOOLS } from './llm/agents/index.js';
 import { getShellTools } from './llm/simple/index.js';
@@ -449,6 +450,9 @@ export function initializeToolRegistry(): void {
 
   // LLM Simple Tools - TODO management
   toolRegistry.registerAll(TODO_TOOLS);
+
+  // LLM Simple Tools - Final response (required for completing tasks)
+  toolRegistry.register(FinalResponseTool);
 
   // LLM Planning Tools - create_todos (for task planning)
   toolRegistry.registerAll(PLANNING_TOOLS);

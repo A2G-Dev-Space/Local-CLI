@@ -12,6 +12,7 @@ import { LLMSimpleTool } from '../../types.js';
 export * from './file-tools.js';
 export * from './todo-tools.js';
 export * from './ask-user-tool.js';
+export * from './final-response-tool.js';
 
 // Bash tools (WSL/Linux)
 export * from './bash-tool.js';
