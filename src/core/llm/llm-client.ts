@@ -1653,6 +1653,7 @@ export class LLMClient {
             headers: {
               'Content-Type': 'application/json',
               ...(endpoint.apiKey && { Authorization: `Bearer ${endpoint.apiKey}` }),
+              ...authManager.getAuthHeaders(),
             },
             timeout: 30000, // 30초 타임아웃
           });
@@ -1722,6 +1723,7 @@ export class LLMClient {
         headers: {
           'Content-Type': 'application/json',
           ...(apiKey && { Authorization: `Bearer ${apiKey}` }),
+          ...authManager.getAuthHeaders(),
         },
         timeout: 60000, // 60초 타임아웃
       });
