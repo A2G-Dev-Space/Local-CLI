@@ -3,9 +3,11 @@
  * Monaco-style code editor with tabs, syntax highlighting, and line numbers
  */
 
-import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useMemo, memo } from 'react';
 import type { EditorTab } from '../App';
+import DiffView from './DiffView';
 import './Editor.css';
+import './DiffView.css';
 
 // Debounce utility
 function debounce<T extends (...args: Parameters<T>) => void>(
@@ -315,6 +317,16 @@ const Editor: React.FC<EditorProps> = ({
 
       {/* Editor Content */}
       {activeTab ? (
+        activeTab.isDiff && activeTab.originalContent !== undefined ? (
+          // Diff View Mode
+          <DiffView
+            originalContent={activeTab.originalContent}
+            modifiedContent={activeTab.content}
+            fileName={activeTab.name.replace(' (diff)', '')}
+            language={activeTab.language}
+            onClose={() => onTabClose(activeTab.id)}
+          />
+        ) : (
         <div
           className="editor-content"
           role="tabpanel"
@@ -388,6 +400,7 @@ const Editor: React.FC<EditorProps> = ({
             <span>{activeTab.language}</span>
           </div>
         </div>
+        )
       ) : (
         <div className="editor-empty">
           <div className="editor-empty-content">
@@ -419,4 +432,4 @@ const Editor: React.FC<EditorProps> = ({
   );
 };
 
-export default Editor;
+export default memo(Editor);

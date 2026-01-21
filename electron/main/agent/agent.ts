@@ -45,6 +45,7 @@ export interface AgentConfig {
   isGitRepo?: boolean;
   enablePlanning?: boolean; // Enable Planning LLM for TODO auto-generation
   resumeTodos?: boolean; // Resume from existing TODOs instead of creating new plan
+  autoMode?: boolean; // true = allow all permissions, false = supervised mode (ask for approval)
 }
 
 export interface AgentCallbacks {
@@ -151,7 +152,7 @@ export async function runAgent(
 ): Promise<AgentResult> {
   const {
     maxIterations = 50,
-    enabledToolGroups = [],
+    enabledToolGroups: _enabledToolGroups = [], // Config provided but registry controls this
     workingDirectory = process.cwd(),
     isGitRepo = false,
     enablePlanning = true, // Default: enable planning

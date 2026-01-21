@@ -95,6 +95,30 @@ export interface LogEntry {
 // 테마 타입
 export type Theme = 'dark' | 'light';
 
+// Docs 타입
+export interface DocsSource {
+  id: string;
+  name: string;
+  description: string;
+  installed: boolean;
+  fileCount?: number;
+  size?: string;
+}
+
+export interface DocsInfo {
+  path: string;
+  exists: boolean;
+  totalFiles: number;
+  totalSize: string;
+  sources: DocsSource[];
+}
+
+export interface DownloadProgress {
+  downloaded: number;
+  total: number;
+  current?: string;
+}
+
 // Config 타입
 export interface AppConfig {
   theme: 'light' | 'dark' | 'system';
@@ -193,6 +217,7 @@ export interface AgentConfig {
   enabledToolGroups?: string[];
   workingDirectory?: string;
   isGitRepo?: boolean;
+  autoMode?: boolean; // true = allow all permissions, false = supervised mode (ask for approval)
 }
 
 export interface AgentToolCall {
@@ -723,6 +748,73 @@ const electronAPI = {
       ipcRenderer.on('agent:error', handler);
       return () => ipcRenderer.removeListener('agent:error', handler);
     },
+
+    // Tool approval request event (Supervised Mode)
+    onApprovalRequest: (callback: (request: {
+      id: string;
+      toolName: string;
+      args: Record<string, unknown>;
+      reason?: string;
+    }) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, request: {
+        id: string;
+        toolName: string;
+        args: Record<string, unknown>;
+        reason?: string;
+      }) => callback(request);
+      ipcRenderer.on('agent:approvalRequest', handler);
+      return () => ipcRenderer.removeListener('agent:approvalRequest', handler);
+    },
+
+    // Respond to tool approval request
+    respondToApproval: (response: {
+      id: string;
+      result: 'approve' | 'always' | { reject: true; comment: string };
+    }): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke('agent:respondToApproval', response);
+    },
+
+    // Get supervised mode status
+    isSupervisedMode: (): Promise<boolean> => {
+      return ipcRenderer.invoke('agent:isSupervisedMode');
+    },
+
+    // Set supervised mode
+    setSupervisedMode: (enabled: boolean): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke('agent:setSupervisedMode', enabled);
+    },
+
+    // File edit event (for diff view)
+    onFileEdit: (callback: (data: {
+      path: string;
+      originalContent: string;
+      newContent: string;
+      language: string;
+    }) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, data: {
+        path: string;
+        originalContent: string;
+        newContent: string;
+        language: string;
+      }) => callback(data);
+      ipcRenderer.on('agent:fileEdit', handler);
+      return () => ipcRenderer.removeListener('agent:fileEdit', handler);
+    },
+
+    // File create event
+    onFileCreate: (callback: (data: {
+      path: string;
+      content: string;
+      language: string;
+    }) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, data: {
+        path: string;
+        content: string;
+        language: string;
+      }) => callback(data);
+      ipcRenderer.on('agent:fileCreate', handler);
+      return () => ipcRenderer.removeListener('agent:fileCreate', handler);
+    },
   },
 
   // ============ 다이얼로그 ============
@@ -939,6 +1031,51 @@ const electronAPI = {
   devTools: {
     toggle: (): Promise<{ success: boolean }> => {
       return ipcRenderer.invoke('devTools:toggle');
+    },
+  },
+
+  // ============ Documentation ============
+  docs: {
+    // Get documentation info
+    getInfo: (): Promise<{ success: boolean; info?: DocsInfo; error?: string }> => {
+      return ipcRenderer.invoke('docs:getInfo');
+    },
+
+    // Download documentation source
+    download: (
+      sourceId: string,
+      onProgress?: (progress: DownloadProgress) => void
+    ): Promise<{
+      success: boolean;
+      message?: string;
+      downloadedFiles?: number;
+      targetPath?: string;
+      error?: string;
+    }> => {
+      // Register progress listener
+      const progressHandler = (_event: IpcRendererEvent, progress: DownloadProgress) => {
+        onProgress?.(progress);
+      };
+
+      if (onProgress) {
+        ipcRenderer.on('docs:downloadProgress', progressHandler);
+      }
+
+      return ipcRenderer.invoke('docs:download', sourceId).finally(() => {
+        if (onProgress) {
+          ipcRenderer.removeListener('docs:downloadProgress', progressHandler);
+        }
+      });
+    },
+
+    // Delete documentation source
+    delete: (sourceId: string): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke('docs:delete', sourceId);
+    },
+
+    // Open docs folder in explorer
+    openFolder: (): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke('docs:openFolder');
     },
   },
 };

@@ -4,7 +4,7 @@
  * Matches CLI's question format with 2-4 options + custom input
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, memo, useMemo } from 'react';
 import './UserQuestion.css';
 
 export interface UserQuestionOption {
@@ -97,9 +97,12 @@ const UserQuestion: React.FC<UserQuestionProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, isCustomMode, customInput, selectedOption, question, handleSubmit, handleOptionSelect, onCancel]);
 
-  if (!isOpen || !question) return null;
+  // Memoize canSubmit
+  const canSubmit = useMemo(() => {
+    return isCustomMode ? customInput.trim().length > 0 : selectedOption !== null;
+  }, [isCustomMode, customInput, selectedOption]);
 
-  const canSubmit = isCustomMode ? customInput.trim().length > 0 : selectedOption !== null;
+  if (!isOpen || !question) return null;
 
   return (
     <div className="user-question-backdrop" onClick={onCancel}>
@@ -193,4 +196,4 @@ const UserQuestion: React.FC<UserQuestionProps> = ({
   );
 };
 
-export default UserQuestion;
+export default memo(UserQuestion);

@@ -1,31 +1,36 @@
 /**
  * LOCAL-CLI PowerShell UI - Main Application Component
  * Modern VS Code-inspired layout with custom titlebar, sidebar, and panels
+ * Optimized with component splitting, IPC batching, and request deduplication
  */
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import type { ElectronAPI, SystemInfo, Theme, Session, EndpointConfig } from '../../preload/index';
+import React, { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
+import type { ElectronAPI, Theme, Session, EndpointConfig } from '../../preload/index';
 import './styles/global.css';
 import './styles/App.css';
 
-// Components
+// Context providers
+import { AgentProvider } from './contexts/AgentContext';
+
+// Core components (always loaded)
 import TitleBar from './components/TitleBar';
-// import Sidebar from './components/Sidebar'; // Using inline sidebar in activity bar
 import FileExplorer from './components/FileExplorer';
-import Editor from './components/Editor';
-import Terminal from './components/Terminal';
-import ChatPanel, { type ChatPanelRef } from './components/ChatPanel';
-import StatusBar from './components/StatusBar';
+import type { ChatPanelRef } from './components/ChatPanel';
 import CommandPalette, { createDefaultCommands, type CommandItem } from './components/CommandPalette';
 import Toolbar from './components/Toolbar';
 import SidebarActions from './components/SidebarActions';
 import ResizablePanel from './components/ResizablePanel';
-import SplitView, { type SplitPane } from './components/SplitView';
-import LogViewer from './components/LogViewer';
-import SessionBrowser from './components/SessionBrowser';
-import Settings from './components/Settings';
-import UsageStats from './components/UsageStats';
-import ToolSelector from './components/ToolSelector';
+
+// Extracted components for code splitting
+import EditorArea from './components/EditorArea';
+import BottomPanel from './components/BottomPanel';
+
+// Lazy-loaded components (dialogs/panels not needed on initial render)
+const SessionBrowser = lazy(() => import('./components/SessionBrowser'));
+const Settings = lazy(() => import('./components/Settings'));
+const UsageStats = lazy(() => import('./components/UsageStats'));
+const ToolSelector = lazy(() => import('./components/ToolSelector'));
+const DocsBrowser = lazy(() => import('./components/DocsBrowser'));
 import './components/ResizablePanel.css';
 import './components/SplitView.css';
 import './components/LogViewer.css';
@@ -52,6 +57,9 @@ export interface EditorTab {
   language: string;
   isDirty: boolean;
   isActive: boolean;
+  // Diff mode fields
+  isDiff?: boolean;
+  originalContent?: string;
 }
 
 // File tree node interface
@@ -69,7 +77,6 @@ type PanelLayout = 'terminal' | 'chat' | 'logs' | 'split';
 
 const App: React.FC = () => {
   // System state
-  const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
   const [theme, setTheme] = useState<Theme>('light');
   const [isMaximized, setIsMaximized] = useState(false);
   const [isFocused, setIsFocused] = useState(true);
@@ -107,8 +114,12 @@ const App: React.FC = () => {
 
   // Settings state
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isInfoOpen, setIsInfoOpen] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [allowAllPermissions, setAllowAllPermissions] = useState(true);
   const [isUsageStatsOpen, setIsUsageStatsOpen] = useState(false);
   const [isToolSelectorOpen, setIsToolSelectorOpen] = useState(false);
+  const [isDocsBrowserOpen, setIsDocsBrowserOpen] = useState(false);
 
   // Command Palette state
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
@@ -121,7 +132,7 @@ const App: React.FC = () => {
   const modelDropdownRef = useRef<HTMLDivElement>(null);
   const chatPanelRef = useRef<ChatPanelRef>(null);
 
-  // Initialize app
+  // Initialize app - parallelized for faster startup
   useEffect(() => {
     const init = async () => {
       // Check if electronAPI is available
@@ -131,22 +142,26 @@ const App: React.FC = () => {
       }
 
       try {
-        // Get system info
-        const info = await window.electronAPI.system.info();
-        setSystemInfo(info);
+        // Run independent initialization calls in parallel
+        const [, savedTheme, maximized, dirResult] = await Promise.all([
+          window.electronAPI.system.info(),
+          window.electronAPI.config.getTheme(),
+          window.electronAPI.window.isMaximized(),
+          window.electronAPI.powershell.getCurrentDirectory(),
+        ]);
 
-        // Get theme from config (defaults to 'light')
-        const savedTheme = await window.electronAPI.config.getTheme();
-        setTheme(savedTheme === 'system'
-          ? await window.electronAPI.theme.getSystem()
-          : savedTheme as Theme);
+        // Set theme (may need additional async call for system theme)
+        if (savedTheme === 'system') {
+          const systemTheme = await window.electronAPI.theme.getSystem();
+          setTheme(systemTheme);
+        } else {
+          setTheme(savedTheme as Theme);
+        }
 
-        // Check window state
-        const maximized = await window.electronAPI.window.isMaximized();
+        // Set window state
         setIsMaximized(maximized);
 
-        // Get current directory from PowerShell
-        const dirResult = await window.electronAPI.powershell.getCurrentDirectory();
+        // Set current directory
         if (dirResult.success && dirResult.directory) {
           setCurrentDirectory(dirResult.directory);
           loadFileTree(dirResult.directory);
@@ -174,7 +189,53 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // Load endpoints for model selector
+  // File edit/create event listeners (for diff view)
+  useEffect(() => {
+    if (!window.electronAPI?.agent) return;
+
+    // Handle file edit event - show diff view
+    const unsubEdit = window.electronAPI.agent.onFileEdit?.((data) => {
+      const fileName = data.path.split(/[/\\]/).pop() || 'Untitled';
+      const newTabId = `diff-${Date.now()}`;
+      const newTab: EditorTab = {
+        id: newTabId,
+        name: `${fileName} (diff)`,
+        path: data.path,
+        content: data.newContent,
+        language: data.language,
+        isDirty: false,
+        isActive: true,
+        isDiff: true,
+        originalContent: data.originalContent,
+      };
+      setTabs(prev => [...prev.map(t => ({ ...t, isActive: false })), newTab]);
+      setActiveTabId(newTabId);
+    });
+
+    // Handle file create event - open in editor
+    const unsubCreate = window.electronAPI.agent.onFileCreate?.((data) => {
+      const fileName = data.path.split(/[/\\]/).pop() || 'Untitled';
+      const newTabId = `file-${Date.now()}`;
+      const newTab: EditorTab = {
+        id: newTabId,
+        name: fileName,
+        path: data.path,
+        content: data.content,
+        language: data.language,
+        isDirty: false,
+        isActive: true,
+      };
+      setTabs(prev => [...prev.map(t => ({ ...t, isActive: false })), newTab]);
+      setActiveTabId(newTabId);
+    });
+
+    return () => {
+      unsubEdit?.();
+      unsubCreate?.();
+    };
+  }, []);
+
+  // Load endpoints for model selector - reload when Settings closes
   useEffect(() => {
     const loadEndpoints = async () => {
       if (!window.electronAPI?.llm) return;
@@ -188,8 +249,11 @@ const App: React.FC = () => {
         console.error('Failed to load endpoints:', err);
       }
     };
-    loadEndpoints();
-  }, []);
+    // Load on mount and when settings dialog closes
+    if (!isSettingsOpen) {
+      loadEndpoints();
+    }
+  }, [isSettingsOpen]);
 
   // Close model dropdown when clicking outside
   useEffect(() => {
@@ -217,10 +281,6 @@ const App: React.FC = () => {
     }
     setIsModelDropdownOpen(false);
   }, []);
-
-  // Get current model name
-  const currentEndpoint = endpoints.find(e => e.id === currentEndpointId);
-  const currentModelName = currentEndpoint?.models[0]?.name || currentEndpoint?.name || 'No model';
 
   // Load file tree
   const loadFileTree = useCallback(async (dirPath: string) => {
@@ -387,6 +447,22 @@ const App: React.FC = () => {
     }
   }, [tabs]);
 
+  // New file handler
+  const handleNewFile = useCallback(() => {
+    const newTabId = `new-${Date.now()}`;
+    const newTab: EditorTab = {
+      id: newTabId,
+      name: 'Untitled',
+      path: '',
+      content: '',
+      language: 'plaintext',
+      isDirty: true,
+      isActive: true,
+    };
+    setTabs(prev => [...prev.map(t => ({ ...t, isActive: false })), newTab]);
+    setActiveTabId(newTabId);
+  }, []);
+
   // Toggle theme
   const toggleTheme = useCallback(() => {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark');
@@ -398,8 +474,7 @@ const App: React.FC = () => {
   // Command handlers for slash commands
   const commandHandlers = useMemo(() => ({
     onHelp: () => {
-      console.log('Help command');
-      // TODO: Show help dialog
+      setIsHelpOpen(true);
     },
     onClear: () => {
       setTabs([]);
@@ -418,8 +493,7 @@ const App: React.FC = () => {
       setIsUsageStatsOpen(true);
     },
     onDocs: () => {
-      console.log('Documentation');
-      // TODO: Show documentation browser
+      setIsDocsBrowserOpen(true);
     },
     onLoad: () => {
       console.log('Load session');
@@ -555,60 +629,9 @@ const App: React.FC = () => {
     }
   }, [responsive.shouldHideSidebar]);
 
-  // Split view panes for editor
-  const editorPanes = useMemo<SplitPane[]>(() => {
-    if (!editorSplitEnabled) {
-      return [{
-        id: 'editor-main',
-        content: (
-          <Editor
-            tabs={tabs}
-            activeTab={activeTab}
-            onTabSelect={setActiveTabId}
-            onTabClose={closeTab}
-            onContentChange={updateTabContent}
-            onSave={saveFile}
-          />
-        ),
-        initialSize: 1,
-      }];
-    }
-
-    return [
-      {
-        id: 'editor-left',
-        content: (
-          <Editor
-            tabs={tabs}
-            activeTab={activeTab}
-            onTabSelect={setActiveTabId}
-            onTabClose={closeTab}
-            onContentChange={updateTabContent}
-            onSave={saveFile}
-          />
-        ),
-        initialSize: 0.5,
-        minSize: 200,
-      },
-      {
-        id: 'editor-right',
-        content: (
-          <Editor
-            tabs={tabs}
-            activeTab={activeTab}
-            onTabSelect={setActiveTabId}
-            onTabClose={closeTab}
-            onContentChange={updateTabContent}
-            onSave={saveFile}
-          />
-        ),
-        initialSize: 0.5,
-        minSize: 200,
-      },
-    ];
-  }, [editorSplitEnabled, tabs, activeTab, setActiveTabId, closeTab, updateTabContent, saveFile]);
 
   return (
+    <AgentProvider>
     <div
       className={`app-root ${!isFocused ? 'unfocused' : ''}`}
       data-theme={theme}
@@ -622,32 +645,137 @@ const App: React.FC = () => {
         onCommandExecute={handleCommandExecute}
       />
 
-      {/* Session Browser */}
-      <SessionBrowser
-        isOpen={isSessionBrowserOpen}
-        onClose={() => setIsSessionBrowserOpen(false)}
-        onLoadSession={handleSessionLoad}
-        onDeleteCurrentSession={handleDeleteCurrentSession}
-        currentSessionId={currentSession?.id}
-      />
+      {/* Session Browser (Lazy) */}
+      {isSessionBrowserOpen && (
+        <Suspense fallback={<div className="loading-fallback">Loading...</div>}>
+          <SessionBrowser
+            isOpen={isSessionBrowserOpen}
+            onClose={() => setIsSessionBrowserOpen(false)}
+            onLoadSession={handleSessionLoad}
+            onDeleteCurrentSession={handleDeleteCurrentSession}
+            currentSessionId={currentSession?.id}
+          />
+        </Suspense>
+      )}
 
-      {/* Settings */}
-      <Settings
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-      />
+      {/* Settings (Lazy) */}
+      {isSettingsOpen && (
+        <Suspense fallback={<div className="loading-fallback">Loading...</div>}>
+          <Settings
+            isOpen={isSettingsOpen}
+            onClose={() => setIsSettingsOpen(false)}
+          />
+        </Suspense>
+      )}
 
-      {/* Usage Statistics */}
-      <UsageStats
-        isOpen={isUsageStatsOpen}
-        onClose={() => setIsUsageStatsOpen(false)}
-      />
+      {/* Info Modal */}
+      {isInfoOpen && (
+        <div className="info-modal-backdrop" onClick={() => setIsInfoOpen(false)}>
+          <div className="info-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="info-modal-header">
+              <h2>Local CLI</h2>
+              <button className="info-close-btn" onClick={() => setIsInfoOpen(false)}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                </svg>
+              </button>
+            </div>
+            <div className="info-modal-content">
+              <div className="info-item">
+                <span className="info-label">Version</span>
+                <span className="info-value">1.0.0</span>
+              </div>
+              <div className="info-item">
+                <span className="info-label">Developer</span>
+                <span className="info-value">syngha.han</span>
+              </div>
+              <div className="info-item">
+                <span className="info-label">Contact</span>
+                <span className="info-value">gkstmdgk2731@naver.com</span>
+              </div>
+            </div>
+            <div className="info-modal-footer">
+              <button className="info-ok-btn" onClick={() => setIsInfoOpen(false)}>OK</button>
+            </div>
+          </div>
+        </div>
+      )}
 
-      {/* Tool Selector */}
-      <ToolSelector
-        isOpen={isToolSelectorOpen}
-        onClose={() => setIsToolSelectorOpen(false)}
-      />
+      {/* Help Modal */}
+      {isHelpOpen && (
+        <div className="info-modal-backdrop" onClick={() => setIsHelpOpen(false)}>
+          <div className="info-modal help-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="info-modal-header">
+              <h2>Keyboard Shortcuts</h2>
+              <button className="info-close-btn" onClick={() => setIsHelpOpen(false)}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                </svg>
+              </button>
+            </div>
+            <div className="info-modal-content help-content">
+              <div className="help-section">
+                <h3>General</h3>
+                <div className="help-item"><kbd>Ctrl+Shift+P</kbd><span>Command Palette</span></div>
+                <div className="help-item"><kbd>Ctrl+,</kbd><span>Settings</span></div>
+                <div className="help-item"><kbd>F1</kbd><span>Help</span></div>
+              </div>
+              <div className="help-section">
+                <h3>Chat</h3>
+                <div className="help-item"><kbd>Ctrl+N</kbd><span>New Session</span></div>
+                <div className="help-item"><kbd>Ctrl+O</kbd><span>Load Session</span></div>
+                <div className="help-item"><kbd>Ctrl+L</kbd><span>Clear Chat</span></div>
+                <div className="help-item"><kbd>Ctrl+M</kbd><span>Change Model</span></div>
+              </div>
+              <div className="help-section">
+                <h3>Editor</h3>
+                <div className="help-item"><kbd>Ctrl+S</kbd><span>Save File</span></div>
+                <div className="help-item"><kbd>Ctrl+Shift+O</kbd><span>Open Folder</span></div>
+                <div className="help-item"><kbd>Ctrl+`</kbd><span>Toggle Terminal</span></div>
+              </div>
+              <div className="help-section">
+                <h3>Panel</h3>
+                <div className="help-item"><kbd>Ctrl+B</kbd><span>Toggle Sidebar</span></div>
+                <div className="help-item"><kbd>Ctrl+J</kbd><span>Toggle Bottom Panel</span></div>
+                <div className="help-item"><kbd>Esc</kbd><span>Exit Fullscreen</span></div>
+              </div>
+            </div>
+            <div className="info-modal-footer">
+              <button className="info-ok-btn" onClick={() => setIsHelpOpen(false)}>OK</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Usage Statistics (Lazy) */}
+      {isUsageStatsOpen && (
+        <Suspense fallback={<div className="loading-fallback">Loading...</div>}>
+          <UsageStats
+            isOpen={isUsageStatsOpen}
+            onClose={() => setIsUsageStatsOpen(false)}
+          />
+        </Suspense>
+      )}
+
+      {/* Tool Selector (Lazy) */}
+      {isToolSelectorOpen && (
+        <Suspense fallback={<div className="loading-fallback">Loading...</div>}>
+          <ToolSelector
+            isOpen={isToolSelectorOpen}
+            onClose={() => setIsToolSelectorOpen(false)}
+          />
+        </Suspense>
+      )}
+
+      {/* Documentation Browser (Lazy) */}
+      {isDocsBrowserOpen && (
+        <Suspense fallback={<div className="loading-fallback">Loading...</div>}>
+          <DocsBrowser
+            isOpen={isDocsBrowserOpen}
+            onClose={() => setIsDocsBrowserOpen(false)}
+          />
+        </Suspense>
+      )}
 
       {/* Custom Title Bar */}
       <TitleBar
@@ -672,7 +800,9 @@ const App: React.FC = () => {
         onCompact={commandHandlers.onCompact}
         onCommandPalette={() => setIsCommandPaletteOpen(true)}
         onOpenFolder={openFolder}
+        onNewFile={handleNewFile}
         onSave={activeTabId ? () => saveFile(activeTabId) : undefined}
+        onInfo={() => setIsInfoOpen(true)}
         hasUnsavedChanges={tabs.some(t => t.isDirty)}
       />
 
@@ -696,22 +826,7 @@ const App: React.FC = () => {
               <path d="M17.5 0h-9L7 1.5V6H2.5L1 7.5v15.07L2.5 24h12.07L16 22.57V18h4.5l1.5-1.5v-15L20.5 0h-3zM14 22.5H2.5V7.5H7v9.07L8.5 18h5.5v4.5zm6-6H8.5V1.5H14V6h4.5v10.5h1.5zm0-12H15V1.5h2.5V4.5z"/>
             </svg>
           </button>
-          <button
-            className={`activity-btn ${activePanel === 'search' && sidebarOpen ? 'active' : ''}`}
-            onClick={() => {
-              if (activePanel === 'search' && sidebarOpen) {
-                setSidebarOpen(false);
-              } else {
-                setActivePanel('search');
-                setSidebarOpen(true);
-              }
-            }}
-            title="Search"
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M15.25 0a8.25 8.25 0 0 0-6.18 13.72L1 22.88l1.12 1.12 8.16-8.07A8.25 8.25 0 1 0 15.25.01V0zm0 15a6.75 6.75 0 1 1 0-13.5 6.75 6.75 0 0 1 0 13.5z"/>
-            </svg>
-          </button>
+          {/* Search button removed */}
           <div className="activity-spacer" />
           <button
             className="activity-btn"
@@ -762,11 +877,7 @@ const App: React.FC = () => {
                 onRefresh={() => loadFileTree(currentDirectory)}
               />
             )}
-            {activePanel === 'search' && (
-              <SidebarActions
-                activeSection="search"
-              />
-            )}
+            {/* Search panel removed */}
             {activePanel === 'extensions' && (
               <SidebarActions
                 activeSection="settings"
@@ -780,221 +891,48 @@ const App: React.FC = () => {
         <div className="content-area">
           {/* Editor Area with SplitView support */}
           {!isBottomPanelFullscreen && (
-          <div
-            className="editor-area"
-            style={{ height: bottomPanelOpen ? `calc(100% - ${bottomPanelHeight}px)` : '100%' }}
-          >
-            {editorSplitEnabled ? (
-              <SplitView
-                direction="horizontal"
-                panes={editorPanes}
-                storageKey="editor-split"
-                splitterSize={4}
-              />
-            ) : (
-              <Editor
-                tabs={tabs}
-                activeTab={activeTab}
-                onTabSelect={setActiveTabId}
-                onTabClose={closeTab}
-                onContentChange={updateTabContent}
-                onSave={saveFile}
-              />
-            )}
-          </div>
+            <EditorArea
+              tabs={tabs}
+              activeTab={activeTab}
+              activeTabId={activeTabId}
+              setActiveTabId={setActiveTabId}
+              closeTab={closeTab}
+              updateTabContent={updateTabContent}
+              saveFile={saveFile}
+              editorSplitEnabled={editorSplitEnabled}
+              bottomPanelOpen={bottomPanelOpen}
+              bottomPanelHeight={bottomPanelHeight}
+            />
           )}
 
-          {/* Bottom Panel (Terminal/Chat) with ResizablePanel */}
-          {bottomPanelOpen && (
-            <div
-              className={`bottom-panel-wrapper ${isBottomPanelFullscreen ? 'fullscreen' : ''}`}
-              style={isBottomPanelFullscreen ? { height: '100%' } : undefined}
-            >
-            <ResizablePanel
-              id="bottom-panel"
-              direction="bottom"
-              defaultSize={isBottomPanelFullscreen ? 99999 : layoutState.bottomPanelDefaultHeight}
-              minSize={isBottomPanelFullscreen ? 99999 : layoutState.bottomPanelMinHeight}
-              maxSize={isBottomPanelFullscreen ? 99999 : layoutState.bottomPanelMaxHeight}
-              showCollapseButton={!isBottomPanelFullscreen}
-              onSizeChange={isBottomPanelFullscreen ? undefined : setBottomPanelHeight}
-              onCollapsedChange={(collapsed) => {
-                if (collapsed && !isBottomPanelFullscreen) setBottomPanelOpen(false);
-              }}
-              header={
-                <div className="panel-tabs">
-                  <button
-                    className={`panel-tab ${bottomPanelLayout === 'chat' ? 'active' : ''}`}
-                    onClick={() => setBottomPanelLayout('chat')}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
-                    </svg>
-                    Chat
-                  </button>
-                  <button
-                    className={`panel-tab ${bottomPanelLayout === 'terminal' ? 'active' : ''}`}
-                    onClick={() => setBottomPanelLayout('terminal')}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V8h16v10zm-2-1h-6v-2h6v2zM7.5 17l-1.41-1.41L8.67 13l-2.59-2.59L7.5 9l4 4-4 4z"/>
-                    </svg>
-                    Terminal
-                  </button>
-                  <button
-                    className={`panel-tab ${bottomPanelLayout === 'logs' ? 'active' : ''}`}
-                    onClick={() => setBottomPanelLayout('logs')}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/>
-                      <path d="M8 12h8v2H8zm0 4h8v2H8z"/>
-                    </svg>
-                    Logs
-                  </button>
-                  <div className="panel-tabs-spacer" />
-
-                  {/* Session Controls - only show when Chat tab is active */}
-                  {bottomPanelLayout === 'chat' && (
-                    <div className="panel-session-controls">
-                      {/* Model Selector Dropdown */}
-                      <div className="panel-model-selector" ref={modelDropdownRef}>
-                        <button
-                          className="panel-toolbar-btn panel-model-btn"
-                          onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
-                          title="Change Model (Ctrl+M)"
-                        >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M15 9H9v6h6V9zm-2 4h-2v-2h2v2zm8-2V9h-2V7c0-1.1-.9-2-2-2h-2V3h-2v2h-2V3H9v2H7c-1.1 0-2 .9-2 2v2H3v2h2v2H3v2h2v2c0 1.1.9 2 2 2h2v2h2v-2h2v2h2v-2h2c1.1 0 2-.9 2-2v-2h2v-2h-2v-2h2zm-4 6H7V7h10v10z"/>
-                          </svg>
-                          <span className="panel-model-name">{currentModelName}</span>
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" className="dropdown-arrow">
-                            <path d="M7 10l5 5 5-5z"/>
-                          </svg>
-                        </button>
-                        {isModelDropdownOpen && (
-                          <div className="panel-model-dropdown">
-                            {endpoints.length === 0 ? (
-                              <div className="panel-model-empty">
-                                <span>No models configured</span>
-                                <button onClick={() => { setIsModelDropdownOpen(false); commandHandlers.onSettings(); }}>
-                                  Open Settings
-                                </button>
-                              </div>
-                            ) : (
-                              endpoints.map(endpoint => (
-                                <button
-                                  key={endpoint.id}
-                                  className={`panel-model-item ${endpoint.id === currentEndpointId ? 'active' : ''}`}
-                                  onClick={() => handleSelectModel(endpoint.id)}
-                                >
-                                  <span>{endpoint.models[0]?.name || endpoint.name}</span>
-                                  {endpoint.id === currentEndpointId && (
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                                      <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-                                    </svg>
-                                  )}
-                                </button>
-                              ))
-                            )}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Compact Conversation */}
-                      <button
-                        className="panel-toolbar-btn"
-                        onClick={commandHandlers.onCompact}
-                        title="Compact Conversation"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M7.41 18.59L8.83 20 12 16.83 15.17 20l1.41-1.41L12 14l-4.59 4.59zM16.59 5.41L15.17 4 12 7.17 8.83 4 7.41 5.41 12 10l4.59-4.59zM5 11h14v2H5z"/>
-                        </svg>
-                      </button>
-
-                      <div className="panel-toolbar-divider" />
-
-                      {/* Session Name Badge */}
-                      {currentSession && (
-                        <span className="panel-session-badge" title={currentSession.name}>
-                          {currentSession.name.slice(0, 15)}{currentSession.name.length > 15 ? '...' : ''}
-                        </span>
-                      )}
-
-                      {/* New Session */}
-                      <button
-                        className="panel-toolbar-btn"
-                        onClick={handleNewSession}
-                        title="New Session (Ctrl+N)"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-                        </svg>
-                      </button>
-
-                      {/* Load Session */}
-                      <button
-                        className="panel-toolbar-btn"
-                        onClick={handleLoadSession}
-                        title="Load Session (Ctrl+O)"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>
-                        </svg>
-                      </button>
-
-                      {/* Clear Session */}
-                      <button
-                        className="panel-toolbar-btn"
-                        onClick={handleClearSession}
-                        title="Clear Chat (Ctrl+L)"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-                        </svg>
-                      </button>
-                    </div>
-                  )}
-
-                  <button
-                    className="panel-fullscreen-btn"
-                    onClick={() => setIsBottomPanelFullscreen(!isBottomPanelFullscreen)}
-                    title={isBottomPanelFullscreen ? 'Exit Fullscreen (Esc)' : 'Fullscreen'}
-                  >
-                    {isBottomPanelFullscreen ? (
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>
-                      </svg>
-                    ) : (
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
-                      </svg>
-                    )}
-                  </button>
-                </div>
-              }
-              className="bottom-panel-container"
-            >
-              <div className="panel-content">
-                {/* Keep all panels mounted to preserve state, hide with CSS */}
-                <div className="panel-tab-content" style={{ display: bottomPanelLayout === 'terminal' ? 'flex' : 'none' }}>
-                  <Terminal currentDirectory={currentDirectory} />
-                </div>
-                <div className="panel-tab-content" style={{ display: bottomPanelLayout === 'chat' ? 'flex' : 'none' }}>
-                  <ChatPanel
-                    ref={chatPanelRef}
-                    session={currentSession}
-                    onSessionChange={setCurrentSession}
-                    onClearSession={handleClearSession}
-                    currentDirectory={currentDirectory}
-                  />
-                </div>
-                <div className="panel-tab-content" style={{ display: bottomPanelLayout === 'logs' ? 'flex' : 'none' }}>
-                  <LogViewer isVisible={bottomPanelLayout === 'logs'} />
-                </div>
-              </div>
-            </ResizablePanel>
-            </div>
-          )}
+          {/* Bottom Panel */}
+          <BottomPanel
+            isOpen={bottomPanelOpen}
+            layout={bottomPanelLayout}
+            isFullscreen={isBottomPanelFullscreen}
+            height={bottomPanelHeight}
+            layoutState={layoutState}
+            currentDirectory={currentDirectory}
+            currentSession={currentSession}
+            allowAllPermissions={allowAllPermissions}
+            endpoints={endpoints}
+            currentEndpointId={currentEndpointId}
+            isModelDropdownOpen={isModelDropdownOpen}
+            modelDropdownRef={modelDropdownRef}
+            chatPanelRef={chatPanelRef}
+            commandHandlers={commandHandlers}
+            onLayoutChange={setBottomPanelLayout}
+            onFullscreenToggle={() => setIsBottomPanelFullscreen(prev => !prev)}
+            onHeightChange={setBottomPanelHeight}
+            onCollapse={() => setBottomPanelOpen(false)}
+            onSessionChange={setCurrentSession}
+            onClearSession={handleClearSession}
+            onNewSession={handleNewSession}
+            onLoadSession={handleLoadSession}
+            onAllowAllPermissionsChange={setAllowAllPermissions}
+            onModelDropdownToggle={() => setIsModelDropdownOpen(prev => !prev)}
+            onSelectModel={handleSelectModel}
+          />
 
           {/* Toggle Bottom Panel Button */}
           {!bottomPanelOpen && (
@@ -1011,15 +949,9 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      {/* Status Bar */}
-      <StatusBar
-        systemInfo={systemInfo}
-        currentFile={activeTab?.name}
-        currentDirectory={currentDirectory}
-        theme={theme}
-        onToggleTerminal={() => setBottomPanelOpen(!bottomPanelOpen)}
-      />
+      {/* Status Bar removed */}
     </div>
+    </AgentProvider>
   );
 };
 

@@ -1,13 +1,17 @@
 /* =====================================================
-   Sidebar Component Styles
+   Sidebar Component Styles - Glassmorphism Design
    ===================================================== */
 
 .sidebar {
   display: flex;
   flex-direction: column;
   position: relative;
-  background-color: var(--color-bg-elevated);
-  border-right: 1px solid var(--color-border-muted);
+  background: var(--glass-bg-solid);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--glass-shadow);
   min-width: 200px;
   max-width: 500px;
   overflow: hidden;
@@ -22,16 +26,22 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 35px;
-  padding: 0 var(--space-4) 0 var(--space-5);
-  border-bottom: 1px solid var(--color-border-muted);
+  height: 40px;
+  padding: 0 var(--space-4);
+  background: rgba(255, 255, 255, 0.3);
+  border-bottom: 1px solid var(--glass-border-subtle);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   flex-shrink: 0;
+}
+
+[data-theme="dark"] .sidebar-header {
+  background: rgba(30, 41, 59, 0.5);
 }
 
 .sidebar-title {
   font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 1px;
 }
@@ -46,22 +56,25 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: var(--radius-sm);
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-md);
   color: var(--color-text-muted);
   transition: all var(--transition-fast);
 }
 
 .sidebar-action-btn:hover {
   color: var(--color-text-primary);
-  background-color: var(--color-bg-overlay);
+  background: var(--color-bg-overlay);
 }
 
 /* ============ Sidebar Content ============ */
 .sidebar-content {
   flex: 1;
+  min-height: 0; /* Important for flex children overflow */
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 /* ============ Resize Handle ============ */
@@ -78,12 +91,13 @@
 
 .sidebar-resize-handle:hover,
 .sidebar.resizing .sidebar-resize-handle {
-  background-color: var(--color-accent-primary);
+  background: var(--color-accent-primary);
+  border-radius: 3px;
 }
 
 /* ============ Section Styles ============ */
 .sidebar-section {
-  border-bottom: 1px solid var(--color-border-muted);
+  border-bottom: 1px solid var(--glass-border-subtle);
 }
 
 .sidebar-section:last-child {
@@ -94,7 +108,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
+  padding: 10px var(--space-3);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-secondary);
@@ -102,14 +116,15 @@
   letter-spacing: 0.5px;
   cursor: pointer;
   user-select: none;
-  transition: background-color var(--transition-fast);
+  transition: all var(--transition-fast);
 }
 
 .sidebar-section-header:hover {
-  background-color: var(--color-bg-overlay);
+  background: var(--color-bg-overlay);
 }
 
 .sidebar-section-header svg {
+  color: var(--color-text-muted);
   transition: transform var(--transition-fast);
 }
 

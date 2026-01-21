@@ -3,7 +3,7 @@
  * 커스텀 확인 다이얼로그
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, memo } from 'react';
 import './ConfirmModal.css';
 
 interface ConfirmModalProps {
@@ -125,4 +125,4 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
   );
 };
 
-export default ConfirmModal;
+export default memo(ConfirmModal);

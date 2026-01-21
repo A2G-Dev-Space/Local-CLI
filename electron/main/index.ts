@@ -21,10 +21,11 @@ import { toolManager } from './tool-manager';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// GPU 관련 문제 해결을 위한 플래그 설정
-app.commandLine.appendSwitch('disable-gpu');
-app.commandLine.appendSwitch('disable-software-rasterizer');
-app.commandLine.appendSwitch('no-sandbox');
+// GPU 가속 활성화 (성능 최적화)
+// 참고: disable-gpu를 사용하면 모든 렌더링이 CPU에서 처리되어 매우 느려짐
+app.commandLine.appendSwitch('enable-gpu-rasterization');
+app.commandLine.appendSwitch('enable-zero-copy');
+app.commandLine.appendSwitch('ignore-gpu-blocklist'); // 블랙리스트 무시하고 GPU 사용
 
 // Electron-vite에서 제공하는 환경 변수
 const RENDERER_DIST = path.join(__dirname, '../renderer');
@@ -70,8 +71,8 @@ process.on('unhandledRejection', (reason, promise) => {
 
 // ============ 보안 설정 ============
 
-// GPU 프로세스 크래시 시 재시작 비활성화 (보안)
-app.disableHardwareAcceleration();
+// 참고: app.disableHardwareAcceleration()은 성능을 심하게 저하시키므로 사용하지 않음
+// GPU 가속이 활성화되어야 부드러운 스크롤, 애니메이션, 타이핑 반응이 가능함
 
 // 렌더러 프로세스 재사용 비활성화 (보안)
 app.commandLine.appendSwitch('disable-features', 'OutOfBlinkCors');

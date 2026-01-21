@@ -3,7 +3,7 @@
  * Tree view file browser with context menu and drag & drop
  */
 
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect, memo } from 'react';
 import type { FileNode } from '../App';
 import './FileExplorer.css';
 
@@ -131,6 +131,10 @@ const getFileIcon = (name: string, isFolder: boolean): React.ReactNode => {
   );
 };
 
+// Virtualization: max files to show initially per folder
+const MAX_VISIBLE_FILES = 100;
+const LOAD_MORE_COUNT = 50;
+
 const FileExplorer: React.FC<FileExplorerProps> = ({
   files,
   currentDirectory,
@@ -148,6 +152,22 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   });
   const [draggedNode, setDraggedNode] = useState<FileNode | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Virtualization: track how many files to show per path
+  const [visibleCounts, setVisibleCounts] = useState<Record<string, number>>({});
+
+  // Get visible count for a path (defaults to MAX_VISIBLE_FILES)
+  const getVisibleCount = useCallback((path: string) => {
+    return visibleCounts[path] ?? MAX_VISIBLE_FILES;
+  }, [visibleCounts]);
+
+  // Load more files for a specific path
+  const loadMoreFiles = useCallback((path: string) => {
+    setVisibleCounts(prev => ({
+      ...prev,
+      [path]: (prev[path] ?? MAX_VISIBLE_FILES) + LOAD_MORE_COUNT,
+    }));
+  }, []);
 
   // Close context menu on click outside
   useEffect(() => {
@@ -305,10 +325,36 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
           <span className="file-tree-name">{node.name}</span>
         </div>
 
-        {/* Children (for expanded folders) */}
+        {/* Children (for expanded folders) - with virtualization */}
         {isFolder && isExpanded && node.children && (
           <div className="file-tree-children" role="group">
-            {node.children.map(child => renderNode(child, depth + 1))}
+            {(() => {
+              const visibleCount = getVisibleCount(node.path);
+              const visibleChildren = node.children.slice(0, visibleCount);
+              const hasMore = node.children.length > visibleCount;
+              const remainingCount = node.children.length - visibleCount;
+
+              return (
+                <>
+                  {visibleChildren.map(child => renderNode(child, depth + 1))}
+                  {hasMore && (
+                    <button
+                      className="file-tree-load-more"
+                      style={{ paddingLeft: `${(depth + 1) * 12 + 8}px` }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        loadMoreFiles(node.path);
+                      }}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6z"/>
+                      </svg>
+                      Show {Math.min(LOAD_MORE_COUNT, remainingCount)} more ({remainingCount} remaining)
+                    </button>
+                  )}
+                </>
+              );
+            })()}
           </div>
         )}
       </div>
@@ -370,7 +416,30 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
             <p className="empty-hint">Open a folder to get started</p>
           </div>
         ) : (
-          files.map(node => renderNode(node))
+          (() => {
+            const rootPath = currentDirectory || 'root';
+            const visibleCount = getVisibleCount(rootPath);
+            const visibleFiles = files.slice(0, visibleCount);
+            const hasMore = files.length > visibleCount;
+            const remainingCount = files.length - visibleCount;
+
+            return (
+              <>
+                {visibleFiles.map(node => renderNode(node))}
+                {hasMore && (
+                  <button
+                    className="file-tree-load-more"
+                    onClick={() => loadMoreFiles(rootPath)}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6z"/>
+                    </svg>
+                    Show {Math.min(LOAD_MORE_COUNT, remainingCount)} more ({remainingCount} remaining)
+                  </button>
+                )}
+              </>
+            );
+          })()
         )}
       </div>
 
@@ -413,4 +482,4 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   );
 };
 
-export default FileExplorer;
+export default memo(FileExplorer);

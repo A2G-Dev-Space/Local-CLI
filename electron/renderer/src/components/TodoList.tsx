@@ -4,7 +4,7 @@
  * Matches CLI's todo display style with status indicators
  */
 
-import React from 'react';
+import React, { memo, useMemo } from 'react';
 import './TodoList.css';
 
 export interface TodoItem {
@@ -21,13 +21,20 @@ interface TodoListProps {
 }
 
 const TodoList: React.FC<TodoListProps> = ({ todos, isExecuting, onRetry }) => {
+  // Memoize progress calculations
+  const { completedCount, totalCount, progress } = useMemo(() => {
+    const completed = todos.filter(t => t.status === 'completed').length;
+    const total = todos.length;
+    return {
+      completedCount: completed,
+      totalCount: total,
+      progress: total > 0 ? (completed / total) * 100 : 0,
+    };
+  }, [todos]);
+
   if (todos.length === 0) {
     return null;
   }
-
-  const completedCount = todos.filter(t => t.status === 'completed').length;
-  const totalCount = todos.length;
-  const progress = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
 
   const getStatusIcon = (status: TodoItem['status']) => {
     switch (status) {
@@ -119,4 +126,4 @@ const TodoList: React.FC<TodoListProps> = ({ todos, isExecuting, onRetry }) => {
   );
 };
 
-export default TodoList;
+export default memo(TodoList);

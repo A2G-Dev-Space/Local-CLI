@@ -10,6 +10,37 @@ import * as path from 'path';
 import type { ToolDefinition } from '../../../llm-client';
 import type { LLMSimpleTool, ToolResult } from '../common/types';
 import { CORE_CATEGORIES } from '../common/constants';
+import { sendFileEditEvent, sendFileCreateEvent } from '../../../ipc-handlers';
+
+// Language detection from file extension
+function detectLanguage(filePath: string): string {
+  const ext = path.extname(filePath).toLowerCase();
+  const langMap: Record<string, string> = {
+    '.ts': 'typescript',
+    '.tsx': 'typescript',
+    '.js': 'javascript',
+    '.jsx': 'javascript',
+    '.py': 'python',
+    '.ps1': 'powershell',
+    '.json': 'json',
+    '.html': 'html',
+    '.css': 'css',
+    '.scss': 'scss',
+    '.md': 'markdown',
+    '.yaml': 'yaml',
+    '.yml': 'yaml',
+    '.xml': 'xml',
+    '.sh': 'bash',
+    '.go': 'go',
+    '.rs': 'rust',
+    '.java': 'java',
+    '.c': 'c',
+    '.cpp': 'cpp',
+    '.h': 'c',
+    '.hpp': 'cpp',
+  };
+  return langMap[ext] || 'plaintext';
+}
 
 // =============================================================================
 // Constants
@@ -197,6 +228,19 @@ async function executeCreateFile(args: Record<string, unknown>): Promise<ToolRes
     await fs.writeFile(resolvedPath, content, 'utf-8');
 
     const lines = content.split('\n').length;
+    const language = detectLanguage(filePath);
+
+    // Emit file create event for diff view (safe call)
+    try {
+      sendFileCreateEvent({
+        path: resolvedPath,
+        content,
+        language,
+      });
+    } catch (e) {
+      // Silently ignore event emission errors
+    }
+
     return {
       success: true,
       result: JSON.stringify({
@@ -321,6 +365,19 @@ async function executeEditFile(args: Record<string, unknown>): Promise<ToolResul
     const oldLinesArr = oldString.split('\n');
     const newLinesArr = newString.split('\n');
     const replacements = replaceAll ? occurrences : 1;
+    const language = detectLanguage(filePath);
+
+    // Emit file edit event for diff view (safe call)
+    try {
+      sendFileEditEvent({
+        path: resolvedPath,
+        originalContent,
+        newContent,
+        language,
+      });
+    } catch (e) {
+      // Silently ignore event emission errors
+    }
 
     const diffPreview: string[] = [];
     const oldPreview = oldLinesArr.slice(0, 5);

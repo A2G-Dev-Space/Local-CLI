@@ -4,7 +4,7 @@
  * Shows file operations, shell commands, browser actions, etc.
  */
 
-import React, { useState } from 'react';
+import React, { useState, memo, useCallback } from 'react';
 import './ToolExecution.css';
 
 export type ToolCategory = 'file' | 'shell' | 'browser' | 'office' | 'user' | 'todo' | 'other';
@@ -34,7 +34,7 @@ const ToolExecution: React.FC<ToolExecutionProps> = ({
 }) => {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
-  const toggleExpand = (id: string) => {
+  const toggleExpand = useCallback((id: string) => {
     setExpandedIds(prev => {
       const newSet = new Set(prev);
       if (newSet.has(id)) {
@@ -44,7 +44,7 @@ const ToolExecution: React.FC<ToolExecutionProps> = ({
       }
       return newSet;
     });
-  };
+  }, []);
 
   const getCategoryIcon = (category: ToolCategory) => {
     switch (category) {
@@ -238,4 +238,4 @@ const ToolExecution: React.FC<ToolExecutionProps> = ({
   );
 };
 
-export default ToolExecution;
+export default memo(ToolExecution);

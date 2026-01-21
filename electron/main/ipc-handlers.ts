@@ -32,6 +32,13 @@ import {
   AskUserRequest,
   AskUserResponse,
 } from './agent';
+import {
+  getDocsInfo,
+  downloadDocs,
+  deleteDocs,
+  openDocsFolder,
+  DownloadProgress,
+} from './docs-manager';
 
 // 파일 필터 타입
 interface FileFilter {
@@ -63,6 +70,29 @@ let mainWindow: BrowserWindow | null = null;
  */
 export function setMainWindow(win: BrowserWindow): void {
   mainWindow = win;
+}
+
+/**
+ * 파일 수정 이벤트 발송 (for Diff View)
+ */
+export function sendFileEditEvent(data: {
+  path: string;
+  originalContent: string;
+  newContent: string;
+  language: string;
+}): void {
+  mainWindow?.webContents.send('agent:fileEdit', data);
+}
+
+/**
+ * 파일 생성 이벤트 발송
+ */
+export function sendFileCreateEvent(data: {
+  path: string;
+  content: string;
+  language: string;
+}): void {
+  mainWindow?.webContents.send('agent:fileCreate', data);
 }
 
 /**
@@ -1333,6 +1363,31 @@ export function setupIpcHandlers(): void {
     // 이 이벤트는 agent에서 직접 발생시키지 않음
     // askUserCallback에서 IPC를 통해 renderer에 질문을 보냄
     mainWindow?.webContents.send('agent:askUser', request);
+  });
+
+  // ============ Documentation ============
+
+  // 문서 정보 가져오기
+  ipcMain.handle('docs:getInfo', async () => {
+    return await getDocsInfo();
+  });
+
+  // 문서 다운로드
+  ipcMain.handle('docs:download', async (_event, sourceId: string) => {
+    const progressCallback = (progress: DownloadProgress) => {
+      mainWindow?.webContents.send('docs:downloadProgress', progress);
+    };
+    return await downloadDocs(sourceId, progressCallback);
+  });
+
+  // 문서 삭제
+  ipcMain.handle('docs:delete', async (_event, sourceId: string) => {
+    return await deleteDocs(sourceId);
+  });
+
+  // 문서 폴더 열기
+  ipcMain.handle('docs:openFolder', async () => {
+    return await openDocsFolder();
   });
 
   logger.info('IPC handlers registered');

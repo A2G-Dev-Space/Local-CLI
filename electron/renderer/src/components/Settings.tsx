@@ -32,7 +32,7 @@ interface SettingsProps {
   onClose: () => void;
 }
 
-type SettingsView = 'main' | 'status' | 'llms' | 'llm-add' | 'llm-edit' | 'llm-delete';
+type SettingsView = 'main' | 'llms' | 'llm-add' | 'llm-edit' | 'llm-delete';
 
 interface FormData {
   name: string;
@@ -63,16 +63,6 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
     maxContextLength: '128000',
   });
 
-  // System status
-  const [systemStatus, setSystemStatus] = useState<{
-    version: string;
-    sessionId: string;
-    workingDir: string;
-    endpointUrl: string;
-    llmModel: string;
-    configPath: string;
-  } | null>(null);
-
   // Load endpoints
   const loadEndpoints = useCallback(async () => {
     if (!window.electronAPI?.llm) {
@@ -95,17 +85,6 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
     }
   }, []);
 
-  // Load status
-  const loadStatus = useCallback(async () => {
-    try {
-      const result = await window.electronAPI.llm.getStatus();
-      if (result.success && result.status) {
-        setSystemStatus(result.status);
-      }
-    } catch (err) {
-      console.error('Failed to load status:', err);
-    }
-  }, []);
 
   // Initial load
   useEffect(() => {
@@ -116,13 +95,6 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
       setSuccessMessage(null);
     }
   }, [isOpen, loadEndpoints]);
-
-  // Load status when viewing status
-  useEffect(() => {
-    if (view === 'status') {
-      loadStatus();
-    }
-  }, [view, loadStatus]);
 
   // Handle keyboard events
   useEffect(() => {
@@ -326,7 +298,6 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
             </svg>
             <span>
               {view === 'main' && 'Settings'}
-              {view === 'status' && 'Settings > Status'}
               {view === 'llms' && 'Settings > LLM Endpoints'}
               {view === 'llm-add' && 'Add New Endpoint'}
               {view === 'llm-edit' && 'Edit Endpoint'}
@@ -365,21 +336,6 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
           {/* Main Menu */}
           {view === 'main' && (
             <div className="settings-menu">
-              <button className="menu-item" onClick={() => setView('status')}>
-                <div className="menu-icon">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M11 17h2v-6h-2v6zm1-15C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zM11 9h2V7h-2v2z"/>
-                  </svg>
-                </div>
-                <div className="menu-content">
-                  <span className="menu-label">Status</span>
-                  <span className="menu-description">View system information</span>
-                </div>
-                <svg className="menu-arrow" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
-                </svg>
-              </button>
-
               <button className="menu-item" onClick={() => { setView('llms'); loadEndpoints(); }}>
                 <div className="menu-icon">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
@@ -394,48 +350,6 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                 <svg className="menu-arrow" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
                 </svg>
-              </button>
-            </div>
-          )}
-
-          {/* Status View */}
-          {view === 'status' && (
-            <div className="status-view">
-              {systemStatus ? (
-                <div className="status-list">
-                  <div className="status-item">
-                    <span className="status-label">Version</span>
-                    <span className="status-value">{systemStatus.version}</span>
-                  </div>
-                  <div className="status-item">
-                    <span className="status-label">Session ID</span>
-                    <span className="status-value mono">{systemStatus.sessionId || 'No active session'}</span>
-                  </div>
-                  <div className="status-item">
-                    <span className="status-label">Working Directory</span>
-                    <span className="status-value mono">{systemStatus.workingDir}</span>
-                  </div>
-                  <div className="status-item">
-                    <span className="status-label">Endpoint URL</span>
-                    <span className="status-value mono">{systemStatus.endpointUrl || 'Not configured'}</span>
-                  </div>
-                  <div className="status-item">
-                    <span className="status-label">LLM Model</span>
-                    <span className="status-value">{systemStatus.llmModel || 'Not configured'}</span>
-                  </div>
-                  <div className="status-item">
-                    <span className="status-label">Config Path</span>
-                    <span className="status-value mono">{systemStatus.configPath}</span>
-                  </div>
-                </div>
-              ) : (
-                <div className="loading-spinner">Loading...</div>
-              )}
-              <button className="back-button" onClick={() => setView('main')}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
-                </svg>
-                Back
               </button>
             </div>
           )}

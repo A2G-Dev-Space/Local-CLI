@@ -1,17 +1,25 @@
 /* =====================================================
-   TodoList Component Styles
+   TodoList Component Styles - Glassmorphism Design
    ===================================================== */
 
 .todo-list-container {
   display: flex;
   flex-direction: column;
-  margin: var(--space-3) 0;
-  margin-left: 40px; /* Account for avatar space (28px + margin) */
-  padding: var(--space-3);
-  background-color: var(--color-bg-elevated);
-  border: 1px solid var(--color-border-muted);
-  border-radius: var(--radius-lg);
+  margin: var(--space-4) 0;
+  margin-left: 44px; /* Account for avatar space (32px + margin) */
+  padding: var(--space-4);
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(226, 232, 240, 0.6);
+  border-radius: var(--radius-xl);
   animation: slideInUp var(--transition-smooth);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="dark"] .todo-list-container {
+  background: rgba(30, 41, 59, 0.7);
+  border-color: rgba(71, 85, 105, 0.4);
 }
 
 /* ============ Header ============ */
@@ -20,8 +28,8 @@
   flex-direction: column;
   gap: var(--space-2);
   margin-bottom: var(--space-3);
-  padding-bottom: var(--space-2);
-  border-bottom: 1px solid var(--color-border-muted);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--glass-border-subtle);
 }
 
 .todo-list-title {
@@ -34,30 +42,34 @@
 }
 
 .todo-list-title svg {
-  color: var(--color-accent-primary);
+  color: #8B5CF6;
 }
 
 .todo-count {
   margin-left: auto;
-  padding: 2px 8px;
+  padding: 2px 10px;
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
   color: var(--color-text-muted);
-  background-color: var(--color-bg-overlay);
+  background: var(--color-bg-overlay);
   border-radius: var(--radius-full);
 }
 
 /* ============ Progress Bar ============ */
 .todo-progress-bar {
   height: 4px;
-  background-color: var(--color-bg-inset);
+  background: rgba(226, 232, 240, 0.6);
   border-radius: var(--radius-full);
   overflow: hidden;
 }
 
+[data-theme="dark"] .todo-progress-bar {
+  background: rgba(71, 85, 105, 0.4);
+}
+
 .todo-progress-fill {
   height: 100%;
-  background: var(--color-accent-gradient);
+  background: linear-gradient(90deg, #8B5CF6, #3B82F6);
   border-radius: var(--radius-full);
   transition: width var(--transition-smooth);
 }
@@ -72,25 +84,34 @@
 .todo-item {
   display: flex;
   align-items: flex-start;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  background-color: var(--color-bg-surface);
-  border-radius: var(--radius-md);
+  gap: var(--space-3);
+  padding: 10px var(--space-3);
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
   transition: all var(--transition-fast);
 }
 
+[data-theme="dark"] .todo-item {
+  background: rgba(30, 41, 59, 0.5);
+}
+
 .todo-item.in_progress {
-  background-color: rgba(56, 189, 248, 0.1);
-  border: 1px solid var(--color-accent-primary);
+  background: rgba(59, 130, 246, 0.1);
+  border-color: var(--color-accent-primary);
+}
+
+[data-theme="dark"] .todo-item.in_progress {
+  background: rgba(59, 130, 246, 0.15);
 }
 
 .todo-item.completed {
-  opacity: 0.7;
+  opacity: 0.6;
 }
 
 .todo-item.failed {
-  background-color: rgba(239, 68, 68, 0.1);
-  border: 1px solid var(--color-error);
+  background: rgba(239, 68, 68, 0.1);
+  border-color: #EF4444;
 }
 
 .todo-item-number {
@@ -98,43 +119,43 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
+  width: 22px;
+  height: 22px;
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
   color: var(--color-text-muted);
-  background-color: var(--color-bg-overlay);
-  border-radius: var(--radius-sm);
+  background: var(--color-bg-overlay);
+  border-radius: var(--radius-md);
 }
 
 /* ============ Status Icons ============ */
 .todo-icon {
   flex-shrink: 0;
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .todo-icon.completed {
-  color: var(--color-success);
+  color: #10B981;
 }
 
 .todo-icon.failed {
-  color: var(--color-error);
+  color: #EF4444;
 }
 
 .todo-icon.pending .circle {
-  width: 12px;
-  height: 12px;
-  border: 2px solid var(--color-text-muted);
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--color-border-muted);
   border-radius: 50%;
 }
 
 .todo-icon.in-progress .spinner {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   border: 2px solid var(--color-border-muted);
   border-top-color: var(--color-accent-primary);
   border-radius: 50%;
@@ -167,7 +188,7 @@
 
 .todo-item-error {
   font-size: var(--font-size-xs);
-  color: var(--color-error);
+  color: #EF4444;
 }
 
 /* ============ Retry Button ============ */
@@ -176,17 +197,17 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   color: var(--color-text-muted);
-  background-color: transparent;
-  border-radius: var(--radius-sm);
+  background: transparent;
+  border-radius: var(--radius-md);
   transition: all var(--transition-fast);
 }
 
 .todo-retry-btn:hover {
   color: var(--color-accent-primary);
-  background-color: var(--color-bg-overlay);
+  background: var(--color-bg-overlay);
 }
 
 /* ============ Execution Status ============ */
@@ -195,8 +216,8 @@
   align-items: center;
   gap: var(--space-2);
   margin-top: var(--space-3);
-  padding-top: var(--space-2);
-  border-top: 1px solid var(--color-border-muted);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--glass-border-subtle);
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
 }
@@ -204,12 +225,13 @@
 .execution-indicator {
   width: 8px;
   height: 8px;
-  background-color: var(--color-accent-primary);
+  background: var(--color-accent-primary);
   border-radius: 50%;
   animation: pulse 1.5s ease-in-out infinite;
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.5);
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+  0%, 100% { opacity: 1; box-shadow: 0 0 8px rgba(59, 130, 246, 0.5); }
+  50% { opacity: 0.6; box-shadow: 0 0 12px rgba(59, 130, 246, 0.8); }
 }
