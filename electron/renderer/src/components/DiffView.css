@@ -1,0 +1,237 @@
+/* =====================================================
+   Diff View Component Styles
+   ===================================================== */
+
+.diff-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--color-bg-primary);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+/* ============ Header ============ */
+.diff-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-4);
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+[data-theme="dark"] .diff-header {
+  background: rgba(15, 23, 42, 0.6);
+}
+
+.diff-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+}
+
+.diff-title svg {
+  color: var(--color-accent-primary);
+}
+
+.diff-language {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-normal);
+}
+
+.diff-stats {
+  display: flex;
+  gap: var(--space-3);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.diff-stat.added {
+  color: #10B981;
+}
+
+.diff-stat.removed {
+  color: #EF4444;
+}
+
+.diff-close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  transition: all var(--transition-fast);
+}
+
+.diff-close-btn:hover {
+  background: var(--color-bg-overlay);
+  color: var(--color-text-primary);
+}
+
+/* ============ Content ============ */
+.diff-content {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ============ Pane ============ */
+.diff-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-right: 1px solid var(--color-border-muted);
+}
+
+.diff-pane.right {
+  border-right: none;
+}
+
+.diff-pane-header {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+  background: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-border-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.diff-pane.left .diff-pane-header {
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.diff-pane.right .diff-pane-header {
+  background: rgba(16, 185, 129, 0.08);
+}
+
+.diff-pane-content {
+  flex: 1;
+  overflow: auto;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ============ Line ============ */
+.diff-line {
+  display: flex;
+  min-height: 22px;
+  padding-right: var(--space-2);
+}
+
+.diff-line.unchanged {
+  background: transparent;
+}
+
+.diff-line.added {
+  background: rgba(16, 185, 129, 0.15);
+}
+
+.diff-line.removed {
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.diff-line.empty {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+[data-theme="dark"] .diff-line.empty {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.diff-line-number {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 40px;
+  padding: 0 var(--space-2);
+  color: var(--color-text-disabled);
+  font-size: var(--font-size-xs);
+  background: var(--color-bg-secondary);
+  border-right: 1px solid var(--color-border-muted);
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.diff-line.added .diff-line-number {
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.diff-line.removed .diff-line-number {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.diff-line-marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  font-weight: var(--font-weight-bold);
+  flex-shrink: 0;
+}
+
+.diff-line.added .diff-line-marker {
+  color: #10B981;
+}
+
+.diff-line.removed .diff-line-marker {
+  color: #EF4444;
+}
+
+.diff-line-content {
+  flex: 1;
+  white-space: pre;
+  overflow-x: auto;
+  padding: 0 var(--space-2);
+}
+
+.diff-line.added .diff-line-content {
+  color: #059669;
+}
+
+.diff-line.removed .diff-line-content {
+  color: #DC2626;
+}
+
+[data-theme="dark"] .diff-line.added .diff-line-content {
+  color: #34D399;
+}
+
+[data-theme="dark"] .diff-line.removed .diff-line-content {
+  color: #F87171;
+}
+
+/* ============ Scrollbar ============ */
+.diff-pane-content::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.diff-pane-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.diff-pane-content::-webkit-scrollbar-thumb {
+  background: var(--color-border-default);
+  border-radius: var(--radius-full);
+}
+
+.diff-pane-content::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+/* ============ Sync Scroll ============ */
+.diff-content {
+  /* Both panes scroll together */
+}

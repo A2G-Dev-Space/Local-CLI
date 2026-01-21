@@ -118,6 +118,22 @@
   visibility: visible;
 }
 
+/* Right-aligned buttons: tooltip opens to the left */
+.toolbar-right .toolbar-tooltip {
+  left: auto;
+  right: 0;
+}
+
+.toolbar-right .toolbar-tooltip::before {
+  left: auto;
+  right: 10px;
+}
+
+.toolbar-right .toolbar-tooltip::after {
+  left: auto;
+  right: 11px;
+}
+
 .toolbar-tooltip kbd {
   display: inline-block;
   margin-left: 8px;

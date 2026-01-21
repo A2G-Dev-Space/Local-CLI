@@ -11,32 +11,43 @@
 
 /* ============ CSS Variables - Theme System ============ */
 :root {
-  /* ---- Colors: Light Theme (Default) ---- */
-  --color-bg-base: #ffffff;
-  --color-bg-elevated: #f6f8fa;
-  --color-bg-surface: #f0f3f6;
-  --color-bg-overlay: #e7ebef;
-  --color-bg-inset: #eff2f5;
-  --color-bg-subtle: #f6f8fa;
+  /* ---- Colors: Light Theme (Default) - Glassmorphism ---- */
+  --color-bg-base: #F0F4F8;
+  --color-bg-elevated: rgba(255, 255, 255, 0.85);
+  --color-bg-surface: rgba(255, 255, 255, 0.7);
+  --color-bg-overlay: rgba(241, 245, 249, 0.8);
+  --color-bg-inset: rgba(248, 250, 252, 0.9);
+  --color-bg-subtle: rgba(255, 255, 255, 0.6);
+
+  /* Gradient Background */
+  --bg-gradient: linear-gradient(135deg, #EFF6FF 0%, #F1F5F9 50%, #EEF2FF 100%);
+
+  /* Glass Effect */
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-bg-solid: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(255, 255, 255, 0.5);
+  --glass-border-subtle: rgba(255, 255, 255, 0.3);
+  --glass-blur: blur(12px);
+  --glass-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
 
   /* Borders */
-  --color-border-default: #d0d7de;
-  --color-border-muted: #d8dee4;
-  --color-border-subtle: #e7ebef;
+  --color-border-default: rgba(203, 213, 225, 0.6);
+  --color-border-muted: rgba(226, 232, 240, 0.6);
+  --color-border-subtle: rgba(241, 245, 249, 0.6);
 
   /* Text */
-  --color-text-primary: #1f2328;
-  --color-text-secondary: #57606a;
-  --color-text-muted: #6e7781;
-  --color-text-disabled: #8c959f;
+  --color-text-primary: #1E293B;
+  --color-text-secondary: #475569;
+  --color-text-muted: #64748B;
+  --color-text-disabled: #94A3B8;
 
-  /* Accent Colors - Pastel Sky Blue */
-  --color-accent-primary: #38BDF8;
-  --color-accent-secondary: #0EA5E9;
-  --color-accent-tertiary: #7DD3FC;
-  --color-accent-gradient: linear-gradient(135deg, #38BDF8 0%, #0EA5E9 50%, #0284C7 100%);
-  --color-accent-hover: #0EA5E9;
-  --color-accent-active: #0284C7;
+  /* Accent Colors - Blue (design.html) */
+  --color-accent-primary: #3B82F6;
+  --color-accent-secondary: #2563EB;
+  --color-accent-tertiary: #60A5FA;
+  --color-accent-gradient: linear-gradient(135deg, #3B82F6 0%, #2563EB 50%, #1D4ED8 100%);
+  --color-accent-hover: #2563EB;
+  --color-accent-active: #1D4ED8;
 
   /* Semantic Colors */
   --color-success: #3fb950;
@@ -159,37 +170,46 @@
   --scrollbar-thumb-hover: var(--color-text-muted);
 }
 
-/* ============ Dark Theme ============ */
+/* ============ Dark Theme - Glassmorphism ============ */
 [data-theme="dark"] {
-  --color-bg-base: #0d1117;
-  --color-bg-elevated: #161b22;
-  --color-bg-surface: #21262d;
-  --color-bg-overlay: #30363d;
-  --color-bg-inset: #010409;
-  --color-bg-subtle: #161b22;
+  --color-bg-base: #0F172A;
+  --color-bg-elevated: rgba(15, 23, 42, 0.85);
+  --color-bg-surface: rgba(30, 41, 59, 0.7);
+  --color-bg-overlay: rgba(51, 65, 85, 0.6);
+  --color-bg-inset: rgba(2, 6, 23, 0.9);
+  --color-bg-subtle: rgba(30, 41, 59, 0.6);
 
-  --color-border-default: #30363d;
-  --color-border-muted: #21262d;
-  --color-border-subtle: #161b22;
+  /* Gradient Background - Dark */
+  --bg-gradient: linear-gradient(135deg, #0F172A 0%, #1E293B 50%, #312E81 100%);
 
-  --color-text-primary: #e6edf3;
-  --color-text-secondary: #8b949e;
-  --color-text-muted: #6e7681;
-  --color-text-disabled: #484f58;
+  /* Glass Effect - Dark */
+  --glass-bg: rgba(30, 41, 59, 0.7);
+  --glass-bg-solid: rgba(15, 23, 42, 0.85);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-border-subtle: rgba(255, 255, 255, 0.05);
+  --glass-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
 
-  --color-accent-primary: #38BDF8;
-  --color-accent-secondary: #0EA5E9;
+  --color-border-default: rgba(51, 65, 85, 0.6);
+  --color-border-muted: rgba(71, 85, 105, 0.4);
+  --color-border-subtle: rgba(30, 41, 59, 0.6);
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+  --color-text-primary: #E2E8F0;
+  --color-text-secondary: #94A3B8;
+  --color-text-muted: #64748B;
+  --color-text-disabled: #475569;
 
-  --glass-bg: rgba(22, 27, 34, 0.8);
-  --glass-border: rgba(48, 54, 61, 0.5);
+  --color-accent-primary: #3B82F6;
+  --color-accent-secondary: #60A5FA;
+  --color-accent-tertiary: #93C5FD;
 
-  --scrollbar-track: #0d1117;
-  --scrollbar-thumb: #30363d;
-  --scrollbar-thumb-hover: #6e7681;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.4);
+  --shadow-glow: 0 0 20px rgba(59, 130, 246, 0.4);
+
+  --scrollbar-track: rgba(15, 23, 42, 0.5);
+  --scrollbar-thumb: rgba(71, 85, 105, 0.5);
+  --scrollbar-thumb-hover: rgba(100, 116, 139, 0.7);
 }
 
 /* ============ Reset & Base ============ */
@@ -215,36 +235,34 @@ body {
   font-weight: var(--font-weight-normal);
   line-height: var(--line-height-base);
   color: var(--color-text-primary);
-  background-color: var(--color-bg-base);
+  background: var(--bg-gradient);
+  background-attachment: fixed;
   overflow: hidden;
   user-select: none;
+  min-height: 100vh;
 }
 
 /* ============ Scrollbar Styling ============ */
 ::-webkit-scrollbar {
-  width: var(--scrollbar-width);
-  height: var(--scrollbar-width);
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--scrollbar-track);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb);
-  border-radius: var(--radius-full);
-  border: 2px solid transparent;
-  background-clip: padding-box;
+  background: rgba(156, 163, 175, 0.3);
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thumb-hover);
-  border: 2px solid transparent;
-  background-clip: padding-box;
+  background: rgba(156, 163, 175, 0.5);
 }
 
 ::-webkit-scrollbar-corner {
-  background: var(--scrollbar-track);
+  background: transparent;
 }
 
 /* ============ Selection ============ */
@@ -422,6 +440,23 @@ input::placeholder, textarea::placeholder {
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+.glass-panel {
+  background: var(--glass-bg-solid);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--glass-shadow);
+}
+
+.glass-subtle {
+  background: var(--glass-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--glass-border-subtle);
 }
 
 /* ============ Gradient Text ============ */

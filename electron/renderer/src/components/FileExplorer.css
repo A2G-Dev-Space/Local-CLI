@@ -23,7 +23,8 @@
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-1) var(--space-2);
-  max-width: 180px;
+  min-width: 0; /* Allow shrinking */
+  flex: 1;
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
   border-radius: var(--radius-sm);
@@ -67,7 +68,7 @@
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: var(--space-2) 0;
+  padding: var(--space-2) var(--space-2);
 }
 
 .file-tree-empty {
@@ -254,4 +255,30 @@
 .file-tree-item.drag-over {
   background-color: var(--color-accent-primary);
   background-opacity: 0.2;
+}
+
+
+/* ============ Load More Button (Virtualization) ============ */
+.file-tree-load-more {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-1) var(--space-2);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.file-tree-load-more:hover {
+  background: var(--color-bg-overlay);
+  color: var(--color-accent-primary);
+}
+
+.file-tree-load-more svg {
+  opacity: 0.7;
 }

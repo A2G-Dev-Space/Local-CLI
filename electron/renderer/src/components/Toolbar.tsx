@@ -7,22 +7,16 @@
 import React, { useState } from 'react';
 import {
   HelpCircle,
-  RefreshCcw,
   Settings,
-  Cpu,
   Wrench,
   BarChart2,
   BookOpen,
   FolderOpen,
-  Archive,
   Command,
   Save,
   FilePlus,
-  GitBranch,
-  GitCommit,
-  GitPullRequest,
-  Search,
   MoreHorizontal,
+  Info,
   type LucideIcon,
 } from 'lucide-react';
 import './Toolbar.css';
@@ -56,29 +50,41 @@ interface ToolbarProps {
   onGitCommit?: () => void;
   onGitPush?: () => void;
   onGitPull?: () => void;
+  onInfo?: () => void;
   hasUnsavedChanges?: boolean;
 }
 
 const Toolbar: React.FC<ToolbarProps> = ({
   onHelp,
-  onClear,
+  onClear: _onClear,
   onSettings,
-  onModel,
+  onModel: _onModel,
   onTool,
   onUsage,
   onDocs,
-  onLoad,
-  onCompact,
+  onLoad: _onLoad,
+  onCompact: _onCompact,
   onCommandPalette,
   onOpenFolder,
   onNewFile,
   onSave,
-  onSearch,
-  onGitCommit,
-  onGitPush,
-  onGitPull,
+  onSearch: _onSearch,
+  onGitCommit: _onGitCommit,
+  onGitPush: _onGitPush,
+  onGitPull: _onGitPull,
+  onInfo,
   hasUnsavedChanges = false,
 }) => {
+  // Suppress unused warning for removed features
+  void _onClear;
+  void _onModel;
+  void _onLoad;
+  void _onCompact;
+  void _onSearch;
+  void _onGitCommit;
+  void _onGitPush;
+  void _onGitPull;
+
   const [showMore, setShowMore] = useState(false);
 
   const mainButtons: ToolbarButton[] = [
@@ -108,13 +114,6 @@ const Toolbar: React.FC<ToolbarProps> = ({
       disabled: !onNewFile,
     },
     {
-      id: 'load-session',
-      icon: Archive,
-      label: 'Load Session',
-      shortcut: 'Ctrl+O',
-      action: onLoad,
-    },
-    {
       id: 'save',
       icon: Save,
       label: 'Save',
@@ -123,47 +122,9 @@ const Toolbar: React.FC<ToolbarProps> = ({
       disabled: !onSave,
       active: hasUnsavedChanges,
     },
-    { id: 'sep-2', icon: MoreHorizontal, label: '', action: () => {}, separator: true },
-    {
-      id: 'search',
-      icon: Search,
-      label: 'Search',
-      shortcut: 'Ctrl+Shift+F',
-      action: onSearch || (() => {}),
-      disabled: !onSearch,
-    },
-    { id: 'sep-3', icon: MoreHorizontal, label: '', action: () => {}, separator: true },
-    {
-      id: 'git-commit',
-      icon: GitCommit,
-      label: 'Git Commit',
-      action: onGitCommit || (() => {}),
-      disabled: !onGitCommit,
-    },
-    {
-      id: 'git-push',
-      icon: GitBranch,
-      label: 'Git Push',
-      action: onGitPush || (() => {}),
-      disabled: !onGitPush,
-    },
-    {
-      id: 'git-pull',
-      icon: GitPullRequest,
-      label: 'Git Pull',
-      action: onGitPull || (() => {}),
-      disabled: !onGitPull,
-    },
   ];
 
   const secondaryButtons: ToolbarButton[] = [
-    {
-      id: 'model',
-      icon: Cpu,
-      label: 'Switch Model',
-      shortcut: 'Ctrl+M',
-      action: onModel,
-    },
     {
       id: 'tool',
       icon: Wrench,
@@ -183,22 +144,15 @@ const Toolbar: React.FC<ToolbarProps> = ({
       label: 'Documentation',
       action: onDocs,
     },
-    {
-      id: 'compact',
-      icon: Archive,
-      label: 'Compact Conversation',
-      action: onCompact,
-    },
-    {
-      id: 'clear',
-      icon: RefreshCcw,
-      label: 'Clear Conversation',
-      shortcut: 'Ctrl+L',
-      action: onClear,
-    },
   ];
 
   const rightButtons: ToolbarButton[] = [
+    {
+      id: 'info',
+      icon: Info,
+      label: 'Info',
+      action: onInfo || (() => {}),
+    },
     {
       id: 'settings',
       icon: Settings,
@@ -227,7 +181,6 @@ const Toolbar: React.FC<ToolbarProps> = ({
         className={`toolbar-button ${button.active ? 'active' : ''} ${button.disabled ? 'disabled' : ''}`}
         onClick={button.action}
         disabled={button.disabled}
-        title={button.shortcut ? `${button.label} (${button.shortcut})` : button.label}
         aria-label={button.label}
         aria-disabled={button.disabled}
       >

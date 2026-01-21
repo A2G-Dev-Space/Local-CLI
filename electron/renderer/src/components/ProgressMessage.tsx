@@ -4,7 +4,8 @@
  * Shows status updates during task execution
  */
 
-import React from 'react';
+import React, { memo, useCallback } from 'react';
+import { useMarkdownWorker } from '../hooks/useMarkdownWorker';
 import './ProgressMessage.css';
 
 export type ProgressType = 'info' | 'success' | 'warning' | 'error' | 'working';
@@ -25,12 +26,30 @@ interface ProgressMessageProps {
   compact?: boolean;
 }
 
+// Memoized markdown content for progress messages
+const MarkdownProgressContent = memo<{ content: string }>(({ content }) => {
+  const { content: renderedContent } = useMarkdownWorker(content);
+  return <span className="progress-message-main markdown-content">{renderedContent}</span>;
+});
+MarkdownProgressContent.displayName = 'MarkdownProgressContent';
+
 const ProgressMessage: React.FC<ProgressMessageProps> = ({
   messages,
   onDismiss,
   showTimestamp = false,
   compact = false,
 }) => {
+  // Memoize formatTime function
+  const formatTime = useCallback((timestamp: number) => {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }, []);
+
+  // Memoize dismiss handler
+  const handleDismiss = useCallback((id: string) => {
+    onDismiss?.(id);
+  }, [onDismiss]);
+
   if (messages.length === 0) return null;
 
   const getIcon = (type: ProgressType) => {
@@ -68,11 +87,6 @@ const ProgressMessage: React.FC<ProgressMessageProps> = ({
     }
   };
 
-  const formatTime = (timestamp: number) => {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  };
-
   return (
     <div className={`progress-messages-container ${compact ? 'compact' : ''}`}>
       {messages.map((msg) => (
@@ -80,7 +94,7 @@ const ProgressMessage: React.FC<ProgressMessageProps> = ({
           <div className="progress-message-content">
             {getIcon(msg.type)}
             <div className="progress-message-text">
-              <span className="progress-message-main">{msg.message}</span>
+              <MarkdownProgressContent content={msg.message} />
               {msg.details && (
                 <span className="progress-message-details">{msg.details}</span>
               )}
@@ -104,7 +118,7 @@ const ProgressMessage: React.FC<ProgressMessageProps> = ({
           {onDismiss && msg.type !== 'working' && (
             <button
               className="progress-dismiss-btn"
-              onClick={() => onDismiss(msg.id)}
+              onClick={() => handleDismiss(msg.id)}
               title="Dismiss"
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
@@ -118,4 +132,4 @@ const ProgressMessage: React.FC<ProgressMessageProps> = ({
   );
 };
 
-export default ProgressMessage;
+export default memo(ProgressMessage);

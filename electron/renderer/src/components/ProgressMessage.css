@@ -6,9 +6,11 @@
 .progress-messages-container {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-2) 0;
-  margin-left: 40px; /* Account for avatar space (28px + margin) */
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  margin-left: 44px; /* Account for avatar space (32px + margin) */
+  margin-top: var(--space-3);
+  margin-bottom: var(--space-3);
 }
 
 .progress-messages-container.compact {
@@ -120,7 +122,42 @@
 .progress-message-main {
   font-size: var(--font-size-sm);
   color: var(--color-text-primary);
-  line-height: 1.4;
+  line-height: 1.5;
+}
+
+/* Markdown content styling */
+.progress-message-main.markdown-content {
+  display: block;
+}
+
+.progress-message-main.markdown-content p {
+  margin: 0 0 var(--space-2);
+}
+
+.progress-message-main.markdown-content p:last-child {
+  margin-bottom: 0;
+}
+
+.progress-message-main.markdown-content strong {
+  font-weight: var(--font-weight-semibold);
+}
+
+.progress-message-main.markdown-content code {
+  padding: 2px 6px;
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background-color: var(--color-bg-overlay);
+  border-radius: var(--radius-sm);
+}
+
+.progress-message-main.markdown-content ul,
+.progress-message-main.markdown-content ol {
+  margin: var(--space-1) 0;
+  padding-left: var(--space-4);
+}
+
+.progress-message-main.markdown-content li {
+  margin-bottom: var(--space-1);
 }
 
 .progress-message-details {

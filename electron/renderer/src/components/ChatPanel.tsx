@@ -1,40 +1,42 @@
 /**
- * Chat Panel Component
- * AI Assistant chat interface with toolbar and markdown rendering
- * Integrated with session management
- * Includes TODO list, user questions, progress messages, and tool execution visualization
+ * Chat Panel Component (Optimized)
+ *
+ * Performance optimizations:
+ * 1. Tool executions moved to AgentContext (prevents re-renders)
+ * 2. Memoized message components
+ * 3. Batched state updates
+ * 4. Windowed message rendering
  */
 
-import React, { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
+import React, { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle, useMemo, memo } from 'react';
 import type {
   Session,
   ChatMessage,
   AgentConfig,
-  AskUserResponse,
 } from '../../../preload/index';
+
+// Import optimized markdown hook
+import { useMarkdownWorker } from '../hooks/useMarkdownWorker';
+
+// Import AgentContext
+import { useAgent } from '../contexts/AgentContext';
 
 // Exposed methods via ref
 export interface ChatPanelRef {
   clear: () => Promise<void>;
   compact: () => Promise<void>;
 }
-import TodoList, { TodoItem } from './TodoList';
-import UserQuestion, { UserQuestionData } from './UserQuestion';
-import ProgressMessage, { ProgressMessageData } from './ProgressMessage';
-import ToolExecution, { ToolExecutionData, ToolCategory } from './ToolExecution';
+
+import TodoList from './TodoList';
+import UserQuestion from './UserQuestion';
+import ProgressMessage from './ProgressMessage';
+import ToolExecution from './ToolExecution';
+import ApprovalModal from './ApprovalModal';
 import './ChatPanel.css';
 
-// Helper function to determine tool category
-const getToolCategory = (toolName: string): ToolCategory => {
-  const name = toolName.toLowerCase();
-  if (name.includes('file') || name.includes('read') || name.includes('write') || name.includes('edit')) return 'file';
-  if (name.includes('shell') || name.includes('powershell') || name.includes('command')) return 'shell';
-  if (name.includes('browser') || name.includes('chrome') || name.includes('cdp')) return 'browser';
-  if (name.includes('excel') || name.includes('word') || name.includes('powerpoint') || name.includes('office')) return 'office';
-  if (name.includes('user') || name.includes('ask') || name.includes('tell')) return 'user';
-  if (name.includes('todo')) return 'todo';
-  return 'other';
-};
+// Import logo for assistant avatar
+import logoImage from '/no_bg_logo.png';
+
 import './TodoList.css';
 import './UserQuestion.css';
 import './ProgressMessage.css';
@@ -45,265 +47,59 @@ interface ChatPanelProps {
   onSessionChange?: (session: Session | null) => void;
   onClearSession?: () => void;
   currentDirectory?: string;
+  allowAllPermissions?: boolean;
+  onAllowAllPermissionsChange?: (value: boolean) => void;
 }
 
-// Simple markdown parser
-const parseMarkdown = (text: string): React.ReactNode[] => {
-  const elements: React.ReactNode[] = [];
-  const lines = text.split('\n');
-  let i = 0;
-
-  while (i < lines.length) {
-    const line = lines[i];
-
-    // Code block
-    if (line.startsWith('```')) {
-      const language = line.slice(3).trim();
-      const codeLines: string[] = [];
-      i++;
-
-      while (i < lines.length && !lines[i].startsWith('```')) {
-        codeLines.push(lines[i]);
-        i++;
-      }
-
-      elements.push(
-        <CodeBlock
-          key={`code-${i}`}
-          code={codeLines.join('\n')}
-          language={language}
-        />
-      );
-      i++;
-      continue;
-    }
-
-    // Inline code
-    if (line.includes('`')) {
-      const parts = line.split(/(`[^`]+`)/g);
-      const inlineElements = parts.map((part, idx) => {
-        if (part.startsWith('`') && part.endsWith('`')) {
-          return (
-            <code key={idx} className="inline-code">
-              {part.slice(1, -1)}
-            </code>
-          );
-        }
-        return parseInlineMarkdown(part, idx);
-      });
-
-      elements.push(<p key={`line-${i}`}>{inlineElements}</p>);
-      i++;
-      continue;
-    }
-
-    // Headers
-    if (line.startsWith('# ')) {
-      elements.push(<h1 key={`h1-${i}`}>{line.slice(2)}</h1>);
-      i++;
-      continue;
-    }
-    if (line.startsWith('## ')) {
-      elements.push(<h2 key={`h2-${i}`}>{line.slice(3)}</h2>);
-      i++;
-      continue;
-    }
-    if (line.startsWith('### ')) {
-      elements.push(<h3 key={`h3-${i}`}>{line.slice(4)}</h3>);
-      i++;
-      continue;
-    }
-
-    // Unordered list
-    if (line.startsWith('- ') || line.startsWith('* ')) {
-      const listItems: string[] = [];
-      while (i < lines.length && (lines[i].startsWith('- ') || lines[i].startsWith('* '))) {
-        listItems.push(lines[i].slice(2));
-        i++;
-      }
-      elements.push(
-        <ul key={`ul-${i}`}>
-          {listItems.map((item, idx) => (
-            <li key={idx}>{parseInlineMarkdown(item, idx)}</li>
-          ))}
-        </ul>
-      );
-      continue;
-    }
-
-    // Ordered list
-    if (/^\d+\. /.test(line)) {
-      const listItems: string[] = [];
-      while (i < lines.length && /^\d+\. /.test(lines[i])) {
-        listItems.push(lines[i].replace(/^\d+\. /, ''));
-        i++;
-      }
-      elements.push(
-        <ol key={`ol-${i}`}>
-          {listItems.map((item, idx) => (
-            <li key={idx}>{parseInlineMarkdown(item, idx)}</li>
-          ))}
-        </ol>
-      );
-      continue;
-    }
-
-    // Blockquote
-    if (line.startsWith('> ')) {
-      const quoteLines: string[] = [];
-      while (i < lines.length && lines[i].startsWith('> ')) {
-        quoteLines.push(lines[i].slice(2));
-        i++;
-      }
-      elements.push(
-        <blockquote key={`quote-${i}`}>
-          {quoteLines.map((l, idx) => (
-            <p key={idx}>{parseInlineMarkdown(l, idx)}</p>
-          ))}
-        </blockquote>
-      );
-      continue;
-    }
-
-    // Horizontal rule
-    if (line === '---' || line === '***') {
-      elements.push(<hr key={`hr-${i}`} />);
-      i++;
-      continue;
-    }
-
-    // Empty line
-    if (line.trim() === '') {
-      i++;
-      continue;
-    }
-
-    // Regular paragraph
-    elements.push(<p key={`p-${i}`}>{parseInlineMarkdown(line, i)}</p>);
-    i++;
-  }
-
-  return elements;
-};
-
-// Sanitize URL to prevent javascript: and data: attacks
-const sanitizeUrl = (url: string): string => {
-  const trimmed = url.trim().toLowerCase();
-  if (trimmed.startsWith('javascript:') || trimmed.startsWith('data:') || trimmed.startsWith('vbscript:')) {
-    return '#';
-  }
-  // Only allow http, https, mailto, and relative URLs
-  if (!/^(https?:\/\/|mailto:|\/|#)/.test(trimmed) && trimmed.includes(':')) {
-    return '#';
-  }
-  return url;
-};
-
-// Parse inline markdown (bold, italic, links) - XSS-safe implementation
-const parseInlineMarkdown = (text: string, key: number): React.ReactNode => {
-  const elements: React.ReactNode[] = [];
-  let remaining = text;
-  let partIndex = 0;
-
-  // Pattern for bold, italic, and links
-  const patterns = [
-    { regex: /\*\*(.+?)\*\*/, render: (match: string, content: string) => <strong key={`b-${partIndex++}`}>{content}</strong> },
-    { regex: /\*(.+?)\*/, render: (match: string, content: string) => <em key={`i-${partIndex++}`}>{content}</em> },
-    { regex: /\[(.+?)\]\((.+?)\)/, render: (match: string, linkText: string, url: string) => (
-      <a key={`a-${partIndex++}`} href={sanitizeUrl(url)} target="_blank" rel="noopener noreferrer">{linkText}</a>
-    )},
-  ];
-
-  while (remaining.length > 0) {
-    let earliestMatch: { index: number; match: RegExpMatchArray; pattern: typeof patterns[0] } | null = null;
-
-    for (const pattern of patterns) {
-      const match = remaining.match(pattern.regex);
-      if (match && match.index !== undefined) {
-        if (!earliestMatch || match.index < earliestMatch.index) {
-          earliestMatch = { index: match.index, match, pattern };
-        }
-      }
-    }
-
-    if (earliestMatch) {
-      // Add text before the match
-      if (earliestMatch.index > 0) {
-        elements.push(remaining.slice(0, earliestMatch.index));
-      }
-
-      // Add the formatted element
-      const { match, pattern } = earliestMatch;
-      if (match.length === 3) {
-        // Link pattern
-        elements.push(pattern.render(match[0], match[1], match[2]));
-      } else {
-        // Bold or italic
-        elements.push(pattern.render(match[0], match[1], ''));
-      }
-
-      remaining = remaining.slice(earliestMatch.index + match[0].length);
-    } else {
-      // No more matches, add remaining text
-      elements.push(remaining);
-      break;
-    }
-  }
-
-  if (elements.length === 0) {
-    return text;
-  }
-
-  if (elements.length === 1 && typeof elements[0] === 'string') {
-    return text;
-  }
-
-  return <span key={key}>{elements}</span>;
-};
-
-// Code Block Component
-interface CodeBlockProps {
-  code: string;
-  language: string;
+// Memoized markdown content component - uses optimized hook
+interface MemoizedMessageContentProps {
+  content: string;
+  role: 'user' | 'assistant' | 'system';
 }
 
-const CodeBlock: React.FC<CodeBlockProps> = ({ code, language }) => {
-  const [copied, setCopied] = useState(false);
+const MemoizedMessageContent = memo<MemoizedMessageContentProps>(({ content, role }) => {
+  // Use optimized markdown hook with LRU cache
+  const { content: workerContent, isLoading } = useMarkdownWorker(
+    role === 'assistant' || role === 'system' ? content : ''
+  );
 
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(code);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  // For user messages, just return plain text
+  if (role === 'user') {
+    return <p>{content}</p>;
+  }
 
+  // Show loading state briefly
+  if (isLoading && !workerContent.length) {
+    return <p>{content.slice(0, 100)}...</p>;
+  }
+
+  return <>{workerContent}</>;
+});
+MemoizedMessageContent.displayName = 'MemoizedMessageContent';
+
+// Memoized single message component
+interface MessageItemProps {
+  message: ChatMessage;
+  isBatchLoad: boolean;
+}
+
+const MessageItem = memo<MessageItemProps>(({ message, isBatchLoad }) => {
   return (
-    <div className="code-block">
-      <div className="code-block-header">
-        <span className="code-language">{language || 'plaintext'}</span>
-        <button className="code-copy-btn" onClick={handleCopy}>
-          {copied ? (
-            <>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-              </svg>
-              Copied!
-            </>
-          ) : (
-            <>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" />
-              </svg>
-              Copy
-            </>
-          )}
-        </button>
+    <div
+      className={`chat-message ${message.role}${isBatchLoad ? ' no-animation' : ''}`}
+    >
+      {message.role === 'assistant' && (
+        <div className="message-avatar">
+          <img src={logoImage} alt="Assistant" width="18" height="18" />
+        </div>
+      )}
+      <div className="message-content">
+        <MemoizedMessageContent content={message.content} role={message.role} />
       </div>
-      <pre className="code-content">
-        <code>{code}</code>
-      </pre>
     </div>
   );
-};
+});
+MessageItem.displayName = 'MessageItem';
 
 // Welcome message
 const WELCOME_MESSAGE: ChatMessage = {
@@ -327,155 +123,87 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
   onSessionChange,
   onClearSession,
   currentDirectory,
+  allowAllPermissions = true,
+  onAllowAllPermissionsChange,
 }, ref) => {
   const [messages, setMessages] = useState<ChatMessage[]>([WELCOME_MESSAGE]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Task execution state
-  const [todos, setTodos] = useState<TodoItem[]>([]);
-  const [isExecuting, setIsExecuting] = useState(false);
-  const [progressMessages, setProgressMessages] = useState<ProgressMessageData[]>([]);
-  const [toolExecutions, setToolExecutions] = useState<ToolExecutionData[]>([]);
+  // Track if we're doing a batch load (for animation disabling)
+  const [isBatchLoad, setIsBatchLoad] = useState(true);
 
-  // User question dialog state
-  const [currentQuestion, setCurrentQuestion] = useState<UserQuestionData | null>(null);
-  const [isQuestionOpen, setIsQuestionOpen] = useState(false);
+  // Message windowing for performance (only render recent messages)
+  const MAX_VISIBLE_MESSAGES = 50;
+  const [showAllMessages, setShowAllMessages] = useState(false);
+
+  // Compute visible messages for rendering
+  const visibleMessages = useMemo(() => {
+    if (showAllMessages || messages.length <= MAX_VISIBLE_MESSAGES) {
+      return messages;
+    }
+    return messages.slice(-MAX_VISIBLE_MESSAGES);
+  }, [messages, showAllMessages]);
+
+  const hasHiddenMessages = messages.length > MAX_VISIBLE_MESSAGES && !showAllMessages;
+  const hiddenMessageCount = hasHiddenMessages ? messages.length - MAX_VISIBLE_MESSAGES : 0;
+
+  // Use AgentContext for tool state (prevents re-renders)
+  const {
+    toolExecutions,
+    clearToolExecutions,
+    progressMessages,
+    dismissProgressMessage,
+    clearProgressMessages,
+    todos,
+    clearTodos,
+    isExecuting,
+    setIsExecuting,
+    currentQuestion,
+    isQuestionOpen,
+    handleQuestionAnswer,
+    handleQuestionCancel,
+    approvalRequest,
+    isApprovalOpen,
+    handleApprovalResponse,
+    handleApprovalCancel,
+    setupAgentListeners,
+  } = useAgent();
+
+  // Input history state
+  const [inputHistory, setInputHistory] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Load session messages when session changes
   useEffect(() => {
+    setIsBatchLoad(true); // Disable animation for batch load
     if (session && session.messages.length > 0) {
       setMessages(session.messages);
     } else {
       setMessages([WELCOME_MESSAGE]);
     }
+    // Reset windowing state when session changes
+    setShowAllMessages(false);
+
+    // Re-enable animation after batch load completes
+    const timer = setTimeout(() => setIsBatchLoad(false), 100);
+    return () => clearTimeout(timer);
   }, [session?.id]);
 
-  // Auto-scroll to bottom - triggers on any content change
-  const scrollToBottom = useCallback(() => {
-    // Use setTimeout to ensure DOM is fully updated before scrolling
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 50);
-  }, []);
-
-  // Auto-scroll when any content changes (using lengths for better change detection)
+  // Setup agent listeners once
   useEffect(() => {
-    scrollToBottom();
-  }, [messages.length, toolExecutions.length, progressMessages.length, todos.length, isLoading, isExecuting, scrollToBottom]);
+    const cleanup = setupAgentListeners();
+    return cleanup;
+  }, [setupAgentListeners]);
 
-  // Auto-resize textarea
-  useEffect(() => {
-    if (inputRef.current) {
-      inputRef.current.style.height = 'auto';
-      inputRef.current.style.height = `${Math.min(inputRef.current.scrollHeight, 150)}px`;
-    }
-  }, [input]);
-
-  // Save message to session
-  const saveMessageToSession = useCallback(async (message: ChatMessage) => {
-    if (!window.electronAPI?.session) return;
-
-    try {
-      // Add message to current session
-      await window.electronAPI.session.addMessage(message);
-    } catch (error) {
-      console.error('Failed to save message to session:', error);
-    }
-  }, []);
-
-  // Pending question resolver for agent ask_to_user (reserved for future IPC response)
-  const _questionResolverRef = useRef<((response: AskUserResponse) => void) | null>(null);
-  void _questionResolverRef; // Reserved for future use
-
-  // Setup agent event listeners
+  // Handle agent completion/error (adds messages)
   useEffect(() => {
     if (!window.electronAPI?.agent) return;
 
     const unsubscribes: Array<() => void> = [];
-
-    // Tool call event - show tool being executed
-    unsubscribes.push(
-      window.electronAPI.agent.onToolCall((data) => {
-        const toolCategory = getToolCategory(data.toolName);
-        const newExecution: ToolExecutionData = {
-          id: `tool-${Date.now()}-${data.toolName}`,
-          toolName: data.toolName,
-          category: toolCategory,
-          input: data.args,
-          status: 'running',
-          timestamp: Date.now(),
-        };
-        setToolExecutions(prev => [...prev, newExecution]);
-      })
-    );
-
-    // Tool result event - update tool execution status
-    unsubscribes.push(
-      window.electronAPI.agent.onToolResult((data) => {
-        setToolExecutions(prev => {
-          const updated = [...prev];
-          const lastIdx = updated.findIndex(t => t.toolName === data.toolName && t.status === 'running');
-          if (lastIdx !== -1) {
-            const startTime = updated[lastIdx].timestamp;
-            updated[lastIdx] = {
-              ...updated[lastIdx],
-              status: data.success ? 'success' : 'error',
-              output: data.success ? data.result : undefined,
-              error: data.success ? undefined : data.result,
-              duration: Date.now() - startTime,
-            };
-          }
-          return updated;
-        });
-      })
-    );
-
-    // TODO update event
-    unsubscribes.push(
-      window.electronAPI.agent.onTodoUpdate((agentTodos) => {
-        // Convert agent todos to UI todos
-        const uiTodos: TodoItem[] = agentTodos.map(t => ({
-          id: t.id,
-          title: t.title,
-          status: t.status,
-        }));
-        setTodos(uiTodos);
-      })
-    );
-
-    // Tell user event - add progress message
-    unsubscribes.push(
-      window.electronAPI.agent.onTellUser((message) => {
-        const progressMsg: ProgressMessageData = {
-          id: `progress-${Date.now()}`,
-          message,
-          type: 'info',
-          timestamp: Date.now(),
-        };
-        setProgressMessages(prev => [...prev, progressMsg]);
-      })
-    );
-
-    // Ask user event - show question dialog
-    unsubscribes.push(
-      window.electronAPI.agent.onAskUser((request) => {
-        const questionData: UserQuestionData = {
-          id: `question-${Date.now()}`,
-          question: request.question,
-          options: request.options.map((opt, idx) => ({
-            id: `option-${idx}`,
-            label: typeof opt === 'string' ? opt : opt.label,
-          })),
-          allowCustom: request.allowCustom ?? true,
-        };
-        setCurrentQuestion(questionData);
-        setIsQuestionOpen(true);
-      })
-    );
 
     // Agent complete event
     unsubscribes.push(
@@ -518,7 +246,38 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
     return () => {
       unsubscribes.forEach(unsub => unsub());
     };
-  }, [saveMessageToSession]);
+  }, [setIsExecuting]);
+
+  // Auto-scroll to bottom - optimized with throttle
+  const scrollToBottom = useCallback(() => {
+    requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    });
+  }, []);
+
+  // Auto-scroll when messages, tools, todos, or progress messages change
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages.length, isLoading, toolExecutions.length, todos.length, progressMessages.length, scrollToBottom]);
+
+  // Auto-resize textarea
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto';
+      inputRef.current.style.height = `${Math.min(inputRef.current.scrollHeight, 150)}px`;
+    }
+  }, [input]);
+
+  // Save message to session
+  const saveMessageToSession = useCallback(async (message: ChatMessage) => {
+    if (!window.electronAPI?.session) return;
+
+    try {
+      await window.electronAPI.session.addMessage(message);
+    } catch (error) {
+      console.error('Failed to save message to session:', error);
+    }
+  }, []);
 
   // Send message using agent
   const sendMessage = useCallback(async () => {
@@ -532,20 +291,27 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
     };
 
     setMessages(prev => [...prev, userMessage]);
+
+    // Save to input history
+    setInputHistory(prev => {
+      const filtered = prev.filter(h => h !== input.trim());
+      return [...filtered, input.trim()].slice(-50);
+    });
+    setHistoryIndex(-1);
+
     setInput('');
     setIsLoading(true);
     setIsExecuting(true);
 
     // Clear previous execution state
-    setToolExecutions([]);
-    setProgressMessages([]);
+    clearToolExecutions();
+    clearProgressMessages();
 
     // Save user message
     await saveMessageToSession(userMessage);
 
     // Check if agent API is available
     if (!window.electronAPI?.agent) {
-      // Fallback: simulate response if API not available
       console.warn('electronAPI.agent not available, using fallback');
       setTimeout(async () => {
         const assistantMessage: ChatMessage = {
@@ -571,18 +337,16 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
     const agentConfig: AgentConfig = {
       workingDirectory: currentDirectory,
       maxIterations: 50,
+      autoMode: allowAllPermissions,
     };
 
     try {
-      // Run agent - events will be received via listeners
       const result = await window.electronAPI.agent.run(
         userMessage.content,
         conversationMessages,
         agentConfig
       );
 
-      // Result is also handled by onComplete/onError listeners
-      // But we can handle additional logic here if needed
       if (!result.success && result.error) {
         console.error('Agent error:', result.error);
       }
@@ -598,58 +362,9 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
       setIsLoading(false);
       setIsExecuting(false);
     }
-  }, [input, isLoading, messages, saveMessageToSession, currentDirectory]);
+  }, [input, isLoading, messages, saveMessageToSession, currentDirectory, allowAllPermissions, clearToolExecutions, clearProgressMessages, setIsExecuting]);
 
-  // Handle keyboard events
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  };
-
-  // Handle user question answer
-  const handleQuestionAnswer = useCallback(async (questionId: string, answer: string) => {
-    console.log('Question answered:', questionId, answer);
-    setIsQuestionOpen(false);
-    setCurrentQuestion(null);
-
-    // Add answer as a system message
-    const answerMessage: ChatMessage = {
-      id: `answer-${Date.now()}`,
-      role: 'system',
-      content: `You answered: **${answer}**`,
-      timestamp: Date.now(),
-    };
-    setMessages(prev => [...prev, answerMessage]);
-
-    // Send response to agent
-    if (window.electronAPI?.agent) {
-      const response: AskUserResponse = {
-        selectedOption: { label: answer, value: answer },
-        isOther: false,
-      };
-      await window.electronAPI.agent.respondToQuestion(response);
-    }
-  }, []);
-
-  // Handle user question cancel
-  const handleQuestionCancel = useCallback(async () => {
-    setIsQuestionOpen(false);
-    setCurrentQuestion(null);
-
-    // Send cancel response to agent
-    if (window.electronAPI?.agent) {
-      const response: AskUserResponse = {
-        selectedOption: { label: 'Cancel', value: 'cancel' },
-        isOther: true,
-        customText: 'User cancelled',
-      };
-      await window.electronAPI.agent.respondToQuestion(response);
-    }
-  }, []);
-
-  // Abort message state (shown at the very bottom)
+  // Abort message state
   const [abortMessage, setAbortMessage] = useState<string | null>(null);
 
   // Abort agent execution
@@ -660,20 +375,54 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
       setIsExecuting(false);
       setAbortMessage('Agent execution aborted.');
 
-      // Auto-clear abort message after 5 seconds
       setTimeout(() => setAbortMessage(null), 5000);
     }
-  }, []);
+  }, [setIsExecuting]);
 
-  // Dismiss progress message
-  const dismissProgressMessage = useCallback((id: string) => {
-    setProgressMessages(prev => prev.filter(msg => msg.id !== id));
-  }, []);
+  // Handle keyboard events with input history
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+      return;
+    }
+
+    if (e.key === 'ArrowUp' && inputHistory.length > 0) {
+      const cursorPos = e.currentTarget.selectionStart;
+      if (cursorPos === 0 || input === '') {
+        e.preventDefault();
+        const newIndex = historyIndex < inputHistory.length - 1 ? historyIndex + 1 : historyIndex;
+        if (newIndex !== historyIndex) {
+          setHistoryIndex(newIndex);
+          setInput(inputHistory[inputHistory.length - 1 - newIndex]);
+        }
+      }
+    }
+
+    if (e.key === 'ArrowDown' && historyIndex >= 0) {
+      const cursorPos = e.currentTarget.selectionStart;
+      if (cursorPos === input.length) {
+        e.preventDefault();
+        const newIndex = historyIndex - 1;
+        if (newIndex >= 0) {
+          setHistoryIndex(newIndex);
+          setInput(inputHistory[inputHistory.length - 1 - newIndex]);
+        } else {
+          setHistoryIndex(-1);
+          setInput('');
+        }
+      }
+    }
+
+    if (e.key === 'Escape' && isExecuting) {
+      e.preventDefault();
+      handleAbort();
+    }
+  };
 
   // Retry failed tool execution
   const handleToolRetry = useCallback((id: string) => {
     console.log('Retrying tool:', id);
-    // In a real implementation, this would trigger re-execution
   }, []);
 
   // Compact conversation
@@ -682,13 +431,11 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
   const handleCompact = useCallback(async () => {
     if (!window.electronAPI?.compact || isCompacting || isLoading) return;
 
-    // Check if compact is possible
     const checkResult = await window.electronAPI.compact.canCompact(
       messages.map(m => ({ role: m.role, content: m.content }))
     );
 
     if (!checkResult.canCompact) {
-      // Show error message
       const errorMessage: ChatMessage = {
         id: `system-${Date.now()}`,
         role: 'system',
@@ -708,7 +455,6 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
       );
 
       if (result.success && result.compactedMessages) {
-        // Replace messages with compacted version
         const newMessages: ChatMessage[] = result.compactedMessages.map((m, idx) => ({
           id: `compacted-${Date.now()}-${idx}`,
           role: m.role as 'user' | 'assistant' | 'system',
@@ -716,7 +462,6 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
           timestamp: Date.now(),
         }));
 
-        // Add a system message indicating compression
         newMessages.push({
           id: `compact-info-${Date.now()}`,
           role: 'system',
@@ -724,9 +469,10 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
           timestamp: Date.now(),
         });
 
+        setIsBatchLoad(true);
         setMessages(newMessages);
+        setTimeout(() => setIsBatchLoad(false), 100);
 
-        // Update session if available
         if (session && onSessionChange) {
           const updatedSession: Session = {
             ...session,
@@ -740,7 +486,6 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
           }
         }
       } else {
-        // Show error
         const errorMessage: ChatMessage = {
           id: `system-${Date.now()}`,
           role: 'system',
@@ -765,11 +510,11 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
 
   // Clear chat
   const handleClear = useCallback(async () => {
-    // Abort agent if running
     if (isExecuting && window.electronAPI?.agent) {
       await window.electronAPI.agent.abort();
     }
 
+    setIsBatchLoad(true);
     setMessages([
       {
         id: 'cleared',
@@ -778,15 +523,15 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
         timestamp: Date.now(),
       },
     ]);
+    setTimeout(() => setIsBatchLoad(false), 100);
 
-    // Clear execution state
-    setTodos([]);
-    setProgressMessages([]);
-    setToolExecutions([]);
+    // Clear execution state via context
+    clearTodos();
+    clearProgressMessages();
+    clearToolExecutions();
     setIsExecuting(false);
     setIsLoading(false);
 
-    // Clear current session messages
     if (session && onSessionChange) {
       const clearedSession: Session = {
         ...session,
@@ -795,14 +540,13 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
       };
       onSessionChange(clearedSession);
 
-      // Save cleared session
       if (window.electronAPI?.session) {
         await window.electronAPI.session.save(clearedSession);
       }
     }
 
     onClearSession?.();
-  }, [session, onSessionChange, onClearSession, isExecuting]);
+  }, [session, onSessionChange, onClearSession, isExecuting, clearTodos, clearProgressMessages, clearToolExecutions, setIsExecuting]);
 
   // Expose methods via ref
   useImperativeHandle(ref, () => ({
@@ -820,6 +564,16 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
         onCancel={handleQuestionCancel}
       />
 
+      {/* Approval Modal (Supervised Mode) */}
+      <ApprovalModal
+        isOpen={isApprovalOpen}
+        toolName={approvalRequest?.toolName || ''}
+        args={approvalRequest?.args || {}}
+        reason={approvalRequest?.reason}
+        onResponse={handleApprovalResponse}
+        onCancel={handleApprovalCancel}
+      />
+
       {/* Current Directory Info */}
       {currentDirectory && (
         <div className="chat-directory-info">
@@ -832,25 +586,24 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
 
       {/* Messages */}
       <div className="chat-messages" role="log" aria-live="polite" aria-label="Chat messages">
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={`chat-message ${message.role}`}
+        {/* Show earlier messages button */}
+        {hasHiddenMessages && (
+          <button
+            className="show-earlier-btn"
+            onClick={() => setShowAllMessages(true)}
           >
-            {message.role === 'assistant' && (
-              <div className="message-avatar">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M20 9V7c0-1.1-.9-2-2-2h-3c0-1.66-1.34-3-3-3S9 3.34 9 5H6c-1.1 0-2 .9-2 2v2c-1.66 0-3 1.34-3 3s1.34 3 3 3v4c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-4c1.66 0 3-1.34 3-3s-1.34-3-3-3zM7.5 11.5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5S9.83 13 9 13s-1.5-.67-1.5-1.5zM16 17H8v-2h8v2zm-1-4c-.83 0-1.5-.67-1.5-1.5S14.17 10 15 10s1.5.67 1.5 1.5S15.83 13 15 13z"/>
-                </svg>
-              </div>
-            )}
-            <div className="message-content">
-              {message.role === 'assistant' || message.role === 'system'
-                ? parseMarkdown(message.content)
-                : <p>{message.content}</p>
-              }
-            </div>
-          </div>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"/>
+            </svg>
+            Show {hiddenMessageCount} earlier messages
+          </button>
+        )}
+        {visibleMessages.map((message) => (
+          <MessageItem
+            key={message.id}
+            message={message}
+            isBatchLoad={isBatchLoad}
+          />
         ))}
 
         {/* TODO List - shown during execution */}
@@ -880,9 +633,7 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
         {isLoading && (
           <div className="chat-message assistant loading">
             <div className="message-avatar">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M20 9V7c0-1.1-.9-2-2-2h-3c0-1.66-1.34-3-3-3S9 3.34 9 5H6c-1.1 0-2 .9-2 2v2c-1.66 0-3 1.34-3 3s1.34 3 3 3v4c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-4c1.66 0 3-1.34 3-3s-1.34-3-3-3zM7.5 11.5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5S9.83 13 9 13s-1.5-.67-1.5-1.5zM16 17H8v-2h8v2zm-1-4c-.83 0-1.5-.67-1.5-1.5S14.17 10 15 10s1.5.67 1.5 1.5S15.83 13 15 13z"/>
-              </svg>
+              <img src={logoImage} alt="Assistant" width="18" height="18" />
             </div>
             <div className="message-content">
               <div className="typing-indicator">
@@ -894,7 +645,7 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
           </div>
         )}
 
-        {/* Abort Message - always at the very bottom */}
+        {/* Abort Message */}
         {abortMessage && (
           <div className="chat-message system abort-message">
             <div className="message-content">
@@ -907,41 +658,65 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
 
       {/* Chat Input */}
       <div className="chat-input-container" role="form" aria-label="Message input">
-        <textarea
-          ref={inputRef}
-          className="chat-input"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Ask me anything... (Enter to send, Shift+Enter for new line)"
-          rows={1}
-          disabled={isLoading}
-          aria-label="Type your message"
-          aria-describedby="chat-input-hint"
-        />
-        <span id="chat-input-hint" className="sr-only">Press Enter to send, Shift+Enter for new line</span>
-        {isExecuting ? (
-          <button
-            className="chat-send-btn chat-abort-btn"
-            onClick={handleAbort}
-            title="Stop (Esc)"
-          >
+        <div className="chat-input-wrapper">
+          <span className="chat-input-icon">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M6 6h12v12H6z"/>
+              <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V8h16v10zm-2-1h-6v-2h6v2zM7.5 17l-1.41-1.41L8.67 13l-2.59-2.59L7.5 9l4 4-4 4z"/>
             </svg>
-          </button>
-        ) : (
+          </span>
+          <textarea
+            ref={inputRef}
+            className="chat-input"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Send a command to the agent..."
+            rows={1}
+            disabled={isLoading}
+            aria-label="Type your message"
+            aria-describedby="chat-input-hint"
+          />
+          <span id="chat-input-hint" className="sr-only">Press Enter to send, Shift+Enter for new line</span>
+          {isExecuting ? (
+            <button
+              className="chat-send-btn chat-abort-btn"
+              onClick={handleAbort}
+              title="Stop (Esc)"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M6 6h12v12H6z"/>
+              </svg>
+            </button>
+          ) : (
+            <button
+              className="chat-send-btn"
+              onClick={sendMessage}
+              disabled={!input.trim() || isLoading}
+              title="Send (Enter)"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z"/>
+              </svg>
+            </button>
+          )}
+        </div>
+        <div className="chat-input-hints">
+          <span className="chat-input-hint">Enter to submit, Shift+Enter for newline</span>
           <button
-            className="chat-send-btn"
-            onClick={sendMessage}
-            disabled={!input.trim() || isLoading}
-            title="Send (Enter)"
+            className={`permission-toggle ${allowAllPermissions ? 'on' : 'off'}`}
+            onClick={() => onAllowAllPermissionsChange?.(!allowAllPermissions)}
+            title={allowAllPermissions ? 'Auto Mode (all permissions granted)' : 'Supervised Mode (ask for approval)'}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              {allowAllPermissions ? (
+                <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/>
+              ) : (
+                <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/>
+              )}
             </svg>
+            <span>{allowAllPermissions ? 'Auto' : 'Supervised'}</span>
           </button>
-        )}
+        </div>
       </div>
     </div>
   );

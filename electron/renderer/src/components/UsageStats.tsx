@@ -3,7 +3,7 @@
  * Displays token usage statistics
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, memo } from 'react';
 import './UsageStats.css';
 
 interface UsageSummary {
@@ -88,10 +88,10 @@ const UsageStats: React.FC<UsageStatsProps> = ({ isOpen, onClose }) => {
     }
   }, [loadSummary]);
 
-  // Format number with commas
-  const formatNumber = (num: number): string => {
+  // Memoized format number function
+  const formatNumber = useCallback((num: number): string => {
     return num.toLocaleString();
-  };
+  }, []);
 
   if (!isOpen) return null;
 
@@ -231,4 +231,4 @@ const UsageStats: React.FC<UsageStatsProps> = ({ isOpen, onClose }) => {
   );
 };
 
-export default UsageStats;
+export default memo(UsageStats);
