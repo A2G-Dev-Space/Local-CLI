@@ -9,9 +9,17 @@ import path from 'path';
 import { app } from 'electron';
 import { logger } from './logger';
 
+// 색상 팔레트 타입
+export type ColorPalette = 'default' | 'rose' | 'mint' | 'lavender' | 'peach' | 'sky';
+
+// 글씨 크기 (10-18px 범위)
+export type FontSize = number;
+
 // 설정 타입 정의
 export interface AppConfig {
   theme: 'light' | 'dark' | 'system';
+  colorPalette: ColorPalette;
+  fontSize: FontSize;
   lastOpenedDirectory?: string;
   recentDirectories: string[];
   sidebarWidth: number;
@@ -27,6 +35,8 @@ export interface AppConfig {
 // 기본 설정
 const DEFAULT_CONFIG: AppConfig = {
   theme: 'light',
+  colorPalette: 'default',
+  fontSize: 12,  // 기본값 12px (사용자 요청: 작게)
   recentDirectories: [],
   sidebarWidth: 260,
   bottomPanelHeight: 300,

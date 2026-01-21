@@ -80,9 +80,14 @@ export interface FileNode {
 // Panel layout type
 type PanelLayout = 'terminal' | 'chat' | 'logs' | 'split';
 
+// Color palette type
+export type ColorPalette = 'default' | 'rose' | 'mint' | 'lavender' | 'peach' | 'sky';
+
 const App: React.FC = () => {
   // System state
   const [theme, setTheme] = useState<Theme>('light');
+  const [fontSize, setFontSize] = useState<number>(12);  // 10-18px range
+  const [colorPalette, setColorPalette] = useState<ColorPalette>('default');
   const [isMaximized, setIsMaximized] = useState(false);
   const [isFocused, setIsFocused] = useState(true);
 
@@ -148,11 +153,12 @@ const App: React.FC = () => {
 
       try {
         // Run independent initialization calls in parallel
-        const [, savedTheme, maximized, dirResult] = await Promise.all([
+        const [, savedTheme, maximized, dirResult, config] = await Promise.all([
           window.electronAPI.system.info(),
           window.electronAPI.config.getTheme(),
           window.electronAPI.window.isMaximized(),
           window.electronAPI.powershell.getCurrentDirectory(),
+          window.electronAPI.config.getAll(),
         ]);
 
         // Set theme (may need additional async call for system theme)
@@ -161,6 +167,14 @@ const App: React.FC = () => {
           setTheme(systemTheme);
         } else {
           setTheme(savedTheme as Theme);
+        }
+
+        // Set font size and color palette from config
+        if (config?.fontSize && typeof config.fontSize === 'number') {
+          setFontSize(config.fontSize);
+        }
+        if (config?.colorPalette) {
+          setColorPalette(config.colorPalette as ColorPalette);
         }
 
         // Set window state
@@ -671,6 +685,8 @@ const App: React.FC = () => {
     <div
       className={`app-root ${!isFocused ? 'unfocused' : ''}`}
       data-theme={theme}
+      data-palette={colorPalette}
+      style={{ '--user-font-size': `${fontSize}px` } as React.CSSProperties}
     >
       {/* Command Palette */}
       <CommandPalette

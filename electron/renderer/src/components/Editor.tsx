@@ -339,8 +339,10 @@ const Editor: React.FC<EditorProps> = ({
       {activeTab ? (
         // Check if it's a TODO tab
         activeTab.type === 'todo' || activeTab.id === TODO_TAB_ID ? (
-          // Todo Panel View
-          <TodoPanel todos={todos} />
+          // Todo Panel View - wrapped for proper sizing
+          <div className="todo-panel-wrapper">
+            <TodoPanel todos={todos} />
+          </div>
         ) : activeTab.isDiff && activeTab.originalContent !== undefined ? (
           // Diff View Mode
           <DiffView

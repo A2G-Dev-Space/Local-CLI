@@ -3,12 +3,32 @@
    Single-line cards with smooth animation
    ===================================================== */
 
+/* ============ Panel Wrapper (from Editor) ============ */
+.todo-panel-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: var(--space-4);
+  overflow-y: auto;
+  background: var(--color-bg-primary);
+}
+
+.todo-panel-wrapper .todo-panel {
+  width: 100%;
+  max-width: 800px;
+}
+
 .todo-panel {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  height: auto;  /* Content-based height, not full container */
   background: var(--color-bg-primary);
   overflow: hidden;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border-subtle);
+  margin: var(--space-4);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 /* ============ Empty State ============ */
@@ -16,8 +36,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: var(--space-8);
+  padding: var(--space-6);
   text-align: center;
 }
 
@@ -105,13 +124,11 @@
 
 /* ============ Compact View ============ */
 .todo-compact {
-  flex: 1;
   display: flex;
   flex-direction: column;
   padding: var(--space-3);
   gap: var(--space-2);
   cursor: pointer;
-  overflow: hidden;
 }
 
 .todo-compact:hover {
@@ -344,7 +361,6 @@
   font-size: 11px;
   color: var(--color-text-muted);
   border-top: 1px dashed var(--color-border-subtle);
-  margin-top: auto;
 }
 
 .todo-expand-hint:hover {
