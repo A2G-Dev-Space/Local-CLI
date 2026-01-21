@@ -11,6 +11,7 @@
   "scripts": {
     "build": "tsc",
     "postbuild": "chmod +x dist/cli.js",
+    "postinstall": "node scripts/patch-yoga.js",
     "dev": "ts-node src/cli.ts",
     "start": "node dist/cli.js",
     "watch": "tsc --watch",
@@ -19,7 +20,8 @@
     "format": "prettier --write \"src/**/*.ts\"",
     "test": "cd tests && python -m pytest test_eval.py -v",
     "test:quick": "cd tests && python -m pytest test_eval.py -v -m 'not slow'",
-    "prepr": "npm run lint && npm run build"
+    "prepr": "npm run lint && npm run build",
+    "bun:build": "node scripts/inject-version.js && npm run build && bun build dist/cli.js --compile --outfile bin/lcli && cp node_modules/yoga-wasm-web/dist/yoga.wasm bin/"
   },
   "keywords": [
     "cli",
@@ -64,6 +66,7 @@
     "esbuild": "^0.25.12",
     "eslint": "^8.56.0",
     "prettier": "^3.1.1",
+    "react-devtools-core": "^4.28.5",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.3"
   }

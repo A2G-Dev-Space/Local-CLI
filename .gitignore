@@ -57,3 +57,6 @@ CLAUDE.md
 OPEN_CLI.md
 office-server/__pycache__/
 office-server/*.spec
+
+# Binary (uncompressed - too large for git)
+bin/lcli
