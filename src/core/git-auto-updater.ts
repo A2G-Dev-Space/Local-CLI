@@ -8,16 +8,14 @@
  */
 
 import { spawn } from 'child_process';
-import fs from 'fs';
-import { rm, copyFile, chmod, writeFile } from 'fs/promises';
+import fs, { createReadStream, createWriteStream } from 'fs';
+import { rm, copyFile, chmod } from 'fs/promises';
+import { pipeline } from 'stream/promises';
 import path from 'path';
 import os from 'os';
 import zlib from 'zlib';
-import { promisify } from 'util';
 import { logger } from '../utils/logger.js';
 import { isRunningAsBinary } from './binary-auto-updater.js';
-
-const gunzip = promisify(zlib.gunzip);
 
 /**
  * Update status for UI display
@@ -517,13 +515,14 @@ export class GitAutoUpdater {
         fs.mkdirSync(installDir, { recursive: true });
       }
 
-      // Extract and copy nexus binary
-      const gzippedData = fs.readFileSync(nexusGzSrc);
-      const decompressedData = await gunzip(gzippedData);
-
+      // Extract and copy nexus binary using streams for memory efficiency
       // Remove existing binary first to avoid ETXTBSY error
       await rm(nexusDest, { force: true });
-      await writeFile(nexusDest, decompressedData);
+      await pipeline(
+        createReadStream(nexusGzSrc),
+        zlib.createGunzip(),
+        createWriteStream(nexusDest)
+      );
       await chmod(nexusDest, 0o755);
 
       // Copy yoga.wasm
