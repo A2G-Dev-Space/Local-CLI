@@ -21,12 +21,6 @@ if (!fs.existsSync(yogaNodePath)) {
 
 let content = fs.readFileSync(yogaNodePath, 'utf-8');
 
-// Check if already patched
-if (content.includes('process.execPath')) {
-  console.log('Removing old patch and re-applying...');
-  // Read original from package if available, or just continue with current
-}
-
 // Original line to find
 const originalLine = "const mod = await WebAssembly.compile(fs.readFileSync(new URL('./yoga.wasm', import.meta.url)));";
 

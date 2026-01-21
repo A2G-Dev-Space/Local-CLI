@@ -9,15 +9,13 @@
  */
 
 import { spawn } from 'child_process';
-import fs from 'fs';
-import { rm, copyFile, chmod, writeFile } from 'fs/promises';
+import fs, { createReadStream, createWriteStream } from 'fs';
+import { rm, copyFile, chmod } from 'fs/promises';
+import { pipeline } from 'stream/promises';
 import path from 'path';
 import os from 'os';
 import zlib from 'zlib';
-import { promisify } from 'util';
 import { logger } from '../utils/logger.js';
-
-const gunzip = promisify(zlib.gunzip);
 
 /**
  * Check if running as a compiled binary (Bun compiled)
@@ -474,13 +472,14 @@ export class GitAutoUpdater {
         fs.mkdirSync(installDir, { recursive: true });
       }
 
-      // Extract and copy lcli binary
-      const gzippedData = fs.readFileSync(lcliGzSrc);
-      const decompressedData = await gunzip(gzippedData);
-
+      // Extract and copy lcli binary using streams for memory efficiency
       // Remove existing binary first to avoid ETXTBSY error
       await rm(lcliDest, { force: true });
-      await writeFile(lcliDest, decompressedData);
+      await pipeline(
+        createReadStream(lcliGzSrc),
+        zlib.createGunzip(),
+        createWriteStream(lcliDest)
+      );
       await chmod(lcliDest, 0o755);
 
       // Copy yoga.wasm
