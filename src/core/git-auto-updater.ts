@@ -136,6 +136,19 @@ export class GitAutoUpdater {
     this.emitStatus({ type: 'checking' });
 
     try {
+      // In binary mode, cleanup any leftover repo from previous versions
+      // This prevents source code exposure from older installations
+      if (isRunningAsBinary() && fs.existsSync(this.repoDir)) {
+        const installDir = path.join(os.homedir(), '.local', 'bin');
+        const nexusBinary = path.join(installDir, 'nexus');
+
+        // If binary already exists, the repo is leftover from previous version - clean it up
+        if (fs.existsSync(nexusBinary)) {
+          logger.flow('Cleaning up leftover repo from previous version');
+          await this.cleanupRepo();
+        }
+      }
+
       logger.flow('Checking repository directory');
 
       // Check if repo directory exists
@@ -365,6 +378,9 @@ export class GitAutoUpdater {
       await this.ensurePathConfigured(installDir);
       await this.unlinkNpm();
 
+      // Step 4: Remove repo directory to prevent source code exposure
+      await this.cleanupRepo();
+
       // Detect shell for user-friendly message
       const shell = process.env['SHELL'] || '/bin/bash';
       const rcFile = shell.includes('zsh') ? '~/.zshrc' : '~/.bashrc';
@@ -438,6 +454,23 @@ export class GitAutoUpdater {
       await execAsync('npm unlink -g nexus-coder');
     } catch (error) {
       // npm not available or package not linked - ignore
+    }
+  }
+
+  /**
+   * Remove repo directory to prevent source code exposure
+   * Only removes repo after binaries have been successfully copied
+   */
+  private async cleanupRepo(): Promise<void> {
+    try {
+      if (fs.existsSync(this.repoDir)) {
+        logger.debug('Cleaning up repo directory to prevent source code exposure');
+        await rm(this.repoDir, { recursive: true, force: true });
+        logger.debug('Repo directory removed successfully');
+      }
+    } catch (error) {
+      // Non-fatal - log but don't fail the update
+      logger.debug('Failed to cleanup repo: ' + (error instanceof Error ? error.message : String(error)));
     }
   }
 
