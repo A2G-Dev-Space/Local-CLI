@@ -143,11 +143,61 @@ export async function executeTool(
 export const executeSimpleTool = executeTool;
 
 /**
+ * Sanitize string value by removing XML-like parameter syntax
+ * LLMs sometimes output malformed arguments with XML fragments like:
+ * - `<parameter name="text">value` -> `value`
+ * - `font_name">value` -> `value` (truncated XML)
+ */
+function sanitizeStringValue(value: string): string {
+  if (typeof value !== 'string') return value;
+
+  // Remove XML parameter tags: <parameter name="...">
+  let sanitized = value.replace(/<parameter\s+name=["'][^"']*["']>/gi, '');
+
+  // Remove closing parameter tags
+  sanitized = sanitized.replace(/<\/parameter>/gi, '');
+
+  // Remove truncated XML fragments like: font_name">value or text">value
+  // Pattern: word followed by "> at the start
+  sanitized = sanitized.replace(/^[a-z_]+["']?>/i, '');
+
+  // Clean up any remaining XML-like artifacts at the start
+  sanitized = sanitized.replace(/^["']?>/, '');
+
+  return sanitized.trim();
+}
+
+/**
+ * Sanitize all string values in an arguments object
+ */
+function sanitizeToolArguments(args: Record<string, unknown>): Record<string, unknown> {
+  const sanitized: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(args)) {
+    if (typeof value === 'string') {
+      sanitized[key] = sanitizeStringValue(value);
+    } else if (Array.isArray(value)) {
+      sanitized[key] = value.map(item =>
+        typeof item === 'string' ? sanitizeStringValue(item) : item
+      );
+    } else if (typeof value === 'object' && value !== null) {
+      sanitized[key] = sanitizeToolArguments(value as Record<string, unknown>);
+    } else {
+      sanitized[key] = value;
+    }
+  }
+
+  return sanitized;
+}
+
+/**
  * Parse tool arguments from JSON string
  */
 export function parseToolArguments(argsString: string): Record<string, unknown> {
   try {
-    return JSON.parse(argsString);
+    const parsed = JSON.parse(argsString);
+    // Sanitize all string values to remove XML-like artifacts
+    return sanitizeToolArguments(parsed);
   } catch (error) {
     throw new Error(`Failed to parse tool arguments: ${error instanceof Error ? error.message : 'Invalid JSON'}`);
   }

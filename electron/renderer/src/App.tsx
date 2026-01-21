@@ -60,7 +60,12 @@ export interface EditorTab {
   // Diff mode fields
   isDiff?: boolean;
   originalContent?: string;
+  // Special tab types
+  type?: 'file' | 'todo';
 }
+
+// Special tab IDs
+export const TODO_TAB_ID = '__todo__';
 
 // File tree node interface
 export interface FileNode {
@@ -229,9 +234,40 @@ const App: React.FC = () => {
       setActiveTabId(newTabId);
     });
 
+    // Handle TODO update event - show todo panel in editor
+    const unsubTodo = window.electronAPI.agent.onTodoUpdate?.((todos) => {
+      if (todos && todos.length > 0) {
+        // Exit fullscreen mode to show editor area with TODO panel
+        setIsBottomPanelFullscreen(false);
+
+        // Check if TODO tab already exists
+        setTabs(prev => {
+          const existingTodoTab = prev.find(t => t.id === TODO_TAB_ID);
+          if (existingTodoTab) {
+            // Just switch to it
+            return prev.map(t => ({ ...t, isActive: t.id === TODO_TAB_ID }));
+          }
+          // Create new TODO tab
+          const todoTab: EditorTab = {
+            id: TODO_TAB_ID,
+            name: 'Tasks',
+            path: '',
+            content: '',
+            language: 'plaintext',
+            isDirty: false,
+            isActive: true,
+            type: 'todo',
+          };
+          return [...prev.map(t => ({ ...t, isActive: false })), todoTab];
+        });
+        setActiveTabId(TODO_TAB_ID);
+      }
+    });
+
     return () => {
       unsubEdit?.();
       unsubCreate?.();
+      unsubTodo?.();
     };
   }, []);
 

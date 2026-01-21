@@ -111,6 +111,10 @@
   background: linear-gradient(135deg, #8B5CF6, #7C3AED);
 }
 
+.tool-category.docs {
+  background: linear-gradient(135deg, #14B8A6, #0D9488);
+}
+
 .tool-category.other {
   background: linear-gradient(135deg, #6B7280, #4B5563);
 }
@@ -122,6 +126,21 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Reason - shown by default after tool name */
+.tool-reason {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+  min-width: 0;
+  padding-left: var(--space-2);
+  border-left: 1px solid var(--color-border-muted);
+  margin-left: var(--space-2);
 }
 
 /* Message tool (tell_to_user) - show actual message */

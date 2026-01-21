@@ -7,7 +7,7 @@
 import React, { useState, memo, useCallback } from 'react';
 import './ToolExecution.css';
 
-export type ToolCategory = 'file' | 'shell' | 'browser' | 'office' | 'user' | 'todo' | 'other';
+export type ToolCategory = 'file' | 'shell' | 'browser' | 'office' | 'user' | 'todo' | 'docs' | 'other';
 
 export interface ToolExecutionData {
   id: string;
@@ -19,6 +19,7 @@ export interface ToolExecutionData {
   error?: string;
   duration?: number;
   timestamp: number;
+  reason?: string; // Reason for tool execution (shown by default)
 }
 
 interface ToolExecutionProps {
@@ -83,6 +84,12 @@ const ToolExecution: React.FC<ToolExecutionProps> = ({
           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
             <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z"/>
             <path d="M18 9l-1.4-1.4-6.6 6.6-2.6-2.6L6 13l4 4z"/>
+          </svg>
+        );
+      case 'docs':
+        return (
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M21 5c-1.11-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5-1.45-1.1-3.55-1.5-5.5-1.5S2.45 4.9 1 6v14.65c0 .25.25.5.5.5.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20c1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.3 4.75 1.05.1.05.15.05.25.05.25 0 .5-.25.5-.5V6c-.6-.45-1.25-.75-2-1zm0 13.5c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V8c1.35-.85 3.8-1.5 5.5-1.5 1.2 0 2.4.15 3.5.5v11.5z"/>
           </svg>
         );
       default:
@@ -150,12 +157,21 @@ const ToolExecution: React.FC<ToolExecutionProps> = ({
     return toolName === 'tell_to_user';
   };
 
+  // Get reason from execution (explicit or from input)
+  const getReason = (exec: ToolExecutionData): string | undefined => {
+    if (exec.reason) return exec.reason;
+    if (exec.input?.reason) return String(exec.input.reason);
+    return undefined;
+  };
+
   if (executions.length === 0) return null;
 
   return (
     <div className="tool-executions-container">
       {executions.map((exec) => {
         const isExpanded = expanded || expandedIds.has(exec.id);
+
+        const reason = getReason(exec);
 
         return (
           <div key={exec.id} className={`tool-execution ${exec.status} ${isMessageTool(exec.toolName) ? 'message-tool' : ''}`}>
@@ -170,6 +186,10 @@ const ToolExecution: React.FC<ToolExecutionProps> = ({
                 <span className={`tool-name ${isMessageTool(exec.toolName) ? 'tool-message' : ''}`}>
                   {getToolDisplayText(exec)}
                 </span>
+                {/* Reason displayed by default */}
+                {reason && (
+                  <span className="tool-reason">{reason}</span>
+                )}
               </div>
               <div className="tool-status">
                 {exec.duration !== undefined && exec.status === 'success' && (

@@ -22,7 +22,27 @@ const getToolCategory = (toolName: string): ToolCategory => {
   if (name.includes('excel') || name.includes('word') || name.includes('powerpoint') || name.includes('office')) return 'office';
   if (name.includes('user') || name.includes('ask') || name.includes('tell')) return 'user';
   if (name.includes('todo')) return 'todo';
+  if (name.includes('docs') || name.includes('documentation') || name.includes('search_agent')) return 'docs';
   return 'other';
+};
+
+// Sanitize string value by removing XML-like parameter syntax from display
+const sanitizeDisplayString = (value: string): string => {
+  if (typeof value !== 'string') return value;
+
+  // Remove XML parameter tags: <parameter name="...">
+  let sanitized = value.replace(/<parameter\s+name=["'][^"']*["']>/gi, '');
+
+  // Remove closing parameter tags
+  sanitized = sanitized.replace(/<\/parameter>/gi, '');
+
+  // Remove truncated XML fragments like: font_name">value or text">value
+  sanitized = sanitized.replace(/^[a-z_]+["']?>/i, '');
+
+  // Clean up any remaining XML-like artifacts
+  sanitized = sanitized.replace(/^["']?>/, '');
+
+  return sanitized.trim();
 };
 
 // User Question Data
@@ -40,6 +60,9 @@ export interface ApprovalRequest {
   args: Record<string, unknown>;
   reason?: string;
 }
+
+// Final response callback type
+export type FinalResponseCallback = (message: string) => void;
 
 interface AgentContextValue {
   // Tool executions
@@ -71,6 +94,10 @@ interface AgentContextValue {
   handleApprovalResponse: (result: 'approve' | 'always' | { reject: true; comment: string }) => Promise<void>;
   handleApprovalCancel: () => Promise<void>;
 
+  // Final response callback (for displaying in chat instead of tool box)
+  onFinalResponse: FinalResponseCallback | null;
+  setOnFinalResponse: (callback: FinalResponseCallback | null) => void;
+
   // Setup listeners (call once from parent)
   setupAgentListeners: () => () => void;
 }
@@ -78,10 +105,15 @@ interface AgentContextValue {
 const AgentContext = createContext<AgentContextValue | null>(null);
 
 export function AgentProvider({ children }: { children: React.ReactNode }) {
-  // Tool executions - batched updates with useRef + state
+  // Tool executions - immediate updates (removed batching to fix visibility issues)
   const [toolExecutions, setToolExecutions] = useState<ToolExecutionData[]>([]);
-  const toolExecutionQueueRef = useRef<ToolExecutionData[]>([]);
-  const toolUpdateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Keep ref for stable access in callbacks
+  const toolExecutionsRef = useRef<ToolExecutionData[]>([]);
+
+  // Sync ref with state
+  useEffect(() => {
+    toolExecutionsRef.current = toolExecutions;
+  }, [toolExecutions]);
 
   // Progress messages
   const [progressMessages, setProgressMessages] = useState<ProgressMessageData[]>([]);
@@ -100,36 +132,21 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
   const [approvalRequest, setApprovalRequest] = useState<ApprovalRequest | null>(null);
   const [isApprovalOpen, setIsApprovalOpen] = useState(false);
 
-  // Batch tool execution updates (throttle to 100ms)
-  const flushToolExecutionQueue = useCallback(() => {
-    if (toolExecutionQueueRef.current.length > 0) {
-      setToolExecutions(prev => [...prev, ...toolExecutionQueueRef.current]);
-      toolExecutionQueueRef.current = [];
-    }
-    toolUpdateTimerRef.current = null;
+  // Final response callback (stored in ref to avoid stale closures)
+  const finalResponseCallbackRef = useRef<FinalResponseCallback | null>(null);
+  const setOnFinalResponse = useCallback((callback: FinalResponseCallback | null) => {
+    finalResponseCallbackRef.current = callback;
   }, []);
 
-  const queueToolExecution = useCallback((execution: ToolExecutionData) => {
-    toolExecutionQueueRef.current.push(execution);
-
-    if (!toolUpdateTimerRef.current) {
-      toolUpdateTimerRef.current = setTimeout(flushToolExecutionQueue, 100);
-    }
-  }, [flushToolExecutionQueue]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (toolUpdateTimerRef.current) {
-        clearTimeout(toolUpdateTimerRef.current);
-      }
-    };
+  // Add tool execution immediately (no batching - fixes visibility issues during resize)
+  const addToolExecution = useCallback((execution: ToolExecutionData) => {
+    setToolExecutions(prev => [...prev, execution]);
   }, []);
 
   // Clear functions
   const clearToolExecutions = useCallback(() => {
     setToolExecutions([]);
-    toolExecutionQueueRef.current = [];
+    toolExecutionsRef.current = [];
   }, []);
 
   const clearProgressMessages = useCallback(() => {
@@ -206,31 +223,47 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
 
     const unsubscribes: Array<() => void> = [];
 
-    // Tool call event - queue for batched update
+    // Tool call event - immediate update (skip final_response)
     unsubscribes.push(
       window.electronAPI.agent.onToolCall((data) => {
+        // Skip final_response - it will be handled as a chat message
+        if (data.toolName === 'final_response') return;
+
         const toolCategory = getToolCategory(data.toolName);
+
+        // Sanitize the reason to remove any XML-like artifacts
+        const rawReason = data.args?.reason ? String(data.args.reason) : undefined;
+        const sanitizedReason = rawReason ? sanitizeDisplayString(rawReason) : undefined;
+
         const newExecution: ToolExecutionData = {
-          id: `tool-${Date.now()}-${data.toolName}`,
+          id: `tool-${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${data.toolName}`,
           toolName: data.toolName,
           category: toolCategory,
           input: data.args,
           status: 'running',
           timestamp: Date.now(),
+          reason: sanitizedReason,
         };
-        queueToolExecution(newExecution);
+        addToolExecution(newExecution);
       })
     );
 
     // Tool result event - update existing execution
     unsubscribes.push(
       window.electronAPI.agent.onToolResult((data) => {
-        // Flush any pending tool executions first
-        flushToolExecutionQueue();
+        // Handle final_response specially - display as chat message
+        if (data.toolName === 'final_response' && data.success && data.result) {
+          if (finalResponseCallbackRef.current) {
+            finalResponseCallbackRef.current(data.result);
+          }
+          return;
+        }
 
+        // Update the matching tool execution
         setToolExecutions(prev => {
           const updated = [...prev];
-          const lastIdx = updated.findIndex(t => t.toolName === data.toolName && t.status === 'running');
+          // Find the most recent running tool with this name
+          const lastIdx = updated.findLastIndex(t => t.toolName === data.toolName && t.status === 'running');
           if (lastIdx !== -1) {
             const startTime = updated[lastIdx].timestamp;
             updated[lastIdx] = {
@@ -301,7 +334,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     return () => {
       unsubscribes.forEach(unsub => unsub());
     };
-  }, [queueToolExecution, flushToolExecutionQueue]);
+  }, [addToolExecution]);
 
   // Memoize context value to prevent unnecessary re-renders
   const value = useMemo<AgentContextValue>(() => ({
@@ -322,6 +355,8 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     isApprovalOpen,
     handleApprovalResponse,
     handleApprovalCancel,
+    onFinalResponse: finalResponseCallbackRef.current,
+    setOnFinalResponse,
     setupAgentListeners,
   }), [
     toolExecutions,
@@ -340,6 +375,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     isApprovalOpen,
     handleApprovalResponse,
     handleApprovalCancel,
+    setOnFinalResponse,
     setupAgentListeners,
   ]);
 

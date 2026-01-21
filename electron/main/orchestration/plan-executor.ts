@@ -75,7 +75,6 @@ export class PlanExecutor {
 
   private getTools: () => ToolDefinition[];
   private getToolSummary: () => string;
-  private docsAvailable: () => Promise<boolean>;
 
   // State
   private isRunning: boolean = false;
@@ -90,14 +89,12 @@ export class PlanExecutor {
     llmClient: PlanExecutor['llmClient'],
     toolExecutor: PlanExecutor['toolExecutor'],
     getTools: () => ToolDefinition[],
-    getToolSummary: () => string,
-    docsAvailable: () => Promise<boolean>
+    getToolSummary: () => string
   ) {
     this.llmClient = llmClient;
     this.toolExecutor = toolExecutor;
     this.getTools = getTools;
     this.getToolSummary = getToolSummary;
-    this.docsAvailable = docsAvailable;
   }
 
   // ==========================================================================
@@ -194,16 +191,9 @@ export class PlanExecutor {
             this.getToolSummary
           );
 
-          const docsAvailable = await this.docsAvailable();
-
+          // Generate TODO list with docs decision (docs availability checked internally)
           const planningResult = await planningLLM.generateTODOListWithDocsDecision(
             userMessage,
-            docsAvailable,
-            async (message) => {
-              // Simple docs search decision
-              const keywords = ['docs', 'documentation', 'api', 'reference'];
-              return keywords.some((kw) => message.toLowerCase().includes(kw));
-            },
             existingMessages
           );
 

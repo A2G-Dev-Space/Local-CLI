@@ -58,8 +58,9 @@ const AVAILABLE_SOURCES: Array<{
 
 /**
  * Get docs directory path
+ * Exported for consistency across all docs-related modules
  */
-function getDocsPath(): string {
+export function getDocsPath(): string {
   const userHome = app.getPath('home');
   return path.join(userHome, '.local-cli', 'docs');
 }

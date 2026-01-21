@@ -5,16 +5,14 @@
 .titlebar {
   display: flex;
   align-items: center;
-  height: 56px;
+  height: 28px;
   background: var(--glass-bg-solid);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--glass-shadow);
+  border-bottom: 1px solid var(--glass-border);
   -webkit-app-region: drag;
   user-select: none;
-  padding: 0 var(--space-4);
+  padding: 0 var(--space-2);
   flex-shrink: 0;
 }
 
@@ -31,14 +29,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-2);
-  color: var(--color-accent-primary);
+  margin-right: var(--space-2);
   -webkit-app-region: no-drag;
 }
 
-.titlebar-icon svg {
-  width: 24px;
-  height: 24px;
+.titlebar-icon img {
+  width: 14px;
+  height: 14px;
 }
 
 .titlebar-brand {
@@ -126,10 +123,10 @@
 }
 
 .title-text {
-  font-size: var(--font-size-sm);
+  font-size: 11px;
   font-weight: var(--font-weight-medium);
   color: var(--color-text-muted);
-  letter-spacing: 0.3px;
+  letter-spacing: 0.2px;
 }
 
 /* ============ Actions ============ */
@@ -175,7 +172,7 @@
 .titlebar-controls {
   display: flex;
   height: 100%;
-  margin-left: var(--space-3);
+  margin-left: var(--space-2);
   -webkit-app-region: no-drag;
 }
 
@@ -183,10 +180,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 36px;
+  width: 36px;
+  height: 28px;
   color: var(--color-text-muted);
-  border-radius: var(--radius-md);
+  border-radius: 0;
   transition: all var(--transition-fast);
 }
 

@@ -167,6 +167,7 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
     isApprovalOpen,
     handleApprovalResponse,
     handleApprovalCancel,
+    setOnFinalResponse,
     setupAgentListeners,
   } = useAgent();
 
@@ -198,6 +199,35 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
     const cleanup = setupAgentListeners();
     return cleanup;
   }, [setupAgentListeners]);
+
+  // Save message to session (defined early for use in other hooks)
+  const saveMessageToSession = useCallback(async (message: ChatMessage) => {
+    if (!window.electronAPI?.session) return;
+
+    try {
+      await window.electronAPI.session.addMessage(message);
+    } catch (error) {
+      console.error('Failed to save message to session:', error);
+    }
+  }, []);
+
+  // Setup final response callback - displays as chat message with markdown
+  useEffect(() => {
+    setOnFinalResponse((message: string) => {
+      const assistantMessage: ChatMessage = {
+        id: `final-${Date.now()}`,
+        role: 'assistant',
+        content: message,
+        timestamp: Date.now(),
+      };
+      setMessages(prev => [...prev, assistantMessage]);
+      saveMessageToSession(assistantMessage);
+    });
+
+    return () => {
+      setOnFinalResponse(null);
+    };
+  }, [setOnFinalResponse, saveMessageToSession]);
 
   // Handle agent completion/error (adds messages)
   useEffect(() => {
@@ -267,17 +297,6 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
       inputRef.current.style.height = `${Math.min(inputRef.current.scrollHeight, 150)}px`;
     }
   }, [input]);
-
-  // Save message to session
-  const saveMessageToSession = useCallback(async (message: ChatMessage) => {
-    if (!window.electronAPI?.session) return;
-
-    try {
-      await window.electronAPI.session.addMessage(message);
-    } catch (error) {
-      console.error('Failed to save message to session:', error);
-    }
-  }, []);
 
   // Send message using agent
   const sendMessage = useCallback(async () => {
@@ -606,13 +625,7 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
           />
         ))}
 
-        {/* TODO List - shown during execution */}
-        {todos.length > 0 && (
-          <TodoList
-            todos={todos}
-            isExecuting={isExecuting}
-          />
-        )}
+        {/* TODO List is now shown in the Editor area (TodoPanel) */}
 
         {/* Progress Messages - shown during execution */}
         {progressMessages.length > 0 && (

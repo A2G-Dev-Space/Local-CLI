@@ -6,9 +6,17 @@
  * NOTE: This is Windows/PowerShell based (NOT bash/WSL)
  */
 
+import * as fs from 'fs/promises';
+import * as path from 'path';
 import { llmClient, Message, ToolDefinition } from '../llm-client';
 import { logger } from '../logger';
 import { getToolSummary, getToolSummaryWithOptional, OptionalToolGroupId } from './tool-definitions';
+import {
+  buildDocsSearchDecisionPrompt,
+  parseDocsSearchDecision,
+  DOCS_SEARCH_DECISION_RETRY_PROMPT,
+} from '../prompts/agents/docs-search-decision';
+import { getDocsPath } from './docs-manager';
 
 // =============================================================================
 // Types
@@ -378,30 +386,28 @@ Choose either 'create_todos' or 'respond_to_user' now.`,
   }
 
   /**
-   * Generate TODO list with docs search decision
-   * Runs planning and docs decision in parallel
+   * Generate TODO list with parallel docs search decision
+   * Runs planning and docs decision in parallel, then injects docs search TODO if needed
    */
   async generateTODOListWithDocsDecision(
     userRequest: string,
-    docsAvailable: boolean,
     contextMessages?: Message[]
   ): Promise<PlanningWithDocsResult> {
     logger.enter('PlanningLLM.generateTODOListWithDocsDecision', {
       requestLength: userRequest.length,
-      docsAvailable,
     });
+    logger.startTimer('parallel-planning');
 
     // Run planning and docs decision in parallel
     const [planningResult, docsSearchNeeded] = await Promise.all([
       this.generateTODOList(userRequest, contextMessages),
-      docsAvailable ? this.shouldSearchDocs(userRequest) : Promise.resolve(false),
+      this.shouldSearchDocs(userRequest),
     ]);
 
-    logger.debug('Planning with docs decision complete', {
-      todoCount: planningResult.todos.length,
-      docsSearchNeeded,
-      hasDirectResponse: !!planningResult.directResponse,
-    });
+    logger.vars(
+      { name: 'todoCount', value: planningResult.todos.length },
+      { name: 'docsSearchNeeded', value: docsSearchNeeded }
+    );
 
     // If docs search is needed and we have todos, prepend docs search TODO
     if (docsSearchNeeded && planningResult.todos.length > 0) {
@@ -412,6 +418,7 @@ Choose either 'create_todos' or 'respond_to_user' now.`,
       };
 
       logger.flow('Prepended docs search TODO');
+      logger.endTimer('parallel-planning');
       logger.exit('PlanningLLM.generateTODOListWithDocsDecision', { docsSearchNeeded: true });
 
       return {
@@ -421,6 +428,7 @@ Choose either 'create_todos' or 'respond_to_user' now.`,
       };
     }
 
+    logger.endTimer('parallel-planning');
     logger.exit('PlanningLLM.generateTODOListWithDocsDecision', { docsSearchNeeded: false });
 
     return {
@@ -430,51 +438,118 @@ Choose either 'create_todos' or 'respond_to_user' now.`,
   }
 
   /**
-   * Check if docs search is needed for the request
+   * Check if docs search is needed for the given request
+   * Based on available documentation structure (same as CLI)
    */
   private async shouldSearchDocs(userMessage: string): Promise<boolean> {
     logger.enter('PlanningLLM.shouldSearchDocs', { messageLength: userMessage.length });
 
-    // Simple keyword-based check first
-    const docKeywords = [
-      'documentation', 'docs', 'api', 'reference', 'guide', 'tutorial',
-      'how to', 'example', 'usage', 'adk', 'agno', 'framework',
-    ];
+    // Get folder structure
+    const folderStructure = await this.getDocsFolderStructure();
 
-    const lowerMessage = userMessage.toLowerCase();
-    const hasDocKeyword = docKeywords.some((kw) => lowerMessage.includes(kw));
-
-    // Also check for framework-specific keywords
-    const frameworkKeywords = ['agent', 'tool', 'memory', 'session', 'knowledge', 'rag'];
-    const hasFrameworkKeyword = frameworkKeywords.some((kw) => lowerMessage.includes(kw));
-
-    // If no relevant keywords, skip docs search
-    if (!hasDocKeyword && !hasFrameworkKeyword) {
-      logger.exit('PlanningLLM.shouldSearchDocs', { decision: false, reason: 'no-keywords' });
+    // If no docs available, skip search
+    if (
+      folderStructure.includes('empty') ||
+      folderStructure.includes('does not exist')
+    ) {
+      logger.flow('No docs available, skipping search decision');
+      logger.exit('PlanningLLM.shouldSearchDocs', { decision: false, reason: 'no-docs' });
       return false;
     }
 
-    // For more complex cases, ask LLM
+    // Build prompt using shared prompt builder
+    const prompt = buildDocsSearchDecisionPrompt(folderStructure, userMessage);
+
+    const messages: Message[] = [
+      { role: 'user', content: prompt },
+    ];
+
+    let retries = 0;
+    const MAX_RETRIES = 2;
+
+    while (retries <= MAX_RETRIES) {
+      logger.flow(`Asking LLM for docs search decision (attempt ${retries + 1})`);
+
+      try {
+        const response = await llmClient.chatCompletion({
+          messages,
+          temperature: 0.1,
+        });
+
+        const content = response.choices[0]?.message?.content || '';
+        logger.debug('LLM decision response', { content });
+
+        const decision = parseDocsSearchDecision(content);
+
+        if (decision !== null) {
+          logger.exit('PlanningLLM.shouldSearchDocs', { decision, attempts: retries + 1 });
+          return decision;
+        }
+
+        // Invalid response, retry
+        retries++;
+        if (retries <= MAX_RETRIES) {
+          messages.push({ role: 'assistant', content });
+          messages.push({ role: 'user', content: DOCS_SEARCH_DECISION_RETRY_PROMPT });
+          logger.warn('Invalid decision response, retrying', { response: content });
+        }
+      } catch (error) {
+        logger.warn('LLM call failed for docs search decision', error as Error);
+        retries++;
+      }
+    }
+
+    // Default to false if all retries failed
+    logger.warn('All decision retries failed, defaulting to no search');
+    logger.exit('PlanningLLM.shouldSearchDocs', { decision: false, reason: 'retries-exhausted' });
+    return false;
+  }
+
+  /**
+   * Get folder structure of docs directory (depth 1 only: root + immediate subdirs)
+   * Uses shared getDocsPath() for consistency with UI and agent tools
+   */
+  private async getDocsFolderStructure(): Promise<string> {
+    const docsBasePath = getDocsPath();
+
     try {
-      const prompt = `Based on this user request, would searching local documentation (ADK, Agno framework docs) be helpful?
+      const entries = await fs.readdir(docsBasePath, { withFileTypes: true });
 
-Request: "${userMessage}"
+      const lines: string[] = [];
 
-Answer with just "yes" or "no".`;
+      for (const entry of entries) {
+        if (entry.isDirectory()) {
+          // Depth 0: Show top-level directory
+          lines.push(`📁 ${entry.name}/`);
 
-      const response = await llmClient.chatCompletion({
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.1,
-      });
+          // Depth 1: Show only immediate subdirectory names
+          try {
+            const subPath = path.join(docsBasePath, entry.name);
+            const subEntries = await fs.readdir(subPath, { withFileTypes: true });
+            const subDirs = subEntries.filter(e => e.isDirectory());
 
-      const content = response.choices?.[0]?.message?.content?.toLowerCase() || '';
-      const decision = content.includes('yes');
+            if (subDirs.length > 0) {
+              const subDirNames = subDirs.map(d => d.name).join(', ');
+              lines.push(`   └── [${subDirNames}]`);
+            }
+          } catch {
+            // Ignore errors reading subdirectories
+          }
+        }
+        // Skip files at root level - only show directories
+      }
 
-      logger.exit('PlanningLLM.shouldSearchDocs', { decision });
-      return decision;
+      if (lines.length === 0) {
+        return '(empty - no documentation available)';
+      }
+
+      return lines.join('\n');
     } catch (error) {
-      logger.warn('Failed to determine docs search decision, defaulting to false', error as Error);
-      return false;
+      const err = error as NodeJS.ErrnoException;
+      if (err.code === 'ENOENT') {
+        return '(docs directory does not exist)';
+      }
+      return '(error reading docs directory)';
     }
   }
 }

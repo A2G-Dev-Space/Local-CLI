@@ -13,15 +13,50 @@ import { logger } from './logger';
 // 메시지 타입
 export interface ChatMessage {
   id: string;
-  role: 'user' | 'assistant' | 'system';
+  role: 'user' | 'assistant' | 'system' | 'tool';
   content: string;
   timestamp: number;
+  tool_calls?: Array<{
+    id: string;
+    type: 'function';
+    function: { name: string; arguments: string };
+  }>;
+  tool_call_id?: string;
+  name?: string;
   metadata?: {
     model?: string;
     tokens?: number;
     tool?: string;
     toolResult?: unknown;
   };
+}
+
+/**
+ * Log entry for session restoration (CLI parity)
+ */
+export interface SessionLogEntry {
+  id: string;
+  type: string;
+  content: string;
+  details?: string;
+  toolArgs?: Record<string, unknown>;
+  success?: boolean;
+  items?: string[];
+  diff?: string[];
+}
+
+/**
+ * TODO item for session restoration (CLI parity)
+ */
+export interface SessionTodoItem {
+  id: string;
+  title: string;
+  description?: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  result?: string;
+  error?: string;
+  requiresDocsSearch?: boolean;
+  dependencies?: string[];
 }
 
 // 세션 타입
@@ -32,6 +67,8 @@ export interface Session {
   updatedAt: number;
   workingDirectory?: string;
   messages: ChatMessage[];
+  logEntries?: SessionLogEntry[];  // For session restoration
+  todos?: SessionTodoItem[];       // Only in-progress/pending todos
   metadata?: {
     model?: string;
     totalTokens?: number;
@@ -57,7 +94,103 @@ class SessionManager {
   private autoSaveTimer: NodeJS.Timeout | null = null;
   private autoSaveInterval: number = 30000; // 30초
 
+  // Current log entries and todos for auto-save (CLI parity)
+  private currentLogEntries: SessionLogEntry[] = [];
+  private currentTodos: SessionTodoItem[] = [];
+
   constructor() {}
+
+  /**
+   * Normalize messages for saving: include tool_calls, tool_call_id, name fields (CLI parity)
+   */
+  private normalizeMessages(messages: ChatMessage[]): ChatMessage[] {
+    return messages.map(msg => {
+      const normalized: ChatMessage = {
+        id: msg.id,
+        role: msg.role,
+        content: msg.content,
+        timestamp: msg.timestamp,
+      };
+      // tool_calls가 있으면 포함 (assistant 메시지)
+      if (msg.tool_calls && msg.tool_calls.length > 0) {
+        normalized.tool_calls = msg.tool_calls;
+      }
+      // tool_call_id가 있으면 포함 (tool 메시지)
+      if (msg.tool_call_id) {
+        normalized.tool_call_id = msg.tool_call_id;
+      }
+      // name이 있으면 포함 (tool 메시지)
+      if (msg.name) {
+        normalized.name = msg.name;
+      }
+      // metadata가 있으면 포함
+      if (msg.metadata) {
+        normalized.metadata = msg.metadata;
+      }
+      return normalized;
+    });
+  }
+
+  /**
+   * Validate tool messages: remove orphaned tool messages (CLI parity)
+   */
+  private validateToolMessages(messages: ChatMessage[]): ChatMessage[] {
+    // Collect all valid tool_call_ids from assistant messages with tool_calls
+    const validToolCallIds = new Set<string>();
+    for (const msg of messages) {
+      if (msg.role === 'assistant' && msg.tool_calls) {
+        for (const tc of msg.tool_calls) {
+          validToolCallIds.add(tc.id);
+        }
+      }
+    }
+
+    // Filter out tool messages with invalid tool_call_ids
+    const validated = messages.filter(msg => {
+      // Keep non-tool messages
+      if (msg.role !== 'tool') {
+        return true;
+      }
+      // For tool messages, check if tool_call_id exists and is valid
+      if (msg.tool_call_id && validToolCallIds.has(msg.tool_call_id)) {
+        return true;
+      }
+      // Remove orphaned tool messages
+      logger.warn('Removing orphaned tool message', { tool_call_id: msg.tool_call_id });
+      return false;
+    });
+
+    return validated;
+  }
+
+  /**
+   * Set current log entries for auto-save (CLI parity)
+   */
+  setLogEntries(logEntries: SessionLogEntry[]): void {
+    this.currentLogEntries = logEntries;
+  }
+
+  /**
+   * Set current todos for auto-save - only saves in-progress/pending todos (CLI parity)
+   */
+  setTodos(todos: SessionTodoItem[]): void {
+    // Only save todos that are not completed (pending or in_progress)
+    this.currentTodos = todos.filter(t => t.status === 'pending' || t.status === 'in_progress');
+  }
+
+  /**
+   * Get current log entries
+   */
+  getLogEntries(): SessionLogEntry[] {
+    return this.currentLogEntries;
+  }
+
+  /**
+   * Get current todos
+   */
+  getTodos(): SessionTodoItem[] {
+    return this.currentTodos;
+  }
 
   /**
    * 세션 디렉토리 경로 반환
@@ -114,6 +247,10 @@ class SessionManager {
     const id = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const now = Date.now();
 
+    // Clear log entries and todos for new session
+    this.currentLogEntries = [];
+    this.currentTodos = [];
+
     const session: Session = {
       id,
       name: name || `Session ${new Date(now).toLocaleString('ko-KR')}`,
@@ -139,6 +276,14 @@ class SessionManager {
   }
 
   /**
+   * Clear log entries and todos (for new session)
+   */
+  clearSessionState(): void {
+    this.currentLogEntries = [];
+    this.currentTodos = [];
+  }
+
+  /**
    * 세션 저장
    */
   async saveSession(session: Session): Promise<boolean> {
@@ -149,6 +294,13 @@ class SessionManager {
         messageCount: session.messages.length,
       };
 
+      // Normalize messages (include tool_calls, tool_call_id, etc.)
+      session.messages = this.normalizeMessages(session.messages);
+
+      // Include log entries and todos for session restoration (CLI parity)
+      session.logEntries = this.currentLogEntries.length > 0 ? this.currentLogEntries : undefined;
+      session.todos = this.currentTodos.length > 0 ? this.currentTodos : undefined;
+
       const filePath = this.getSessionPath(session.id);
       await fs.promises.writeFile(
         filePath,
@@ -156,7 +308,11 @@ class SessionManager {
         'utf-8'
       );
 
-      logger.debug('Session saved', { sessionId: session.id });
+      logger.debug('Session saved', {
+        sessionId: session.id,
+        hasLogEntries: !!session.logEntries,
+        hasTodos: !!session.todos,
+      });
       return true;
     } catch (error) {
       logger.error('Failed to save session', { sessionId: session.id, error });
@@ -173,11 +329,31 @@ class SessionManager {
       const content = await fs.promises.readFile(filePath, 'utf-8');
       const session = JSON.parse(content) as Session;
 
+      // Validate and clean messages: remove orphaned tool messages (CLI parity)
+      session.messages = this.validateToolMessages(session.messages);
+
+      // Restore log entries and todos (CLI parity)
+      if (session.logEntries) {
+        this.currentLogEntries = session.logEntries;
+      } else {
+        this.currentLogEntries = [];
+      }
+      if (session.todos) {
+        this.currentTodos = session.todos;
+      } else {
+        this.currentTodos = [];
+      }
+
       // 현재 세션으로 설정
       this.currentSession = session;
       this.startAutoSave();
 
-      logger.info('Session loaded', { sessionId });
+      logger.info('Session loaded', {
+        sessionId,
+        messageCount: session.messages.length,
+        logEntriesCount: this.currentLogEntries.length,
+        todosCount: this.currentTodos.length,
+      });
       return session;
     } catch (error) {
       logger.error('Failed to load session', { sessionId, error });

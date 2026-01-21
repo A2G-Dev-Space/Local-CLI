@@ -1,13 +1,19 @@
 /**
  * Editor Component
  * Monaco-style code editor with tabs, syntax highlighting, and line numbers
+ * Supports special tab types: file, todo
  */
 
 import React, { useState, useCallback, useRef, useEffect, useMemo, memo } from 'react';
 import type { EditorTab } from '../App';
+import { TODO_TAB_ID } from '../App';
 import DiffView from './DiffView';
+import TodoPanel from './TodoPanel';
+import { useTodos } from '../contexts/AgentContext';
+import type { TodoItem } from './TodoList';
 import './Editor.css';
 import './DiffView.css';
+import './TodoPanel.css';
 
 // Debounce utility
 function debounce<T extends (...args: Parameters<T>) => void>(
@@ -55,6 +61,9 @@ const Editor: React.FC<EditorProps> = ({
   const [cursorPosition, setCursorPosition] = useState({ line: 1, column: 1 });
   const [selection, setSelection] = useState({ start: 0, end: 0 });
   const [localContent, setLocalContent] = useState(activeTab?.content || '');
+
+  // Get todos from context for TodoPanel
+  const { todos } = useTodos();
 
   // Sync local content when active tab changes
   useEffect(() => {
@@ -242,8 +251,19 @@ const Editor: React.FC<EditorProps> = ({
     ));
   }, [cursorPosition.line]);
 
-  // Get file icon for tab
-  const getTabIcon = (language: string): React.ReactNode => {
+  // Get file icon for tab (with special handling for todo type)
+  const getTabIcon = (tab: EditorTab): React.ReactNode => {
+    // Special icon for TODO tab
+    if (tab.type === 'todo' || tab.id === TODO_TAB_ID) {
+      return (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="#8B5CF6">
+          <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z" />
+          <path d="M18 9l-1.4-1.4-6.6 6.6-2.6-2.6L6 13l4 4z" />
+        </svg>
+      );
+    }
+
+    const language = tab.language;
     const iconMap: Record<string, { color: string; path: string }> = {
       typescript: {
         color: '#3178c6',
@@ -282,7 +302,7 @@ const Editor: React.FC<EditorProps> = ({
         {tabs.map((tab) => (
           <div
             key={tab.id}
-            className={`editor-tab ${tab.id === activeTab?.id ? 'active' : ''}`}
+            className={`editor-tab ${tab.id === activeTab?.id ? 'active' : ''} ${tab.type === 'todo' ? 'todo-tab' : ''}`}
             onClick={() => onTabSelect(tab.id)}
             role="tab"
             aria-selected={tab.id === activeTab?.id}
@@ -295,7 +315,7 @@ const Editor: React.FC<EditorProps> = ({
               }
             }}
           >
-            {getTabIcon(tab.language)}
+            {getTabIcon(tab)}
             <span className="tab-name">{tab.name}</span>
             {tab.isDirty && <span className="tab-dirty" aria-label="Unsaved changes" />}
             <button
@@ -317,7 +337,11 @@ const Editor: React.FC<EditorProps> = ({
 
       {/* Editor Content */}
       {activeTab ? (
-        activeTab.isDiff && activeTab.originalContent !== undefined ? (
+        // Check if it's a TODO tab
+        activeTab.type === 'todo' || activeTab.id === TODO_TAB_ID ? (
+          // Todo Panel View
+          <TodoPanel todos={todos} />
+        ) : activeTab.isDiff && activeTab.originalContent !== undefined ? (
           // Diff View Mode
           <DiffView
             originalContent={activeTab.originalContent}
