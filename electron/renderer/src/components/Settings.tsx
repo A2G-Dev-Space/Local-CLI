@@ -32,7 +32,23 @@ interface SettingsProps {
   onClose: () => void;
 }
 
-type SettingsView = 'main' | 'llms' | 'llm-add' | 'llm-edit' | 'llm-delete';
+type SettingsView = 'main' | 'llms' | 'llm-add' | 'llm-edit' | 'llm-delete' | 'appearance';
+
+// Color palette type
+type ColorPalette = 'default' | 'rose' | 'mint' | 'lavender' | 'peach' | 'sky';
+
+// Font size range: 10-18px
+const FONT_SIZE_MIN = 10;
+const FONT_SIZE_MAX = 18;
+
+const COLOR_PALETTE_OPTIONS: { value: ColorPalette; label: string; color: string }[] = [
+  { value: 'default', label: 'Default Blue', color: '#3B82F6' },
+  { value: 'rose', label: 'Rose', color: '#F472B6' },
+  { value: 'mint', label: 'Mint', color: '#34D399' },
+  { value: 'lavender', label: 'Lavender', color: '#A78BFA' },
+  { value: 'peach', label: 'Peach', color: '#FB923C' },
+  { value: 'sky', label: 'Sky', color: '#38BDF8' },
+];
 
 interface FormData {
   name: string;
@@ -52,6 +68,10 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
   const [isTesting, setIsTesting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Appearance settings
+  const [fontSize, setFontSize] = useState<number>(12);
+  const [colorPalette, setColorPalette] = useState<ColorPalette>('default');
 
   // Form state
   const [formData, setFormData] = useState<FormData>({
@@ -86,15 +106,48 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
   }, []);
 
 
+  // Load appearance settings
+  const loadAppearanceSettings = useCallback(async () => {
+    if (!window.electronAPI?.config) return;
+    try {
+      const config = await window.electronAPI.config.getAll();
+      if (config?.fontSize && typeof config.fontSize === 'number') {
+        setFontSize(config.fontSize);
+      }
+      if (config?.colorPalette) {
+        setColorPalette(config.colorPalette as ColorPalette);
+      }
+    } catch (err) {
+      console.error('Failed to load appearance settings:', err);
+    }
+  }, []);
+
+  // Save appearance settings
+  const saveAppearanceSetting = useCallback(async (key: 'fontSize' | 'colorPalette', value: number | string) => {
+    if (!window.electronAPI?.config) return;
+    try {
+      await window.electronAPI.config.set(key, value);
+      // Update document root for immediate effect
+      if (key === 'fontSize') {
+        document.documentElement.style.setProperty('--user-font-size', `${value}px`);
+      } else if (key === 'colorPalette') {
+        document.querySelector('.app-root')?.setAttribute('data-palette', value as string);
+      }
+    } catch (err) {
+      console.error(`Failed to save ${key}:`, err);
+    }
+  }, []);
+
   // Initial load
   useEffect(() => {
     if (isOpen) {
       loadEndpoints();
+      loadAppearanceSettings();
       setView('main');
       setError(null);
       setSuccessMessage(null);
     }
-  }, [isOpen, loadEndpoints]);
+  }, [isOpen, loadEndpoints, loadAppearanceSettings]);
 
   // Handle keyboard events
   useEffect(() => {
@@ -302,6 +355,7 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
               {view === 'llm-add' && 'Add New Endpoint'}
               {view === 'llm-edit' && 'Edit Endpoint'}
               {view === 'llm-delete' && 'Delete Endpoint'}
+              {view === 'appearance' && 'Settings > Appearance'}
             </span>
           </div>
           <button className="settings-close" onClick={onClose}>
@@ -347,6 +401,21 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                   <span className="menu-description">Manage AI model connections</span>
                 </div>
                 <span className="menu-badge">{endpoints.length}</span>
+                <svg className="menu-arrow" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
+                </svg>
+              </button>
+
+              <button className="menu-item" onClick={() => setView('appearance')}>
+                <div className="menu-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
+                  </svg>
+                </div>
+                <div className="menu-content">
+                  <span className="menu-label">Appearance</span>
+                  <span className="menu-description">Font size & color theme</span>
+                </div>
                 <svg className="menu-arrow" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
                 </svg>
@@ -556,6 +625,64 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                   Delete
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* Appearance Settings */}
+          {view === 'appearance' && (
+            <div className="appearance-view">
+              {/* Font Size */}
+              <div className="setting-section">
+                <label className="setting-label">Font Size</label>
+                <div className="font-size-control">
+                  <input
+                    type="range"
+                    min={FONT_SIZE_MIN}
+                    max={FONT_SIZE_MAX}
+                    value={fontSize}
+                    onChange={(e) => {
+                      const newSize = parseInt(e.target.value, 10);
+                      setFontSize(newSize);
+                      saveAppearanceSetting('fontSize', newSize);
+                    }}
+                    className="font-size-slider"
+                  />
+                  <span className="font-size-value">{fontSize}px</span>
+                </div>
+                <div className="font-size-preview" style={{ fontSize: `${fontSize}px` }}>
+                  The quick brown fox jumps over the lazy dog
+                </div>
+              </div>
+
+              {/* Color Palette */}
+              <div className="setting-section">
+                <label className="setting-label">Color Theme</label>
+                <div className="palette-grid">
+                  {COLOR_PALETTE_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      className={`palette-option ${colorPalette === option.value ? 'selected' : ''}`}
+                      onClick={() => {
+                        setColorPalette(option.value);
+                        saveAppearanceSetting('colorPalette', option.value);
+                      }}
+                    >
+                      <div
+                        className="palette-color"
+                        style={{ background: option.color }}
+                      />
+                      <span className="palette-label">{option.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <button className="back-button" onClick={() => setView('main')}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+                </svg>
+                Back
+              </button>
             </div>
           )}
         </div>

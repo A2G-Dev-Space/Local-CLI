@@ -102,13 +102,14 @@
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
 
-  --font-size-xs: 11px;
-  --font-size-sm: 12px;
-  --font-size-base: 13px;
-  --font-size-md: 14px;
-  --font-size-lg: 16px;
-  --font-size-xl: 18px;
-  --font-size-2xl: 24px;
+  /* Font sizes scale based on --user-font-size (default 12px) */
+  --font-size-xs: calc(var(--user-font-size) - 2px);
+  --font-size-sm: calc(var(--user-font-size) - 1px);
+  --font-size-base: var(--user-font-size);
+  --font-size-md: calc(var(--user-font-size) + 1px);
+  --font-size-lg: calc(var(--user-font-size) + 3px);
+  --font-size-xl: calc(var(--user-font-size) + 5px);
+  --font-size-2xl: calc(var(--user-font-size) + 10px);
 
   --font-weight-normal: 400;
   --font-weight-medium: 500;
@@ -210,6 +211,105 @@
   --scrollbar-track: rgba(15, 23, 42, 0.5);
   --scrollbar-thumb: rgba(71, 85, 105, 0.5);
   --scrollbar-thumb-hover: rgba(100, 116, 139, 0.7);
+}
+
+/* ============ Font Size - Dynamic via CSS variable ============ */
+/* Base font size is set via --user-font-size (10-18px range)
+   All other sizes scale proportionally */
+:root {
+  --user-font-size: 12px;  /* Default, overridden by JS */
+}
+
+/* ============ Color Palettes - Pastel Light ============ */
+/* Rose - Warm pink tones */
+[data-palette="rose"] {
+  --color-accent-primary: #F472B6;
+  --color-accent-secondary: #EC4899;
+  --color-accent-tertiary: #F9A8D4;
+  --color-accent-gradient: linear-gradient(135deg, #F472B6 0%, #EC4899 50%, #DB2777 100%);
+  --color-accent-hover: #EC4899;
+  --color-accent-active: #DB2777;
+  --bg-gradient: linear-gradient(135deg, #FDF2F8 0%, #FCE7F3 50%, #FBCFE8 100%);
+}
+
+/* Mint - Fresh green tones */
+[data-palette="mint"] {
+  --color-accent-primary: #34D399;
+  --color-accent-secondary: #10B981;
+  --color-accent-tertiary: #6EE7B7;
+  --color-accent-gradient: linear-gradient(135deg, #34D399 0%, #10B981 50%, #059669 100%);
+  --color-accent-hover: #10B981;
+  --color-accent-active: #059669;
+  --bg-gradient: linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 50%, #A7F3D0 100%);
+}
+
+/* Lavender - Soft purple tones */
+[data-palette="lavender"] {
+  --color-accent-primary: #A78BFA;
+  --color-accent-secondary: #8B5CF6;
+  --color-accent-tertiary: #C4B5FD;
+  --color-accent-gradient: linear-gradient(135deg, #A78BFA 0%, #8B5CF6 50%, #7C3AED 100%);
+  --color-accent-hover: #8B5CF6;
+  --color-accent-active: #7C3AED;
+  --bg-gradient: linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 50%, #DDD6FE 100%);
+}
+
+/* Peach - Warm orange tones */
+[data-palette="peach"] {
+  --color-accent-primary: #FB923C;
+  --color-accent-secondary: #F97316;
+  --color-accent-tertiary: #FDBA74;
+  --color-accent-gradient: linear-gradient(135deg, #FB923C 0%, #F97316 50%, #EA580C 100%);
+  --color-accent-hover: #F97316;
+  --color-accent-active: #EA580C;
+  --bg-gradient: linear-gradient(135deg, #FFF7ED 0%, #FFEDD5 50%, #FED7AA 100%);
+}
+
+/* Sky - Cool blue tones (different from default) */
+[data-palette="sky"] {
+  --color-accent-primary: #38BDF8;
+  --color-accent-secondary: #0EA5E9;
+  --color-accent-tertiary: #7DD3FC;
+  --color-accent-gradient: linear-gradient(135deg, #38BDF8 0%, #0EA5E9 50%, #0284C7 100%);
+  --color-accent-hover: #0EA5E9;
+  --color-accent-active: #0284C7;
+  --bg-gradient: linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 50%, #BAE6FD 100%);
+}
+
+/* ============ Color Palettes - Dark Mode ============ */
+[data-theme="dark"][data-palette="rose"] {
+  --color-accent-primary: #F472B6;
+  --color-accent-secondary: #F9A8D4;
+  --color-accent-tertiary: #FBCFE8;
+  --bg-gradient: linear-gradient(135deg, #1A0A14 0%, #2D1424 50%, #4A1942 100%);
+}
+
+[data-theme="dark"][data-palette="mint"] {
+  --color-accent-primary: #34D399;
+  --color-accent-secondary: #6EE7B7;
+  --color-accent-tertiary: #A7F3D0;
+  --bg-gradient: linear-gradient(135deg, #0A1A14 0%, #0D2818 50%, #134E2C 100%);
+}
+
+[data-theme="dark"][data-palette="lavender"] {
+  --color-accent-primary: #A78BFA;
+  --color-accent-secondary: #C4B5FD;
+  --color-accent-tertiary: #DDD6FE;
+  --bg-gradient: linear-gradient(135deg, #0F0A1A 0%, #1E1434 50%, #3B2366 100%);
+}
+
+[data-theme="dark"][data-palette="peach"] {
+  --color-accent-primary: #FB923C;
+  --color-accent-secondary: #FDBA74;
+  --color-accent-tertiary: #FED7AA;
+  --bg-gradient: linear-gradient(135deg, #1A0F0A 0%, #2D1A0D 50%, #4A2A14 100%);
+}
+
+[data-theme="dark"][data-palette="sky"] {
+  --color-accent-primary: #38BDF8;
+  --color-accent-secondary: #7DD3FC;
+  --color-accent-tertiary: #BAE6FD;
+  --bg-gradient: linear-gradient(135deg, #0A141A 0%, #0D1E2D 50%, #144A66 100%);
 }
 
 /* ============ Reset & Base ============ */
