@@ -1,11 +1,12 @@
 /**
  * LLM Module Export
+ * Re-exports from ROOT level llm-client.ts for backwards compatibility
  */
 
 export {
   llmClient,
   default,
-} from './llm-client';
+} from '../../llm-client';
 
 export type {
   Message,
@@ -16,4 +17,4 @@ export type {
   ChatRequestOptions,
   StreamCallback,
   RetryConfig,
-} from './llm-client';
+} from '../../llm-client';

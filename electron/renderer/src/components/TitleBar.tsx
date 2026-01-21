@@ -6,6 +6,9 @@
 import React from 'react';
 import './TitleBar.css';
 
+// Import logo
+import logoImage from '/no_bg_logo.png';
+
 interface TitleBarProps {
   title: string;
   isMaximized: boolean;
@@ -27,9 +30,7 @@ const TitleBar: React.FC<TitleBarProps> = ({
     <div className={`titlebar ${!isFocused ? 'unfocused' : ''}`}>
       {/* App Icon */}
       <div className="titlebar-icon no-drag">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V8h16v10zm-2-1h-6v-2h6v2zM7.5 17l-1.41-1.41L8.67 13l-2.59-2.59L7.5 9l4 4-4 4z"/>
-        </svg>
+        <img src={logoImage} alt="Logo" width="14" height="14" />
       </div>
 
       {/* Title */}

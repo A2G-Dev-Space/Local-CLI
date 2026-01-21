@@ -1,83 +1,13 @@
 /**
  * Compact Manager for Electron
  * Compresses conversation history using LLM
+ *
+ * NOTE: Uses shared COMPACT_SYSTEM_PROMPT from prompts/system/compact.ts
  */
 
 import { llmClient, Message } from './llm-client';
 import { logger } from './logger';
-
-// Compact system prompt
-const COMPACT_SYSTEM_PROMPT = `# Role
-
-You are a "Technical Context Compressor" for Local CLI, an AI coding assistant. Your task is to compress a conversation into a minimal, high-density state representation that preserves ALL critical context for seamless continuation.
-
-# Objective
-
-Reduce token usage by 70-90% while preserving 100% of:
-- What the user is building and why
-- All technical decisions made
-- Current progress and blockers
-- Files modified or created
-- Constraints discovered (what failed and why)
-
-# CRITICAL: Preserve These Exactly
-
-1. **Active TODO Items**: Tasks in progress or pending - these MUST appear in output
-2. **File Paths**: All file paths mentioned (created, modified, discussed)
-3. **Error Patterns**: Errors encountered and their solutions
-4. **User Preferences**: Coding style, language preferences, specific requirements
-
-# DISCARD
-
-- Greetings, thanks, confirmations ("Sure!", "Great!", "I'll help you")
-- Redundant explanations of the same concept
-- Failed code attempts (UNLESS they reveal constraints)
-- Tool call details (keep only results)
-- Intermediate reasoning steps
-
-# Output Format
-
-You MUST output valid markdown following this exact structure:
-
-## Session Context
-
-### Goal
-[One sentence: What is the user building?]
-
-### Status
-[Current state: e.g., "Implementing compact feature, 3/5 tasks complete"]
-
-### Key Decisions
-- [Decision 1]: [Reason]
-- [Decision 2]: [Reason]
-
-### Constraints Learned
-- [What failed] -> [Why] -> [Solution chosen]
-
-### Files Modified
-- \`path/to/file.ts\`: [What was done]
-
-### Active Tasks
-- [ ] [Task 1 - specific details]
-- [x] [Task 2 - completed]
-- [ ] [Task 3 - in progress]
-
-### Technical Notes
-[Critical code patterns, API details, or implementation notes to remember]
-
-### Next Steps
-1. [Immediate next action]
-2. [Following action]
-
-# Rules
-
-- Maximum 2000 tokens output
-- Use bullet points, not paragraphs
-- Include specific file paths, function names, variable names
-- If code is critical, include it; otherwise summarize intent
-- NEVER use generic phrases like "discussed various options"
-- Output in the same language as the conversation (Korean if Korean, English if English)
-`;
+import { COMPACT_SYSTEM_PROMPT } from './prompts/system/compact';
 
 // Minimum messages required for compact
 const MIN_MESSAGES_FOR_COMPACT = 5;
@@ -97,9 +27,16 @@ export interface CompactContext {
 }
 
 /**
+ * Get compact system prompt (for external use)
+ */
+export function getCompactSystemPrompt(): string {
+  return COMPACT_SYSTEM_PROMPT;
+}
+
+/**
  * Build user prompt for compact
  */
-function buildCompactUserPrompt(messages: Message[], context: CompactContext): string {
+export function buildCompactUserPrompt(messages: Message[], context: CompactContext): string {
   const parts: string[] = [];
 
   // 1. Current System State
@@ -149,7 +86,7 @@ function buildCompactUserPrompt(messages: Message[], context: CompactContext): s
 /**
  * Build compacted messages from summary
  */
-function buildCompactedMessages(compactSummary: string, context: CompactContext): Message[] {
+export function buildCompactedMessages(compactSummary: string, context: CompactContext): Message[] {
   const contextMessage = `[SESSION CONTEXT - Previous conversation was compacted]
 
 ${compactSummary}
@@ -171,17 +108,22 @@ Working Directory: ${context.workingDirectory || process.cwd()}
 }
 
 /**
- * Execute conversation compaction
+ * Execute conversation compaction (CLI parity - enhanced logging)
  */
 export async function compactConversation(
   messages: Message[],
   context: CompactContext
 ): Promise<CompactResult> {
-  logger.info('Starting compact', { messageCount: messages.length });
+  logger.enter('compactConversation', {
+    messageCount: messages.length,
+    workingDirectory: context.workingDirectory,
+  });
 
   // Validate minimum messages
   const nonSystemMessages = messages.filter(m => m.role !== 'system');
   if (nonSystemMessages.length < MIN_MESSAGES_FOR_COMPACT) {
+    logger.flow('Compact skipped - not enough messages');
+    logger.exit('compactConversation', { skipped: true });
     return {
       success: false,
       originalMessageCount: messages.length,
@@ -191,13 +133,21 @@ export async function compactConversation(
   }
 
   try {
+    logger.flow('Building compact prompt');
+
     // Build the user prompt with context
     const userPrompt = buildCompactUserPrompt(messages, context);
 
-    logger.info('Calling LLM for compaction', { promptLength: userPrompt.length });
+    logger.vars({ promptLength: userPrompt.length, nonSystemCount: nonSystemMessages.length });
 
     // Call LLM for compaction
+    logger.flow('Calling LLM for compaction');
+    logger.startTimer('compact-llm');
+
     const response = await llmClient.sendMessage(userPrompt, COMPACT_SYSTEM_PROMPT);
+
+    const elapsed = logger.endTimer('compact-llm');
+    logger.debug('Compact LLM response received', { elapsed: `${elapsed}ms`, responseLength: response.length });
 
     // Validate response
     if (!response || response.trim().length === 0) {
@@ -207,11 +157,14 @@ export async function compactConversation(
     // Build compacted messages
     const compactedMessages = buildCompactedMessages(response, context);
 
-    logger.info('Compact completed', {
+    logger.flow('Compact completed successfully');
+    logger.vars({
       originalCount: messages.length,
       newCount: compactedMessages.length,
       summaryLength: response.length,
     });
+
+    logger.exit('compactConversation', { success: true });
 
     return {
       success: true,
@@ -223,7 +176,8 @@ export async function compactConversation(
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    logger.error('Compact failed', error);
+    logger.error('Compact failed', { error: errorMessage });
+    logger.exit('compactConversation', { success: false, error: errorMessage });
 
     return {
       success: false,

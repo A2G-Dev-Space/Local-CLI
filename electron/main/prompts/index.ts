@@ -14,7 +14,8 @@ export {
   FILE_MODIFICATION_RULES,
 } from './shared/tool-usage';
 export { CODEBASE_FIRST_RULE, CODEBASE_FIRST_SHORT } from './shared/codebase-rules';
-export { WINDOWS_POWERSHELL_RULES, GIT_COMMIT_RULES } from './shared/windows-rules';
+export { WINDOWS_POWERSHELL_RULES } from './shared/windows-rules';
+export { GIT_COMMIT_RULES } from './shared/git-rules';
 
 // System prompts
 export { buildPlanExecutePrompt, buildSimpleChatPrompt } from './system/plan-execute';

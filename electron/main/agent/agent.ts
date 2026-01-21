@@ -32,7 +32,7 @@ import { buildPlanExecutePrompt, buildTodoContext } from './system-prompt';
 import { PlanningLLM } from './planning-llm';
 import { getContextTracker } from './context-tracker';
 import { validateToolMessages, truncateMessages } from './message-utils';
-import { hasDocsAvailable } from './docs-manager';
+import { compactConversation } from '../compact-manager';
 
 // =============================================================================
 // Types
@@ -258,13 +258,9 @@ export async function runAgent(
     try {
       const planningLLM = new PlanningLLM(actualEnabledToolGroups);
 
-      // Check if docs are available for search
-      const docsAvailable = await hasDocsAvailable();
-
-      // Generate TODO list with docs decision
+      // Generate TODO list with docs decision (docs availability checked internally)
       const planningResult = await planningLLM.generateTODOListWithDocsDecision(
         userMessage,
-        docsAvailable,
         existingMessages
       );
 
@@ -363,6 +359,9 @@ export async function runAgent(
   let finalResponse = '';
   let noToolCallRetries = 0;
   const MAX_NO_TOOL_CALL_RETRIES = 3;
+  let contextCompactRetried = false; // Track if we've already tried compact for context length
+  let finalResponseFailures = 0; // Track final_response failures to prevent infinite loop
+  const MAX_FINAL_RESPONSE_FAILURES = 3; // Max retries for final_response failures
 
   try {
     // Agent loop
@@ -376,12 +375,61 @@ export async function runAgent(
         throw new Error('Agent aborted');
       }
 
-      // Call LLM
-      const response = await llmClient.chatCompletion({
-        messages,
-        tools,
-        temperature: 0.7,
-      });
+      // Call LLM with context length error recovery
+      let response;
+      try {
+        response = await llmClient.chatCompletion({
+          messages,
+          tools,
+          temperature: 0.7,
+        });
+      } catch (llmError) {
+        // Check if this is a context length error and we haven't retried yet
+        if ((llmError as any).isContextLengthError && !contextCompactRetried) {
+          logger.warn('Context length exceeded - attempting auto-compact');
+          contextCompactRetried = true;
+
+          // Notify user via tellUser callback
+          if (callbacks.onTellUser) {
+            callbacks.onTellUser('컨텍스트 길이 초과로 자동 압축을 시도합니다...');
+          }
+          if (state.mainWindow) {
+            state.mainWindow.webContents.send('agent:tellUser', '컨텍스트 길이 초과로 자동 압축을 시도합니다...');
+          }
+
+          // Attempt compact
+          const compactResult = await compactConversation(messages, {
+            workingDirectory,
+          });
+
+          if (compactResult.success && compactResult.compactedMessages) {
+            logger.info('Auto-compact successful', {
+              originalCount: compactResult.originalMessageCount,
+              newCount: compactResult.newMessageCount,
+            });
+
+            // Replace messages with compacted version (keep system message)
+            const systemMessage = messages.find(m => m.role === 'system');
+            messages = systemMessage
+              ? [systemMessage, ...compactResult.compactedMessages]
+              : compactResult.compactedMessages;
+
+            // Retry LLM call with compacted messages
+            response = await llmClient.chatCompletion({
+              messages,
+              tools,
+              temperature: 0.7,
+            });
+          } else {
+            // Compact failed - rethrow original error
+            logger.error('Auto-compact failed', { error: compactResult.error });
+            throw llmError;
+          }
+        } else {
+          // Not a context length error or already retried - rethrow
+          throw llmError;
+        }
+      }
 
       const assistantMessage = response.choices[0]?.message;
       if (!assistantMessage) {
@@ -451,52 +499,117 @@ export async function runAgent(
           });
 
           // Handle final_response tool specially
-          if (toolName === 'final_response' && result.success && result.metadata?.['isFinalResponse']) {
-            logger.flow('final_response tool executed successfully - returning');
-            finalResponse = result.result || '';
+          if (toolName === 'final_response') {
+            if (result.success && result.metadata?.['isFinalResponse']) {
+              // Success - return immediately
+              logger.flow('final_response tool executed successfully - returning');
+              finalResponse = result.result || '';
 
-            // Add tool result to messages
-            messages.push({
-              role: 'tool',
-              content: toolResultContent,
-              tool_call_id: toolCall.id,
-            });
+              // Add tool result to messages
+              messages.push({
+                role: 'tool',
+                content: toolResultContent,
+                tool_call_id: toolCall.id,
+              });
 
-            // Track tool call
-            toolCallHistory.push({
-              tool: toolName,
-              args: toolArgs,
-              result: toolResultContent,
-              success: result.success,
-            });
-
-            // Notify callbacks and renderer
-            if (callbacks.onToolResult) {
-              callbacks.onToolResult(toolName, toolResultContent, result.success);
-            }
-            if (state.mainWindow) {
-              state.mainWindow.webContents.send('agent:toolResult', {
-                toolName,
+              // Track tool call
+              toolCallHistory.push({
+                tool: toolName,
+                args: toolArgs,
                 result: toolResultContent,
                 success: result.success,
               });
-            }
 
-            // Return early - this is the final response
-            if (callbacks.onComplete) {
-              callbacks.onComplete(finalResponse);
-            }
-            if (state.mainWindow) {
-              state.mainWindow.webContents.send('agent:complete', { response: finalResponse });
-            }
+              // Notify callbacks and renderer
+              if (callbacks.onToolResult) {
+                callbacks.onToolResult(toolName, toolResultContent, result.success);
+              }
+              if (state.mainWindow) {
+                state.mainWindow.webContents.send('agent:toolResult', {
+                  toolName,
+                  result: toolResultContent,
+                  success: result.success,
+                });
+              }
 
-            return {
-              success: true,
-              response: finalResponse,
-              messages,
-              toolCalls: toolCallHistory,
-              iterations,
-            };
+              // Return early - this is the final response
+              if (callbacks.onComplete) {
+                callbacks.onComplete(finalResponse);
+              }
+              if (state.mainWindow) {
+                state.mainWindow.webContents.send('agent:complete', { response: finalResponse });
+              }
+
+              return {
+                success: true,
+                response: finalResponse,
+                messages,
+                toolCalls: toolCallHistory,
+                iterations,
+              };
+            } else {
+              // Failure - track attempts to prevent infinite loop (CLI parity)
+              finalResponseFailures++;
+              logger.flow(`final_response failed (attempt ${finalResponseFailures}/${MAX_FINAL_RESPONSE_FAILURES}): ${result.error}`);
+
+              if (finalResponseFailures >= MAX_FINAL_RESPONSE_FAILURES) {
+                logger.warn('Max final_response failures exceeded - forcing completion');
+                const fallbackMessage = (toolArgs['message'] as string) || 'Task completed with incomplete TODOs.';
+
+                // Add tool result to messages
+                messages.push({
+                  role: 'tool',
+                  content: fallbackMessage,
+                  tool_call_id: toolCall.id,
+                });
+
+                // Track tool call
+                toolCallHistory.push({
+                  tool: toolName,
+                  args: toolArgs,
+                  result: fallbackMessage,
+                  success: false,
+                });
+
+                // Notify callbacks and renderer
+                if (callbacks.onToolResult) {
+                  callbacks.onToolResult(toolName, fallbackMessage, false);
+                }
+                if (state.mainWindow) {
+                  state.mainWindow.webContents.send('agent:toolResult', {
+                    toolName,
+                    result: fallbackMessage,
+                    success: false,
+                  });
+                }
+
+                // Notify user that we're forcing completion
+                if (callbacks.onTellUser) {
+                  callbacks.onTellUser('완료되지 않은 TODO가 있지만, 최대 재시도 횟수에 도달하여 작업을 종료합니다.');
+                }
+                if (state.mainWindow) {
+                  state.mainWindow.webContents.send('agent:tellUser', '완료되지 않은 TODO가 있지만, 최대 재시도 횟수에 도달하여 작업을 종료합니다.');
+                }
+
+                // Return with fallback message
+                if (callbacks.onComplete) {
+                  callbacks.onComplete(fallbackMessage);
+                }
+                if (state.mainWindow) {
+                  state.mainWindow.webContents.send('agent:complete', { response: fallbackMessage });
+                }
+
+                return {
+                  success: true,
+                  response: fallbackMessage,
+                  messages,
+                  toolCalls: toolCallHistory,
+                  iterations,
+                };
+              }
+
+              // Continue loop - let LLM complete remaining tasks
+            }
           }
 
           // Add tool result to messages
@@ -540,10 +653,29 @@ export async function runAgent(
           break;
         }
 
+        // Check for malformed tool call patterns in content (CLI parity)
+        // Some models attempt to call tools via XML tags in content instead of tool_calls API
+        const hasMalformedToolCall = assistantMessage.content &&
+          (/<tool_call>/i.test(assistantMessage.content) ||
+           /<arg_key>/i.test(assistantMessage.content) ||
+           /<arg_value>/i.test(assistantMessage.content) ||
+           /<\/tool_call>/i.test(assistantMessage.content) ||
+           /bash<arg_key>/i.test(assistantMessage.content));
+
+        const retryMessage = hasMalformedToolCall
+          ? 'Your previous response contained a malformed tool call (XML tags in content). You MUST use the proper tool_calls API format. Use final_response tool to deliver your message to the user.'
+          : 'You must use tools for all actions. Use final_response tool to deliver your final message to the user after completing all tasks.';
+
+        if (hasMalformedToolCall) {
+          logger.warn('Malformed tool call detected in content', {
+            contentSnippet: assistantMessage.content?.substring(0, 200),
+          });
+        }
+
         // Add retry instruction
         messages.push({
           role: 'user',
-          content: 'You must use tools for all actions. Use final_response tool to deliver your final message to the user after completing all tasks.',
+          content: retryMessage,
         });
 
         // Continue loop to retry

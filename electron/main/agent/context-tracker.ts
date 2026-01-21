@@ -29,7 +29,7 @@ export interface RecentFile {
 // =============================================================================
 
 const DEFAULT_MAX_CONTEXT_TOKENS = 128000; // GPT-4 Turbo context
-const AUTO_COMPACT_THRESHOLD = 0.7; // 70%
+const DEFAULT_AUTO_COMPACT_THRESHOLD = 70; // 70% (as integer for consistency with CLI)
 const RECENT_FILES_LIMIT = 20;
 const CHARS_PER_TOKEN = 4; // Rough estimate
 
@@ -43,10 +43,11 @@ export class ContextTracker {
   private currentCompletionTokens: number = 0;
   private autoCompactTriggered: boolean = false;
   private recentFiles: RecentFile[] = [];
+  private autoCompactThreshold: number = DEFAULT_AUTO_COMPACT_THRESHOLD; // CLI parity
 
   constructor(maxContextTokens: number = DEFAULT_MAX_CONTEXT_TOKENS) {
     this.maxContextTokens = maxContextTokens;
-    logger.info('ContextTracker initialized', { maxContextTokens });
+    logger.info('ContextTracker initialized', { maxContextTokens, threshold: this.autoCompactThreshold });
   }
 
   /**
@@ -89,20 +90,45 @@ export class ContextTracker {
   shouldTriggerAutoCompact(): boolean {
     const usage = this.getContextUsage();
 
-    // Check if we crossed the threshold
-    if (usage.usagePercent >= AUTO_COMPACT_THRESHOLD * 100) {
+    // Check if we crossed the threshold (threshold is stored as integer 0-100)
+    if (usage.usagePercent >= this.autoCompactThreshold) {
       // Only trigger once
       if (!this.autoCompactTriggered) {
         this.autoCompactTriggered = true;
         logger.info('Auto-compact threshold reached', {
           usagePercent: usage.usagePercent.toFixed(1),
-          threshold: AUTO_COMPACT_THRESHOLD * 100,
+          threshold: this.autoCompactThreshold,
         });
         return true;
       }
     }
 
     return false;
+  }
+
+  /**
+   * Get current auto-compact threshold (CLI parity)
+   */
+  getThreshold(): number {
+    return this.autoCompactThreshold;
+  }
+
+  /**
+   * Set auto-compact threshold (CLI parity)
+   * @param threshold - Threshold as integer 0-100
+   */
+  setThreshold(threshold: number): void {
+    if (threshold > 0 && threshold <= 100) {
+      this.autoCompactThreshold = threshold;
+      logger.info('Auto-compact threshold updated', { threshold });
+    }
+  }
+
+  /**
+   * Get last prompt tokens count (CLI parity)
+   */
+  getLastPromptTokens(): number {
+    return this.currentPromptTokens;
   }
 
   /**

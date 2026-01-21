@@ -6,6 +6,8 @@
  * - Config Manager
  * - Session Manager
  * - Compact Manager with Context Tracker
+ *
+ * NOTE: All modules re-export from ROOT level files for consistency
  */
 
 // LLM
@@ -42,11 +44,12 @@ export type {
   ChatMessage,
   Session,
   SessionSummary,
+  SessionLogEntry,
+  SessionTodoItem,
 } from './session';
 
 // Compact
 export {
-  CompactManager,
   compactConversation,
   canCompact,
   ContextTracker,

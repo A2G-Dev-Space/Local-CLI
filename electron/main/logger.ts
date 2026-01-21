@@ -243,17 +243,79 @@ class Logger {
     this.log(LogLevel.FATAL, message, data);
   }
 
-  // Flow control logging methods (for agent/planning)
-  flow(message: string, data?: unknown): void {
-    this.log(LogLevel.DEBUG, `[FLOW] ${message}`, data);
+  // Flow control logging methods (for agent/planning) - CLI parity
+
+  /**
+   * Log flow - 실행 흐름 추적 (함수 호출, 분기 등)
+   */
+  flow(message: string, context?: Record<string, unknown>): void {
+    this.log(LogLevel.DEBUG, `[FLOW] ${message}`, context);
   }
 
-  enter(message: string, data?: unknown): void {
-    this.log(LogLevel.DEBUG, `[ENTER] ${message}`, data);
+  /**
+   * Log function enter (CLI parity)
+   */
+  enter(functionName: string, args?: Record<string, unknown>): void {
+    this.log(LogLevel.DEBUG, `[ENTER] ${functionName}`, args);
   }
 
-  exit(message: string, data?: unknown): void {
-    this.log(LogLevel.DEBUG, `[EXIT] ${message}`, data);
+  /**
+   * Log function exit (CLI parity)
+   */
+  exit(functionName: string, result?: unknown): void {
+    this.log(LogLevel.DEBUG, `[EXIT] ${functionName}`, result !== undefined ? { result } : undefined);
+  }
+
+  /**
+   * Log variables - 변수 값 추적 (CLI parity)
+   */
+  vars(variables: Record<string, unknown>): void {
+    this.log(LogLevel.DEBUG, '[VARS]', variables);
+  }
+
+  /**
+   * Log state change (CLI parity)
+   */
+  state(description: string, before: unknown, after: unknown): void {
+    this.log(LogLevel.DEBUG, `[STATE] ${description}`, { before, after });
+  }
+
+  /**
+   * Log tool execution (CLI parity)
+   */
+  toolExecution(toolName: string, args: unknown, result?: unknown, error?: Error): void {
+    if (error) {
+      this.log(LogLevel.DEBUG, `[TOOL FAILED] ${toolName}`, { args, error: error.message });
+    } else {
+      this.log(LogLevel.DEBUG, `[TOOL SUCCESS] ${toolName}`, { args, result });
+    }
+  }
+
+  // Performance timer (CLI parity)
+  private timers: Map<string, number> = new Map();
+
+  /**
+   * Start performance timer (CLI parity)
+   */
+  startTimer(label: string): void {
+    this.timers.set(label, Date.now());
+    this.log(LogLevel.DEBUG, `[TIMER START] ${label}`);
+  }
+
+  /**
+   * End performance timer (CLI parity)
+   */
+  endTimer(label: string): number {
+    const startTime = this.timers.get(label);
+    if (!startTime) {
+      this.warn(`Timer "${label}" was not started`);
+      return 0;
+    }
+
+    const elapsed = Date.now() - startTime;
+    this.timers.delete(label);
+    this.log(LogLevel.DEBUG, `[TIMER END] ${label}`, { elapsed: `${elapsed}ms` });
+    return elapsed;
   }
 
   /**

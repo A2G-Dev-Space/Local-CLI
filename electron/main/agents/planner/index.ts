@@ -6,8 +6,16 @@
  * NOTE: This is Windows/PowerShell based (NOT bash/WSL)
  */
 
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import * as os from 'os';
 import { logger } from '../../logger';
 import type { Message, ToolDefinition } from '../../core/llm';
+import {
+  buildDocsSearchDecisionPrompt,
+  parseDocsSearchDecision,
+  DOCS_SEARCH_DECISION_RETRY_PROMPT,
+} from '../../prompts/agents/docs-search-decision';
 
 // =============================================================================
 // Types
@@ -382,30 +390,28 @@ Choose either 'create_todos' or 'respond_to_user' now.`,
   }
 
   /**
-   * Generate TODO list with docs search decision
+   * Generate TODO list with parallel docs search decision
+   * Runs planning and docs decision in parallel, then injects docs search TODO if needed
    */
   async generateTODOListWithDocsDecision(
     userRequest: string,
-    docsAvailable: boolean,
-    shouldSearchDocs: (message: string) => Promise<boolean>,
     contextMessages?: Message[]
   ): Promise<PlanningWithDocsResult> {
     logger.enter('PlanningLLM.generateTODOListWithDocsDecision', {
       requestLength: userRequest.length,
-      docsAvailable,
     });
+    logger.startTimer('parallel-planning');
 
     // Run planning and docs decision in parallel
     const [planningResult, docsSearchNeeded] = await Promise.all([
       this.generateTODOList(userRequest, contextMessages),
-      docsAvailable ? shouldSearchDocs(userRequest) : Promise.resolve(false),
+      this.shouldSearchDocs(userRequest),
     ]);
 
-    logger.debug('Planning with docs decision complete', {
-      todoCount: planningResult.todos.length,
-      docsSearchNeeded,
-      hasDirectResponse: !!planningResult.directResponse,
-    });
+    logger.vars(
+      { name: 'todoCount', value: planningResult.todos.length },
+      { name: 'docsSearchNeeded', value: docsSearchNeeded }
+    );
 
     // If docs search is needed and we have todos, prepend docs search TODO
     if (docsSearchNeeded && planningResult.todos.length > 0) {
@@ -416,6 +422,7 @@ Choose either 'create_todos' or 'respond_to_user' now.`,
       };
 
       logger.flow('Prepended docs search TODO');
+      logger.endTimer('parallel-planning');
       logger.exit('PlanningLLM.generateTODOListWithDocsDecision', { docsSearchNeeded: true });
 
       return {
@@ -425,12 +432,128 @@ Choose either 'create_todos' or 'respond_to_user' now.`,
       };
     }
 
+    logger.endTimer('parallel-planning');
     logger.exit('PlanningLLM.generateTODOListWithDocsDecision', { docsSearchNeeded: false });
 
     return {
       ...planningResult,
       docsSearchNeeded: false,
     };
+  }
+
+  /**
+   * Check if docs search is needed for the given request
+   * Based on available documentation structure (same as CLI)
+   */
+  private async shouldSearchDocs(userMessage: string): Promise<boolean> {
+    logger.enter('PlanningLLM.shouldSearchDocs', { messageLength: userMessage.length });
+
+    // Get folder structure
+    const folderStructure = await this.getDocsFolderStructure();
+
+    // If no docs available, skip search
+    if (
+      folderStructure.includes('empty') ||
+      folderStructure.includes('does not exist')
+    ) {
+      logger.flow('No docs available, skipping search decision');
+      logger.exit('PlanningLLM.shouldSearchDocs', { decision: false, reason: 'no-docs' });
+      return false;
+    }
+
+    // Build prompt using shared prompt builder
+    const prompt = buildDocsSearchDecisionPrompt(folderStructure, userMessage);
+
+    const messages: Message[] = [
+      { role: 'user', content: prompt },
+    ];
+
+    let retries = 0;
+    const MAX_RETRIES = 2;
+
+    while (retries <= MAX_RETRIES) {
+      logger.flow(`Asking LLM for docs search decision (attempt ${retries + 1})`);
+
+      try {
+        const response = await this.llmClient.chatCompletion({
+          messages,
+          temperature: 0.1,
+        });
+
+        const content = response.choices[0]?.message?.content || '';
+        logger.debug('LLM decision response', { content });
+
+        const decision = parseDocsSearchDecision(content);
+
+        if (decision !== null) {
+          logger.exit('PlanningLLM.shouldSearchDocs', { decision, attempts: retries + 1 });
+          return decision;
+        }
+
+        // Invalid response, retry
+        retries++;
+        if (retries <= MAX_RETRIES) {
+          messages.push({ role: 'assistant', content });
+          messages.push({ role: 'user', content: DOCS_SEARCH_DECISION_RETRY_PROMPT });
+          logger.warn('Invalid decision response, retrying', { response: content });
+        }
+      } catch (error) {
+        logger.warn('LLM call failed for docs search decision', error as Error);
+        retries++;
+      }
+    }
+
+    // Default to false if all retries failed
+    logger.warn('All decision retries failed, defaulting to no search');
+    logger.exit('PlanningLLM.shouldSearchDocs', { decision: false, reason: 'retries-exhausted' });
+    return false;
+  }
+
+  /**
+   * Get folder structure of docs directory (depth 1 only: root + immediate subdirs)
+   */
+  private async getDocsFolderStructure(): Promise<string> {
+    const docsBasePath = path.join(os.homedir(), '.local-cli', 'docs');
+
+    try {
+      const entries = await fs.readdir(docsBasePath, { withFileTypes: true });
+
+      const lines: string[] = [];
+
+      for (const entry of entries) {
+        if (entry.isDirectory()) {
+          // Depth 0: Show top-level directory
+          lines.push(`📁 ${entry.name}/`);
+
+          // Depth 1: Show only immediate subdirectory names
+          try {
+            const subPath = path.join(docsBasePath, entry.name);
+            const subEntries = await fs.readdir(subPath, { withFileTypes: true });
+            const subDirs = subEntries.filter(e => e.isDirectory());
+
+            if (subDirs.length > 0) {
+              const subDirNames = subDirs.map(d => d.name).join(', ');
+              lines.push(`   └── [${subDirNames}]`);
+            }
+          } catch {
+            // Ignore errors reading subdirectories
+          }
+        }
+        // Skip files at root level - only show directories
+      }
+
+      if (lines.length === 0) {
+        return '(empty - no documentation available)';
+      }
+
+      return lines.join('\n');
+    } catch (error) {
+      const err = error as NodeJS.ErrnoException;
+      if (err.code === 'ENOENT') {
+        return '(docs directory does not exist)';
+      }
+      return '(error reading docs directory)';
+    }
   }
 }
 

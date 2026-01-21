@@ -7,6 +7,24 @@ import React, { useState, useEffect, memo, useMemo, useCallback } from 'react';
 import type { SystemInfo, Theme } from '../../../preload/index';
 import './StatusBar.css';
 
+// Convert tool name to user-friendly display format
+// e.g., "call_docs_search_agent" -> "Docs Search Agent"
+// e.g., "read_file" -> "Read File"
+const getToolDisplayName = (toolName: string): string => {
+  // Special cases for docs search (show searching indicator)
+  if (toolName.includes('docs_search')) {
+    return 'Searching Docs';
+  }
+
+  // Convert snake_case/camelCase to Title Case with spaces
+  return toolName
+    .replace(/_/g, ' ')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+};
+
 interface StatusBarProps {
   systemInfo: SystemInfo | null;
   currentFile?: string;
@@ -117,7 +135,7 @@ const StatusBar: React.FC<StatusBarProps> = ({
             <>
               <div className="activity-spinner" />
               <span className="activity-text">
-                {currentTool ? `Running ${currentTool}...` : 'Working...'}
+                {currentTool ? `${getToolDisplayName(currentTool)}...` : 'Working...'}
               </span>
             </>
           ) : (

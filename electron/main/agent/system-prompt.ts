@@ -6,6 +6,7 @@
  */
 
 import { getToolSummary, getToolSummaryWithOptional, OptionalToolGroupId } from './tool-definitions';
+import { GIT_COMMIT_RULES } from '../prompts/shared/git-rules';
 
 // =============================================================================
 // Language Rules
@@ -196,19 +197,11 @@ All relative paths are resolved from this directory.
 `;
   }
 
-  // Add Git rules if in a Git repo
+  // Add Git rules if in a Git repo (CLI parity)
   if (isGitRepo) {
     prompt += `
 
-## Git Repository Rules
-
-This directory is a Git repository. Follow these git commit guidelines:
-
-1. **Stage changes carefully** - Use \`git add <specific-files>\` instead of \`git add .\`
-2. **Write meaningful commit messages** - Describe WHAT changed and WHY
-3. **Check status first** - Use \`git status\` before committing
-4. **Don't push automatically** - Only commit, don't push unless explicitly asked
-5. **Separate concerns** - Make atomic commits for logical changes
+${GIT_COMMIT_RULES}
 `;
   }
 

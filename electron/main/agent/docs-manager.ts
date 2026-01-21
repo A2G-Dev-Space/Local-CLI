@@ -22,7 +22,9 @@ import { logger } from '../logger';
 // Constants
 // =============================================================================
 
-const DOCS_DIR = path.join(app.getPath('userData'), 'docs');
+// IMPORTANT: Use same path as ROOT docs-manager.ts for consistency
+// UI downloads docs here, so agent must search the same location
+const DOCS_DIR = path.join(app.getPath('home'), '.local-cli', 'docs');
 const CONCURRENT_DOWNLOADS = 20;
 const MAX_RETRIES = 3;
 

@@ -150,17 +150,26 @@ async function executeDocsSearch(args: Record<string, unknown>): Promise<ToolRes
     }> = [];
 
     // Determine which directories to search
+    // NOTE: UI downloads to flat structure (docsPath/sourceId), not nested structure
     const searchDirs: string[] = [];
     if (source === 'all' || source === 'adk') {
-      const adkPath = path.join(docsPath, 'agent_framework', 'adk');
-      if (fsSync.existsSync(adkPath)) {
-        searchDirs.push(adkPath);
+      // Check both flat structure (UI download) and nested structure (legacy)
+      const adkPathFlat = path.join(docsPath, 'adk');
+      const adkPathNested = path.join(docsPath, 'agent_framework', 'adk');
+      if (fsSync.existsSync(adkPathFlat)) {
+        searchDirs.push(adkPathFlat);
+      } else if (fsSync.existsSync(adkPathNested)) {
+        searchDirs.push(adkPathNested);
       }
     }
     if (source === 'all' || source === 'agno') {
-      const agnoPath = path.join(docsPath, 'agent_framework', 'agno');
-      if (fsSync.existsSync(agnoPath)) {
-        searchDirs.push(agnoPath);
+      // Check both flat structure (UI download) and nested structure (legacy)
+      const agnoPathFlat = path.join(docsPath, 'agno');
+      const agnoPathNested = path.join(docsPath, 'agent_framework', 'agno');
+      if (fsSync.existsSync(agnoPathFlat)) {
+        searchDirs.push(agnoPathFlat);
+      } else if (fsSync.existsSync(agnoPathNested)) {
+        searchDirs.push(agnoPathNested);
       }
     }
 
