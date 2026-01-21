@@ -80,11 +80,13 @@ function execAsync(command: string, options: { cwd?: string } = {}): Promise<{ s
 export class GitAutoUpdater {
   private repoUrl: string = 'https://github.com/A2G-Dev-Space/Local-CLI.git';
   private repoDir: string;
+  private commitFile: string;
   private enabled: boolean = true;
   private onStatus: StatusCallback | null = null;
 
   constructor(options?: { repoUrl?: string; enabled?: boolean; onStatus?: StatusCallback }) {
     this.repoDir = path.join(os.homedir(), '.nexus-coder', 'repo');
+    this.commitFile = path.join(os.homedir(), '.nexus-coder', 'current-commit');
 
     if (options?.repoUrl) {
       this.repoUrl = options.repoUrl;
@@ -139,16 +141,16 @@ export class GitAutoUpdater {
       // In binary mode, cleanup any leftover repo from previous versions
       // This prevents source code exposure from older installations
       if (isRunningAsBinary() && fs.existsSync(this.repoDir)) {
-        const installDir = path.join(os.homedir(), '.local', 'bin');
-        const nexusBinary = path.join(installDir, 'nexus');
-
-        // If binary already exists, the repo is leftover from previous version - clean it up
-        if (fs.existsSync(nexusBinary)) {
-          logger.flow('Cleaning up leftover repo from previous version');
-          await this.cleanupRepo();
-        }
+        logger.flow('Cleaning up leftover repo from previous version');
+        await this.cleanupRepo();
       }
 
+      // Binary mode: use git ls-remote to check for updates without cloning
+      if (isRunningAsBinary()) {
+        return await this.runBinaryMode();
+      }
+
+      // Node.js mode: use traditional repo-based approach
       logger.flow('Checking repository directory');
 
       // Check if repo directory exists
@@ -164,6 +166,140 @@ export class GitAutoUpdater {
       this.emitStatus({ type: 'error', message: 'Auto-update failed, continuing with current version' });
     }
     return false;
+  }
+
+  /**
+   * Binary mode: Check for updates using git ls-remote (no persistent repo)
+   * Flow: ls-remote → compare with saved commit → clone if needed → extract → cleanup
+   */
+  private async runBinaryMode(): Promise<boolean> {
+    logger.flow('Running in binary mode - using ls-remote for update check');
+
+    try {
+      // Get remote latest commit using ls-remote (no clone needed)
+      const remoteCommit = await this.getRemoteCommit();
+      if (!remoteCommit) {
+        logger.error('Failed to get remote commit');
+        this.emitStatus({ type: 'error', message: 'Failed to check for updates' });
+        return false;
+      }
+
+      // Get saved commit from file
+      const savedCommit = this.getSavedCommit();
+
+      logger.debug('Version check', { remote: remoteCommit.slice(0, 7), saved: savedCommit?.slice(0, 7) || 'none' });
+
+      // Compare commits
+      if (savedCommit === remoteCommit) {
+        logger.flow('Already up to date');
+        this.emitStatus({ type: 'no_update' });
+        return false;
+      }
+
+      // Need update - clone, extract, cleanup
+      logger.flow('Update available, starting update process');
+      return await this.updateBinary(remoteCommit);
+
+    } catch (error) {
+      logger.error('Binary mode update failed', error);
+      this.emitStatus({ type: 'error', message: 'Update check failed' });
+      return false;
+    }
+  }
+
+  /**
+   * Get latest commit hash from remote using git ls-remote
+   */
+  private async getRemoteCommit(): Promise<string | null> {
+    try {
+      const result = await execAsync(`git ls-remote ${this.repoUrl} refs/heads/nexus-coder`);
+      const match = result.stdout.match(/^([a-f0-9]+)/);
+      return match && match[1] ? match[1] : null;
+    } catch (error) {
+      logger.error('Failed to get remote commit via ls-remote', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get saved commit hash from file
+   */
+  private getSavedCommit(): string | null {
+    try {
+      if (fs.existsSync(this.commitFile)) {
+        return fs.readFileSync(this.commitFile, 'utf-8').trim();
+      }
+    } catch (error) {
+      logger.debug('Failed to read saved commit: ' + (error instanceof Error ? error.message : String(error)));
+    }
+    return null;
+  }
+
+  /**
+   * Save commit hash to file
+   */
+  private saveCommit(commit: string): void {
+    try {
+      const dir = path.dirname(this.commitFile);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      fs.writeFileSync(this.commitFile, commit);
+      logger.debug('Saved commit hash: ' + commit.slice(0, 7));
+    } catch (error) {
+      logger.debug('Failed to save commit: ' + (error instanceof Error ? error.message : String(error)));
+    }
+  }
+
+  /**
+   * Update binary: clone → extract → cleanup → save commit
+   */
+  private async updateBinary(remoteCommit: string): Promise<boolean> {
+    const totalSteps = 3;
+    const isFirstRun = !this.getSavedCommit();
+
+    try {
+      // Step 1: Clone repository
+      const statusType = isFirstRun ? 'first_run' : 'updating';
+      this.emitStatus({ type: statusType, step: 1, totalSteps, message: 'Downloading update...' } as UpdateStatus);
+
+      const parentDir = path.dirname(this.repoDir);
+      if (!fs.existsSync(parentDir)) {
+        fs.mkdirSync(parentDir, { recursive: true });
+      }
+
+      // Use depth=1 for faster clone (we only need latest files)
+      await execAsync(`git clone --depth 1 -b nexus-coder ${this.repoUrl} ${this.repoDir}`);
+
+      // Step 2: Extract binaries
+      this.emitStatus({ type: statusType, step: 2, totalSteps, message: 'Installing update...' } as UpdateStatus);
+      const success = await this.copyBinariesInternal();
+
+      if (!success) {
+        return false;
+      }
+
+      // Step 3: Cleanup and save commit
+      this.emitStatus({ type: statusType, step: 3, totalSteps, message: 'Finalizing...' } as UpdateStatus);
+      await this.cleanupRepo();
+      this.saveCommit(remoteCommit);
+
+      // Complete
+      const shell = process.env['SHELL'] || '/bin/bash';
+      const rcFile = shell.includes('zsh') ? '~/.zshrc' : '~/.bashrc';
+      const restartMsg = isFirstRun
+        ? `Setup complete! Run: source ${rcFile} && nexus`
+        : 'Update complete! Please restart.';
+      this.emitStatus({ type: 'complete', needsRestart: true, message: restartMsg });
+      return true;
+
+    } catch (error: unknown) {
+      logger.error('Binary update failed', error as Error);
+      await this.cleanupRepo(); // Cleanup on failure too
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.emitStatus({ type: 'error', message: `Update failed: ${message}` });
+      return false;
+    }
   }
 
   /**
@@ -323,18 +459,47 @@ export class GitAutoUpdater {
   }
 
   /**
-   * Copy pre-built binaries (Binary mode)
-   * Extracts bin/nexus.gz and copies bin/yoga.wasm to ~/.local/bin/
-   * Also adds ~/.local/bin to PATH if needed
+   * Copy pre-built binaries (Node.js mode - legacy)
+   * Used when running in Node.js mode for development
    */
   private async copyBinaries(): Promise<boolean> {
     const totalSteps = 3;
 
     try {
+      // Step 1-2: Copy binaries
+      this.emitStatus({ type: 'updating', step: 1, totalSteps, message: 'Extracting nexus binary...' });
+      const success = await this.copyBinariesInternal();
+      if (!success) return false;
+
+      // Step 3: Add to PATH and cleanup npm link
+      this.emitStatus({ type: 'updating', step: 3, totalSteps, message: 'Configuring PATH...' });
+      const installDir = path.join(os.homedir(), '.local', 'bin');
+      await this.ensurePathConfigured(installDir);
+      await this.unlinkNpm();
+
+      // Detect shell for user-friendly message
+      const shell = process.env['SHELL'] || '/bin/bash';
+      const rcFile = shell.includes('zsh') ? '~/.zshrc' : '~/.bashrc';
+      const restartMsg = `Update complete! Run: source ${rcFile} && nexus`;
+      this.emitStatus({ type: 'complete', needsRestart: true, message: restartMsg });
+      return true;
+
+    } catch (error: unknown) {
+      logger.error('Copy binaries failed', error as Error);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.emitStatus({ type: 'error', message: `Binary copy failed: ${message}` });
+      return false;
+    }
+  }
+
+  /**
+   * Internal: Extract and copy binaries without status updates
+   * Used by both binary mode and Node.js mode
+   */
+  private async copyBinariesInternal(): Promise<boolean> {
+    try {
       const repoBinDir = path.join(this.repoDir, 'bin');
       const installDir = path.join(os.homedir(), '.local', 'bin');
-
-      // DEBUG LOGGING
 
       const nexusGzSrc = path.join(repoBinDir, 'nexus.gz');
       const yogaSrc = path.join(repoBinDir, 'yoga.wasm');
@@ -352,46 +517,29 @@ export class GitAutoUpdater {
         fs.mkdirSync(installDir, { recursive: true });
       }
 
-      // Step 1: Extract and copy nexus binary
-      this.emitStatus({ type: 'updating', step: 1, totalSteps, message: 'Extracting nexus binary...' });
-
-      // Read gzipped file and decompress
+      // Extract and copy nexus binary
       const gzippedData = fs.readFileSync(nexusGzSrc);
       const decompressedData = await gunzip(gzippedData);
 
       // Remove existing binary first to avoid ETXTBSY error
-      // (Linux allows unlinking a running binary, but not overwriting it)
       await rm(nexusDest, { force: true });
       await writeFile(nexusDest, decompressedData);
       await chmod(nexusDest, 0o755);
 
-      // Step 2: Copy yoga.wasm
-      this.emitStatus({ type: 'updating', step: 2, totalSteps, message: 'Copying yoga.wasm...' });
-
+      // Copy yoga.wasm
       if (fs.existsSync(yogaSrc)) {
         await copyFile(yogaSrc, yogaDest);
-      } else {
       }
 
-      // Step 3: Add to PATH and cleanup npm link
-      this.emitStatus({ type: 'updating', step: 3, totalSteps, message: 'Configuring PATH...' });
+      // Configure PATH
       await this.ensurePathConfigured(installDir);
       await this.unlinkNpm();
 
-      // Step 4: Remove repo directory to prevent source code exposure
-      await this.cleanupRepo();
-
-      // Detect shell for user-friendly message
-      const shell = process.env['SHELL'] || '/bin/bash';
-      const rcFile = shell.includes('zsh') ? '~/.zshrc' : '~/.bashrc';
-      const restartMsg = `Update complete! Run: source ${rcFile} && nexus`;
-      this.emitStatus({ type: 'complete', needsRestart: true, message: restartMsg });
+      logger.debug('Binaries copied successfully');
       return true;
 
     } catch (error: unknown) {
-      logger.error('Copy binaries failed', error as Error);
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      this.emitStatus({ type: 'error', message: `Binary copy failed: ${message}` });
+      logger.error('Copy binaries internal failed', error as Error);
       return false;
     }
   }
@@ -474,57 +622,6 @@ export class GitAutoUpdater {
     }
   }
 
-  /**
-   * Quick check if updates are available (no download)
-   */
-  async checkForUpdates(): Promise<{ hasUpdate: boolean; currentCommit?: string; latestCommit?: string }> {
-    if (!fs.existsSync(this.repoDir)) {
-      return { hasUpdate: true }; // First run
-    }
-
-    try {
-      // Fetch without merge
-      await execAsync('git fetch origin nexus-coder', { cwd: this.repoDir });
-
-      const currentResult = await execAsync('git rev-parse HEAD', { cwd: this.repoDir });
-      const latestResult = await execAsync('git rev-parse origin/nexus-coder', { cwd: this.repoDir });
-
-      const currentCommit = currentResult.stdout.trim();
-      const latestCommit = latestResult.stdout.trim();
-
-      return {
-        hasUpdate: currentCommit !== latestCommit,
-        currentCommit,
-        latestCommit,
-      };
-    } catch (error) {
-      logger.error('Failed to check for updates', error);
-      return { hasUpdate: false };
-    }
-  }
-
-  /**
-   * Get current repository status
-   */
-  async getStatus(): Promise<{ exists: boolean; hasChanges: boolean; currentCommit?: string }> {
-    if (!fs.existsSync(this.repoDir)) {
-      return { exists: false, hasChanges: false };
-    }
-
-    try {
-      const statusResult = await execAsync('git status --porcelain', { cwd: this.repoDir });
-      const commitResult = await execAsync('git rev-parse HEAD', { cwd: this.repoDir });
-
-      return {
-        exists: true,
-        hasChanges: statusResult.stdout.trim() !== '',
-        currentCommit: commitResult.stdout.trim(),
-      };
-    } catch (error) {
-      logger.error('Failed to get repository status', error);
-      return { exists: true, hasChanges: false };
-    }
-  }
 }
 
 export default GitAutoUpdater;
