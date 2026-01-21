@@ -4,15 +4,31 @@
  * Updates the CLI by cloning/pulling from GitHub repository
  * No API rate limits, uses pure git commands
  *
- * Refactored to use callbacks for Ink UI compatibility (no console.log/ora)
+ * Binary mode: Uses git ls-remote for update check, extracts pre-built binaries
+ * Node.js mode: Traditional clone/pull with npm install/build/link
  */
 
 import { spawn } from 'child_process';
 import fs from 'fs';
-import { rm } from 'fs/promises';
+import { rm, copyFile, chmod, writeFile } from 'fs/promises';
 import path from 'path';
 import os from 'os';
+import zlib from 'zlib';
+import { promisify } from 'util';
 import { logger } from '../utils/logger.js';
+
+const gunzip = promisify(zlib.gunzip);
+
+/**
+ * Check if running as a compiled binary (Bun compiled)
+ */
+function isRunningAsBinary(): boolean {
+  // Bun compiled binaries have process.execPath pointing to the binary itself
+  // and __filename is embedded in the binary
+  const execPath = process.execPath;
+  const isNodeRuntime = execPath.includes('node') || execPath.includes('nodejs');
+  return !isNodeRuntime;
+}
 
 /**
  * Update status for UI display
@@ -75,11 +91,13 @@ function execAsync(command: string, options: { cwd?: string } = {}): Promise<{ s
 export class GitAutoUpdater {
   private repoUrl: string = 'https://github.com/A2G-Dev-Space/Local-CLI.git';
   private repoDir: string;
+  private commitFile: string;
   private enabled: boolean = true;
   private onStatus: StatusCallback | null = null;
 
   constructor(options?: { repoUrl?: string; enabled?: boolean; onStatus?: StatusCallback }) {
     this.repoDir = path.join(os.homedir(), '.local-cli', 'repo');
+    this.commitFile = path.join(os.homedir(), '.local-cli', 'current-commit');
 
     if (options?.repoUrl) {
       this.repoUrl = options.repoUrl;
@@ -130,6 +148,19 @@ export class GitAutoUpdater {
     this.emitStatus({ type: 'checking' });
 
     try {
+      // In binary mode, cleanup any leftover repo from previous versions
+      // This prevents source code exposure from older installations
+      if (isRunningAsBinary() && fs.existsSync(this.repoDir)) {
+        logger.flow('Cleaning up leftover repo from previous version');
+        await this.cleanupRepo();
+      }
+
+      // Binary mode: use git ls-remote to check for updates without cloning
+      if (isRunningAsBinary()) {
+        return await this.runBinaryMode();
+      }
+
+      // Node.js mode: use traditional repo-based approach
       logger.flow('Checking repository directory');
 
       // Check if repo directory exists
@@ -148,7 +179,141 @@ export class GitAutoUpdater {
   }
 
   /**
-   * First run: Clone repository and setup npm link
+   * Binary mode: Check for updates using git ls-remote (no persistent repo)
+   * Flow: ls-remote → compare with saved commit → clone if needed → extract → cleanup
+   */
+  private async runBinaryMode(): Promise<boolean> {
+    logger.flow('Running in binary mode - using ls-remote for update check');
+
+    try {
+      // Get remote latest commit using ls-remote (no clone needed)
+      const remoteCommit = await this.getRemoteCommit();
+      if (!remoteCommit) {
+        logger.error('Failed to get remote commit');
+        this.emitStatus({ type: 'error', message: 'Failed to check for updates' });
+        return false;
+      }
+
+      // Get saved commit from file
+      const savedCommit = this.getSavedCommit();
+
+      logger.debug('Version check', { remote: remoteCommit.slice(0, 7), saved: savedCommit?.slice(0, 7) || 'none' });
+
+      // Compare commits
+      if (savedCommit === remoteCommit) {
+        logger.flow('Already up to date');
+        this.emitStatus({ type: 'no_update' });
+        return false;
+      }
+
+      // Need update - clone, extract, cleanup
+      logger.flow('Update available, starting update process');
+      return await this.updateBinary(remoteCommit);
+
+    } catch (error) {
+      logger.error('Binary mode update failed', error);
+      this.emitStatus({ type: 'error', message: 'Update check failed' });
+      return false;
+    }
+  }
+
+  /**
+   * Get latest commit hash from remote using git ls-remote
+   */
+  private async getRemoteCommit(): Promise<string | null> {
+    try {
+      const result = await execAsync(`git ls-remote ${this.repoUrl} refs/heads/main`);
+      const match = result.stdout.match(/^([a-f0-9]+)/);
+      return match && match[1] ? match[1] : null;
+    } catch (error) {
+      logger.error('Failed to get remote commit via ls-remote', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get saved commit hash from file
+   */
+  private getSavedCommit(): string | null {
+    try {
+      if (fs.existsSync(this.commitFile)) {
+        return fs.readFileSync(this.commitFile, 'utf-8').trim();
+      }
+    } catch (error) {
+      logger.debug('Failed to read saved commit: ' + (error instanceof Error ? error.message : String(error)));
+    }
+    return null;
+  }
+
+  /**
+   * Save commit hash to file
+   */
+  private saveCommit(commit: string): void {
+    try {
+      const dir = path.dirname(this.commitFile);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      fs.writeFileSync(this.commitFile, commit);
+      logger.debug('Saved commit hash: ' + commit.slice(0, 7));
+    } catch (error) {
+      logger.debug('Failed to save commit: ' + (error instanceof Error ? error.message : String(error)));
+    }
+  }
+
+  /**
+   * Update binary: clone → extract → cleanup → save commit
+   */
+  private async updateBinary(remoteCommit: string): Promise<boolean> {
+    const totalSteps = 3;
+    const isFirstRun = !this.getSavedCommit();
+
+    try {
+      // Step 1: Clone repository
+      const statusType = isFirstRun ? 'first_run' : 'updating';
+      this.emitStatus({ type: statusType, step: 1, totalSteps, message: 'Downloading update...' } as UpdateStatus);
+
+      const parentDir = path.dirname(this.repoDir);
+      if (!fs.existsSync(parentDir)) {
+        fs.mkdirSync(parentDir, { recursive: true });
+      }
+
+      // Use depth=1 for faster clone (we only need latest files)
+      await execAsync(`git clone --depth 1 ${this.repoUrl} ${this.repoDir}`);
+
+      // Step 2: Extract binaries
+      this.emitStatus({ type: statusType, step: 2, totalSteps, message: 'Installing update...' } as UpdateStatus);
+      const success = await this.copyBinariesInternal();
+
+      if (!success) {
+        return false;
+      }
+
+      // Step 3: Cleanup and save commit
+      this.emitStatus({ type: statusType, step: 3, totalSteps, message: 'Finalizing...' } as UpdateStatus);
+      await this.cleanupRepo();
+      this.saveCommit(remoteCommit);
+
+      // Complete
+      const shell = process.env['SHELL'] || '/bin/bash';
+      const rcFile = shell.includes('zsh') ? '~/.zshrc' : '~/.bashrc';
+      const restartMsg = isFirstRun
+        ? `Setup complete! Run: source ${rcFile} && lcli`
+        : 'Update complete! Please restart.';
+      this.emitStatus({ type: 'complete', needsRestart: true, message: restartMsg });
+      return true;
+
+    } catch (error: unknown) {
+      logger.error('Binary update failed', error as Error);
+      await this.cleanupRepo(); // Cleanup on failure too
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.emitStatus({ type: 'error', message: `Update failed: ${message}` });
+      return false;
+    }
+  }
+
+  /**
+   * First run: Clone repository and setup npm link (Node.js mode)
    */
   private async initialSetup(): Promise<boolean> {
     logger.enter('initialSetup', {
@@ -193,7 +358,7 @@ export class GitAutoUpdater {
   }
 
   /**
-   * Pull latest changes and rebuild if needed
+   * Pull latest changes and rebuild if needed (Node.js mode)
    * @returns true if updated and needs restart
    */
   private async pullAndUpdate(): Promise<boolean> {
@@ -255,7 +420,7 @@ export class GitAutoUpdater {
   }
 
   /**
-   * Rebuild and link after update
+   * Rebuild and link after update (Node.js mode)
    */
   private async rebuildAndLink(): Promise<boolean> {
     const totalSteps = 3;
@@ -285,54 +450,129 @@ export class GitAutoUpdater {
   }
 
   /**
-   * Quick check if updates are available (no download)
+   * Internal: Extract and copy binaries without status updates
+   * Used by binary mode
    */
-  async checkForUpdates(): Promise<{ hasUpdate: boolean; currentCommit?: string; latestCommit?: string }> {
-    if (!fs.existsSync(this.repoDir)) {
-      return { hasUpdate: true }; // First run
-    }
-
+  private async copyBinariesInternal(): Promise<boolean> {
     try {
-      // Fetch without merge
-      await execAsync('git fetch origin main', { cwd: this.repoDir });
+      const repoBinDir = path.join(this.repoDir, 'bin');
+      const installDir = path.join(os.homedir(), '.local', 'bin');
 
-      const currentResult = await execAsync('git rev-parse HEAD', { cwd: this.repoDir });
-      const latestResult = await execAsync('git rev-parse origin/main', { cwd: this.repoDir });
+      const lcliGzSrc = path.join(repoBinDir, 'lcli.gz');
+      const yogaSrc = path.join(repoBinDir, 'yoga.wasm');
+      const lcliDest = path.join(installDir, 'lcli');
+      const yogaDest = path.join(installDir, 'yoga.wasm');
 
-      const currentCommit = currentResult.stdout.trim();
-      const latestCommit = latestResult.stdout.trim();
+      // Check if source files exist
+      if (!fs.existsSync(lcliGzSrc)) {
+        this.emitStatus({ type: 'error', message: 'Binary not found in repository (bin/lcli.gz)' });
+        return false;
+      }
 
-      return {
-        hasUpdate: currentCommit !== latestCommit,
-        currentCommit,
-        latestCommit,
-      };
-    } catch (error) {
-      logger.error('Failed to check for updates', error);
-      return { hasUpdate: false };
+      // Ensure install directory exists
+      if (!fs.existsSync(installDir)) {
+        fs.mkdirSync(installDir, { recursive: true });
+      }
+
+      // Extract and copy lcli binary
+      const gzippedData = fs.readFileSync(lcliGzSrc);
+      const decompressedData = await gunzip(gzippedData);
+
+      // Remove existing binary first to avoid ETXTBSY error
+      await rm(lcliDest, { force: true });
+      await writeFile(lcliDest, decompressedData);
+      await chmod(lcliDest, 0o755);
+
+      // Copy yoga.wasm
+      if (fs.existsSync(yogaSrc)) {
+        await copyFile(yogaSrc, yogaDest);
+      }
+
+      // Configure PATH
+      await this.ensurePathConfigured(installDir);
+      await this.unlinkNpm();
+
+      logger.debug('Binaries copied successfully');
+      return true;
+
+    } catch (error: unknown) {
+      logger.error('Copy binaries internal failed', error as Error);
+      return false;
     }
   }
 
   /**
-   * Get current repository status
+   * Ensure ~/.local/bin is in PATH by updating shell config
    */
-  async getStatus(): Promise<{ exists: boolean; hasChanges: boolean; currentCommit?: string }> {
-    if (!fs.existsSync(this.repoDir)) {
-      return { exists: false, hasChanges: false };
+  private async ensurePathConfigured(binDir: string): Promise<void> {
+    const pathExport = `export PATH="${binDir}:$PATH"`;
+    const marker = '# local-cli binary';
+
+    // Detect shell config file
+    const shell = process.env['SHELL'] || '/bin/bash';
+    let rcFile: string;
+    if (shell.includes('zsh')) {
+      rcFile = path.join(os.homedir(), '.zshrc');
+    } else {
+      rcFile = path.join(os.homedir(), '.bashrc');
     }
 
     try {
-      const statusResult = await execAsync('git status --porcelain', { cwd: this.repoDir });
-      const commitResult = await execAsync('git rev-parse HEAD', { cwd: this.repoDir });
+      // Check if already configured by marker
+      let content = '';
+      if (fs.existsSync(rcFile)) {
+        content = fs.readFileSync(rcFile, 'utf-8');
+      }
 
-      return {
-        exists: true,
-        hasChanges: statusResult.stdout.trim() !== '',
-        currentCommit: commitResult.stdout.trim(),
-      };
+      // Only check for our specific marker, not the binDir string
+      if (content.includes(marker)) {
+        logger.debug('PATH already configured (marker found)');
+        return;
+      }
+
+      // Also check if PATH actually contains binDir (runtime check)
+      const currentPath = process.env['PATH'] || '';
+      if (currentPath.split(':').includes(binDir)) {
+        logger.debug('PATH already contains binDir, adding marker for future reference');
+        fs.appendFileSync(rcFile, `\n${marker}\n# PATH already configured elsewhere\n`);
+        return;
+      }
+
+      // Append PATH configuration
+      const addition = `\n${marker}\n${pathExport}\n`;
+      fs.appendFileSync(rcFile, addition);
+      logger.debug('PATH configuration added to ' + rcFile);
+
     } catch (error) {
-      logger.error('Failed to get repository status', error);
-      return { exists: true, hasChanges: false };
+      // Non-fatal - user can add manually
+      logger.debug('Failed to configure PATH: ' + (error instanceof Error ? error.message : String(error)));
+    }
+  }
+
+  /**
+   * Unlink npm global package to avoid conflict with binary
+   */
+  private async unlinkNpm(): Promise<void> {
+    try {
+      await execAsync('npm unlink -g local-cli');
+    } catch (error) {
+      // npm not available or package not linked - ignore
+    }
+  }
+
+  /**
+   * Remove repo directory to prevent source code exposure
+   */
+  private async cleanupRepo(): Promise<void> {
+    try {
+      if (fs.existsSync(this.repoDir)) {
+        logger.debug('Cleaning up repo directory to prevent source code exposure');
+        await rm(this.repoDir, { recursive: true, force: true });
+        logger.debug('Repo directory removed successfully');
+      }
+    } catch (error) {
+      // Non-fatal - log but don't fail the update
+      logger.debug('Failed to cleanup repo: ' + (error instanceof Error ? error.message : String(error)));
     }
   }
 }
