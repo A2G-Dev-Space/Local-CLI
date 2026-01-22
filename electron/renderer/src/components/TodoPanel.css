@@ -1,0 +1,459 @@
+/* =====================================================
+   TodoPanel Component Styles - Compact Design
+   Single-line cards with smooth animation
+   ===================================================== */
+
+/* ============ Panel Wrapper (from Editor) ============ */
+.todo-panel-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch; /* Fill width instead of center */
+  padding: var(--space-2);
+  overflow-y: auto;
+  background: var(--color-bg-primary);
+}
+
+.todo-panel-wrapper .todo-panel {
+  width: 100%;
+  max-width: none; /* Remove max-width for responsive fill */
+}
+
+.todo-panel {
+  display: flex;
+  flex-direction: column;
+  height: auto;  /* Content-based height, not full container */
+  background: var(--color-bg-primary);
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border-subtle);
+  margin: var(--space-2);  /* Reduced from space-4 */
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+/* ============ Empty State ============ */
+.todo-panel.todo-panel-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-6);
+  text-align: center;
+}
+
+.todo-panel-empty-state .empty-icon {
+  color: var(--color-text-disabled);
+  margin-bottom: var(--space-4);
+  opacity: 0.5;
+}
+
+.todo-panel-empty-state h3 {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  margin: 0 0 var(--space-2);
+}
+
+.todo-panel-empty-state p {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+/* ============ Header ============ */
+.todo-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.todo-header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.todo-icon {
+  color: #8B5CF6;
+}
+
+.todo-title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.todo-header-right {
+  display: flex;
+  align-items: center;
+}
+
+.todo-count {
+  font-size: var(--font-size-sm);
+  font-family: var(--font-mono);
+}
+
+.todo-count .done {
+  color: #10B981;
+  font-weight: var(--font-weight-bold);
+}
+
+.todo-count .sep {
+  color: var(--color-text-muted);
+  margin: 0 2px;
+}
+
+.todo-count .total {
+  color: var(--color-text-secondary);
+}
+
+/* ============ Progress Bar ============ */
+.todo-progress-bar {
+  height: 3px;
+  background: var(--color-bg-inset);
+  overflow: hidden;
+}
+
+.todo-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10B981, #3B82F6);
+  transition: width 0.4s ease-out;
+}
+
+/* ============ Compact View ============ */
+.todo-compact {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-3);
+  gap: var(--space-2);
+  cursor: pointer;
+}
+
+.todo-compact:hover {
+  background: rgba(0, 0, 0, 0.01);
+}
+
+[data-theme="dark"] .todo-compact:hover {
+  background: rgba(255, 255, 255, 0.01);
+}
+
+/* ============ Todo Row (Label + Card) ============ */
+.todo-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  animation: fadeSlideIn 0.3s ease-out;
+  /* GPU acceleration for smoother rendering */
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.todo-row.slide-in {
+  animation: slideInFromTop 0.4s ease-out;
+}
+
+@keyframes slideInFromTop {
+  from {
+    opacity: 0;
+    transform: translateY(-16px);
+    background: rgba(59, 130, 246, 0.1);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    background: transparent;
+  }
+}
+
+.row-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 72px;
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.row-label .check {
+  color: #10B981;
+  font-weight: bold;
+}
+
+.row-label .fail {
+  color: #EF4444;
+  font-weight: bold;
+}
+
+.row-label .pulse {
+  color: #3B82F6;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.row-label .arrow {
+  color: var(--color-text-muted);
+}
+
+.todo-row.completed .row-label {
+  color: #10B981;
+}
+
+.todo-row.failed .row-label {
+  color: #EF4444;
+}
+
+.todo-row.current .row-label {
+  color: #3B82F6;
+}
+
+.todo-row.next .row-label {
+  color: var(--color-text-muted);
+}
+
+.todo-row.all-done .row-label {
+  color: #10B981;
+  font-size: var(--font-size-sm);
+}
+
+.done-label {
+  min-width: auto;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ============ Todo Card (Single Line) ============ */
+.todo-card {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  min-width: 0;
+  transition: all 0.2s ease;
+}
+
+.todo-card:hover {
+  border-color: var(--color-border-default);
+}
+
+.todo-card.current {
+  background: rgba(59, 130, 246, 0.08);
+  border-color: rgba(59, 130, 246, 0.3);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.1);
+}
+
+.todo-card.completed {
+  opacity: 0.7;
+}
+
+.todo-card.failed {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.todo-card.next {
+  opacity: 0.85;
+}
+
+.card-num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-muted);
+  background: var(--color-bg-overlay);
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+.todo-card.current .card-num {
+  background: #3B82F6;
+  color: white;
+}
+
+.card-title {
+  flex: 1;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.todo-card.completed .card-title {
+  text-decoration: line-through;
+  color: var(--color-text-muted);
+}
+
+/* ============ Status Icons ============ */
+.status-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.status-icon.completed {
+  color: #10B981;
+}
+
+.status-icon.failed {
+  color: #EF4444;
+}
+
+.status-icon.pending {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.status-icon.pending .circle {
+  border: 2px solid var(--color-border-muted);
+  border-radius: 50%;
+}
+
+.status-icon.in-progress {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.status-icon.in-progress .spinner {
+  border: 2px solid var(--color-border-muted);
+  border-top-color: #3B82F6;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ============ Expand Hint ============ */
+.todo-expand-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  font-size: 11px;
+  color: var(--color-text-muted);
+  border-top: 1px dashed var(--color-border-subtle);
+}
+
+.todo-expand-hint:hover {
+  color: var(--color-text-secondary);
+}
+
+/* ============ Expanded View ============ */
+.todo-expanded {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.todo-collapse-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+  background: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-border-subtle);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.todo-collapse-btn:hover {
+  color: var(--color-text-primary);
+  background: var(--color-bg-overlay);
+}
+
+.todo-all-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  overflow-y: auto;
+}
+
+.todo-card.full {
+  flex-shrink: 0;
+}
+
+.todo-card.full.highlight {
+  animation: highlightPulse 2s ease-in-out infinite;
+}
+
+@keyframes highlightPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+  }
+}
+
+/* ============ Retry Button ============ */
+.retry-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  color: var(--color-text-muted);
+  background: transparent;
+  border-radius: var(--radius-sm);
+  transition: all 0.15s ease;
+}
+
+.retry-btn:hover {
+  color: #3B82F6;
+  background: var(--color-bg-overlay);
+}
+
+/* ============ Scrollbar ============ */
+.todo-all-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.todo-all-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.todo-all-list::-webkit-scrollbar-thumb {
+  background: var(--color-border-default);
+  border-radius: var(--radius-full);
+}

@@ -1,0 +1,1113 @@
+/**
+ * Electron Preload Script
+ * - contextBridge를 통한 안전한 API 노출
+ * - 모든 IPC 통신 래핑
+ */
+
+import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
+
+// ============ 타입 정의 ============
+
+// PowerShell 타입
+export interface PowerShellResult {
+  success: boolean;
+  stdout?: string;
+  stderr?: string;
+  exitCode?: number | null;
+  error?: string;
+  duration?: number;
+}
+
+export interface PowerShellOutput {
+  type: 'stdout' | 'stderr' | 'error' | 'exit';
+  data: string;
+  timestamp: number;
+}
+
+export interface PowerShellExitEvent {
+  code: number | null;
+  sessionId: string;
+}
+
+export interface PowerShellErrorEvent {
+  error: string;
+  sessionId: string;
+}
+
+export interface SessionInfo {
+  id: string;
+  state: 'idle' | 'running' | 'busy' | 'error' | 'terminated';
+  startTime: number;
+  currentDirectory: string;
+  lastActivity: number;
+}
+
+// 시스템 정보 타입
+export interface SystemInfo {
+  platform: string;
+  arch: string;
+  nodeVersion: string;
+  electronVersion: string;
+  appVersion: string;
+  appPath: string;
+  userDataPath: string;
+  tempPath: string;
+}
+
+// 다이얼로그 타입
+export interface FileFilter {
+  name: string;
+  extensions: string[];
+}
+
+export interface DialogResult {
+  success: boolean;
+  canceled: boolean;
+  filePath?: string;
+  filePaths?: string[];
+  error?: string;
+}
+
+export interface MessageDialogOptions {
+  type?: 'none' | 'info' | 'error' | 'question' | 'warning';
+  title?: string;
+  message: string;
+  detail?: string;
+  buttons?: string[];
+}
+
+// 로그 파일 타입
+export interface LogFile {
+  name: string;
+  path: string;
+  size: number;
+  date: string;
+}
+
+// 로그 엔트리 타입
+export interface LogEntry {
+  timestamp: string;
+  level: string;
+  message: string;
+  data?: unknown;
+}
+
+// 테마 타입
+export type Theme = 'dark' | 'light';
+
+// Docs 타입
+export interface DocsSource {
+  id: string;
+  name: string;
+  description: string;
+  installed: boolean;
+  fileCount?: number;
+  size?: string;
+}
+
+export interface DocsInfo {
+  path: string;
+  exists: boolean;
+  totalFiles: number;
+  totalSize: string;
+  sources: DocsSource[];
+}
+
+export interface DownloadProgress {
+  downloaded: number;
+  total: number;
+  current?: string;
+}
+
+// Config 타입
+export interface AppConfig {
+  theme: 'light' | 'dark' | 'system';
+  lastOpenedDirectory?: string;
+  recentDirectories: string[];
+  sidebarWidth: number;
+  bottomPanelHeight: number;
+  windowBounds?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+}
+
+// 채팅 메시지 타입
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: number;
+  metadata?: {
+    model?: string;
+    tokens?: number;
+    tool?: string;
+    toolResult?: unknown;
+  };
+}
+
+// 세션 타입
+export interface Session {
+  id: string;
+  name: string;
+  createdAt: number;
+  updatedAt: number;
+  workingDirectory?: string;
+  messages: ChatMessage[];
+  metadata?: {
+    model?: string;
+    totalTokens?: number;
+    messageCount?: number;
+  };
+}
+
+// 세션 요약 타입 (목록용)
+export interface SessionSummary {
+  id: string;
+  name: string;
+  createdAt: number;
+  updatedAt: number;
+  messageCount: number;
+  workingDirectory?: string;
+  preview?: string;
+}
+
+// LLM 모델 정보 타입
+export interface ModelInfo {
+  id: string;
+  name: string;
+  maxTokens: number;
+  enabled: boolean;
+  healthStatus?: 'healthy' | 'degraded' | 'unhealthy';
+  lastHealthCheck?: Date;
+}
+
+// LLM Endpoint 타입
+export interface EndpointConfig {
+  id: string;
+  name: string;
+  baseUrl: string;
+  apiKey?: string;
+  models: ModelInfo[];
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+// LLM 시스템 상태 타입
+export interface LLMStatus {
+  version: string;
+  sessionId: string;
+  workingDir: string;
+  endpointUrl: string;
+  llmModel: string;
+  configPath: string;
+}
+
+// Agent 타입
+export interface TodoItem {
+  id: string;
+  title: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+}
+
+export interface AgentConfig {
+  // maxIterations removed - CLI parity: no iteration limit
+  enabledToolGroups?: string[];
+  workingDirectory?: string;
+  isGitRepo?: boolean;
+  autoMode?: boolean; // true = allow all permissions, false = supervised mode (ask for approval)
+}
+
+export interface AgentToolCall {
+  tool: string;
+  args: Record<string, unknown>;
+  result: string;
+  success: boolean;
+}
+
+export interface AgentResult {
+  success: boolean;
+  response: string;
+  messages: Array<{ role: string; content: string; tool_calls?: unknown[]; tool_call_id?: string }>;
+  toolCalls: AgentToolCall[];
+  iterations: number;
+  error?: string;
+}
+
+export interface AskUserOption {
+  label: string;
+  value: string;
+}
+
+export interface AskUserRequest {
+  question: string;
+  options: AskUserOption[];
+  allowCustom?: boolean;
+}
+
+export interface AskUserResponse {
+  selectedOption: AskUserOption;
+  customText?: string;
+  isOther: boolean;
+}
+
+// ============ API 정의 ============
+
+const electronAPI = {
+  // ============ 윈도우 제어 ============
+  window: {
+    minimize: (): void => {
+      ipcRenderer.send('window:minimize');
+    },
+
+    maximize: (): void => {
+      ipcRenderer.send('window:maximize');
+    },
+
+    close: (): void => {
+      ipcRenderer.send('window:close');
+    },
+
+    isMaximized: (): Promise<boolean> => {
+      return ipcRenderer.invoke('window:isMaximized');
+    },
+
+    onMaximizeChange: (callback: (isMaximized: boolean) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, isMaximized: boolean) => callback(isMaximized);
+      ipcRenderer.on('window:maximizeChange', handler);
+      return () => ipcRenderer.removeListener('window:maximizeChange', handler);
+    },
+
+    onFocusChange: (callback: (isFocused: boolean) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, isFocused: boolean) => callback(isFocused);
+      ipcRenderer.on('window:focus', handler);
+      return () => ipcRenderer.removeListener('window:focus', handler);
+    },
+
+    reload: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke('window:reload');
+    },
+  },
+
+  // ============ 테마 ============
+  theme: {
+    getSystem: (): Promise<Theme> => {
+      return ipcRenderer.invoke('theme:getSystem');
+    },
+
+    onChange: (callback: (theme: Theme) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, theme: Theme) => callback(theme);
+      ipcRenderer.on('theme:change', handler);
+      return () => ipcRenderer.removeListener('theme:change', handler);
+    },
+  },
+
+  // ============ Config (설정) ============
+  config: {
+    getAll: (): Promise<AppConfig> => {
+      return ipcRenderer.invoke('config:getAll');
+    },
+
+    get: <K extends keyof AppConfig>(key: K): Promise<AppConfig[K]> => {
+      return ipcRenderer.invoke('config:get', key);
+    },
+
+    set: <K extends keyof AppConfig>(key: K, value: AppConfig[K]): Promise<boolean> => {
+      return ipcRenderer.invoke('config:set', key, value);
+    },
+
+    update: (updates: Partial<AppConfig>): Promise<boolean> => {
+      return ipcRenderer.invoke('config:update', updates);
+    },
+
+    setTheme: (theme: 'light' | 'dark' | 'system'): Promise<boolean> => {
+      return ipcRenderer.invoke('config:setTheme', theme);
+    },
+
+    getTheme: (): Promise<'light' | 'dark' | 'system'> => {
+      return ipcRenderer.invoke('config:getTheme');
+    },
+
+    getPath: (): Promise<{ configPath: string; configDir: string }> => {
+      return ipcRenderer.invoke('config:getPath');
+    },
+  },
+
+  // ============ Session (세션) ============
+  session: {
+    create: (name?: string, workingDirectory?: string): Promise<{ success: boolean; session?: Session; error?: string }> => {
+      return ipcRenderer.invoke('session:create', name, workingDirectory);
+    },
+
+    load: (sessionId: string): Promise<{ success: boolean; session?: Session; error?: string }> => {
+      return ipcRenderer.invoke('session:load', sessionId);
+    },
+
+    save: (session: Session): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke('session:save', session);
+    },
+
+    saveCurrent: (): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke('session:saveCurrent');
+    },
+
+    delete: (sessionId: string): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke('session:delete', sessionId);
+    },
+
+    list: (): Promise<{ success: boolean; sessions?: SessionSummary[]; error?: string }> => {
+      return ipcRenderer.invoke('session:list');
+    },
+
+    getCurrent: (): Promise<Session | null> => {
+      return ipcRenderer.invoke('session:getCurrent');
+    },
+
+    setCurrent: (session: Session | null): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke('session:setCurrent', session);
+    },
+
+    addMessage: (message: ChatMessage): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke('session:addMessage', message);
+    },
+
+    rename: (sessionId: string, newName: string): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke('session:rename', sessionId, newName);
+    },
+
+    duplicate: (sessionId: string): Promise<{ success: boolean; session?: Session; error?: string }> => {
+      return ipcRenderer.invoke('session:duplicate', sessionId);
+    },
+
+    export: (sessionId: string): Promise<{ success: boolean; data?: string; error?: string }> => {
+      return ipcRenderer.invoke('session:export', sessionId);
+    },
+
+    import: (jsonData: string): Promise<{ success: boolean; session?: Session; error?: string }> => {
+      return ipcRenderer.invoke('session:import', jsonData);
+    },
+
+    search: (query: string): Promise<{ success: boolean; sessions?: SessionSummary[]; error?: string }> => {
+      return ipcRenderer.invoke('session:search', query);
+    },
+
+    getPath: (): Promise<{ sessionsDir: string }> => {
+      return ipcRenderer.invoke('session:getPath');
+    },
+  },
+
+  // ============ LLM ============
+  llm: {
+    getEndpoints: (): Promise<{ success: boolean; endpoints?: EndpointConfig[]; currentEndpointId?: string; error?: string }> => {
+      return ipcRenderer.invoke('llm:getEndpoints');
+    },
+
+    addEndpoint: (endpointData: Omit<EndpointConfig, 'id' | 'createdAt' | 'updatedAt'>): Promise<{ success: boolean; endpoint?: EndpointConfig; error?: string }> => {
+      return ipcRenderer.invoke('llm:addEndpoint', endpointData);
+    },
+
+    updateEndpoint: (endpointId: string, updates: Partial<EndpointConfig>): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke('llm:updateEndpoint', endpointId, updates);
+    },
+
+    removeEndpoint: (endpointId: string): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke('llm:removeEndpoint', endpointId);
+    },
+
+    setCurrentEndpoint: (endpointId: string): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke('llm:setCurrentEndpoint', endpointId);
+    },
+
+    testConnection: (baseUrl: string, apiKey: string | undefined, modelId: string): Promise<{ success: boolean; error?: string; latency?: number }> => {
+      return ipcRenderer.invoke('llm:testConnection', baseUrl, apiKey, modelId);
+    },
+
+    healthCheckAll: (): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke('llm:healthCheckAll');
+    },
+
+    getStatus: (): Promise<{ success: boolean; status?: LLMStatus; error?: string }> => {
+      return ipcRenderer.invoke('llm:getStatus');
+    },
+  },
+
+  // ============ Chat (LLM 대화) ============
+  chat: {
+    // 메시지 배열로 대화 전송 (non-streaming)
+    send: (messages: Array<{ role: 'system' | 'user' | 'assistant' | 'tool'; content: string }>): Promise<{
+      success: boolean;
+      content?: string;
+      message?: { role: string; content: string };
+      error?: string;
+    }> => {
+      return ipcRenderer.invoke('chat:send', messages);
+    },
+
+    // 메시지 배열로 대화 전송 (streaming)
+    sendStream: (messages: Array<{ role: 'system' | 'user' | 'assistant' | 'tool'; content: string }>): Promise<{
+      success: boolean;
+      content?: string;
+      message?: { role: string; content: string };
+      error?: string;
+    }> => {
+      return ipcRenderer.invoke('chat:sendStream', messages);
+    },
+
+    // 간단한 메시지 전송
+    sendMessage: (userMessage: string, systemPrompt?: string, stream?: boolean): Promise<{
+      success: boolean;
+      content?: string;
+      error?: string;
+    }> => {
+      return ipcRenderer.invoke('chat:sendMessage', userMessage, systemPrompt, stream);
+    },
+
+    // 요청 취소
+    abort: (): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke('chat:abort');
+    },
+
+    // 요청 활성 상태 확인
+    isActive: (): Promise<boolean> => {
+      return ipcRenderer.invoke('chat:isActive');
+    },
+
+    // 스트리밍 청크 수신 이벤트
+    onChunk: (callback: (data: { chunk: string; done: boolean; error?: boolean }) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, data: { chunk: string; done: boolean; error?: boolean }) => callback(data);
+      ipcRenderer.on('chat:chunk', handler);
+      return () => ipcRenderer.removeListener('chat:chunk', handler);
+    },
+  },
+
+  // ============ Compact (대화 압축) ============
+  compact: {
+    // 대화 압축 실행
+    execute: (
+      messages: Array<{ role: 'system' | 'user' | 'assistant' | 'tool'; content: string }>,
+      context: { workingDirectory?: string; currentModel?: string }
+    ): Promise<{
+      success: boolean;
+      originalMessageCount: number;
+      newMessageCount: number;
+      compactedSummary?: string;
+      compactedMessages?: Array<{ role: string; content: string }>;
+      error?: string;
+    }> => {
+      return ipcRenderer.invoke('compact:execute', messages, context);
+    },
+
+    // 압축 가능 여부 확인
+    canCompact: (messages: Array<{ role: string; content: string }>): Promise<{
+      canCompact: boolean;
+      reason?: string;
+    }> => {
+      return ipcRenderer.invoke('compact:canCompact', messages);
+    },
+  },
+
+  // ============ Usage Tracking (사용량 추적) ============
+  usage: {
+    // 사용량 요약 가져오기
+    getSummary: (): Promise<{
+      success: boolean;
+      summary?: {
+        today: { totalTokens: number; requestCount: number } | null;
+        thisMonth: { totalTokens: number; totalRequests: number; days: number };
+        allTime: {
+          totalInputTokens: number;
+          totalOutputTokens: number;
+          totalTokens: number;
+          totalRequests: number;
+          firstUsed: string | null;
+        };
+        currentSession: {
+          inputTokens: number;
+          outputTokens: number;
+          totalTokens: number;
+          requestCount: number;
+        };
+      };
+      error?: string;
+    }> => {
+      return ipcRenderer.invoke('usage:getSummary');
+    },
+
+    // 일별 통계 가져오기
+    getDailyStats: (days?: number): Promise<{
+      success: boolean;
+      stats?: Array<{
+        date: string;
+        totalInputTokens: number;
+        totalOutputTokens: number;
+        totalTokens: number;
+        requestCount: number;
+      }>;
+      error?: string;
+    }> => {
+      return ipcRenderer.invoke('usage:getDailyStats', days);
+    },
+
+    // 세션 사용량 리셋
+    resetSession: (): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke('usage:resetSession');
+    },
+
+    // 전체 사용량 데이터 삭제
+    clearData: (): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke('usage:clearData');
+    },
+  },
+
+  // ============ Tools (도구 관리) ============
+  tools: {
+    // 모든 도구 그룹 가져오기
+    getGroups: (): Promise<{
+      success: boolean;
+      groups?: Array<{
+        id: string;
+        name: string;
+        description: string;
+        toolCount: number;
+        enabled: boolean;
+        available: boolean;
+        requiresWindows?: boolean;
+      }>;
+      error?: string;
+    }> => {
+      return ipcRenderer.invoke('tools:getGroups');
+    },
+
+    // 사용 가능한 도구 그룹만 가져오기
+    getAvailable: (): Promise<{
+      success: boolean;
+      groups?: Array<{
+        id: string;
+        name: string;
+        description: string;
+        toolCount: number;
+        enabled: boolean;
+        available: boolean;
+        requiresWindows?: boolean;
+      }>;
+      error?: string;
+    }> => {
+      return ipcRenderer.invoke('tools:getAvailable');
+    },
+
+    // 활성화된 도구 그룹 가져오기
+    getEnabled: (): Promise<{
+      success: boolean;
+      groups?: Array<{
+        id: string;
+        name: string;
+        description: string;
+        toolCount: number;
+        enabled: boolean;
+        available: boolean;
+        requiresWindows?: boolean;
+      }>;
+      error?: string;
+    }> => {
+      return ipcRenderer.invoke('tools:getEnabled');
+    },
+
+    // 도구 그룹 활성화
+    enable: (groupId: string): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke('tools:enable', groupId);
+    },
+
+    // 도구 그룹 비활성화
+    disable: (groupId: string): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke('tools:disable', groupId);
+    },
+
+    // 도구 그룹 토글
+    toggle: (groupId: string): Promise<{ success: boolean; enabled?: boolean; error?: string }> => {
+      return ipcRenderer.invoke('tools:toggle', groupId);
+    },
+
+    // 도구 요약 가져오기
+    getSummary: (): Promise<{
+      success: boolean;
+      total?: number;
+      available?: number;
+      enabled?: number;
+      groups?: Array<{
+        id: string;
+        name: string;
+        description: string;
+        toolCount: number;
+        enabled: boolean;
+        available: boolean;
+        requiresWindows?: boolean;
+      }>;
+      error?: string;
+    }> => {
+      return ipcRenderer.invoke('tools:getSummary');
+    },
+
+    // 도구 그룹 활성화 여부 확인
+    isEnabled: (groupId: string): Promise<boolean> => {
+      return ipcRenderer.invoke('tools:isEnabled', groupId);
+    },
+  },
+
+  // ============ Agent (에이전트) ============
+  agent: {
+    // 에이전트 실행
+    run: (
+      userMessage: string,
+      existingMessages?: Array<{ role: string; content: string }>,
+      config?: AgentConfig
+    ): Promise<AgentResult> => {
+      return ipcRenderer.invoke('agent:run', userMessage, existingMessages, config);
+    },
+
+    // 에이전트 중단
+    abort: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke('agent:abort');
+    },
+
+    // 에이전트 실행 중 여부
+    isRunning: (): Promise<boolean> => {
+      return ipcRenderer.invoke('agent:isRunning');
+    },
+
+    // 현재 TODO 목록 가져오기
+    getTodos: (): Promise<TodoItem[]> => {
+      return ipcRenderer.invoke('agent:getTodos');
+    },
+
+    // TODO 목록 설정
+    setTodos: (todos: TodoItem[]): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke('agent:setTodos', todos);
+    },
+
+    // 간단한 채팅 (도구 없음)
+    simpleChat: (
+      userMessage: string,
+      existingMessages?: Array<{ role: string; content: string }>,
+      systemPrompt?: string
+    ): Promise<{ response: string; messages: Array<{ role: string; content: string }> }> => {
+      return ipcRenderer.invoke('agent:simpleChat', userMessage, existingMessages, systemPrompt);
+    },
+
+    // 사용자 질문에 응답
+    respondToQuestion: (response: AskUserResponse): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke('agent:respondToQuestion', response);
+    },
+
+    // 이벤트 리스너들
+    onMessage: (callback: (message: { role: string; content: string; tool_calls?: unknown[] }) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, message: { role: string; content: string; tool_calls?: unknown[] }) => callback(message);
+      ipcRenderer.on('agent:message', handler);
+      return () => ipcRenderer.removeListener('agent:message', handler);
+    },
+
+    onToolCall: (callback: (data: { toolName: string; args: Record<string, unknown> }) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, data: { toolName: string; args: Record<string, unknown> }) => callback(data);
+      ipcRenderer.on('agent:toolCall', handler);
+      return () => ipcRenderer.removeListener('agent:toolCall', handler);
+    },
+
+    onToolResult: (callback: (data: { toolName: string; result: string; success: boolean }) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, data: { toolName: string; result: string; success: boolean }) => callback(data);
+      ipcRenderer.on('agent:toolResult', handler);
+      return () => ipcRenderer.removeListener('agent:toolResult', handler);
+    },
+
+    onTodoUpdate: (callback: (todos: TodoItem[]) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, todos: TodoItem[]) => callback(todos);
+      ipcRenderer.on('agent:todoUpdate', handler);
+      return () => ipcRenderer.removeListener('agent:todoUpdate', handler);
+    },
+
+    onTellUser: (callback: (message: string) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, message: string) => callback(message);
+      ipcRenderer.on('agent:tellUser', handler);
+      return () => ipcRenderer.removeListener('agent:tellUser', handler);
+    },
+
+    onAskUser: (callback: (request: AskUserRequest) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, request: AskUserRequest) => callback(request);
+      ipcRenderer.on('agent:askUser', handler);
+      return () => ipcRenderer.removeListener('agent:askUser', handler);
+    },
+
+    onComplete: (callback: (data: { response: string }) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, data: { response: string }) => callback(data);
+      ipcRenderer.on('agent:complete', handler);
+      return () => ipcRenderer.removeListener('agent:complete', handler);
+    },
+
+    onError: (callback: (data: { error: string }) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, data: { error: string }) => callback(data);
+      ipcRenderer.on('agent:error', handler);
+      return () => ipcRenderer.removeListener('agent:error', handler);
+    },
+
+    // Tool approval request event (Supervised Mode)
+    onApprovalRequest: (callback: (request: {
+      id: string;
+      toolName: string;
+      args: Record<string, unknown>;
+      reason?: string;
+    }) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, request: {
+        id: string;
+        toolName: string;
+        args: Record<string, unknown>;
+        reason?: string;
+      }) => callback(request);
+      ipcRenderer.on('agent:approvalRequest', handler);
+      return () => ipcRenderer.removeListener('agent:approvalRequest', handler);
+    },
+
+    // Respond to tool approval request
+    respondToApproval: (response: {
+      id: string;
+      result: 'approve' | 'always' | { reject: true; comment: string };
+    }): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke('agent:respondToApproval', response);
+    },
+
+    // Get supervised mode status
+    isSupervisedMode: (): Promise<boolean> => {
+      return ipcRenderer.invoke('agent:isSupervisedMode');
+    },
+
+    // Set supervised mode
+    setSupervisedMode: (enabled: boolean): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke('agent:setSupervisedMode', enabled);
+    },
+
+    // File edit event (for diff view)
+    onFileEdit: (callback: (data: {
+      path: string;
+      originalContent: string;
+      newContent: string;
+      language: string;
+    }) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, data: {
+        path: string;
+        originalContent: string;
+        newContent: string;
+        language: string;
+      }) => callback(data);
+      ipcRenderer.on('agent:fileEdit', handler);
+      return () => ipcRenderer.removeListener('agent:fileEdit', handler);
+    },
+
+    // File create event
+    onFileCreate: (callback: (data: {
+      path: string;
+      content: string;
+      language: string;
+    }) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, data: {
+        path: string;
+        content: string;
+        language: string;
+      }) => callback(data);
+      ipcRenderer.on('agent:fileCreate', handler);
+      return () => ipcRenderer.removeListener('agent:fileCreate', handler);
+    },
+  },
+
+  // ============ 다이얼로그 ============
+  dialog: {
+    openFile: (options?: {
+      title?: string;
+      defaultPath?: string;
+      filters?: FileFilter[];
+      multiSelections?: boolean;
+    }): Promise<DialogResult> => {
+      return ipcRenderer.invoke('dialog:openFile', options);
+    },
+
+    saveFile: (options?: {
+      title?: string;
+      defaultPath?: string;
+      filters?: FileFilter[];
+    }): Promise<DialogResult> => {
+      return ipcRenderer.invoke('dialog:saveFile', options);
+    },
+
+    openFolder: (options?: {
+      title?: string;
+      defaultPath?: string;
+      multiSelections?: boolean;
+    }): Promise<DialogResult> => {
+      return ipcRenderer.invoke('dialog:openFolder', options);
+    },
+
+    showMessage: (options: MessageDialogOptions): Promise<{ success: boolean; response?: number; error?: string }> => {
+      return ipcRenderer.invoke('dialog:showMessage', options);
+    },
+  },
+
+  // ============ 파일 시스템 ============
+  fs: {
+    readFile: (filePath: string): Promise<{ success: boolean; content?: string; error?: string }> => {
+      return ipcRenderer.invoke('fs:readFile', filePath);
+    },
+
+    writeFile: (filePath: string, content: string): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke('fs:writeFile', filePath, content);
+    },
+
+    exists: (filePath: string): Promise<boolean> => {
+      return ipcRenderer.invoke('fs:exists', filePath);
+    },
+
+    readDir: (dirPath: string): Promise<{ success: boolean; files?: string[]; error?: string }> => {
+      return ipcRenderer.invoke('fs:readDir', dirPath);
+    },
+  },
+
+  // ============ Shell ============
+  shell: {
+    showItemInFolder: (filePath: string): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke('shell:showItemInFolder', filePath);
+    },
+
+    openPath: (filePath: string): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke('shell:openPath', filePath);
+    },
+
+    openExternal: (url: string): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke('shell:openExternal', url);
+    },
+  },
+
+  // ============ PowerShell ============
+  powershell: {
+    startSession: (): Promise<{ success: boolean; session?: SessionInfo; error?: string }> => {
+      return ipcRenderer.invoke('powershell:startSession');
+    },
+
+    execute: (command: string): Promise<PowerShellResult> => {
+      return ipcRenderer.invoke('powershell:execute', command);
+    },
+
+    executeOnce: (command: string, cwd?: string): Promise<PowerShellResult> => {
+      return ipcRenderer.invoke('powershell:executeOnce', command, cwd);
+    },
+
+    sendInput: (input: string): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke('powershell:sendInput', input);
+    },
+
+    interrupt: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke('powershell:interrupt');
+    },
+
+    terminate: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke('powershell:terminate');
+    },
+
+    restart: (): Promise<{ success: boolean; session?: SessionInfo; error?: string }> => {
+      return ipcRenderer.invoke('powershell:restart');
+    },
+
+    getSessionInfo: (): Promise<SessionInfo> => {
+      return ipcRenderer.invoke('powershell:getSessionInfo');
+    },
+
+    isRunning: (): Promise<boolean> => {
+      return ipcRenderer.invoke('powershell:isRunning');
+    },
+
+    changeDirectory: (newPath: string): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke('powershell:changeDirectory', newPath);
+    },
+
+    getCurrentDirectory: (): Promise<{ success: boolean; directory?: string }> => {
+      return ipcRenderer.invoke('powershell:getCurrentDirectory');
+    },
+
+    onOutput: (callback: (output: PowerShellOutput) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, output: PowerShellOutput) => callback(output);
+      ipcRenderer.on('powershell:output', handler);
+      return () => ipcRenderer.removeListener('powershell:output', handler);
+    },
+
+    onExit: (callback: (event: PowerShellExitEvent) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, exitEvent: PowerShellExitEvent) => callback(exitEvent);
+      ipcRenderer.on('powershell:exit', handler);
+      return () => ipcRenderer.removeListener('powershell:exit', handler);
+    },
+
+    onError: (callback: (event: PowerShellErrorEvent) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, errorEvent: PowerShellErrorEvent) => callback(errorEvent);
+      ipcRenderer.on('powershell:error', handler);
+      return () => ipcRenderer.removeListener('powershell:error', handler);
+    },
+  },
+
+  // ============ 로그 ============
+  log: {
+    getFiles: (): Promise<LogFile[]> => {
+      return ipcRenderer.invoke('log:getFiles');
+    },
+
+    readFile: (filePath: string): Promise<{ success: boolean; content?: string; error?: string }> => {
+      return ipcRenderer.invoke('log:readFile', filePath);
+    },
+
+    readEntries: (filePath: string): Promise<{ success: boolean; entries?: LogEntry[]; error?: string }> => {
+      return ipcRenderer.invoke('log:readEntries', filePath);
+    },
+
+    openInExplorer: (filePath?: string): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke('log:openInExplorer', filePath);
+    },
+
+    openDirectory: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke('log:openDirectory');
+    },
+
+    setLevel: (level: number): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke('log:setLevel', level);
+    },
+
+    getLevel: (): Promise<number> => {
+      return ipcRenderer.invoke('log:getLevel');
+    },
+
+    getCurrentPath: (): Promise<string> => {
+      return ipcRenderer.invoke('log:getCurrentPath');
+    },
+
+    getDirectory: (): Promise<string> => {
+      return ipcRenderer.invoke('log:getDirectory');
+    },
+
+    deleteFile: (filePath: string): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke('log:deleteFile', filePath);
+    },
+
+    clearAll: (): Promise<{ success: boolean; deletedCount?: number; error?: string }> => {
+      return ipcRenderer.invoke('log:clearAll');
+    },
+
+    onEntry: (callback: (entry: LogEntry) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, entry: LogEntry) => callback(entry);
+      ipcRenderer.on('log:entry', handler);
+      return () => ipcRenderer.removeListener('log:entry', handler);
+    },
+
+    startStreaming: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke('log:startStreaming');
+    },
+
+    stopStreaming: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke('log:stopStreaming');
+    },
+
+    // Session log methods
+    setSession: (sessionId: string | null): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke('log:setSession', sessionId);
+    },
+
+    getSessionFiles: (): Promise<{ success: boolean; files: Array<{ sessionId: string; path: string; size: number; modifiedAt: number }> }> => {
+      return ipcRenderer.invoke('log:getSessionFiles');
+    },
+
+    readSessionLog: (sessionId: string): Promise<{ success: boolean; entries: Array<{ timestamp: string; level: string; message: string; data?: unknown }> }> => {
+      return ipcRenderer.invoke('log:readSessionLog', sessionId);
+    },
+
+    deleteSessionLog: (sessionId: string): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke('log:deleteSessionLog', sessionId);
+    },
+
+    getCurrentSessionId: (): Promise<{ success: boolean; sessionId: string | null }> => {
+      return ipcRenderer.invoke('log:getCurrentSessionId');
+    },
+  },
+
+  // ============ 시스템 ============
+  system: {
+    info: (): Promise<SystemInfo> => {
+      return ipcRenderer.invoke('system:info');
+    },
+  },
+
+  // ============ 앱 제어 ============
+  app: {
+    restart: (): Promise<void> => {
+      return ipcRenderer.invoke('app:restart');
+    },
+
+    quit: (): Promise<void> => {
+      return ipcRenderer.invoke('app:quit');
+    },
+  },
+
+  // ============ 개발자 도구 ============
+  devTools: {
+    toggle: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke('devTools:toggle');
+    },
+  },
+
+  // ============ Documentation ============
+  docs: {
+    // Get documentation info
+    getInfo: (): Promise<{ success: boolean; info?: DocsInfo; error?: string }> => {
+      return ipcRenderer.invoke('docs:getInfo');
+    },
+
+    // Download documentation source
+    download: (
+      sourceId: string,
+      onProgress?: (progress: DownloadProgress) => void
+    ): Promise<{
+      success: boolean;
+      message?: string;
+      downloadedFiles?: number;
+      targetPath?: string;
+      error?: string;
+    }> => {
+      // Register progress listener
+      const progressHandler = (_event: IpcRendererEvent, progress: DownloadProgress) => {
+        onProgress?.(progress);
+      };
+
+      if (onProgress) {
+        ipcRenderer.on('docs:downloadProgress', progressHandler);
+      }
+
+      return ipcRenderer.invoke('docs:download', sourceId).finally(() => {
+        if (onProgress) {
+          ipcRenderer.removeListener('docs:downloadProgress', progressHandler);
+        }
+      });
+    },
+
+    // Delete documentation source
+    delete: (sourceId: string): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke('docs:delete', sourceId);
+    },
+
+    // Open docs folder in explorer
+    openFolder: (): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke('docs:openFolder');
+    },
+  },
+};
+
+// API 타입 내보내기
+export type ElectronAPI = typeof electronAPI;
+
+// contextBridge를 통해 안전하게 API 노출
+contextBridge.exposeInMainWorld('electronAPI', electronAPI);
+
+// 개발 환경 확인 로그
+if (process.env.NODE_ENV === 'development') {
+  console.log('[Preload] Electron API exposed to renderer');
+}

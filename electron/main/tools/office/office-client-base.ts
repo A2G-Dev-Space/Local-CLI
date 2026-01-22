@@ -1,0 +1,202 @@
+/**
+ * Office Client Base for Electron (Windows Native)
+ *
+ * Direct PowerShell COM automation base class.
+ * This is simpler than CLI since we run natively on Windows - no WSL/COM bridge needed.
+ *
+ * CLI parity: src/tools/office/office-client-base.ts (structure only, implementation differs for Windows native)
+ */
+
+import { spawn } from 'child_process';
+import * as path from 'path';
+import * as fs from 'fs';
+import * as os from 'os';
+import { logger } from '../../utils/logger';
+
+// =============================================================================
+// Types
+// =============================================================================
+
+export interface OfficeResponse {
+  success: boolean;
+  message?: string;
+  error?: string;
+  details?: string;
+  [key: string]: unknown;
+}
+
+export interface ScreenshotResponse extends OfficeResponse {
+  path?: string;
+  image?: string;
+  format?: string;
+  encoding?: string;
+}
+
+// =============================================================================
+// Base Office Client
+// =============================================================================
+
+export class OfficeClientBase {
+  protected commandTimeout = 30000;
+  protected screenshotDir: string;
+
+  constructor() {
+    const appDataDir = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
+    this.screenshotDir = path.join(appDataDir, 'LOCAL-CLI-UI', 'screenshots', 'office');
+    if (!fs.existsSync(this.screenshotDir)) {
+      fs.mkdirSync(this.screenshotDir, { recursive: true });
+    }
+  }
+
+  /**
+   * Execute PowerShell script and return JSON result
+   * Windows native - direct execution without WSL bridge
+   */
+  protected async executePowerShell(script: string): Promise<OfficeResponse> {
+    return new Promise((resolve) => {
+      const wrappedScript = `
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$ErrorActionPreference = "Stop"
+try {
+${script}
+} catch {
+  @{
+    success = $false
+    error = $_.Exception.Message
+    details = $_.Exception.ToString()
+  } | ConvertTo-Json -Compress
+}
+`;
+
+      const encodedCommand = Buffer.from(wrappedScript, 'utf16le').toString('base64');
+
+      const child = spawn('powershell.exe', [
+        '-NoProfile',
+        '-NonInteractive',
+        '-EncodedCommand',
+        encodedCommand,
+      ], {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        windowsHide: true,
+      });
+
+      let stdout = '';
+      let stderr = '';
+
+      child.stdout.on('data', (data) => {
+        stdout += data.toString('utf-8');
+      });
+
+      child.stderr.on('data', (data) => {
+        stderr += data.toString('utf-8');
+      });
+
+      const timeoutId = setTimeout(() => {
+        child.kill();
+        resolve({ success: false, error: 'PowerShell execution timed out' });
+      }, this.commandTimeout);
+
+      child.on('close', (code) => {
+        clearTimeout(timeoutId);
+
+        if (code !== 0 && !stdout.trim()) {
+          logger.debug('[OfficeClient] PowerShell error: ' + stderr);
+          resolve({ success: false, error: stderr || `PowerShell exited with code ${code}` });
+          return;
+        }
+
+        const trimmed = stdout.trim();
+        if (trimmed) {
+          try {
+            const parsed = JSON.parse(trimmed);
+            resolve(parsed);
+          } catch {
+            resolve({ success: true, message: trimmed });
+          }
+        } else {
+          resolve({ success: true });
+        }
+      });
+
+      child.on('error', (error) => {
+        clearTimeout(timeoutId);
+        logger.debug('[OfficeClient] PowerShell error: ' + error.message);
+        resolve({ success: false, error: error.message });
+      });
+    });
+  }
+
+  /**
+   * Check if Office is available (Windows native only)
+   */
+  async isAvailable(): Promise<boolean> {
+    if (process.platform !== 'win32') {
+      return false;
+    }
+
+    const result = await this.executePowerShell(`
+@{
+  success = $true
+  message = "PowerShell available"
+} | ConvertTo-Json -Compress
+`);
+    return result.success;
+  }
+
+  /**
+   * Get screenshot directory
+   */
+  getScreenshotDir(): string {
+    return this.screenshotDir;
+  }
+
+  /**
+   * Convert path (no-op on Windows native, just absolute path)
+   */
+  protected toWindowsPath(filePath: string): string {
+    return path.isAbsolute(filePath) ? filePath : path.join(process.cwd(), filePath);
+  }
+
+  /**
+   * Convert hex color to RGB
+   */
+  protected hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    if (!result || !result[1] || !result[2] || !result[3]) return null;
+    return {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16),
+    };
+  }
+
+  /**
+   * Take screenshot of active window
+   */
+  async takeScreenshot(appName: string): Promise<ScreenshotResponse> {
+    const timestamp = Date.now();
+    const filename = `${appName.toLowerCase()}_${timestamp}.png`;
+    const screenshotPath = path.join(this.screenshotDir, filename);
+
+    const result = await this.executePowerShell(`
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+
+$screen = [System.Windows.Forms.Screen]::PrimaryScreen
+$bitmap = New-Object System.Drawing.Bitmap($screen.Bounds.Width, $screen.Bounds.Height)
+$graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+$graphics.CopyFromScreen($screen.Bounds.Location, [System.Drawing.Point]::Empty, $screen.Bounds.Size)
+$bitmap.Save("${screenshotPath.replace(/\\/g, '\\\\')}")
+$graphics.Dispose()
+$bitmap.Dispose()
+
+@{
+  success = $true
+  message = "Screenshot saved"
+  path = "${screenshotPath.replace(/\\/g, '\\\\')}"
+} | ConvertTo-Json -Compress
+`);
+
+    return result as ScreenshotResponse;
+  }
+}

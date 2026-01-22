@@ -1,0 +1,402 @@
+/* =====================================================
+   Layout System Styles
+   반응형 레이아웃 시스템
+   ===================================================== */
+
+/* ============ CSS 변수 - 레이아웃 ============ */
+:root {
+  /* 브레이크포인트 */
+  --breakpoint-xs: 480px;
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+  --breakpoint-2xl: 1536px;
+
+  /* 패널 기본 크기 */
+  --sidebar-default-width: 260px;
+  --sidebar-min-width: 200px;
+  --sidebar-max-width: 400px;
+  --sidebar-collapsed-width: 0px;
+
+  --bottom-panel-default-height: 300px;
+  --bottom-panel-min-height: 100px;
+  --bottom-panel-max-height: 60vh;
+
+  --right-panel-default-width: 350px;
+  --right-panel-min-width: 280px;
+  --right-panel-max-width: 40vw;
+
+  /* 리사이즈 핸들 */
+  --resize-handle-size: 4px;
+  --resize-handle-touch-size: 12px;
+  --resize-handle-color: transparent;
+  --resize-handle-hover-color: var(--color-accent-primary);
+
+  /* 트랜지션 */
+  --layout-transition: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ============ 레이아웃 컨테이너 ============ */
+.layout-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.layout-main {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.layout-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* ============ 반응형 그리드 ============ */
+.layout-grid {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* 기본 레이아웃 */
+.layout-grid-default {
+  grid-template-columns: auto 1fr auto;
+  grid-template-rows: auto 1fr auto auto;
+  grid-template-areas:
+    "titlebar titlebar titlebar"
+    "sidebar content right-panel"
+    "sidebar bottom-panel right-panel"
+    "statusbar statusbar statusbar";
+}
+
+/* 확장 레이아웃 */
+.layout-grid-expanded {
+  grid-template-columns: var(--sidebar-default-width) 1fr var(--right-panel-default-width);
+}
+
+/* 컴팩트 레이아웃 */
+.layout-grid-compact {
+  grid-template-columns: 0 1fr 0;
+  grid-template-rows: auto 1fr auto;
+  grid-template-areas:
+    "titlebar titlebar titlebar"
+    "content content content"
+    "statusbar statusbar statusbar";
+}
+
+/* 그리드 영역 */
+.layout-area-titlebar { grid-area: titlebar; }
+.layout-area-sidebar { grid-area: sidebar; }
+.layout-area-content { grid-area: content; }
+.layout-area-right-panel { grid-area: right-panel; }
+.layout-area-bottom-panel { grid-area: bottom-panel; }
+.layout-area-statusbar { grid-area: statusbar; }
+
+/* ============ Flexbox 기반 레이아웃 ============ */
+.flex-layout {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.flex-layout-row {
+  flex-direction: row;
+}
+
+.flex-layout-column {
+  flex-direction: column;
+}
+
+.flex-layout-item {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.flex-layout-item-grow {
+  flex: 1 1 auto;
+}
+
+.flex-layout-item-fixed {
+  flex: 0 0 auto;
+}
+
+/* ============ 반응형 브레이크포인트 ============ */
+
+/* 매우 작은 화면 (< 480px) */
+@media (max-width: 479px) {
+  :root {
+    --sidebar-default-width: 0px;
+    --bottom-panel-default-height: 150px;
+    --right-panel-default-width: 0px;
+  }
+
+  .layout-responsive-hide-xs {
+    display: none !important;
+  }
+
+  .sidebar {
+    position: fixed;
+    left: 0;
+    top: var(--titlebar-height);
+    bottom: var(--statusbar-height);
+    z-index: var(--z-modal);
+    transform: translateX(-100%);
+    transition: transform var(--layout-transition);
+  }
+
+  .sidebar.is-open {
+    transform: translateX(0);
+  }
+}
+
+/* 작은 화면 (480px - 639px) */
+@media (min-width: 480px) and (max-width: 639px) {
+  :root {
+    --sidebar-default-width: 200px;
+    --bottom-panel-default-height: 180px;
+    --right-panel-default-width: 0px;
+  }
+
+  .layout-responsive-hide-sm {
+    display: none !important;
+  }
+}
+
+/* 중간 화면 (640px - 767px) */
+@media (min-width: 640px) and (max-width: 767px) {
+  :root {
+    --sidebar-default-width: 220px;
+    --bottom-panel-default-height: 220px;
+    --right-panel-default-width: 0px;
+  }
+
+  .layout-responsive-hide-md {
+    display: none !important;
+  }
+}
+
+/* 큰 화면 (768px - 1023px) */
+@media (min-width: 768px) and (max-width: 1023px) {
+  :root {
+    --sidebar-default-width: 240px;
+    --bottom-panel-default-height: 250px;
+    --right-panel-default-width: 300px;
+  }
+
+  .layout-responsive-hide-lg {
+    display: none !important;
+  }
+}
+
+/* 매우 큰 화면 (1024px - 1279px) */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  :root {
+    --sidebar-default-width: 260px;
+    --bottom-panel-default-height: 300px;
+    --right-panel-default-width: 320px;
+  }
+
+  .layout-responsive-hide-xl {
+    display: none !important;
+  }
+}
+
+/* 초대형 화면 (>= 1280px) */
+@media (min-width: 1280px) {
+  :root {
+    --sidebar-default-width: 280px;
+    --bottom-panel-default-height: 320px;
+    --right-panel-default-width: 380px;
+  }
+
+  .layout-responsive-hide-2xl {
+    display: none !important;
+  }
+}
+
+/* ============ 패널 트랜지션 ============ */
+.panel-transition {
+  transition: width var(--layout-transition),
+              height var(--layout-transition),
+              transform var(--layout-transition),
+              opacity var(--layout-transition);
+}
+
+.panel-transition.is-resizing {
+  transition: none;
+}
+
+/* 패널 슬라이드 애니메이션 */
+.panel-slide-left {
+  animation: slideInFromLeft var(--layout-transition) forwards;
+}
+
+.panel-slide-right {
+  animation: slideInFromRight var(--layout-transition) forwards;
+}
+
+.panel-slide-up {
+  animation: slideInFromBottom var(--layout-transition) forwards;
+}
+
+.panel-slide-down {
+  animation: slideInFromTop var(--layout-transition) forwards;
+}
+
+@keyframes slideInFromLeft {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideInFromRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideInFromTop {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideInFromBottom {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* ============ 리사이즈 중 전역 스타일 ============ */
+html.is-resizing,
+html.is-resizing body {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
+html.is-resizing-vertical,
+html.is-resizing-vertical body {
+  cursor: row-resize !important;
+}
+
+html.is-resizing *,
+html.is-resizing-vertical * {
+  user-select: none !important;
+  pointer-events: none !important;
+}
+
+html.is-resizing .resize-handle,
+html.is-resizing-vertical .resize-handle,
+html.is-resizing .split-splitter,
+html.is-resizing-vertical .split-splitter {
+  pointer-events: auto !important;
+}
+
+/* iframe/webview 보호 */
+html.is-resizing iframe,
+html.is-resizing webview,
+html.is-resizing-vertical iframe,
+html.is-resizing-vertical webview {
+  pointer-events: none !important;
+}
+
+/* ============ 유틸리티 클래스 ============ */
+.overflow-hidden { overflow: hidden; }
+.overflow-auto { overflow: auto; }
+.overflow-x-auto { overflow-x: auto; overflow-y: hidden; }
+.overflow-y-auto { overflow-x: hidden; overflow-y: auto; }
+
+.min-w-0 { min-width: 0; }
+.min-h-0 { min-height: 0; }
+.max-w-full { max-width: 100%; }
+.max-h-full { max-height: 100%; }
+
+.w-full { width: 100%; }
+.h-full { height: 100%; }
+
+.flex-grow { flex-grow: 1; }
+.flex-shrink-0 { flex-shrink: 0; }
+.flex-1 { flex: 1 1 0%; }
+
+/* ============ 터치 디바이스 최적화 ============ */
+@media (pointer: coarse) {
+  :root {
+    --resize-handle-size: var(--resize-handle-touch-size);
+  }
+
+  .resize-handle,
+  .split-splitter {
+    min-width: var(--resize-handle-touch-size);
+    min-height: var(--resize-handle-touch-size);
+  }
+
+  /* 더 큰 터치 타겟 */
+  .resizable-panel-collapse-btn,
+  .panel-action-btn {
+    min-width: 36px;
+    min-height: 36px;
+  }
+}
+
+/* ============ 고대비 모드 지원 ============ */
+@media (prefers-contrast: high) {
+  :root {
+    --resize-handle-hover-color: var(--color-text-primary);
+  }
+
+  .resize-handle:hover,
+  .resize-handle:focus,
+  .split-splitter:hover,
+  .split-splitter:focus {
+    outline: 2px solid var(--color-text-primary);
+  }
+}
+
+/* ============ 애니메이션 감소 모드 ============ */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --layout-transition: 0ms;
+  }
+
+  .panel-transition,
+  .resizable-panel,
+  .split-pane,
+  .sidebar {
+    transition: none !important;
+    animation: none !important;
+  }
+}

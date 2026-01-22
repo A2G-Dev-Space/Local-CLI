@@ -1,0 +1,212 @@
+/* =====================================================
+   Title Bar Component Styles - Glassmorphism Design
+   ===================================================== */
+
+.titlebar {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  background: var(--color-bg-elevated);
+  /* backdrop-filter removed for performance */
+  border-bottom: 1px solid var(--glass-border);
+  -webkit-app-region: drag;
+  user-select: none;
+  padding: 0 var(--space-2);
+  flex-shrink: 0;
+}
+
+.titlebar.unfocused {
+  opacity: 0.9;
+}
+
+.titlebar.unfocused .titlebar-title {
+  color: var(--color-text-muted);
+}
+
+/* ============ App Icon ============ */
+.titlebar-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: var(--space-2);
+  -webkit-app-region: no-drag;
+}
+
+.titlebar-icon img {
+  width: 14px;
+  height: 14px;
+}
+
+.titlebar-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.titlebar-brand-name {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  letter-spacing: -0.3px;
+}
+
+.titlebar-brand-sub {
+  font-size: 10px;
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+}
+
+/* ============ Divider ============ */
+.titlebar-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--color-border-muted);
+  margin: 0 var(--space-3);
+}
+
+/* ============ Search ============ */
+.titlebar-search {
+  display: flex;
+  align-items: center;
+  position: relative;
+  -webkit-app-region: no-drag;
+}
+
+.titlebar-search-input {
+  width: 256px;
+  padding: 6px 12px 6px 36px;
+  font-size: var(--font-size-sm);
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(203, 213, 225, 0.6);
+  border-radius: var(--radius-lg);
+  color: var(--color-text-primary);
+  transition: all var(--transition-fast);
+}
+
+[data-theme="dark"] .titlebar-search-input {
+  background: rgba(30, 41, 59, 0.5);
+  border-color: rgba(71, 85, 105, 0.4);
+}
+
+.titlebar-search-input:focus {
+  outline: none;
+  border-color: var(--color-accent-primary);
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+[data-theme="dark"] .titlebar-search-input:focus {
+  background: rgba(30, 41, 59, 0.8);
+}
+
+.titlebar-search-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.titlebar-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+/* ============ Title ============ */
+.titlebar-title {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+.title-text {
+  font-size: 11px;
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+  letter-spacing: 0.2px;
+}
+
+/* ============ Actions ============ */
+.titlebar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  -webkit-app-region: no-drag;
+}
+
+.titlebar-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  color: var(--color-text-muted);
+  border-radius: var(--radius-lg);
+  transition: all var(--transition-fast);
+}
+
+.titlebar-action-btn:hover {
+  color: var(--color-text-primary);
+  background: var(--color-bg-overlay);
+}
+
+.titlebar-user {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--color-accent-primary), #60A5FA);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+  margin-left: var(--space-2);
+}
+
+/* ============ Window Controls ============ */
+.titlebar-controls {
+  display: flex;
+  height: 100%;
+  margin-left: var(--space-2);
+  -webkit-app-region: no-drag;
+}
+
+.titlebar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 28px;
+  color: var(--color-text-muted);
+  border-radius: 0;
+  transition: all var(--transition-fast);
+}
+
+.titlebar-btn:hover {
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-overlay);
+}
+
+.titlebar-btn:active {
+  background-color: var(--color-bg-surface);
+}
+
+/* Close button special styling */
+.titlebar-btn.close:hover {
+  background-color: #EF4444;
+  color: white;
+}
+
+.titlebar-btn.close:active {
+  background-color: #DC2626;
+}
+
+/* ============ Focus States ============ */
+.titlebar-btn:focus-visible {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: -2px;
+}
