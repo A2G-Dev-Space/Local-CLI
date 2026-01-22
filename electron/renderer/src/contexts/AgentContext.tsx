@@ -291,16 +291,11 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
       })
     );
 
-    // Tell user event - add progress message
+    // Tell user event - now handled in ChatPanel as chat message for proper time ordering
+    // Keeping empty listener to prevent errors if preload expects it
     unsubscribes.push(
-      window.electronAPI.agent.onTellUser((message) => {
-        const progressMsg: ProgressMessageData = {
-          id: `progress-${Date.now()}`,
-          message,
-          type: 'info',
-          timestamp: Date.now(),
-        };
-        setProgressMessages(prev => [...prev, progressMsg]);
+      window.electronAPI.agent.onTellUser(() => {
+        // Handled in ChatPanel.tsx for proper time-ordered display
       })
     );
 

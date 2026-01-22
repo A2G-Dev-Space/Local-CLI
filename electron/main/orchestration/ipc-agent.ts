@@ -21,6 +21,8 @@ import {
   setGetTodosCallback,
   setFinalResponseCallback,
   clearFinalResponseCallbacks,
+  setToolExecutionCallback,
+  setToolResponseCallback,
 } from '../tools';
 import { buildPlanExecutePrompt } from '../prompts';
 import { PlanningLLM } from '../agents/planner';
@@ -192,6 +194,28 @@ export async function runAgent(
     };
   });
 
+  // Tool execution callback - send to renderer for UI display
+  setToolExecutionCallback((toolName: string, reason: string, args: Record<string, unknown>) => {
+    if (callbacks.onToolExecution) {
+      callbacks.onToolExecution(toolName, reason, args);
+    }
+    if (state.mainWindow) {
+      // Use agent:toolCall to match preload's onToolCall listener
+      state.mainWindow.webContents.send('agent:toolCall', { toolName, args: { ...args, reason } });
+    }
+  });
+
+  // Tool response callback - send to renderer for UI display
+  setToolResponseCallback((toolName: string, success: boolean, result: string) => {
+    if (callbacks.onToolResponse) {
+      callbacks.onToolResponse(toolName, success, result);
+    }
+    if (state.mainWindow) {
+      // Use agent:toolResult to match preload's onToolResult listener
+      state.mainWindow.webContents.send('agent:toolResult', { toolName, success, result });
+    }
+  });
+
   // Get tools from registry
   const tools = toolRegistry.getLLMToolDefinitions();
   const actualEnabledToolGroups = toolRegistry.getEnabledToolGroupIds() as OptionalToolGroupId[];
@@ -325,6 +349,7 @@ export async function runAgent(
         response = await llmClient.chatCompletion({
           messages,
           tools,
+          tool_choice: 'required', // Force LLM to call a tool (prevents empty responses)
           temperature: 0.7,
         });
       } catch (llmError) {
@@ -445,22 +470,23 @@ export async function runAgent(
                 success: result.success,
               });
 
-              if (callbacks.onToolResult) {
-                callbacks.onToolResult(toolName, toolResultContent, result.success);
-              }
+              // Send agent:toolResult for final_response - AgentContext will display it as chat message
+              // NOTE: simple-tool-executor skips final_response, so we send it here (only once)
               if (state.mainWindow) {
                 state.mainWindow.webContents.send('agent:toolResult', {
                   toolName,
-                  result: toolResultContent,
+                  result: finalResponse,
                   success: result.success,
                 });
               }
 
+              // Send agent:complete with empty response to signal completion
+              // (the actual message is displayed via agent:toolResult above)
               if (callbacks.onComplete) {
                 callbacks.onComplete(finalResponse);
               }
               if (state.mainWindow) {
-                state.mainWindow.webContents.send('agent:complete', { response: finalResponse });
+                state.mainWindow.webContents.send('agent:complete', { response: '' });
               }
 
               return {
