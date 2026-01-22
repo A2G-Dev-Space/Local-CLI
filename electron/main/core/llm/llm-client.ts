@@ -7,6 +7,15 @@
 import { logger } from '../../utils/logger';
 import { configManager } from '../config';
 import { usageTracker } from '../usage-tracker';
+import {
+  APIError,
+  TimeoutError,
+  ConnectionError,
+  RateLimitError,
+  ContextLengthError,
+  StreamingError,
+  ValidationError,
+} from '../../errors';
 
 // =============================================================================
 // Types
@@ -117,7 +126,9 @@ class LLMClient {
     const model = configManager.getCurrentModel();
 
     if (!endpoint || !model) {
-      throw new Error('No endpoint or model configured. Please configure an LLM endpoint in Settings.');
+      throw new ValidationError('No endpoint or model configured', {
+        userMessage: 'LLM 엔드포인트나 모델이 설정되지 않았습니다. Settings에서 설정해주세요.',
+      });
     }
 
     return { endpoint, model };
@@ -175,6 +186,21 @@ class LLMClient {
    * - Rate Limit (429)
    */
   private isRetryableError(error: unknown): boolean {
+    // Check custom error types first
+    if (error instanceof RateLimitError) {
+      return true;
+    }
+    if (error instanceof ConnectionError || error instanceof TimeoutError) {
+      return true;
+    }
+    if (error instanceof ContextLengthError) {
+      return false; // Needs compact, not retry
+    }
+    if (error instanceof APIError) {
+      // 5xx errors are retryable
+      return error.statusCode !== undefined && error.statusCode >= 500;
+    }
+
     if (error instanceof Error) {
       // User interrupt - don't retry
       if (error.message === 'INTERRUPTED' || error.name === 'AbortError') {
@@ -189,7 +215,7 @@ class LLMClient {
         return true;
       }
 
-      // HTTP status based errors
+      // HTTP status based errors (fallback for non-custom errors)
       if (message.includes('429') || message.includes('rate limit')) {
         return true;
       }
@@ -210,6 +236,11 @@ class LLMClient {
    * Check if error is context length exceeded (CLI parity)
    */
   private isContextLengthError(error: unknown): boolean {
+    // Check custom error type first
+    if (error instanceof ContextLengthError) {
+      return true;
+    }
+
     if (error instanceof Error) {
       const message = error.message.toLowerCase();
       return (message.includes('context') && message.includes('length')) ||
@@ -305,7 +336,13 @@ class LLMClient {
           }
         }
 
-        throw new Error(errorMessage);
+        // Use specific error classes based on status code
+        if (response.status === 429) {
+          throw new RateLimitError(undefined, {
+            details: { originalMessage: errorMessage },
+          });
+        }
+        throw new APIError(errorMessage, response.status, url);
       }
 
       const data = await response.json() as LLMResponse;
@@ -354,11 +391,16 @@ class LLMClient {
         });
       }
 
-      // Context length error - throw with special flag (CLI parity)
+      // Context length error - use custom error class
       if (this.isContextLengthError(error)) {
-        const contextError = new Error((error as Error).message);
-        (contextError as any).isContextLengthError = true;
-        throw contextError;
+        // If already ContextLengthError, rethrow as-is
+        if (error instanceof ContextLengthError) {
+          throw error;
+        }
+        // Otherwise, wrap in ContextLengthError
+        throw new ContextLengthError(0, undefined, {
+          details: { originalMessage: (error as Error).message },
+        });
       }
 
       throw error;
@@ -437,12 +479,18 @@ class LLMClient {
           }
         }
 
-        throw new Error(errorMessage);
+        // Use specific error classes based on status code
+        if (response.status === 429) {
+          throw new RateLimitError(undefined, {
+            details: { originalMessage: errorMessage },
+          });
+        }
+        throw new APIError(errorMessage, response.status, url);
       }
 
       const reader = response.body?.getReader();
       if (!reader) {
-        throw new Error('No response body');
+        throw new StreamingError('No response body available for streaming');
       }
 
       const decoder = new TextDecoder();
