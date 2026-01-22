@@ -1,7 +1,9 @@
 /**
- * Browser Tools Export
+ * Browser Tools Index
  *
- * Re-exports from agent/tools/browser for backward compatibility
+ * Re-exports all browser tool definitions
+ * Total: 18 tools
  */
 
-export { BROWSER_TOOLS } from '../../agent/tools/browser';
+export * from './browser-tools';
+export { BROWSER_TOOLS } from './browser-tools';

@@ -36,8 +36,8 @@
   flex-direction: column;
   width: 52px;
   background: var(--glass-bg-solid);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+  /* backdrop-filter removed for performance */
+  
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-xl);
   padding: var(--space-3) var(--space-1);
@@ -123,8 +123,8 @@
   display: flex;
   flex-direction: column;
   background: var(--glass-bg-solid);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+  /* backdrop-filter removed for performance */
+  
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-xl);
   box-shadow: var(--glass-shadow);
@@ -136,8 +136,8 @@
   display: flex;
   flex-direction: column;
   background: var(--glass-bg-solid);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+  /* backdrop-filter removed for performance */
+  
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-xl);
   box-shadow: var(--glass-shadow);
@@ -539,8 +539,8 @@
 /* Sidebar Panel */
 .sidebar-panel {
   background: var(--glass-bg-solid);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+  /* backdrop-filter removed for performance */
+  
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-xl);
   box-shadow: var(--glass-shadow);
@@ -572,8 +572,8 @@
   height: 100%;
   min-height: 0;
   background: var(--glass-bg-solid);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+  /* backdrop-filter removed for performance */
+  
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-xl);
   box-shadow: var(--glass-shadow);
@@ -674,8 +674,8 @@
   right: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  /* backdrop-filter removed for performance */
+  
   display: flex;
   align-items: center;
   justify-content: center;
@@ -686,8 +686,8 @@
 .info-modal {
   width: 320px;
   background: var(--glass-bg-solid);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+  /* backdrop-filter removed for performance */
+  
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-xl);
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15), var(--glass-shadow);

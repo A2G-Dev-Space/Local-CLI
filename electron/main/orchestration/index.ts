@@ -7,6 +7,21 @@
 // Plan Executor
 export { PlanExecutor, default } from './plan-executor';
 
+// IPC Agent (Electron-specific wrapper for ipc-handlers)
+export {
+  runAgent,
+  runAgentStream,
+  simpleChat,
+  abortAgent,
+  isAgentRunning,
+  getCurrentTodos,
+  setCurrentTodos,
+  setAgentMainWindow,
+  type AgentConfig,
+  type AgentCallbacks,
+  type AgentResult,
+} from './ipc-agent';
+
 // Types
 export type {
   TodoItem,

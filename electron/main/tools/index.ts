@@ -36,12 +36,18 @@ export {
   setTellToUserCallback,
   setAskUserCallback,
   DOCS_TOOLS,
+  // Tool Executor
+  executeSimpleTool,
+  executeFileTool,
+  // Tool Execution Callbacks (for UI display)
+  setToolExecutionCallback,
+  setToolResponseCallback,
 } from './llm';
 
 // Browser Tools
 export { BROWSER_TOOLS } from './browser';
 
-// Office Tools
-export { WORD_TOOLS } from './office/word';
-export { EXCEL_TOOLS } from './office/excel';
-export { POWERPOINT_TOOLS } from './office/powerpoint';
+// Office Tools (exported from office module)
+export { WORD_TOOLS } from './office/word-tools';
+export { EXCEL_TOOLS } from './office/excel-tools';
+export { POWERPOINT_TOOLS } from './office/powerpoint-tools';

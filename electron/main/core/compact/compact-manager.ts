@@ -14,7 +14,7 @@ import {
   buildCompactedMessages,
   CompactContext,
 } from './compact-prompts';
-import { logger } from '../../logger';
+import { logger } from '../../utils/logger';
 
 /**
  * Result of compact operation

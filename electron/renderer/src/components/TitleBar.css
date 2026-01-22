@@ -6,9 +6,8 @@
   display: flex;
   align-items: center;
   height: 28px;
-  background: var(--glass-bg-solid);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+  background: var(--color-bg-elevated);
+  /* backdrop-filter removed for performance */
   border-bottom: 1px solid var(--glass-border);
   -webkit-app-region: drag;
   user-select: none;

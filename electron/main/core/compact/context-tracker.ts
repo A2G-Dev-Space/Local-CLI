@@ -7,7 +7,7 @@
  * CLI parity: src/core/compact/context-tracker.ts
  */
 
-import { logger } from '../../logger';
+import { logger } from '../../utils/logger';
 
 /**
  * Context usage information

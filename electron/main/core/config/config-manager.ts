@@ -13,7 +13,7 @@
 import fs from 'fs';
 import path from 'path';
 import { app } from 'electron';
-import { logger } from '../../logger';
+import { logger } from '../../utils/logger';
 
 // 색상 팔레트 타입
 export type ColorPalette = 'default' | 'rose' | 'mint' | 'lavender' | 'peach' | 'sky';
@@ -36,6 +36,8 @@ export interface AppConfig {
     width: number;
     height: number;
   };
+  // Tool settings (CLI parity)
+  enabledTools: string[];
 }
 
 // 기본 설정
@@ -46,6 +48,7 @@ const DEFAULT_CONFIG: AppConfig = {
   recentDirectories: [],
   sidebarWidth: 260,
   bottomPanelHeight: 300,
+  enabledTools: [],
 };
 
 class ConfigManager {
@@ -210,6 +213,50 @@ class ConfigManager {
   async reset(): Promise<void> {
     this.config = { ...DEFAULT_CONFIG };
     await this.save();
+  }
+
+  // ============================================
+  // Tool Management (CLI parity)
+  // ============================================
+
+  /**
+   * Get enabled tool group IDs
+   */
+  getEnabledTools(): string[] {
+    return this.config.enabledTools || [];
+  }
+
+  /**
+   * Set enabled tool group IDs
+   */
+  async setEnabledTools(toolIds: string[]): Promise<void> {
+    this.config.enabledTools = toolIds;
+    await this.save();
+  }
+
+  /**
+   * Enable a tool group
+   */
+  async enableTool(toolId: string): Promise<void> {
+    const enabledTools = this.config.enabledTools || [];
+    if (!enabledTools.includes(toolId)) {
+      enabledTools.push(toolId);
+      this.config.enabledTools = enabledTools;
+      await this.save();
+    }
+  }
+
+  /**
+   * Disable a tool group
+   */
+  async disableTool(toolId: string): Promise<void> {
+    const enabledTools = this.config.enabledTools || [];
+    const index = enabledTools.indexOf(toolId);
+    if (index !== -1) {
+      enabledTools.splice(index, 1);
+      this.config.enabledTools = enabledTools;
+      await this.save();
+    }
   }
 }
 

@@ -12,11 +12,11 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import pkg from 'electron-updater';
 const { autoUpdater } = pkg;
-import { logger, LogLevel } from './logger';
+import { logger, LogLevel } from './utils/logger';
 import { setupIpcHandlers, setMainWindow, cleanupIpcHandlers } from './ipc-handlers';
 import { powerShellManager } from './powershell-manager';
-import { configManager } from './config-manager';
-import { sessionManager } from './session-manager';
+import { configManager } from './core/config';
+import { sessionManager } from './core/session';
 import { toolManager } from './tool-manager';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

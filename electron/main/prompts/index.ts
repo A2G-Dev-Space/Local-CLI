@@ -29,6 +29,10 @@ export {
   buildDocsSearchDecisionPrompt,
   parseDocsSearchDecision,
 } from './agents/docs-search-decision';
+export {
+  DOCS_SEARCH_SYSTEM_PROMPT,
+  buildDocsSearchUserMessage,
+} from './agents/docs-search';
 
 // TODO context builder (for backwards compatibility)
 export interface TodoItem {

@@ -9,8 +9,8 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
+  background-color: rgba(0, 0, 0, 0.7);
+  /* backdrop-filter removed for performance */
   display: flex;
   align-items: center;
   justify-content: center;
