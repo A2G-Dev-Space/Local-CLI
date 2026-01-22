@@ -9,6 +9,7 @@
 
 import { app, BrowserWindow, shell, nativeTheme, crashReporter, dialog } from 'electron';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import pkg from 'electron-updater';
 const { autoUpdater } = pkg;
@@ -214,6 +215,13 @@ function setupAutoUpdater(): void {
   // 개발 모드에서는 비활성화
   if (isDev) {
     logger.info('Auto-updater disabled in development mode');
+    return;
+  }
+
+  // Check if app-update.yml exists (only created by electron-builder with publish config)
+  const updateConfigPath = path.join(process.resourcesPath, 'app-update.yml');
+  if (!fs.existsSync(updateConfigPath)) {
+    logger.info('Auto-updater disabled: app-update.yml not found (standalone deployment)');
     return;
   }
 

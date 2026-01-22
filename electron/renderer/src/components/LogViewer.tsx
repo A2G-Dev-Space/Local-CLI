@@ -32,20 +32,33 @@ const LOG_LEVEL_ICONS: Record<LogLevelName, string> = {
   FATAL: '[F]',
 };
 
+// Session log file type
+interface SessionLogFile {
+  sessionId: string;
+  path: string;
+  size: number;
+  modifiedAt: number;
+}
+
 interface LogViewerProps {
   isVisible?: boolean;
   onClose?: () => void;
+  currentSessionId?: string | null;
 }
 
-const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose }) => {
+const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, currentSessionId }) => {
   // 상태
   const [logFiles, setLogFiles] = useState<LogFile[]>([]);
   const [selectedFile, setSelectedFile] = useState<LogFile | null>(null);
   const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
-  const [streamingEntries, setStreamingEntries] = useState<LogEntry[]>([]);
-  const [isStreaming, setIsStreaming] = useState(false);
+  // Streaming removed - File mode only
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Session log state
+  const [sessionLogFiles, setSessionLogFiles] = useState<SessionLogFile[]>([]);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [logSource, setLogSource] = useState<'session' | 'daily'>('session'); // Default to session logs
 
   // 필터 상태
   const [searchQuery, setSearchQuery] = useState('');
@@ -54,8 +67,8 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose }) => {
   const [autoScroll, setAutoScroll] = useState(true);
   const [wrapLines, setWrapLines] = useState(false);
 
-  // 뷰 모드: 'file' | 'live'
-  const [viewMode, setViewMode] = useState<'file' | 'live'>('live');
+  // 뷰 모드: 'file' only (Live tab removed)
+  const [viewMode] = useState<'file'>('file');
 
   // 현재 로그 레벨
   const [currentLogLevel, setCurrentLogLevel] = useState(1); // INFO
@@ -64,7 +77,47 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose }) => {
   const logContainerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // 로그 파일 목록 로드
+  // 세션 로그 파일 목록 로드
+  const loadSessionLogFiles = useCallback(async () => {
+    if (!window.electronAPI?.log?.getSessionFiles) {
+      return;
+    }
+
+    try {
+      const result = await window.electronAPI.log.getSessionFiles();
+      if (result.success && result.files) {
+        setSessionLogFiles(result.files);
+      }
+    } catch (err) {
+      console.error('Failed to load session log files:', err);
+    }
+  }, []);
+
+  // 세션 로그 엔트리 로드
+  const loadSessionLogEntries = useCallback(async (sessionId: string) => {
+    if (!window.electronAPI?.log?.readSessionLog) {
+      setError('Session log API not available');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    try {
+      const result = await window.electronAPI.log.readSessionLog(sessionId);
+      if (result.success && result.entries) {
+        setLogEntries(result.entries);
+      } else {
+        setError(result.error || 'Failed to read session log');
+      }
+    } catch (err) {
+      setError('Failed to load session log entries');
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // 로그 파일 목록 로드 (daily logs)
   const loadLogFiles = useCallback(async () => {
     if (!window.electronAPI?.log) {
       setError('Log API not available');
@@ -102,27 +155,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose }) => {
     }
   }, []);
 
-  // 실시간 스트리밍 시작
-  const startStreaming = useCallback(async () => {
-    try {
-      await window.electronAPI.log.startStreaming();
-      setIsStreaming(true);
-      setStreamingEntries([]);
-    } catch (err) {
-      setError('Failed to start streaming');
-      console.error(err);
-    }
-  }, []);
-
-  // 실시간 스트리밍 중지
-  const stopStreaming = useCallback(async () => {
-    try {
-      await window.electronAPI.log.stopStreaming();
-      setIsStreaming(false);
-    } catch (err) {
-      console.error(err);
-    }
-  }, []);
+  // Streaming functions removed - File mode only
 
   // 로그 파일 삭제
   const deleteLogFile = useCallback(async (file: LogFile) => {
@@ -164,6 +197,31 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose }) => {
     }
   }, [loadLogFiles]);
 
+  // 클립보드에 로그 복사
+  const [copySuccess, setCopySuccess] = useState(false);
+  const copyLogsToClipboard = useCallback(async () => {
+    const entries = viewMode === 'file' ? logEntries : [];
+    if (entries.length === 0) {
+      setError('No log entries to copy');
+      return;
+    }
+
+    const logText = entries.map(entry => {
+      const timestamp = new Date(entry.timestamp).toISOString();
+      const data = entry.data ? ` ${JSON.stringify(entry.data)}` : '';
+      return `[${timestamp}] [${entry.level}] ${entry.message}${data}`;
+    }).join('\n');
+
+    try {
+      await navigator.clipboard.writeText(logText);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    } catch (err) {
+      setError('Failed to copy to clipboard');
+      console.error(err);
+    }
+  }, [viewMode, logEntries]);
+
   // 로그 폴더 열기
   const openLogDirectory = useCallback(async () => {
     await window.electronAPI.log.openDirectory();
@@ -183,57 +241,46 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose }) => {
   // 초기화
   useEffect(() => {
     if (isVisible) {
+      // Load both types of logs
       loadLogFiles();
+      loadSessionLogFiles();
       window.electronAPI.log.getLevel().then(setCurrentLogLevel);
-    }
-  }, [isVisible, loadLogFiles]);
 
-  // 파일 선택 시 로드
+      // Auto-select current session if in session mode
+      if (logSource === 'session' && currentSessionId) {
+        setSelectedSessionId(currentSessionId);
+      }
+    }
+  }, [isVisible, loadLogFiles, loadSessionLogFiles, logSource, currentSessionId]);
+
+  // 파일/세션 선택 시 로드
   useEffect(() => {
-    if (selectedFile && viewMode === 'file') {
+    if (logSource === 'session' && selectedSessionId) {
+      loadSessionLogEntries(selectedSessionId);
+    } else if (logSource === 'daily' && selectedFile && viewMode === 'file') {
       loadLogEntries(selectedFile);
     }
-  }, [selectedFile, viewMode, loadLogEntries]);
+  }, [selectedFile, selectedSessionId, viewMode, logSource, loadLogEntries, loadSessionLogEntries]);
 
-  // 실시간 스트리밍 이벤트 구독
+  // currentSessionId prop 변경 시 자동 선택
   useEffect(() => {
-    if (viewMode === 'live' && isVisible) {
-      startStreaming();
-    } else {
-      stopStreaming();
+    if (currentSessionId && logSource === 'session') {
+      setSelectedSessionId(currentSessionId);
     }
+  }, [currentSessionId, logSource]);
 
-    const unsubscribe = window.electronAPI.log.onEntry((entry: LogEntry) => {
-      if (viewMode === 'live') {
-        setStreamingEntries(prev => {
-          const newEntries = [...prev, entry];
-          // 최대 1000개 유지
-          if (newEntries.length > 1000) {
-            return newEntries.slice(-1000);
-          }
-          return newEntries;
-        });
-      }
-    });
-
-    return () => {
-      unsubscribe();
-      stopStreaming();
-    };
-  }, [viewMode, isVisible, startStreaming, stopStreaming]);
+  // Streaming event subscription removed - File mode only
 
   // 자동 스크롤
   useEffect(() => {
     if (autoScroll && logContainerRef.current) {
       logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
     }
-  }, [streamingEntries, logEntries, autoScroll]);
+  }, [logEntries, autoScroll]);
 
-  // 현재 표시할 로그 엔트리
+  // 현재 표시할 로그 엔트리 (File mode only)
   const displayEntries = useMemo(() => {
-    const entries = viewMode === 'live' ? streamingEntries : logEntries;
-
-    return entries.filter(entry => {
+    return logEntries.filter(entry => {
       // 레벨 필터
       const level = entry.level as LogLevelName;
       if (!levelFilter.has(level)) return false;
@@ -248,7 +295,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose }) => {
 
       return true;
     });
-  }, [viewMode, streamingEntries, logEntries, levelFilter, searchQuery]);
+  }, [logEntries, levelFilter, searchQuery]);
 
   // 레벨 필터 토글
   const toggleLevelFilter = useCallback((level: LogLevelName) => {
@@ -316,7 +363,6 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose }) => {
             <path d="M8 12h8v2H8zm0 4h8v2H8z"/>
           </svg>
           <span>Log Viewer</span>
-          {isStreaming && <span className="streaming-badge">LIVE</span>}
         </div>
         <div className="log-viewer-actions">
           <button
@@ -349,30 +395,43 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose }) => {
 
       {/* 툴바 */}
       <div className="log-viewer-toolbar">
-        {/* 뷰 모드 토글 */}
-        <div className="log-view-mode">
+        {/* 로그 소스 선택 (Session / Daily) */}
+        <div className="log-source-toggle">
           <button
-            className={`mode-btn ${viewMode === 'live' ? 'active' : ''}`}
-            onClick={() => setViewMode('live')}
+            className={`source-btn ${logSource === 'session' ? 'active' : ''}`}
+            onClick={() => setLogSource('session')}
+            title="Session Logs"
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-              <circle cx="12" cy="12" r="10"/>
-            </svg>
-            Live
+            Session
           </button>
           <button
-            className={`mode-btn ${viewMode === 'file' ? 'active' : ''}`}
-            onClick={() => setViewMode('file')}
+            className={`source-btn ${logSource === 'daily' ? 'active' : ''}`}
+            onClick={() => setLogSource('daily')}
+            title="Daily Logs"
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"/>
-            </svg>
-            File
+            Daily
           </button>
         </div>
 
-        {/* 파일 선택 (File 모드) */}
-        {viewMode === 'file' && (
+        {/* 세션 선택 (session mode) */}
+        {logSource === 'session' && (
+          <select
+            className="log-file-select"
+            value={selectedSessionId || ''}
+            onChange={(e) => setSelectedSessionId(e.target.value || null)}
+          >
+            <option value="">Select Session...</option>
+            {sessionLogFiles.map(file => (
+              <option key={file.sessionId} value={file.sessionId}>
+                {file.sessionId === currentSessionId ? '★ ' : ''}
+                {file.sessionId.slice(0, 8)}... ({formatSize(file.size)})
+              </option>
+            ))}
+          </select>
+        )}
+
+        {/* 파일 선택 (daily mode) */}
+        {logSource === 'daily' && (
           <select
             className="log-file-select"
             value={selectedFile?.path || ''}
@@ -388,6 +447,24 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose }) => {
             ))}
           </select>
         )}
+
+        {/* 클립보드 복사 버튼 */}
+        <button
+          className={`log-action-btn copy-btn ${copySuccess ? 'success' : ''}`}
+          onClick={copyLogsToClipboard}
+          title="Copy all logs to clipboard"
+        >
+          {copySuccess ? (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+            </svg>
+          ) : (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+            </svg>
+          )}
+          {copySuccess ? 'Copied!' : 'Copy All'}
+        </button>
 
         {/* 검색 */}
         <div className="log-search">
@@ -497,23 +574,11 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose }) => {
 
         {!isLoading && displayEntries.length === 0 && (
           <div className="log-empty">
-            {viewMode === 'live' ? (
-              <>
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor" opacity="0.3">
-                  <circle cx="12" cy="12" r="10"/>
-                </svg>
-                <span>Waiting for logs...</span>
-                <span className="hint">Logs will appear here in real-time</span>
-              </>
-            ) : (
-              <>
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor" opacity="0.3">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"/>
-                </svg>
-                <span>No log entries found</span>
-                <span className="hint">Select a different file or adjust filters</span>
-              </>
-            )}
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor" opacity="0.3">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"/>
+            </svg>
+            <span>No log entries found</span>
+            <span className="hint">Select a different file or adjust filters</span>
           </div>
         )}
 
@@ -548,7 +613,6 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose }) => {
       <div className="log-viewer-footer">
         <span className="log-count">
           {displayEntries.length} entries
-          {viewMode === 'live' && ` (${streamingEntries.length} total)`}
         </span>
         {viewMode === 'file' && selectedFile && (
           <div className="log-file-actions">

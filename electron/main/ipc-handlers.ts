@@ -847,6 +847,43 @@ export function setupIpcHandlers(): void {
     return { success: true };
   });
 
+  // Session log handlers
+  ipcMain.handle('log:setSession', (_event, sessionId: string | null) => {
+    logger.setSessionId(sessionId);
+    return { success: true };
+  });
+
+  ipcMain.handle('log:getSessionFiles', async () => {
+    try {
+      const files = await logger.getSessionLogFiles();
+      return { success: true, files };
+    } catch (error) {
+      return { success: false, error: (error as Error).message, files: [] };
+    }
+  });
+
+  ipcMain.handle('log:readSessionLog', async (_event, sessionId: string) => {
+    try {
+      const entries = await logger.readSessionLog(sessionId);
+      return { success: true, entries };
+    } catch (error) {
+      return { success: false, error: (error as Error).message, entries: [] };
+    }
+  });
+
+  ipcMain.handle('log:deleteSessionLog', async (_event, sessionId: string) => {
+    try {
+      await logger.deleteSessionLog(sessionId);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  });
+
+  ipcMain.handle('log:getCurrentSessionId', () => {
+    return { success: true, sessionId: logger.getCurrentSessionId() };
+  });
+
   // ============ 시스템 ============
 
   // 시스템 정보
@@ -1267,6 +1304,12 @@ export function setupIpcHandlers(): void {
     try {
       // Set main window for agent IPC
       setAgentMainWindow(mainWindow);
+
+      // Set session ID for logging
+      const currentSession = sessionManager.getCurrentSession();
+      if (currentSession) {
+        logger.setSessionId(currentSession.id);
+      }
 
       // Setup callbacks for IPC communication
       const callbacks: AgentCallbacks = {

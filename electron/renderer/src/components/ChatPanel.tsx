@@ -30,9 +30,14 @@ export interface ChatPanelRef {
 import TodoList from './TodoList';
 import UserQuestion from './UserQuestion';
 import ProgressMessage from './ProgressMessage';
-import ToolExecution from './ToolExecution';
+import ToolExecution, { ToolExecutionData } from './ToolExecution';
 import ApprovalModal from './ApprovalModal';
 import './ChatPanel.css';
+
+// Timeline item for interleaved rendering
+type TimelineItem =
+  | { type: 'message'; data: ChatMessage; timestamp: number }
+  | { type: 'tools'; data: ToolExecutionData[]; timestamp: number };
 
 // Import logo for assistant avatar
 import logoImage from '/no_bg_logo.png';
@@ -171,6 +176,37 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
     setupAgentListeners,
   } = useAgent();
 
+  // Create unified timeline of messages and tool executions sorted by timestamp
+  const timeline = useMemo<TimelineItem[]>(() => {
+    const items: TimelineItem[] = [];
+
+    // Add messages to timeline
+    visibleMessages.forEach(msg => {
+      items.push({
+        type: 'message',
+        data: msg,
+        timestamp: msg.timestamp,
+      });
+    });
+
+    // Group consecutive tool executions and add to timeline
+    // Use the first tool's timestamp for the group
+    if (toolExecutions.length > 0) {
+      // Find insertion points by checking if tools should appear after each message
+      const firstToolTime = toolExecutions[0].timestamp;
+      items.push({
+        type: 'tools',
+        data: toolExecutions,
+        timestamp: firstToolTime,
+      });
+    }
+
+    // Sort by timestamp
+    items.sort((a, b) => a.timestamp - b.timestamp);
+
+    return items;
+  }, [visibleMessages, toolExecutions]);
+
   // Input history state
   const [inputHistory, setInputHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
@@ -214,10 +250,15 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
   // Setup final response callback - displays as chat message with markdown
   useEffect(() => {
     setOnFinalResponse((message: string) => {
+      // Normalize escaped characters (LLM sometimes sends literal \n instead of newlines)
+      const normalizedMessage = message
+        .replace(/\\n/g, '\n')
+        .replace(/\\t/g, '\t');
+
       const assistantMessage: ChatMessage = {
         id: `final-${Date.now()}`,
         role: 'assistant',
-        content: message,
+        content: normalizedMessage,
         timestamp: Date.now(),
       };
       setMessages(prev => [...prev, assistantMessage]);
@@ -273,18 +314,8 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
       })
     );
 
-    // Tell user event - display as info chat message (time-ordered with other messages)
-    unsubscribes.push(
-      window.electronAPI.agent.onTellUser((message) => {
-        const infoMessage: ChatMessage = {
-          id: `info-${Date.now()}`,
-          role: 'system',
-          content: message,
-          timestamp: Date.now(),
-        };
-        setMessages(prev => [...prev, infoMessage]);
-      })
-    );
+    // Tell user event - now handled in AgentContext as tool execution
+    // for unified UI design with other tools
 
     return () => {
       unsubscribes.forEach(unsub => unsub());
@@ -339,6 +370,18 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
     clearToolExecutions();
     clearProgressMessages();
 
+    // Auto-create session if none exists
+    if (!session && window.electronAPI?.session) {
+      try {
+        const result = await window.electronAPI.session.create('New Chat', currentDirectory);
+        if (result.success && result.session && onSessionChange) {
+          onSessionChange(result.session);
+        }
+      } catch (error) {
+        console.error('Failed to create session:', error);
+      }
+    }
+
     // Save user message
     await saveMessageToSession(userMessage);
 
@@ -366,9 +409,9 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
       .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
 
     // Agent config
+    // CLI parity: no iteration limit - runs until LLM stops calling tools
     const agentConfig: AgentConfig = {
       workingDirectory: currentDirectory,
-      maxIterations: 50,
       autoMode: allowAllPermissions,
     };
 
@@ -630,13 +673,27 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
             Show {hiddenMessageCount} earlier messages
           </button>
         )}
-        {visibleMessages.map((message) => (
-          <MessageItem
-            key={message.id}
-            message={message}
-            isBatchLoad={isBatchLoad}
-          />
-        ))}
+        {/* Unified timeline: messages and tool executions interleaved by timestamp */}
+        {timeline.map((item, idx) => {
+          if (item.type === 'message') {
+            return (
+              <MessageItem
+                key={item.data.id}
+                message={item.data}
+                isBatchLoad={isBatchLoad}
+              />
+            );
+          } else {
+            // Tool executions group
+            return (
+              <ToolExecution
+                key={`tools-${idx}`}
+                executions={item.data}
+                onRetry={handleToolRetry}
+              />
+            );
+          }
+        })}
 
         {/* TODO List is now shown in the Editor area (TodoPanel) */}
 
@@ -645,14 +702,6 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
           <ProgressMessage
             messages={progressMessages}
             onDismiss={dismissProgressMessage}
-          />
-        )}
-
-        {/* Tool Executions - shown during execution */}
-        {toolExecutions.length > 0 && (
-          <ToolExecution
-            executions={toolExecutions}
-            onRetry={handleToolRetry}
           />
         )}
 

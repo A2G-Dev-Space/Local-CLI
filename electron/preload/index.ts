@@ -213,7 +213,7 @@ export interface TodoItem {
 }
 
 export interface AgentConfig {
-  maxIterations?: number;
+  // maxIterations removed - CLI parity: no iteration limit
   enabledToolGroups?: string[];
   workingDirectory?: string;
   isGitRepo?: boolean;
@@ -1006,6 +1006,27 @@ const electronAPI = {
 
     stopStreaming: (): Promise<{ success: boolean }> => {
       return ipcRenderer.invoke('log:stopStreaming');
+    },
+
+    // Session log methods
+    setSession: (sessionId: string | null): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke('log:setSession', sessionId);
+    },
+
+    getSessionFiles: (): Promise<{ success: boolean; files: Array<{ sessionId: string; path: string; size: number; modifiedAt: number }> }> => {
+      return ipcRenderer.invoke('log:getSessionFiles');
+    },
+
+    readSessionLog: (sessionId: string): Promise<{ success: boolean; entries: Array<{ timestamp: string; level: string; message: string; data?: unknown }> }> => {
+      return ipcRenderer.invoke('log:readSessionLog', sessionId);
+    },
+
+    deleteSessionLog: (sessionId: string): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke('log:deleteSessionLog', sessionId);
+    },
+
+    getCurrentSessionId: (): Promise<{ success: boolean; sessionId: string | null }> => {
+      return ipcRenderer.invoke('log:getCurrentSessionId');
     },
   },
 

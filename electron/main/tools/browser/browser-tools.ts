@@ -397,12 +397,18 @@ const BROWSER_EXECUTE_SCRIPT_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'browser_execute_script',
-    description: `Execute JavaScript code in the browser context.`,
+    description: `Execute JavaScript code in the browser context.
+The script is automatically wrapped in an async function, so you can use 'return' statements and 'await'.
+Examples:
+- "return document.title;" - returns page title
+- "return 1 + 1;" - returns 2
+- "document.body.style.background = 'red';" - changes background (returns undefined)
+- "return await fetch('/api').then(r => r.json());" - async fetch`,
     parameters: {
       type: 'object',
       properties: {
         reason: { type: 'string', description: 'Explanation of why you are executing script' },
-        script: { type: 'string', description: 'JavaScript code to execute' },
+        script: { type: 'string', description: 'JavaScript code to execute (can use return and await)' },
       },
       required: ['reason', 'script'],
     },

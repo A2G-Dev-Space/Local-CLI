@@ -249,8 +249,17 @@ const App: React.FC = () => {
     });
 
     // Handle TODO update event - show todo panel in editor
+    // Track previous todo count to detect creation vs update
+    let prevTodoCount = 0;
     const unsubTodo = window.electronAPI.agent.onTodoUpdate?.((todos) => {
-      if (todos && todos.length > 0) {
+      const currentCount = todos?.length || 0;
+      const wasEmpty = prevTodoCount === 0;
+      const isCreation = wasEmpty && currentCount > 0;
+      prevTodoCount = currentCount;
+
+      // Only auto-open TODO tab when todos are first CREATED (0 -> some)
+      // Updates to existing todos don't auto-switch to the tab
+      if (isCreation) {
         // Exit fullscreen mode to show editor area with TODO panel
         setIsBottomPanelFullscreen(false);
 

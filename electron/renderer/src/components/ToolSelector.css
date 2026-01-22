@@ -164,21 +164,25 @@
 .tool-info {
   flex: 1;
   min-width: 0;
+  overflow: visible;
 }
 
 .tool-name {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--space-1);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
   color: var(--color-text-primary);
+  word-break: break-word;
 }
 
 .tool-count {
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-normal);
   color: var(--color-text-muted);
+  white-space: nowrap;
 }
 
 .tool-description {

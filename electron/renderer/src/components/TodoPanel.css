@@ -8,15 +8,15 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding-top: var(--space-2);  /* Reduced from space-4 */
+  align-items: stretch; /* Fill width instead of center */
+  padding: var(--space-2);
   overflow-y: auto;
   background: var(--color-bg-primary);
 }
 
 .todo-panel-wrapper .todo-panel {
   width: 100%;
-  max-width: 800px;
+  max-width: none; /* Remove max-width for responsive fill */
 }
 
 .todo-panel {

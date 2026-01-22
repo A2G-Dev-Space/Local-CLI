@@ -704,6 +704,7 @@ class BrowserClient {
 
   /**
    * Execute JavaScript
+   * Wraps script in async IIFE to support return statements and await
    */
   async executeScript(script: string): Promise<BrowserResponse> {
     try {
@@ -711,8 +712,12 @@ class BrowserClient {
         return { success: false, error: 'Browser not running. Use launch first.' };
       }
 
+      // Wrap script in async IIFE to support return statements and await
+      // This allows LLM to use "return value;" syntax
+      const wrappedScript = `(async function() { ${script} })()`;
+
       const result = await this.cdp.send('Runtime.evaluate', {
-        expression: script,
+        expression: wrappedScript,
         returnByValue: true,
         awaitPromise: true,
       }) as { result: { value: unknown }; exceptionDetails?: { text: string } };

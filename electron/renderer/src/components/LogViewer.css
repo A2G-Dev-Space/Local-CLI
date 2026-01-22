@@ -83,6 +83,19 @@
   color: var(--text-primary, #cccccc);
 }
 
+/* Copy button - wider to fit text */
+.log-action-btn.copy-btn {
+  width: auto;
+  padding: 0 8px;
+  gap: 4px;
+  font-size: 11px;
+}
+
+.log-action-btn.copy-btn.success {
+  background: #10b981;
+  color: white;
+}
+
 .log-close-btn:hover {
   background: #e81123;
   color: white;
@@ -137,6 +150,42 @@
 @keyframes live-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
+}
+
+/* 로그 소스 토글 (Session / Daily) */
+.log-source-toggle {
+  display: flex;
+  background: var(--bg-secondary, #252526);
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--border-color, #3c3c3c);
+}
+
+.source-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary, #888);
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.source-btn:hover {
+  color: var(--text-primary, #cccccc);
+}
+
+.source-btn.active {
+  background: var(--accent-color, #0078d4);
+  color: white;
+}
+
+.source-btn:first-child {
+  border-right: 1px solid var(--border-color, #3c3c3c);
 }
 
 /* 파일 선택 */

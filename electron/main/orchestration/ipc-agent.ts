@@ -43,7 +43,7 @@ import type { TodoItem, AskUserRequest, AskUserResponse } from './types';
 // =============================================================================
 
 export interface AgentConfig {
-  maxIterations?: number;
+  // maxIterations removed - CLI parity: no iteration limit
   enabledToolGroups?: OptionalToolGroupId[];
   workingDirectory?: string;
   enablePlanning?: boolean;
@@ -162,7 +162,7 @@ export async function runAgent(
   callbacks: AgentCallbacks = {}
 ): Promise<AgentResult> {
   const {
-    maxIterations = 50,
+    // maxIterations removed - CLI parity: no iteration limit, runs until LLM stops
     workingDirectory = process.cwd(),
     enablePlanning = true,
     resumeTodos = false,
@@ -172,7 +172,6 @@ export async function runAgent(
     userMessage: userMessage.substring(0, 100),
     existingMessagesCount: existingMessages.length,
     workingDirectory,
-    maxIterations,
     enablePlanning,
     resumeTodos,
   });
@@ -354,12 +353,25 @@ export async function runAgent(
   let contextCompactRetried = false;
   let finalResponseFailures = 0;
   const MAX_FINAL_RESPONSE_FAILURES = 3;
+  const SOFT_ITERATION_LIMIT = 50; // Warn after this many iterations (informational only)
+  let softLimitWarned = false;
 
   try {
-    while (state.isRunning && iterations < maxIterations) {
+    // CLI parity: no iteration limit - runs until LLM stops calling tools
+    while (state.isRunning) {
       iterations++;
 
       logger.info(`Agent iteration ${iterations}`, { messagesCount: messages.length });
+
+      // Soft warning at 50 iterations (informational only, not a limit)
+      if (iterations === SOFT_ITERATION_LIMIT && !softLimitWarned) {
+        softLimitWarned = true;
+        logger.warn(`Reached ${SOFT_ITERATION_LIMIT} iterations (informational)`);
+        messages.push({
+          role: 'user',
+          content: `You have made ${SOFT_ITERATION_LIMIT} tool calls. Please wrap up and call final_response soon to deliver your results.`,
+        });
+      }
 
       if (state.abortController?.signal.aborted) {
         throw new Error('Agent aborted');
@@ -614,7 +626,11 @@ export async function runAgent(
            /<arg_key>/i.test(assistantMessage.content) ||
            /<arg_value>/i.test(assistantMessage.content) ||
            /<\/tool_call>/i.test(assistantMessage.content) ||
-           /bash<arg_key>/i.test(assistantMessage.content));
+           /bash<arg_key>/i.test(assistantMessage.content) ||
+           // Grok/xAI XML function call format
+           /<xai:function_call/i.test(assistantMessage.content) ||
+           /<\/xai:function_call>/i.test(assistantMessage.content) ||
+           /<parameter\s+name=/i.test(assistantMessage.content));
 
         const retryMessage = hasMalformedToolCall
           ? 'Your previous response contained a malformed tool call (XML tags in content). You MUST use the proper tool_calls API format. Use final_response tool to deliver your message to the user.'
@@ -635,10 +651,7 @@ export async function runAgent(
       }
     }
 
-    if (iterations >= maxIterations) {
-      logger.warn('Agent hit max iterations', { maxIterations });
-      finalResponse = 'Maximum iterations reached. The task may be incomplete.';
-    }
+    // CLI parity: no max iterations check - loop exits when LLM calls final_response or stops
 
     if (callbacks.onComplete) {
       callbacks.onComplete(finalResponse);

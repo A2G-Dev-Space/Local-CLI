@@ -272,7 +272,7 @@ const BottomPanel: React.FC<BottomPanelProps> = ({
           </div>
           <div className="panel-tab-content" style={{ display: layout === 'logs' ? 'flex' : 'none' }}>
             <Suspense fallback={<div className="loading-fallback">Loading logs...</div>}>
-              <LogViewer isVisible={layout === 'logs'} />
+              <LogViewer isVisible={layout === 'logs'} currentSessionId={currentSession?.id || null} />
             </Suspense>
           </div>
         </div>

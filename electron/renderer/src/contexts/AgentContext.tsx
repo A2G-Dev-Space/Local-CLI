@@ -291,11 +291,19 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
       })
     );
 
-    // Tell user event - now handled in ChatPanel as chat message for proper time ordering
-    // Keeping empty listener to prevent errors if preload expects it
+    // Tell user event - display as tool execution for unified UI and proper time ordering
     unsubscribes.push(
-      window.electronAPI.agent.onTellUser(() => {
-        // Handled in ChatPanel.tsx for proper time-ordered display
+      window.electronAPI.agent.onTellUser((message) => {
+        const newExecution: ToolExecutionData = {
+          id: `tell-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          toolName: 'tell_to_user',
+          category: 'user',
+          input: { message },
+          status: 'success',
+          timestamp: Date.now(),
+          reason: message, // Show message as reason for inline display
+        };
+        addToolExecution(newExecution);
       })
     );
 

@@ -59,6 +59,12 @@ class Logger {
   private writeStream: fs.WriteStream | null = null;
   private initialized: boolean = false;
 
+  // Session-specific logging
+  private currentSessionId: string | null = null;
+  private sessionLogFile: string = '';
+  private sessionWriteStream: fs.WriteStream | null = null;
+  private sessionLogDir: string = '';
+
   constructor() {
     this.config = { ...DEFAULT_CONFIG };
   }
@@ -79,6 +85,10 @@ class Logger {
 
     // 로그 디렉토리 생성
     await this.ensureLogDirectory();
+
+    // Session 로그 디렉토리 설정
+    this.sessionLogDir = path.join(this.config.logDir, 'sessions');
+    await fs.promises.mkdir(this.sessionLogDir, { recursive: true });
 
     // 오래된 로그 파일 정리
     await this.cleanOldLogs();
@@ -194,6 +204,11 @@ class Logger {
     if (this.initialized) {
       this.updateLogFile(); // 날짜 변경 확인
       this.writeStream?.write(logLine);
+
+      // Session 로그에도 기록
+      if (this.sessionWriteStream) {
+        this.sessionWriteStream.write(logLine);
+      }
     }
 
     // 실시간 콜백 알림
@@ -316,6 +331,99 @@ class Logger {
     this.timers.delete(label);
     this.log(LogLevel.DEBUG, `[TIMER END] ${label}`, { elapsed: `${elapsed}ms` });
     return elapsed;
+  }
+
+  // ============ Session-specific logging ============
+
+  /**
+   * Set current session for logging
+   */
+  setSessionId(sessionId: string | null): void {
+    // Close previous session stream
+    if (this.sessionWriteStream) {
+      this.sessionWriteStream.end();
+      this.sessionWriteStream = null;
+    }
+
+    this.currentSessionId = sessionId;
+
+    if (sessionId) {
+      this.sessionLogFile = path.join(this.sessionLogDir, `session-${sessionId}.log`);
+      this.sessionWriteStream = fs.createWriteStream(this.sessionLogFile, { flags: 'a' });
+      this.info('Session logging started', { sessionId });
+    } else {
+      this.sessionLogFile = '';
+    }
+  }
+
+  /**
+   * Get current session ID
+   */
+  getCurrentSessionId(): string | null {
+    return this.currentSessionId;
+  }
+
+  /**
+   * Get session log file path
+   */
+  getSessionLogFilePath(): string {
+    return this.sessionLogFile;
+  }
+
+  /**
+   * Get all session log files
+   */
+  async getSessionLogFiles(): Promise<{ sessionId: string; path: string; size: number; modifiedAt: number }[]> {
+    try {
+      const files = await fs.promises.readdir(this.sessionLogDir);
+      const sessionFiles = await Promise.all(
+        files
+          .filter((f) => f.startsWith('session-') && f.endsWith('.log'))
+          .map(async (name) => {
+            const filePath = path.join(this.sessionLogDir, name);
+            const stats = await fs.promises.stat(filePath);
+            const sessionId = name.replace('session-', '').replace('.log', '');
+            return {
+              sessionId,
+              path: filePath,
+              size: stats.size,
+              modifiedAt: stats.mtimeMs,
+            };
+          })
+      );
+
+      return sessionFiles.sort((a, b) => b.modifiedAt - a.modifiedAt);
+    } catch (error) {
+      this.error('Failed to get session log files', error);
+      return [];
+    }
+  }
+
+  /**
+   * Read session log file
+   */
+  async readSessionLog(sessionId: string): Promise<LogEntry[]> {
+    const filePath = path.join(this.sessionLogDir, `session-${sessionId}.log`);
+    try {
+      const content = await fs.promises.readFile(filePath, 'utf-8');
+      return this.parseLogEntries(content);
+    } catch (error) {
+      // File might not exist yet
+      return [];
+    }
+  }
+
+  /**
+   * Delete session log file
+   */
+  async deleteSessionLog(sessionId: string): Promise<void> {
+    const filePath = path.join(this.sessionLogDir, `session-${sessionId}.log`);
+    try {
+      await fs.promises.unlink(filePath);
+      this.info('Session log deleted', { sessionId });
+    } catch (error) {
+      this.error('Failed to delete session log', { sessionId, error });
+    }
   }
 
   /**

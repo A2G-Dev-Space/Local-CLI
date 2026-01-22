@@ -22,7 +22,7 @@ export interface TodoItem {
 // =============================================================================
 
 export interface ExecutorConfig {
-  maxIterations?: number;
+  // maxIterations removed - CLI parity: no iteration limit
   workingDirectory?: string;
   isGitRepo?: boolean;
   enablePlanning?: boolean;
