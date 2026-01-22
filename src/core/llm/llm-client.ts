@@ -704,10 +704,12 @@ export class LLMClient {
       logger.flow(`반복 ${iterations} - LLM 호출`);
 
       // LLM 호출 (tools 포함)
+      // tool_choice: 'required' forces LLM to always use a tool
       logger.startTimer(`tool-iteration-${iterations}`);
       const response = await this.chatCompletion({
         messages,
         tools,
+        tool_choice: 'required',
       });
       logger.endTimer(`tool-iteration-${iterations}`);
 
