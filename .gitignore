@@ -60,3 +60,4 @@ office-server/*.spec
 
 # Binary (uncompressed - too large for git)
 bin/lcli
+dist-electron/

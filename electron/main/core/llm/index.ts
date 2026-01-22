@@ -1,20 +1,9 @@
 /**
- * LLM Module Export
- * Re-exports from ROOT level llm-client.ts for backwards compatibility
+ * LLM module barrel export
+ *
+ * CLI parity: src/core/llm/index.ts
  */
 
-export {
-  llmClient,
-  default,
-} from '../../llm-client';
+export * from './llm-client';
 
-export type {
-  Message,
-  ToolCall,
-  ToolDefinition,
-  LLMResponse,
-  LLMStreamChunk,
-  ChatRequestOptions,
-  StreamCallback,
-  RetryConfig,
-} from '../../llm-client';
+// Note: PlanningLLM is in electron/main/agents/planner/

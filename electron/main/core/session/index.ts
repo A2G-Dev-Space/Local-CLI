@@ -1,13 +1,7 @@
 /**
- * Session Module Export
- * Re-exports from ROOT level session-manager.ts for backwards compatibility
+ * Session module barrel export
+ *
+ * CLI parity: src/core/session/index.ts
  */
 
-export { sessionManager, default } from '../../session-manager';
-export type {
-  ChatMessage,
-  Session,
-  SessionSummary,
-  SessionLogEntry,
-  SessionTodoItem,
-} from '../../session-manager';
+export * from './session-manager';

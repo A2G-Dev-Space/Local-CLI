@@ -1,7 +1,7 @@
 /**
- * Config Module Export
- * Re-exports from ROOT level config-manager.ts for backwards compatibility
+ * Config module barrel export
+ *
+ * CLI parity: src/core/config/index.ts
  */
 
-export { configManager, default } from '../../config-manager';
-export type { AppConfig } from '../../config-manager';
+export * from './config-manager';
