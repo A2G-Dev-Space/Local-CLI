@@ -929,11 +929,13 @@ export class LLMClient {
       }
 
       // LLM 호출 (tools 포함) - with ContextLengthError recovery
+      // tool_choice: 'required' forces LLM to always use a tool (use final_response for final answer)
       let response: LLMResponse;
       try {
         response = await this.chatCompletion({
           messages: workingMessages,
           tools,
+          tool_choice: 'required',
         });
       } catch (error) {
         // ContextLengthError recovery: rollback last tool + compact + retry
