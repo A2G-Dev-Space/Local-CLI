@@ -710,7 +710,6 @@ export class LLMClient {
       const response = await this.chatCompletion({
         messages,
         tools,
-        tool_choice: 'required',
       });
       logger.endTimer(`tool-iteration-${iterations}`);
 
