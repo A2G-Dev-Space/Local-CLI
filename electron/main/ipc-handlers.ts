@@ -903,9 +903,9 @@ export function setupIpcHandlers(): void {
   });
 
   // LLM endpoint 추가
-  ipcMain.handle('llm:addEndpoint', (_event, endpointData: Omit<EndpointConfig, 'id' | 'createdAt' | 'updatedAt'>) => {
+  ipcMain.handle('llm:addEndpoint', async (_event, endpointData: Omit<EndpointConfig, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
-      const endpoint = configManager.addEndpoint(endpointData);
+      const endpoint = await configManager.addEndpoint(endpointData);
       return { success: true, endpoint };
     } catch (error) {
       logger.error('Failed to add LLM endpoint', error);
@@ -917,9 +917,9 @@ export function setupIpcHandlers(): void {
   });
 
   // LLM endpoint 업데이트
-  ipcMain.handle('llm:updateEndpoint', (_event, endpointId: string, updates: Partial<EndpointConfig>) => {
+  ipcMain.handle('llm:updateEndpoint', async (_event, endpointId: string, updates: Partial<EndpointConfig>) => {
     try {
-      const success = configManager.updateEndpoint(endpointId, updates);
+      const success = await configManager.updateEndpoint(endpointId, updates);
       return { success };
     } catch (error) {
       logger.error('Failed to update LLM endpoint', error);
@@ -931,9 +931,9 @@ export function setupIpcHandlers(): void {
   });
 
   // LLM endpoint 삭제
-  ipcMain.handle('llm:removeEndpoint', (_event, endpointId: string) => {
+  ipcMain.handle('llm:removeEndpoint', async (_event, endpointId: string) => {
     try {
-      const success = configManager.removeEndpoint(endpointId);
+      const success = await configManager.removeEndpoint(endpointId);
       return { success };
     } catch (error) {
       logger.error('Failed to remove LLM endpoint', error);
@@ -945,9 +945,9 @@ export function setupIpcHandlers(): void {
   });
 
   // 현재 endpoint 설정
-  ipcMain.handle('llm:setCurrentEndpoint', (_event, endpointId: string) => {
+  ipcMain.handle('llm:setCurrentEndpoint', async (_event, endpointId: string) => {
     try {
-      const success = configManager.setCurrentEndpoint(endpointId);
+      const success = await configManager.setCurrentEndpoint(endpointId);
       return { success };
     } catch (error) {
       logger.error('Failed to set current LLM endpoint', error);
