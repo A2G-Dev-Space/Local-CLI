@@ -3,6 +3,8 @@
  *
  * Guidelines for operating in the Windows environment with PowerShell.
  * NOTE: This is Electron-specific (NOT bash/WSL)
+ *
+ * CLI parity: This is Electron-specific - CLI doesn't have windows-rules.ts
  */
 
 /**
@@ -31,23 +33,3 @@ This system runs on **Windows** with **PowerShell** (not bash/WSL).
 - \`npm install\`, \`npm run build\` - Node.js operations
 - \`python script.py\` - Python execution
 `.trim();
-
-/**
- * Git rules for Windows environment
- */
-export const GIT_COMMIT_RULES = `
-## Git Repository Rules
-
-Follow these git commit guidelines:
-
-1. **Stage changes carefully** - Use \`git add <specific-files>\` instead of \`git add .\`
-2. **Write meaningful commit messages** - Describe WHAT changed and WHY
-3. **Check status first** - Use \`git status\` before committing
-4. **Don't push automatically** - Only commit, don't push unless explicitly asked
-5. **Separate concerns** - Make atomic commits for logical changes
-`.trim();
-
-export default {
-  WINDOWS_POWERSHELL_RULES,
-  GIT_COMMIT_RULES,
-};

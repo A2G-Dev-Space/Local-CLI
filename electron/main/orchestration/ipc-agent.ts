@@ -11,6 +11,7 @@
 import { BrowserWindow } from 'electron';
 import { llmClient, Message } from '../core/llm';
 import { logger } from '../utils/logger';
+import { detectGitRepo } from '../utils/git-utils';
 import { toolRegistry, executeSimpleTool } from '../tools';
 import { OptionalToolGroupId } from '../tools/types';
 import {
@@ -24,7 +25,8 @@ import {
   setToolExecutionCallback,
   setToolResponseCallback,
 } from '../tools';
-import { buildPlanExecutePrompt } from '../prompts';
+import { PLAN_EXECUTE_SYSTEM_PROMPT, buildPlanExecutePrompt } from '../prompts';
+import { GIT_COMMIT_RULES } from '../prompts/shared/git-rules';
 import { PlanningLLM } from '../agents/planner';
 import { getContextTracker } from '../core/compact';
 import {
@@ -44,10 +46,35 @@ export interface AgentConfig {
   maxIterations?: number;
   enabledToolGroups?: OptionalToolGroupId[];
   workingDirectory?: string;
-  isGitRepo?: boolean;
   enablePlanning?: boolean;
   resumeTodos?: boolean;
   autoMode?: boolean;
+}
+
+// =============================================================================
+// System Prompt Builder (CLI parity: plan-executor.ts buildSystemPrompt)
+// =============================================================================
+
+/**
+ * Build system prompt with conditional Git rules
+ * Git rules are only added when .git folder exists in working directory
+ *
+ * CLI parity: src/orchestration/plan-executor.ts buildSystemPrompt()
+ */
+function buildSystemPrompt(workingDirectory: string): string {
+  const isGitRepo = detectGitRepo(workingDirectory);
+
+  // Build base prompt with tool summary and working directory
+  const toolSummary = toolRegistry.getToolSummaryForPlanning();
+  let prompt = buildPlanExecutePrompt({ toolSummary, workingDirectory });
+
+  // Add Git rules conditionally (CLI parity)
+  if (isGitRepo) {
+    prompt += `\n\n${GIT_COMMIT_RULES}`;
+    logger.debug('Git repo detected - added GIT_COMMIT_RULES to prompt');
+  }
+
+  return prompt;
 }
 
 export interface AgentCallbacks {
@@ -137,7 +164,6 @@ export async function runAgent(
   const {
     maxIterations = 50,
     workingDirectory = process.cwd(),
-    isGitRepo = false,
     enablePlanning = true,
     resumeTodos = false,
   } = config;
@@ -221,12 +247,8 @@ export async function runAgent(
   const actualEnabledToolGroups = toolRegistry.getEnabledToolGroupIds() as OptionalToolGroupId[];
   logger.info('Enabled tool groups from registry', { enabledToolGroups: actualEnabledToolGroups });
 
-  // Build system prompt
-  const systemPrompt = buildPlanExecutePrompt({
-    enabledToolGroups: actualEnabledToolGroups,
-    workingDirectory,
-    isGitRepo,
-  });
+  // Build system prompt with Git rules if applicable (CLI parity)
+  const systemPrompt = buildSystemPrompt(workingDirectory);
 
   // Initialize context tracker
   void getContextTracker();

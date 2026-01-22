@@ -1,24 +1,21 @@
 /**
  * Plan & Execute System Prompt
  * TODO-based plan execution mode for Windows/Electron
+ *
+ * CLI parity: src/prompts/system/plan-execute.ts
+ * NOTE: Git rules are added conditionally in ipc-agent.ts (same as CLI's plan-executor.ts)
  */
 
 import { LANGUAGE_PRIORITY_RULE } from '../shared/language-rules';
 import { TOOL_REASON_GUIDE } from '../shared/tool-usage';
 import { CODEBASE_FIRST_RULE } from '../shared/codebase-rules';
-import { WINDOWS_POWERSHELL_RULES, GIT_COMMIT_RULES } from '../shared/windows-rules';
+import { WINDOWS_POWERSHELL_RULES } from '../shared/windows-rules';
 
 /**
- * Build Plan & Execute system prompt
+ * Base Plan & Execute system prompt (without Git rules)
+ * Git rules are conditionally added by ipc-agent.ts based on detectGitRepo()
  */
-export function buildPlanExecutePrompt(options: {
-  toolSummary: string;
-  workingDirectory?: string;
-  isGitRepo?: boolean;
-} = { toolSummary: '' }): string {
-  const { toolSummary, workingDirectory, isGitRepo = false } = options;
-
-  let prompt = `You are an AI assistant executing a TODO-based plan on Windows.
+export const PLAN_EXECUTE_SYSTEM_PROMPT = `You are an AI assistant executing a TODO-based plan on Windows.
 
 ${LANGUAGE_PRIORITY_RULE}
 
@@ -33,8 +30,6 @@ ${LANGUAGE_PRIORITY_RULE}
 - When finishing a task → mark it "completed" IMMEDIATELY
 - The user sees the TODO list in real-time - mismatched status is confusing
 - Call \`write_todos\` FREQUENTLY, not just at the end
-
-${toolSummary}
 
 ${TOOL_REASON_GUIDE}
 
@@ -99,6 +94,27 @@ Example:
 If TODO context keeps repeating but work is done → IMMEDIATELY mark all as "completed".
 `;
 
+/**
+ * Build Plan & Execute system prompt with tool summary and working directory
+ * @param options - toolSummary and workingDirectory
+ * @returns Complete system prompt (Git rules added separately by caller if needed)
+ */
+export function buildPlanExecutePrompt(options: {
+  toolSummary?: string;
+  workingDirectory?: string;
+} = {}): string {
+  const { toolSummary, workingDirectory } = options;
+
+  let prompt = PLAN_EXECUTE_SYSTEM_PROMPT;
+
+  // Insert tool summary after TODO Workflow section if provided
+  if (toolSummary) {
+    prompt = prompt.replace(
+      '${TOOL_REASON_GUIDE}',
+      `${toolSummary}\n\n${TOOL_REASON_GUIDE}`
+    );
+  }
+
   // Add working directory context if provided
   if (workingDirectory) {
     prompt += `
@@ -110,31 +126,15 @@ All relative paths are resolved from this directory.
 `;
   }
 
-  // Add Git rules if in a Git repo
-  if (isGitRepo) {
-    prompt += `
-
-${GIT_COMMIT_RULES}
-`;
-  }
-
   return prompt;
 }
 
 /**
- * Build simple chat prompt (no TODO/planning)
+ * Simple chat prompt (no TODO/planning)
  */
-export function buildSimpleChatPrompt(options: {
-  toolSummary: string;
-  workingDirectory?: string;
-} = { toolSummary: '' }): string {
-  const { toolSummary, workingDirectory } = options;
-
-  let prompt = `You are an AI assistant running on Windows with access to file system and PowerShell.
+export const SIMPLE_CHAT_SYSTEM_PROMPT = `You are an AI assistant running on Windows with access to file system and PowerShell.
 
 ${LANGUAGE_PRIORITY_RULE}
-
-${toolSummary}
 
 ${TOOL_REASON_GUIDE}
 
@@ -151,6 +151,24 @@ ${WINDOWS_POWERSHELL_RULES}
 5. Ask for clarification if the request is unclear
 `;
 
+/**
+ * Build simple chat prompt with tool summary and working directory
+ */
+export function buildSimpleChatPrompt(options: {
+  toolSummary?: string;
+  workingDirectory?: string;
+} = {}): string {
+  const { toolSummary, workingDirectory } = options;
+
+  let prompt = SIMPLE_CHAT_SYSTEM_PROMPT;
+
+  if (toolSummary) {
+    prompt = prompt.replace(
+      '${TOOL_REASON_GUIDE}',
+      `${toolSummary}\n\n${TOOL_REASON_GUIDE}`
+    );
+  }
+
   if (workingDirectory) {
     prompt += `
 
@@ -162,8 +180,3 @@ Current directory: \`${workingDirectory}\`
 
   return prompt;
 }
-
-export default {
-  buildPlanExecutePrompt,
-  buildSimpleChatPrompt,
-};

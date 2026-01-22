@@ -18,7 +18,12 @@ export { WINDOWS_POWERSHELL_RULES } from './shared/windows-rules';
 export { GIT_COMMIT_RULES } from './shared/git-rules';
 
 // System prompts
-export { buildPlanExecutePrompt, buildSimpleChatPrompt } from './system/plan-execute';
+export {
+  PLAN_EXECUTE_SYSTEM_PROMPT,
+  buildPlanExecutePrompt,
+  SIMPLE_CHAT_SYSTEM_PROMPT,
+  buildSimpleChatPrompt,
+} from './system/plan-execute';
 export { COMPACT_SYSTEM_PROMPT } from './system/compact';
 
 // Agent prompts
