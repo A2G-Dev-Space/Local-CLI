@@ -938,6 +938,84 @@ export const browserTypeTool: LLMSimpleTool = {
 };
 
 /**
+ * browser_execute_script Tool Definition
+ */
+const BROWSER_EXECUTE_SCRIPT_DEFINITION: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'browser_execute_script',
+    description: `Execute JavaScript code in the browser context.
+The script is automatically wrapped in an async function, so you can use 'return' statements and 'await'.
+Use this only when other browser tools don't cover your use case.
+Examples:
+- "return document.title;" - returns page title
+- "return document.querySelectorAll('a').length;" - count all links
+- "return await fetch('/api/data').then(r => r.json());" - async fetch`,
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: {
+          type: 'string',
+          description: 'Explanation of why you need to execute this script',
+        },
+        script: {
+          type: 'string',
+          description: 'JavaScript code to execute (can use return and await)',
+        },
+      },
+      required: ['reason', 'script'],
+    },
+  },
+};
+
+async function executeBrowserExecuteScript(args: Record<string, unknown>): Promise<ToolResult> {
+  const script = args['script'] as string;
+
+  if (!script) {
+    return {
+      success: false,
+      error: "The 'script' argument is required.",
+    };
+  }
+
+  try {
+    if (!(await browserClient.isBrowserActive())) {
+      return {
+        success: false,
+        error: 'Browser is not running. Use browser_launch first.',
+      };
+    }
+
+    const response = await browserClient.executeScript(script);
+
+    if (!response.success) {
+      return {
+        success: false,
+        error: response.error || 'Failed to execute script',
+        result: response['details'] as string,
+      };
+    }
+
+    return {
+      success: true,
+      result: JSON.stringify(response['result'], null, 2),
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: `Failed to execute script: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+export const browserExecuteScriptTool: LLMSimpleTool = {
+  definition: BROWSER_EXECUTE_SCRIPT_DEFINITION,
+  execute: executeBrowserExecuteScript,
+  categories: BROWSER_CATEGORIES,
+  description: 'Execute JavaScript in browser',
+};
+
+/**
  * All browser tools
  */
 export const BROWSER_TOOLS: LLMSimpleTool[] = [
@@ -953,5 +1031,6 @@ export const BROWSER_TOOLS: LLMSimpleTool[] = [
   browserFocusTool,
   browserPressKeyTool,
   browserTypeTool,
+  browserExecuteScriptTool,
   browserCloseTool,
 ];

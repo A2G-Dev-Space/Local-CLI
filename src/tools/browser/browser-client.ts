@@ -1019,6 +1019,7 @@ class BrowserClient {
 
   /**
    * Execute JavaScript
+   * Wraps script in async IIFE to support return statements and await
    */
   async executeScript(script: string): Promise<BrowserResponse> {
     try {
@@ -1026,10 +1027,22 @@ class BrowserClient {
         return { success: false, error: 'Browser not running. Use launch first.' };
       }
 
+      // Wrap script in async IIFE to support return statements and await
+      const wrappedScript = `(async function() { ${script} })()`;
+
       const result = await this.cdp.send('Runtime.evaluate', {
-        expression: script,
+        expression: wrappedScript,
         returnByValue: true,
-      }) as { result: { value: unknown } };
+        awaitPromise: true,
+      }) as { result: { value: unknown }; exceptionDetails?: { exception?: { description?: string }; text?: string } };
+
+      if (result.exceptionDetails) {
+        return {
+          success: false,
+          error: 'Script execution error',
+          details: result.exceptionDetails.exception?.description || result.exceptionDetails.text || 'Unknown error',
+        };
+      }
 
       return {
         success: true,
