@@ -436,8 +436,12 @@ export async function downloadDocsFromSource(
           try {
             content = await downloadFile(entry.rawUrl);
             break;
-          } catch {
+          } catch (e) {
             retries--;
+            logger.warn(`Download attempt failed for ${entry.rawUrl}`, {
+              error: e instanceof Error ? e.message : String(e),
+              retriesLeft: retries
+            });
             if (retries > 0) {
               await new Promise(resolve => setTimeout(resolve, 500));
             }

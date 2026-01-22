@@ -5,7 +5,7 @@
  */
 
 import { logger } from '../../utils/logger';
-import { llmManager } from '../../llm-manager';
+import { configManager } from '../config';
 import { usageTracker } from '../usage-tracker';
 
 // =============================================================================
@@ -113,8 +113,8 @@ class LLMClient {
    * Get current endpoint config
    */
   private getEndpointConfig() {
-    const endpoint = llmManager.getCurrentEndpoint();
-    const model = llmManager.getCurrentModel();
+    const endpoint = configManager.getCurrentEndpoint();
+    const model = configManager.getCurrentModel();
 
     if (!endpoint || !model) {
       throw new Error('No endpoint or model configured. Please configure an LLM endpoint in Settings.');

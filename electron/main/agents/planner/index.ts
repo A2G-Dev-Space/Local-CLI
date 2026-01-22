@@ -535,8 +535,9 @@ Choose either 'create_todos' or 'respond_to_user' now.`,
               const subDirNames = subDirs.map(d => d.name).join(', ');
               lines.push(`   └── [${subDirNames}]`);
             }
-          } catch {
-            // Ignore errors reading subdirectories
+          } catch (e) {
+            // Log but don't fail on subdirectory read errors
+            logger.warn(`Could not read subdirectory ${subPath}`, e);
           }
         }
         // Skip files at root level - only show directories

@@ -4,9 +4,6 @@
  * Central export for plan execution functionality
  */
 
-// Plan Executor
-export { PlanExecutor, default } from './plan-executor';
-
 // IPC Agent (Electron-specific wrapper for ipc-handlers)
 export {
   runAgent,

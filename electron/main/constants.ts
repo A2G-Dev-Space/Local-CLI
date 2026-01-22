@@ -41,8 +41,3 @@ export const BACKUPS_DIR = path.join(LOCAL_HOME_DIR, 'backups');
  * ~/.local-cli/projects/
  */
 export const PROJECTS_DIR = path.join(LOCAL_HOME_DIR, 'projects');
-
-/**
- * Application version (injected from package.json)
- */
-export const APP_VERSION = '3.2.0';

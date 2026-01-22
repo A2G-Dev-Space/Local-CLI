@@ -11,9 +11,8 @@ import { ipcMain, dialog, shell, app, BrowserWindow, nativeTheme } from 'electro
 import fs from 'fs';
 import { logger, LogLevel } from './utils/logger';
 import { powerShellManager, PowerShellOutput, SessionInfo } from './powershell-manager';
-import { configManager, AppConfig } from './core/config';
+import { configManager, AppConfig, EndpointConfig } from './core/config';
 import { sessionManager, Session, SessionSummary, ChatMessage } from './core/session';
-import { llmManager, EndpointConfig } from './llm-manager';
 import { llmClient, Message } from './core/llm';
 import { compactConversation, canCompact, CompactContext } from './core/compact';
 import { usageTracker } from './core/usage-tracker';
@@ -892,7 +891,7 @@ export function setupIpcHandlers(): void {
   // LLM endpoints 가져오기
   ipcMain.handle('llm:getEndpoints', () => {
     try {
-      const result = llmManager.getEndpoints();
+      const result = configManager.getEndpoints();
       return { success: true, ...result };
     } catch (error) {
       logger.error('Failed to get LLM endpoints', error);
@@ -906,7 +905,7 @@ export function setupIpcHandlers(): void {
   // LLM endpoint 추가
   ipcMain.handle('llm:addEndpoint', (_event, endpointData: Omit<EndpointConfig, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
-      const endpoint = llmManager.addEndpoint(endpointData);
+      const endpoint = configManager.addEndpoint(endpointData);
       return { success: true, endpoint };
     } catch (error) {
       logger.error('Failed to add LLM endpoint', error);
@@ -920,7 +919,7 @@ export function setupIpcHandlers(): void {
   // LLM endpoint 업데이트
   ipcMain.handle('llm:updateEndpoint', (_event, endpointId: string, updates: Partial<EndpointConfig>) => {
     try {
-      const success = llmManager.updateEndpoint(endpointId, updates);
+      const success = configManager.updateEndpoint(endpointId, updates);
       return { success };
     } catch (error) {
       logger.error('Failed to update LLM endpoint', error);
@@ -934,7 +933,7 @@ export function setupIpcHandlers(): void {
   // LLM endpoint 삭제
   ipcMain.handle('llm:removeEndpoint', (_event, endpointId: string) => {
     try {
-      const success = llmManager.removeEndpoint(endpointId);
+      const success = configManager.removeEndpoint(endpointId);
       return { success };
     } catch (error) {
       logger.error('Failed to remove LLM endpoint', error);
@@ -948,7 +947,7 @@ export function setupIpcHandlers(): void {
   // 현재 endpoint 설정
   ipcMain.handle('llm:setCurrentEndpoint', (_event, endpointId: string) => {
     try {
-      const success = llmManager.setCurrentEndpoint(endpointId);
+      const success = configManager.setCurrentEndpoint(endpointId);
       return { success };
     } catch (error) {
       logger.error('Failed to set current LLM endpoint', error);
@@ -962,7 +961,7 @@ export function setupIpcHandlers(): void {
   // 연결 테스트
   ipcMain.handle('llm:testConnection', async (_event, baseUrl: string, apiKey: string | undefined, modelId: string) => {
     try {
-      const result = await llmManager.testConnection(baseUrl, apiKey, modelId);
+      const result = await configManager.testConnection(baseUrl, apiKey, modelId);
       return result;
     } catch (error) {
       logger.error('Failed to test LLM connection', error);
@@ -976,7 +975,7 @@ export function setupIpcHandlers(): void {
   // 전체 health check
   ipcMain.handle('llm:healthCheckAll', async () => {
     try {
-      await llmManager.healthCheckAll();
+      await configManager.healthCheckAll();
       return { success: true };
     } catch (error) {
       logger.error('Failed to health check LLM endpoints', error);
@@ -990,7 +989,7 @@ export function setupIpcHandlers(): void {
   // 시스템 상태 가져오기
   ipcMain.handle('llm:getStatus', () => {
     try {
-      const status = llmManager.getStatus();
+      const status = configManager.getStatus();
       return { success: true, status };
     } catch (error) {
       logger.error('Failed to get LLM status', error);
