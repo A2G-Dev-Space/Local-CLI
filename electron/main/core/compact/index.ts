@@ -1,27 +1,30 @@
 /**
- * Compact Module Export
- * Re-exports from ROOT level for backwards compatibility
+ * Compact Module
+ *
+ * Provides auto-compact functionality for managing context window usage.
+ *
+ * CLI parity: src/core/compact/index.ts
  */
 
-// From ROOT compact-manager.ts
+// Context tracking
 export {
-  compactConversation,
-  canCompact,
-  getCompactSystemPrompt,
-  buildCompactUserPrompt,
-  buildCompactedMessages,
-} from '../../compact-manager';
-
-export type { CompactResult, CompactContext } from '../../compact-manager';
-
-// From agent/context-tracker.ts (the updated version with CLI parity)
-export {
-  ContextTracker,
+  contextTracker,
   getContextTracker,
   resetContextTracker,
-} from '../../agent/context-tracker';
+  type ContextUsageInfo,
+  type RecentFile,
+} from './context-tracker';
 
-export type { ContextUsage, RecentFile } from '../../agent/context-tracker';
+// Compact prompts and utilities
+export {
+  COMPACT_SYSTEM_PROMPT,
+  buildCompactUserPrompt,
+  buildCompactedMessages,
+  type CompactContext,
+} from './compact-prompts';
 
-// NOTE: compact-prompts.ts is no longer needed - functions are now in compact-manager.ts
-// NOTE: CompactManager class is not exported - use compactConversation() function instead
+// Compact manager
+export {
+  CompactManager,
+  type CompactResult,
+} from './compact-manager';

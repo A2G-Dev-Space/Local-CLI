@@ -1,18 +1,14 @@
 /**
  * Core Module Export
  *
- * Central export for all core functionality:
- * - LLM Client with retry logic
- * - Config Manager
- * - Session Manager
- * - Compact Manager with Context Tracker
- *
- * NOTE: All modules re-export from ROOT level files for consistency
+ * Central export for all core functionality.
+ * CLI parity: src/core/ (structure matches)
  */
 
 // LLM
 export {
   llmClient,
+  LLMClient,
 } from './llm';
 
 export type {
@@ -33,6 +29,8 @@ export {
 
 export type {
   AppConfig,
+  ColorPalette,
+  FontSize,
 } from './config';
 
 // Session
@@ -50,19 +48,24 @@ export type {
 
 // Compact
 export {
-  compactConversation,
-  canCompact,
-  ContextTracker,
+  contextTracker,
   getContextTracker,
   resetContextTracker,
-  getCompactSystemPrompt,
+  COMPACT_SYSTEM_PROMPT,
   buildCompactUserPrompt,
   buildCompactedMessages,
+  CompactManager,
 } from './compact';
 
 export type {
   CompactResult,
   CompactContext,
-  ContextUsage,
+  ContextUsageInfo,
   RecentFile,
 } from './compact';
+
+// Docs Manager (CLI parity)
+export * from './docs-manager';
+
+// Usage Tracker (CLI parity)
+export * from './usage-tracker';
