@@ -9,9 +9,8 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.6);
+  /* backdrop-filter removed for performance */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -23,9 +22,8 @@
   width: 480px;
   max-width: 90vw;
   max-height: 85vh;
-  background: var(--glass-bg-solid);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+  background: var(--color-bg-elevated);
+  /* backdrop-filter removed for performance */
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-xl);
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15), var(--glass-shadow);

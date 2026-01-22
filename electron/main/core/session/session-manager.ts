@@ -10,7 +10,7 @@
 import fs from 'fs';
 import path from 'path';
 import { app } from 'electron';
-import { logger } from '../../logger';
+import { logger } from '../../utils/logger';
 
 // =============================================================================
 // Types (CLI parity)

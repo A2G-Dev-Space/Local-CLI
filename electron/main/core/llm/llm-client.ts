@@ -4,7 +4,7 @@
  * Aligned with CLI's llm-client.ts for feature parity
  */
 
-import { logger } from '../../logger';
+import { logger } from '../../utils/logger';
 import { llmManager } from '../../llm-manager';
 import { usageTracker } from '../usage-tracker';
 

@@ -6,9 +6,8 @@
   display: flex;
   flex-direction: column;
   position: relative;
-  background: var(--glass-bg-solid);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+  background: var(--color-bg-elevated);
+  /* backdrop-filter removed for performance */
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-xl);
   box-shadow: var(--glass-shadow);

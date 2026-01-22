@@ -96,6 +96,9 @@ const TodoList: React.FC<TodoListProps> = ({ todos, isExecuting, onRetry }) => {
             {getStatusIcon(todo.status)}
             <div className="todo-item-content">
               <span className="todo-item-title">{todo.title}</span>
+              {todo.status === 'in_progress' && (
+                <span className="todo-current-indicator">←</span>
+              )}
               {todo.error && (
                 <span className="todo-item-error">{todo.error}</span>
               )}

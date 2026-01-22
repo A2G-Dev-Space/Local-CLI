@@ -1,19 +1,34 @@
 /**
- * Agents Module Export
+ * Agents Index
  *
- * Central export for all agent functionality:
- * - Planning LLM for TODO generation
- * - Docs Search for documentation lookup
+ * Central export for all LLM-powered agents.
+ *
+ * CLI parity: src/agents/index.ts
  */
 
-// Planner
-export { PlanningLLM, default as Planner } from './planner';
-export type { TodoItem, PlanningResult, PlanningWithDocsResult } from './planner';
-
-// Docs Search
+// Base agent
 export {
-  shouldSearchDocs,
-  createDocsSearchDecider,
-} from './docs-search';
+  BaseAgent,
+  type AgentContext,
+  type AgentResult,
+  type AgentConfig,
+} from './base/base-agent';
 
-export type { DocsSearchResult } from './docs-search';
+// Planning agent
+export {
+  PlanningLLM,
+  type PlanningWithDocsResult,
+  type PlanningResult,
+  type TodoItem,
+} from './planner';
+
+// Documentation search agent
+export {
+  DocsSearchAgent,
+  createDocsSearchAgent,
+  executeDocsSearchAgent,
+  initializeDocsDirectory,
+  addDocumentationFile,
+  setDocsSearchProgressCallback,
+  type DocsSearchProgressCallback,
+} from './docs-search';

@@ -11,7 +11,7 @@
  * NOTE: This is Windows/PowerShell based (NOT bash/WSL)
  */
 
-import { logger } from '../logger';
+import { logger } from '../utils/logger';
 import type { Message, ToolDefinition } from '../core/llm';
 import { getContextTracker } from '../core/compact';
 import { PlanningLLM } from '../agents/planner';

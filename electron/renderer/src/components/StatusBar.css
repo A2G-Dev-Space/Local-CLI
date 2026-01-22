@@ -8,9 +8,8 @@
   justify-content: space-between;
   height: 28px;
   padding: 0 var(--space-4);
-  background: var(--glass-bg-solid);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+  background: var(--color-bg-elevated);
+  /* backdrop-filter removed for performance */
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--glass-shadow);

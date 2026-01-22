@@ -8,7 +8,7 @@ import { app } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { logger } from './logger';
+import { logger } from './utils/logger';
 
 // Windows UI 전용 Config 경로 (CLI와 별도)
 // config.json에 endpoints 정보 포함 (CLI와 동일한 구조)

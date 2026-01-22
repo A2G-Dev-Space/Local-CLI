@@ -8,7 +8,7 @@
 
 import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
 import { EventEmitter } from 'events';
-import { logger } from './logger';
+import { logger } from './utils/logger';
 
 // PowerShell 출력 타입
 export interface PowerShellOutput {

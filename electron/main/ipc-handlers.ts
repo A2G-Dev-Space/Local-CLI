@@ -9,14 +9,14 @@
 
 import { ipcMain, dialog, shell, app, BrowserWindow, nativeTheme } from 'electron';
 import fs from 'fs';
-import { logger, LogLevel } from './logger';
+import { logger, LogLevel } from './utils/logger';
 import { powerShellManager, PowerShellOutput, SessionInfo } from './powershell-manager';
-import { configManager, AppConfig } from './config-manager';
-import { sessionManager, Session, SessionSummary, ChatMessage } from './session-manager';
+import { configManager, AppConfig } from './core/config';
+import { sessionManager, Session, SessionSummary, ChatMessage } from './core/session';
 import { llmManager, EndpointConfig } from './llm-manager';
-import { llmClient, Message } from './llm-client';
-import { compactConversation, canCompact, CompactContext } from './compact-manager';
-import { usageTracker } from './usage-tracker';
+import { llmClient, Message } from './core/llm';
+import { compactConversation, canCompact, CompactContext } from './core/compact';
+import { usageTracker } from './core/usage-tracker';
 import { toolManager } from './tool-manager';
 import {
   runAgent,
@@ -31,14 +31,14 @@ import {
   TodoItem,
   AskUserRequest,
   AskUserResponse,
-} from './agent';
+} from './orchestration';
 import {
-  getDocsInfo,
+  getDocsInfoForIpc as getDocsInfo,
   downloadDocs,
   deleteDocs,
   openDocsFolder,
   DownloadProgress,
-} from './docs-manager';
+} from './core/docs-manager';
 
 // 파일 필터 타입
 interface FileFilter {

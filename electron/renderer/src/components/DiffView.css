@@ -17,14 +17,13 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--space-2) var(--space-4);
-  background: rgba(255, 255, 255, 0.6);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: var(--color-bg-elevated);
+  /* backdrop-filter removed for performance */
   border-bottom: 1px solid var(--glass-border);
 }
 
 [data-theme="dark"] .diff-header {
-  background: rgba(15, 23, 42, 0.6);
+  background: var(--color-bg-elevated);
 }
 
 .diff-title {

@@ -6,8 +6,8 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { logger } from './logger';
-import { toolRegistry } from './agent/tools';
+import { logger } from './utils/logger';
+import { toolRegistry } from './tools/registry';
 
 /**
  * Tool group interface

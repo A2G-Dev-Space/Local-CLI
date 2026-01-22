@@ -1,0 +1,161 @@
+/**
+ * TODO Tools (LLM Simple)
+ *
+ * TODO list management tools
+ * CLI parity: src/tools/llm/simple/todo-tools.ts
+ *
+ * Category: LLM Simple Tools - LLM이 tool_call로 호출, Sub-LLM 없음
+ */
+
+import type { ToolDefinition } from '../../../core';
+import type { LLMSimpleTool, ToolResult, ToolCategory } from '../../types';
+
+// =============================================================================
+// Constants
+// =============================================================================
+
+const CORE_CATEGORIES: ToolCategory[] = ['llm-simple'];
+
+// =============================================================================
+// Types
+// =============================================================================
+
+export interface TodoItem {
+  id: string;
+  title: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+}
+
+export type TodoWriteCallback = (todos: TodoItem[]) => Promise<boolean>;
+
+// Global callback - set by agent
+let todoWriteCallback: TodoWriteCallback | null = null;
+
+export function setTodoWriteCallback(callback: TodoWriteCallback | null): void {
+  todoWriteCallback = callback;
+}
+
+export function getTodoWriteCallback(): TodoWriteCallback | null {
+  return todoWriteCallback;
+}
+
+// =============================================================================
+// write_todos Tool
+// =============================================================================
+
+const WRITE_TODOS_DEFINITION: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'write_todos',
+    description: `Replace the entire TODO list with a new list.
+
+Use this to:
+- Update TODO statuses (change status field)
+- Add new TODOs (include in the array)
+- Remove TODOs (omit from the array)
+- Reorder TODOs (change array order)
+
+IMPORTANT: You must include ALL TODOs you want to keep. Any TODO not in the array will be removed.
+
+Example - Mark first task complete, second in progress:
+{
+  "todos": [
+    { "id": "1", "title": "Setup project", "status": "completed" },
+    { "id": "2", "title": "Implement feature", "status": "in_progress" },
+    { "id": "3", "title": "Write tests", "status": "pending" }
+  ]
+}`,
+    parameters: {
+      type: 'object',
+      properties: {
+        todos: {
+          type: 'array',
+          description: 'The complete TODO list (replaces existing list)',
+          items: {
+            type: 'object',
+            properties: {
+              id: {
+                type: 'string',
+                description: 'Unique ID for the TODO',
+              },
+              title: {
+                type: 'string',
+                description: 'Short title describing the task',
+              },
+              status: {
+                type: 'string',
+                enum: ['pending', 'in_progress', 'completed', 'failed'],
+                description: 'Current status of the TODO',
+              },
+            },
+            required: ['id', 'title', 'status'],
+          },
+        },
+      },
+      required: ['todos'],
+    },
+  },
+};
+
+async function executeWriteTodos(args: Record<string, unknown>): Promise<ToolResult> {
+  const todos = args['todos'] as TodoItem[];
+
+  if (!todos || !Array.isArray(todos)) {
+    return { success: false, error: 'Missing required parameter: todos array is required' };
+  }
+
+  if (!todoWriteCallback) {
+    return { success: false, error: 'TODO management is not available in current context' };
+  }
+
+  // Validate each todo
+  for (const todo of todos) {
+    if (!todo.id || !todo.title || !todo.status) {
+      return { success: false, error: 'Invalid TODO item: each item must have id, title, and status' };
+    }
+    if (!['pending', 'in_progress', 'completed', 'failed'].includes(todo.status)) {
+      return { success: false, error: `Invalid status "${todo.status}" for TODO "${todo.id}"` };
+    }
+  }
+
+  try {
+    const success = await todoWriteCallback(todos);
+
+    if (success) {
+      const completed = todos.filter((t) => t.status === 'completed').length;
+      const inProgress = todos.filter((t) => t.status === 'in_progress').length;
+      const pending = todos.filter((t) => t.status === 'pending').length;
+      const failed = todos.filter((t) => t.status === 'failed').length;
+
+      const summary = `TODO list updated (${todos.length} items): ${completed} completed, ${inProgress} in progress, ${pending} pending, ${failed} failed`;
+
+      return {
+        success: true,
+        result: summary,
+        metadata: { todoCount: todos.length, completed, inProgress, pending, failed },
+      };
+    } else {
+      return { success: false, error: 'Failed to update TODO list' };
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: `Error writing TODOs: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    };
+  }
+}
+
+export const writeTodosTool: LLMSimpleTool = {
+  definition: WRITE_TODOS_DEFINITION,
+  execute: executeWriteTodos,
+  categories: CORE_CATEGORIES,
+  description: 'Write/replace entire TODO list',
+};
+
+// =============================================================================
+// Export All TODO Tools
+// =============================================================================
+
+export const TODO_TOOLS: LLMSimpleTool[] = [
+  writeTodosTool,
+];
