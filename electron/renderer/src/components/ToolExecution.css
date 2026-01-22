@@ -14,13 +14,16 @@
 
 /* ============ Execution Item ============ */
 .tool-execution {
-  background: rgba(255, 255, 255, 0.6);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: rgba(255, 255, 255, 0.95);
+  /* backdrop-filter removed for performance */
   border: 1px solid rgba(226, 232, 240, 0.6);
   border-radius: var(--radius-lg);
   overflow: hidden;
   transition: all var(--transition-fast);
+  /* GPU acceleration for smoother rendering */
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
 [data-theme="dark"] .tool-execution {

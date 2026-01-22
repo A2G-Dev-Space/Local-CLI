@@ -4,7 +4,18 @@
    ===================================================== */
 
 /* ============ Font Imports ============ */
+/* Font loading with swap to prevent FOIT (Flash of Invisible Text) */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+/* GPU acceleration for smoother animations */
+.animate-slide-in-up,
+.animate-slide-in-left,
+.animate-slide-in-right,
+.animate-fade-in {
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
 
 /* ============ Layout System ============ */
 @import './layout.css';
@@ -537,16 +548,14 @@ input::placeholder, textarea::placeholder {
 /* ============ Glass Effect ============ */
 .glass {
   background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+  /* backdrop-filter removed for performance */
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shadow);
 }
 
 .glass-panel {
   background: var(--glass-bg-solid);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+  /* backdrop-filter removed for performance */
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-xl);
   box-shadow: var(--glass-shadow);
@@ -554,8 +563,7 @@ input::placeholder, textarea::placeholder {
 
 .glass-subtle {
   background: var(--glass-bg);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  /* backdrop-filter removed for performance */
   border: 1px solid var(--glass-border-subtle);
 }
 

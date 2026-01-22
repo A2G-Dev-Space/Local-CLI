@@ -398,8 +398,8 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
     }
   }, [setIsExecuting]);
 
-  // Handle keyboard events with input history
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  // Handle keyboard events with input history (wrapped in useCallback to prevent re-renders)
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
@@ -437,7 +437,7 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
       e.preventDefault();
       handleAbort();
     }
-  };
+  }, [sendMessage, inputHistory, input, historyIndex, isExecuting, handleAbort]);
 
   // Retry failed tool execution
   const handleToolRetry = useCallback((id: string) => {

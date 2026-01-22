@@ -145,6 +145,10 @@
   align-items: center;
   gap: var(--space-3);
   animation: fadeSlideIn 0.3s ease-out;
+  /* GPU acceleration for smoother rendering */
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
 @keyframes fadeSlideIn {
