@@ -79,7 +79,10 @@
   gap: var(--space-3);
   margin-bottom: var(--space-5);
   animation: slideInUp var(--transition-smooth);
+  /* GPU acceleration for smoother rendering */
   will-change: transform, opacity;
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
 /* Disable animation for batch loads (performance optimization) */

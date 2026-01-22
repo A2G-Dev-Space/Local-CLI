@@ -57,7 +57,7 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ todos, onRetry }) => {
       completedCount: doneCount,
       failedCount: failCount,
       totalCount: todos.length,
-      pendingCount: pendingCnt + (next ? 1 : 0),
+      pendingCount: pendingCnt,  // Fixed: next is already counted in pendingCnt
     };
   }, [todos]);
 

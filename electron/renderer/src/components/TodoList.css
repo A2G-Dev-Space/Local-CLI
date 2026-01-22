@@ -8,13 +8,16 @@
   margin: var(--space-4) 0;
   margin-left: 44px; /* Account for avatar space (32px + margin) */
   padding: var(--space-4);
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: rgba(255, 255, 255, 0.95);
+  /* backdrop-filter removed for performance */
   border: 1px solid rgba(226, 232, 240, 0.6);
   border-radius: var(--radius-xl);
   animation: slideInUp var(--transition-smooth);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  /* GPU acceleration for smoother rendering */
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
 [data-theme="dark"] .todo-list-container {
@@ -179,6 +182,14 @@
   font-size: var(--font-size-sm);
   color: var(--color-text-primary);
   line-height: 1.4;
+}
+
+/* Current indicator (CLI parity) */
+.todo-current-indicator {
+  margin-left: var(--space-2);
+  color: var(--color-accent-primary);
+  font-weight: var(--font-weight-bold);
+  animation: pulse 1s ease-in-out infinite;
 }
 
 .todo-item.completed .todo-item-title {

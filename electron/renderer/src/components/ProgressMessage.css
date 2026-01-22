@@ -28,6 +28,10 @@
   border-left: 3px solid var(--color-accent-primary);
   animation: slideInLeft var(--transition-fast);
   position: relative;
+  /* GPU acceleration for smoother rendering */
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
 @keyframes slideInLeft {
