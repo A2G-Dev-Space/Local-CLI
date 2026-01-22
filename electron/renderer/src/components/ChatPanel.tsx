@@ -273,10 +273,23 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
       })
     );
 
+    // Tell user event - display as info chat message (time-ordered with other messages)
+    unsubscribes.push(
+      window.electronAPI.agent.onTellUser((message) => {
+        const infoMessage: ChatMessage = {
+          id: `info-${Date.now()}`,
+          role: 'system',
+          content: message,
+          timestamp: Date.now(),
+        };
+        setMessages(prev => [...prev, infoMessage]);
+      })
+    );
+
     return () => {
       unsubscribes.forEach(unsub => unsub());
     };
-  }, [setIsExecuting]);
+  }, [setIsExecuting, saveMessageToSession]);
 
   // Auto-scroll to bottom - optimized with throttle
   const scrollToBottom = useCallback(() => {
