@@ -89,10 +89,11 @@ $presentation.Slides(${fromIndex}).MoveTo(${toIndex})
     const hasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(text);
     const fontName = options?.fontName || (hasKorean ? 'Malgun Gothic' : '');
 
-    const formatCommands: string[] = [];
-    if (fontName) formatCommands.push(`$textRange.Font.Name = '${fontName.replace(/'/g, "''")}'`);
-    if (options?.fontSize) formatCommands.push(`$textRange.Font.Size = ${options.fontSize}`);
-    if (options?.bold !== undefined) formatCommands.push(`$textRange.Font.Bold = ${options.bold ? '-1' : '0'}`);
+    // TEXT FIRST, FONT AFTER pattern (Microsoft recommended for Korean)
+    const fontCommands: string[] = [];
+    if (fontName) fontCommands.push(`$textRange.Font.Name = '${fontName.replace(/'/g, "''")}'`);
+    if (options?.fontSize) fontCommands.push(`$textRange.Font.Size = ${options.fontSize}`);
+    if (options?.bold !== undefined) fontCommands.push(`$textRange.Font.Bold = ${options.bold ? '-1' : '0'}`);
 
     return this.executePowerShell(`
 $ppt = [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application")
@@ -100,8 +101,9 @@ $presentation = $ppt.ActivePresentation
 $slide = $presentation.Slides(${slideNumber})
 $shape = $slide.Shapes(${shapeIndex})
 $textRange = $shape.TextFrame.TextRange
-${formatCommands.join('\n')}
-$textRange.Text = '${escapedText}'
+$textContent = '${escapedText}' -replace '\\\\n', [char]10 -replace '\\n', [char]10
+$textRange.Text = $textContent
+${fontCommands.join('\n')}
 @{ success = $true; message = "Text written to slide ${slideNumber}, shape ${shapeIndex}" } | ConvertTo-Json -Compress
 `);
   }
@@ -144,14 +146,16 @@ foreach ($shape in $slide.Shapes) {
     const hasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(text);
     const fontScript = hasKorean ? "$textbox.TextFrame.TextRange.Font.Name = 'Malgun Gothic'" : '';
 
+    // TEXT FIRST, FONT AFTER pattern (Microsoft recommended for Korean)
     return this.executePowerShell(`
 $ppt = [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application")
 $presentation = $ppt.ActivePresentation
 $slide = $presentation.Slides(${slideNumber})
 # msoTextOrientationHorizontal = 1
 $textbox = $slide.Shapes.AddTextbox(1, ${left}, ${top}, ${width}, ${height})
+$textContent = '${escapedText}' -replace '\\\\n', [char]10 -replace '\\n', [char]10
+$textbox.TextFrame.TextRange.Text = $textContent
 ${fontScript}
-$textbox.TextFrame.TextRange.Text = '${escapedText}'
 @{ success = $true; message = "Textbox added to slide ${slideNumber}"; shape_index = $textbox.Index } | ConvertTo-Json -Compress
 `);
   }
@@ -439,8 +443,9 @@ Remove-Item $tempPath -Force
     height: number = 200,
     data?: string[][]
   ): Promise<OfficeResponse> {
+    // TEXT FIRST, FONT AFTER pattern (Microsoft recommended for Korean)
+    // Generate per-cell: text first, then font if Korean detected
     let dataScript = '';
-    let hasKorean = false;
 
     if (data) {
       const dataLines: string[] = [];
@@ -450,27 +455,24 @@ Remove-Item $tempPath -Force
         for (let j = 0; j < row.length && j < cols; j++) {
           const cellValue = row[j];
           if (cellValue === undefined) continue;
-          if (/[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(cellValue)) hasKorean = true;
           const val = cellValue.replace(/'/g, "''");
+          const cellHasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(cellValue);
+          // 1. Text first
           dataLines.push(`$table.Cell(${i + 1}, ${j + 1}).Shape.TextFrame.TextRange.Text = '${val}'`);
+          // 2. Font after (only if Korean)
+          if (cellHasKorean) {
+            dataLines.push(`$table.Cell(${i + 1}, ${j + 1}).Shape.TextFrame.TextRange.Font.Name = 'Malgun Gothic'`);
+          }
         }
       }
       dataScript = dataLines.join('\n');
     }
-
-    const fontScript = hasKorean ? `
-for ($r = 1; $r -le ${rows}; $r++) {
-  for ($c = 1; $c -le ${cols}; $c++) {
-    $table.Cell($r, $c).Shape.TextFrame.TextRange.Font.Name = 'Malgun Gothic'
-  }
-}` : '';
 
     return this.executePowerShell(`
 $ppt = [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application")
 $presentation = $ppt.ActivePresentation
 $slide = $presentation.Slides(${slideNumber})
 $table = $slide.Shapes.AddTable(${rows}, ${cols}, ${left}, ${top}, ${width}, ${height}).Table
-${fontScript}
 ${dataScript}
 @{ success = $true; message = "Table added with ${rows} rows and ${cols} columns"; shape_index = $slide.Shapes.Count } | ConvertTo-Json -Compress
 `);
@@ -488,18 +490,17 @@ ${dataScript}
     const hasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(text);
     const fontName = options?.fontName || (hasKorean ? 'Malgun Gothic' : '');
 
-    const formatCommands: string[] = [];
-    if (fontName) formatCommands.push(`$cell.Shape.TextFrame.TextRange.Font.Name = '${fontName}'`);
-    if (options?.fontSize) formatCommands.push(`$cell.Shape.TextFrame.TextRange.Font.Size = ${options.fontSize}`);
-    if (options?.bold !== undefined) formatCommands.push(`$cell.Shape.TextFrame.TextRange.Font.Bold = ${options.bold ? '-1' : '0'}`);
+    // TEXT FIRST, FONT AFTER pattern (Microsoft recommended for Korean)
+    const fontCommands: string[] = [];
+    if (fontName) fontCommands.push(`$cell.Shape.TextFrame.TextRange.Font.Name = '${fontName}'`);
+    if (options?.fontSize) fontCommands.push(`$cell.Shape.TextFrame.TextRange.Font.Size = ${options.fontSize}`);
+    if (options?.bold !== undefined) fontCommands.push(`$cell.Shape.TextFrame.TextRange.Font.Bold = ${options.bold ? '-1' : '0'}`);
+
+    const otherCommands: string[] = [];
     if (options?.fillColor) {
       const rgb = this.hexToRgb(options.fillColor);
-      if (rgb) formatCommands.push(`$cell.Shape.Fill.ForeColor.RGB = ${rgb.r + rgb.g * 256 + rgb.b * 65536}`);
+      if (rgb) otherCommands.push(`$cell.Shape.Fill.ForeColor.RGB = ${rgb.r + rgb.g * 256 + rgb.b * 65536}`);
     }
-
-    // Separate font commands and other commands
-    const fontCommands = formatCommands.filter(c => c.includes('Font.'));
-    const otherCommands = formatCommands.filter(c => !c.includes('Font.'));
 
     return this.executePowerShell(`
 $ppt = [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application")
@@ -507,8 +508,9 @@ $presentation = $ppt.ActivePresentation
 $slide = $presentation.Slides(${slideNumber})
 $table = $slide.Shapes(${shapeIndex}).Table
 $cell = $table.Cell(${row}, ${col})
+$textContent = '${escapedText}' -replace '\\\\n', [char]10 -replace '\\n', [char]10
+$cell.Shape.TextFrame.TextRange.Text = $textContent
 ${fontCommands.join('\n')}
-$cell.Shape.TextFrame.TextRange.Text = '${escapedText}'
 ${otherCommands.join('\n')}
 @{ success = $true; message = "Table cell (${row}, ${col}) updated" } | ConvertTo-Json -Compress
 `);
@@ -957,13 +959,15 @@ for ($i = 1; $i -le $presentation.SectionProperties.Count; $i++) {
     const escapedText = noteText.replace(/'/g, "''");
     const hasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(noteText);
 
+    // TEXT FIRST, FONT AFTER pattern (Microsoft recommended for Korean)
     return this.executePowerShell(`
 $ppt = [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application")
 $presentation = $ppt.ActivePresentation
 $slide = $presentation.Slides(${slideNumber})
 $noteRange = $slide.NotesPage.Shapes.Placeholders(2).TextFrame.TextRange
+$textContent = '${escapedText}' -replace '\\\\n', [char]10 -replace '\\n', [char]10
+$noteRange.Text = $textContent
 ${hasKorean ? "$noteRange.Font.Name = 'Malgun Gothic'" : ''}
-$noteRange.Text = '${escapedText}'
 @{ success = $true; message = "Note added to slide ${slideNumber}" } | ConvertTo-Json -Compress
 `);
   }
@@ -1418,6 +1422,7 @@ if (Test-Path $userThemesPath) {
       date: 16,
     };
 
+    // TEXT FIRST, FONT AFTER pattern (Microsoft recommended for Korean)
     return this.executePowerShell(`
 $ppt = [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application")
 $presentation = $ppt.ActivePresentation
@@ -1432,8 +1437,9 @@ foreach ($shape in $slide.Shapes) {
   }
 }
 if ($placeholder) {
+  $textContent = '${escapedText}' -replace '\\\\n', [char]10 -replace '\\n', [char]10
+  $placeholder.TextFrame.TextRange.Text = $textContent
   ${hasKorean ? "$placeholder.TextFrame.TextRange.Font.Name = 'Malgun Gothic'" : ''}
-  $placeholder.TextFrame.TextRange.Text = '${escapedText}'
   @{ success = $true; message = "${placeholderType} placeholder text set" } | ConvertTo-Json -Compress
 } else {
   @{ success = $false; error = "Placeholder type '${placeholderType}' not found on slide ${slideNumber}" } | ConvertTo-Json -Compress
