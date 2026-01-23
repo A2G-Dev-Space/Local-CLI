@@ -87,10 +87,11 @@ $workbook = $excel.Workbooks.Open('${windowsPath}')
     const hasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(strValue);
     const fontName = options?.fontName || (hasKorean ? 'Malgun Gothic' : '');
 
-    const formatScript: string[] = [];
-    if (fontName) formatScript.push(`$range.Font.Name = '${fontName.replace(/'/g, "''")}'`);
-    if (options?.fontSize) formatScript.push(`$range.Font.Size = ${options.fontSize}`);
-    if (options?.bold !== undefined) formatScript.push(`$range.Font.Bold = ${options.bold ? '$true' : '$false'}`);
+    // TEXT FIRST, FONT AFTER pattern (Microsoft recommended for Korean)
+    const fontScript: string[] = [];
+    if (fontName) fontScript.push(`$range.Font.Name = '${fontName.replace(/'/g, "''")}'`);
+    if (options?.fontSize) fontScript.push(`$range.Font.Size = ${options.fontSize}`);
+    if (options?.bold !== undefined) fontScript.push(`$range.Font.Bold = ${options.bold ? '$true' : '$false'}`);
 
     // Determine how to set the value:
     // - Numbers: set without quotes so Excel recognizes them
@@ -122,8 +123,8 @@ $excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
 $workbook = $excel.ActiveWorkbook
 ${sheetScript}
 $range = $sheet.Range('${cell}')
-${formatScript.join('\n')}
 ${valueScript}
+${fontScript.join('\n')}
 @{ success = $true; message = "Value written to ${cell}" } | ConvertTo-Json -Compress
 `);
   }
@@ -175,7 +176,7 @@ $value = $sheet.Range('${cell}').Value2
     }
     const arrayScript = `@(${arrayLines.join(',')})`;
 
-    // Set Korean font if Korean text detected
+    // TEXT FIRST, FONT AFTER pattern (Microsoft recommended for Korean)
     const fontScript = hasKorean ? "$range.Font.Name = 'Malgun Gothic'" : '';
 
     return this.executePowerShell(`
@@ -185,9 +186,9 @@ ${sheetScript}
 $startRange = $sheet.Range('${startCell}')
 $endCell = $sheet.Cells($startRange.Row + ${rows - 1}, $startRange.Column + ${cols - 1})
 $range = $sheet.Range($startRange, $endCell)
-${fontScript}
 $data = ${arrayScript}
 $range.Value = $data
+${fontScript}
 @{ success = $true; message = "Range written from ${startCell} (${rows}x${cols})" } | ConvertTo-Json -Compress
 `);
   }
@@ -644,10 +645,11 @@ $img.Dispose()
     const width = options?.width ?? 400;
     const height = options?.height ?? 300;
 
+    // TEXT FIRST, FONT AFTER pattern (Microsoft recommended for Korean)
     const titleScript = escapedTitle ? `
 $chart.HasTitle = $true
-${hasKorean ? "$chart.ChartTitle.Font.Name = 'Malgun Gothic'" : ''}
-$chart.ChartTitle.Text = '${escapedTitle}'` : '';
+$chart.ChartTitle.Text = '${escapedTitle}'
+${hasKorean ? "$chart.ChartTitle.Font.Name = 'Malgun Gothic'" : ''}` : '';
 
     return this.executePowerShell(`
 $excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
@@ -669,14 +671,15 @@ ${titleScript}
       `$sheet = $excel.ActiveWorkbook.Worksheets('${sheet.replace(/'/g, "''")}')` :
       '$sheet = $excel.ActiveWorkbook.ActiveSheet';
 
+    // TEXT FIRST, FONT AFTER pattern (Microsoft recommended for Korean)
     return this.executePowerShell(`
 $excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
 ${sheetScript}
 $chartObj = $sheet.ChartObjects(${chartIndex})
 $chart = $chartObj.Chart
 $chart.HasTitle = $true
-${hasKorean ? "$chart.ChartTitle.Font.Name = 'Malgun Gothic'" : ''}
 $chart.ChartTitle.Text = '${escapedTitle}'
+${hasKorean ? "$chart.ChartTitle.Font.Name = 'Malgun Gothic'" : ''}
 @{ success = $true; message = "Chart title set" } | ConvertTo-Json -Compress
 `);
   }

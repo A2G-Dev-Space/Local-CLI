@@ -43,33 +43,46 @@ $doc = $word.Documents.Add()
     text: string,
     options?: { fontName?: string; fontSize?: number; bold?: boolean; italic?: boolean; newParagraph?: boolean }
   ): Promise<OfficeResponse> {
-    const escapedText = text.replace(/'/g, "''").replace(/`/g, '``');
-
     // Auto-detect Korean text and set appropriate font if not specified
-    // Use 'Malgun Gothic' (English name) for compatibility with all Windows language settings
     const hasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(text);
     let fontName = options?.fontName?.replace(/'/g, "''") || '';
     if (!fontName && hasKorean) {
-      fontName = 'Malgun Gothic'; // Korean font (works on all Windows regardless of UI language)
+      fontName = 'Malgun Gothic';
     }
 
     const fontSize = options?.fontSize || 0;
     const bold = options?.bold ? '$true' : '$false';
     const italic = options?.italic ? '$true' : '$false';
-    // Default to true: add paragraph break after writing (prevents formatting bleed)
     const newParagraph = options?.newParagraph !== false;
 
+    // Split text by \n and generate TypeText + TypeParagraph for each line
+    const lines = text.split(/\\n|\n/);
+    const typeCommands = lines.map((line, index) => {
+      const escapedLine = line.replace(/'/g, "''").replace(/`/g, '``');
+      const isLastLine = index === lines.length - 1;
+      if (isLastLine && !newParagraph) {
+        return `$selection.TypeText('${escapedLine}')`;
+      } else {
+        return `$selection.TypeText('${escapedLine}')\n$selection.TypeParagraph()`;
+      }
+    }).join('\n');
+
+    // TEXT FIRST, FONT AFTER pattern (Microsoft recommended for Korean)
     return this.executePowerShell(`
 $word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
 $selection = $word.Selection
 
-${fontName ? `$selection.Font.Name = '${fontName}'` : ''}
+# Set formatting options (except font name for Korean)
 ${fontSize ? `$selection.Font.Size = ${fontSize}` : ''}
 $selection.Font.Bold = ${bold}
 $selection.Font.Italic = ${italic}
 
-$selection.TypeText('${escapedText}')
-${newParagraph ? '$selection.TypeParagraph()' : ''}
+# Type text first
+${typeCommands}
+
+# Set font after text (prevents Korean garbled text)
+${fontName ? `$selection.Font.Name = '${fontName}'` : ''}
+
 @{ success = $true; message = "Text written successfully" } | ConvertTo-Json -Compress
 `);
   }
@@ -196,8 +209,8 @@ $doc.Hyperlinks.Add($range, '${escapedUrl}', '', '', '${escapedText}')
 
   async wordAddTable(rows: number, cols: number, data?: string[][]): Promise<OfficeResponse> {
     let dataScript = '';
-    let hasKorean = false;
 
+    // TEXT FIRST, FONT AFTER pattern (Microsoft recommended for Korean)
     if (data) {
       const dataLines: string[] = [];
       for (let i = 0; i < data.length && i < rows; i++) {
@@ -206,17 +219,18 @@ $doc.Hyperlinks.Add($range, '${escapedUrl}', '', '', '${escapedText}')
         for (let j = 0; j < row.length && j < cols; j++) {
           const cellValue = row[j];
           if (cellValue === undefined) continue;
-          // Check for Korean text
-          if (/[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(cellValue)) hasKorean = true;
+          const cellHasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(cellValue);
           const val = cellValue.replace(/'/g, "''");
+          // 1. Text first
           dataLines.push(`$table.Cell(${i + 1}, ${j + 1}).Range.Text = '${val}'`);
+          // 2. Font after (only if Korean)
+          if (cellHasKorean) {
+            dataLines.push(`$table.Cell(${i + 1}, ${j + 1}).Range.Font.Name = 'Malgun Gothic'`);
+          }
         }
       }
       dataScript = dataLines.join('\n');
     }
-
-    // Set Korean font for the table if Korean text is detected
-    const fontScript = hasKorean ? "$table.Range.Font.Name = 'Malgun Gothic'" : '';
 
     return this.executePowerShell(`
 $word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
@@ -224,7 +238,6 @@ $doc = $word.ActiveDocument
 $range = $word.Selection.Range
 $table = $doc.Tables.Add($range, ${rows}, ${cols})
 $table.Borders.Enable = $true
-${fontScript}
 ${dataScript}
 # Move cursor after the table and add a new paragraph
 $tableEnd = $table.Range
@@ -359,7 +372,10 @@ $word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
 $doc = $word.ActiveDocument
 $section = $doc.Sections(1)
 $header = $section.Headers(1).Range
-$header.Text = '${escapedText}'
+# Convert \\n to actual line breaks
+$headerText = '${escapedText}' -replace '\\\\n', [char]10 -replace '\\n', [char]10
+$header.Text = $headerText
+# TEXT FIRST, FONT AFTER pattern
 ${fontName ? `$header.Font.Name = '${fontName}'` : ''}
 ${options?.fontSize ? `$header.Font.Size = ${options.fontSize}` : ''}
 @{ success = $true; message = "Header added" } | ConvertTo-Json -Compress
@@ -377,7 +393,10 @@ $word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
 $doc = $word.ActiveDocument
 $section = $doc.Sections(1)
 $footer = $section.Footers(1).Range
-$footer.Text = '${escapedText}'
+# Convert \\n to actual line breaks
+$footerText = '${escapedText}' -replace '\\\\n', [char]10 -replace '\\n', [char]10
+$footer.Text = $footerText
+# TEXT FIRST, FONT AFTER pattern
 ${fontName ? `$footer.Font.Name = '${fontName.replace(/'/g, "''")}'` : ''}
 ${options?.fontSize ? `$footer.Font.Size = ${options.fontSize}` : ''}
 @{ success = $true; message = "Footer added" } | ConvertTo-Json -Compress
@@ -522,7 +541,10 @@ $word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
 $doc = $word.ActiveDocument
 $table = $doc.Tables(${tableIndex})
 $cell = $table.Cell(${row}, ${col})
-$cell.Range.Text = '${escapedText}'
+# Convert \\n to actual line breaks, then set text
+$cellText = '${escapedText}' -replace '\\\\n', [char]10 -replace '\\n', [char]10
+$cell.Range.Text = $cellText
+# TEXT FIRST, FONT AFTER pattern
 ${fontName ? `$cell.Range.Font.Name = '${fontName}'` : ''}
 ${options?.fontSize ? `$cell.Range.Font.Size = ${options.fontSize}` : ''}
 ${options?.bold ? '$cell.Range.Font.Bold = -1' : ''}
@@ -772,12 +794,13 @@ while ($doc.Comments.Count -gt 0) {
   // -------------------------------------------------------------------------
 
   async wordCreateBulletList(items: string[]): Promise<OfficeResponse> {
+    // TEXT FIRST, FONT AFTER pattern (Microsoft recommended for Korean)
     const itemsScript = items.map(item => {
       const escaped = item.replace(/'/g, "''");
       const hasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(item);
-      // Set font BEFORE TypeText to prevent garbled Korean
-      return `${hasKorean ? "$selection.Font.Name = 'Malgun Gothic'" : ''}
-$selection.TypeText('${escaped}')
+      // Text first, then font after
+      return `$selection.TypeText('${escaped}')
+${hasKorean ? "$selection.Font.Name = 'Malgun Gothic'" : ''}
 $selection.TypeParagraph()`;
     }).join('\n');
 
@@ -792,12 +815,13 @@ $selection.Range.ListFormat.RemoveNumbers()
   }
 
   async wordCreateNumberedList(items: string[]): Promise<OfficeResponse> {
+    // TEXT FIRST, FONT AFTER pattern (Microsoft recommended for Korean)
     const itemsScript = items.map(item => {
       const escaped = item.replace(/'/g, "''");
       const hasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(item);
-      // Set font BEFORE TypeText to prevent garbled Korean
-      return `${hasKorean ? "$selection.Font.Name = 'Malgun Gothic'" : ''}
-$selection.TypeText('${escaped}')
+      // Text first, then font after
+      return `$selection.TypeText('${escaped}')
+${hasKorean ? "$selection.Font.Name = 'Malgun Gothic'" : ''}
 $selection.TypeParagraph()`;
     }).join('\n');
 
@@ -994,12 +1018,15 @@ foreach ($section in $doc.Sections) {
       commands.push('$shape.Fill.Visible = 0');
     }
 
+    // TEXT FIRST, FONT AFTER pattern (Microsoft recommended for Korean)
+    // Also handle \n line breaks
     return this.executePowerShell(`
 $word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
 $doc = $word.ActiveDocument
 $shape = $doc.Shapes.AddTextbox(1, ${left}, ${top}, ${width}, ${height})
+$textContent = '${escapedText}' -replace '\\\\n', [char]10 -replace '\\n', [char]10
+$shape.TextFrame.TextRange.Text = $textContent
 ${fontName ? `$shape.TextFrame.TextRange.Font.Name = '${fontName}'` : ''}
-$shape.TextFrame.TextRange.Text = '${escapedText}'
 ${commands.filter(c => !c.includes('Font.Name')).join('\n')}
 @{ success = $true; message = "Textbox added"; shape_name = $shape.Name } | ConvertTo-Json -Compress
 `);
