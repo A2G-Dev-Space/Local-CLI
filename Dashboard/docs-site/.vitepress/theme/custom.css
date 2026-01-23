@@ -1,0 +1,58 @@
+/**
+ * 폐쇄망 환경을 위한 폰트 오버라이드
+ * VitePress 기본 테마가 Google Fonts를 로드하지 않도록 시스템 폰트로 대체
+ */
+
+/* 외부 폰트 로딩 차단 (빈 @font-face 선언) */
+@font-face {
+  font-family: 'Inter';
+  src: local('system-ui');
+  font-display: swap;
+}
+
+/* 시스템 폰트 스택으로 대체 */
+:root {
+  /* 기본 폰트 - 시스템 폰트 사용 */
+  --vp-font-family-base: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Noto Sans KR", "Malgun Gothic", "맑은 고딕", Helvetica, Arial, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+
+  /* 모노스페이스 폰트 - 코드용 */
+  --vp-font-family-mono: "Cascadia Code", "D2Coding", "Consolas", "Monaco",
+    "Courier New", monospace;
+}
+
+/* 폰트 관련 외부 요청 차단 */
+html,
+body {
+  font-family: var(--vp-font-family-base) !important;
+}
+
+/* VitePress 컴포넌트에 폰트 적용 */
+.VPDoc,
+.VPNavBar,
+.VPSidebar,
+.VPContent,
+.VPHome {
+  font-family: var(--vp-font-family-base) !important;
+}
+
+/* 코드 블록 폰트 */
+code,
+pre,
+.vp-code,
+.vp-code-group {
+  font-family: var(--vp-font-family-mono) !important;
+}
+
+/* 한글 폰트 최적화 */
+.VPDoc p,
+.VPDoc li,
+.VPDoc h1,
+.VPDoc h2,
+.VPDoc h3,
+.VPDoc h4,
+.VPDoc h5,
+.VPDoc h6 {
+  word-break: keep-all;
+}
