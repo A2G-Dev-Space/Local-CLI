@@ -62,8 +62,6 @@ $doc = $word.Documents.Add()
       const isLastLine = index === lines.length - 1;
       if (isLastLine && !newParagraph) {
         return `$selection.TypeText('${escapedLine}')`;
-      } else if (isLastLine) {
-        return `$selection.TypeText('${escapedLine}')\n$selection.TypeParagraph()`;
       } else {
         return `$selection.TypeText('${escapedLine}')\n$selection.TypeParagraph()`;
       }
