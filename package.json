@@ -1,6 +1,6 @@
 {
   "name": "local-cli",
-  "version": "3.2.1",
+  "version": "3.2.6",
   "description": "LOCAL-CLI - OpenAI-Compatible Local CLI Coding Agent",
   "type": "module",
   "main": "dist/index.js",
@@ -88,8 +88,10 @@
     "ink-spinner": "^5.0.0",
     "ink-text-input": "^5.0.1",
     "inquirer": "^8.2.6",
+    "lucide-react": "^0.562.0",
     "ora": "^5.4.1",
     "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "semver": "^7.7.3",
     "ws": "^8.18.3"
   },
@@ -101,11 +103,16 @@
     "@types/ws": "^8.18.1",
     "@typescript-eslint/eslint-plugin": "^6.15.0",
     "@typescript-eslint/parser": "^6.15.0",
+    "@vitejs/plugin-react": "^4.5.2",
+    "electron": "^40.0.0",
+    "electron-builder": "^26.4.0",
+    "electron-vite": "^5.0.0",
     "esbuild": "^0.25.12",
     "eslint": "^8.56.0",
     "prettier": "^3.1.1",
     "react-devtools-core": "^4.28.5",
     "ts-node": "^10.9.2",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "vite": "^7.3.1"
   }
 }
