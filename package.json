@@ -83,6 +83,7 @@
     "axios": "^1.6.2",
     "chalk": "^4.1.2",
     "commander": "^11.1.0",
+    "electron-updater": "^6.7.3",
     "ink": "^4.4.1",
     "ink-select-input": "^5.0.0",
     "ink-spinner": "^5.0.0",
