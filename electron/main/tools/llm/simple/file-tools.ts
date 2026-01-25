@@ -12,6 +12,7 @@ import * as path from 'path';
 import type { ToolDefinition } from '../../../core';
 import type { LLMSimpleTool, ToolResult, ToolCategory } from '../../types';
 import { sendFileEditEvent, sendFileCreateEvent } from '../../../ipc-handlers';
+import { logger } from '../../../utils/logger';
 
 // =============================================================================
 // Constants
@@ -147,6 +148,8 @@ async function executeReadFile(args: Record<string, unknown>): Promise<ToolResul
   const offset = Math.max(1, (args['offset'] as number) || 1);
   const limit = Math.min(MAX_LINE_LIMIT, Math.max(1, (args['limit'] as number) || DEFAULT_LINE_LIMIT));
 
+  logger.toolStart('read_file', args);
+
   try {
     const resolvedPath = resolvePath(filePath);
     const content = await fs.readFile(resolvedPath, 'utf-8');
@@ -170,9 +173,11 @@ async function executeReadFile(args: Record<string, unknown>): Promise<ToolResul
       result = `${header}\n${result}${footer}`;
     }
 
+    logger.toolSuccess('read_file', args, { linesRead: selectedLines.length, totalLines }, 0);
     return { success: true, result };
   } catch (error) {
     const err = error as NodeJS.ErrnoException;
+    logger.toolError('read_file', args, err, 0);
     if (err.code === 'ENOENT') {
       return { success: false, error: `File not found: ${filePath}` };
     } else if (err.code === 'EACCES') {
@@ -230,11 +235,14 @@ async function executeCreateFile(args: Record<string, unknown>): Promise<ToolRes
   const filePath = args['file_path'] as string;
   const content = args['content'] as string;
 
+  logger.toolStart('create_file', { file_path: filePath, contentLength: content?.length || 0 });
+
   try {
     const resolvedPath = resolvePath(filePath);
 
     try {
       await fs.access(resolvedPath);
+      logger.warn('create_file failed - file already exists', { filePath });
       return {
         success: false,
         error: `File already exists: ${filePath}. Use edit_file to modify existing files.`,
@@ -262,6 +270,7 @@ async function executeCreateFile(args: Record<string, unknown>): Promise<ToolRes
       // Silently ignore event emission errors
     }
 
+    logger.toolSuccess('create_file', args, { file: filePath, lines }, 0);
     return {
       success: true,
       result: JSON.stringify({
@@ -273,6 +282,7 @@ async function executeCreateFile(args: Record<string, unknown>): Promise<ToolRes
     };
   } catch (error) {
     const err = error as NodeJS.ErrnoException;
+    logger.toolError('create_file', args, err, 0);
     return { success: false, error: `Failed to create file (${filePath}): ${err.message}` };
   }
 }
@@ -343,16 +353,22 @@ async function executeEditFile(args: Record<string, unknown>): Promise<ToolResul
   const newString = args['new_string'] as string;
   const replaceAll = args['replace_all'] as boolean | undefined;
 
+  const oldStringLength = oldString?.length || 0;
+  const newStringLength = newString?.length || 0;
+  logger.toolStart('edit_file', { file_path: filePath, oldStringLength, newStringLength, replaceAll });
+
   try {
     const resolvedPath = resolvePath(filePath);
 
     if (!oldString) {
+      logger.warn('edit_file failed - old_string empty', { filePath });
       return { success: false, error: 'old_string cannot be empty.' };
     }
 
     try {
       await fs.access(resolvedPath);
     } catch {
+      logger.warn('edit_file failed - file does not exist', { filePath });
       return {
         success: false,
         error: `File does not exist: ${filePath}. Use create_file to create new files.`,
@@ -364,6 +380,7 @@ async function executeEditFile(args: Record<string, unknown>): Promise<ToolResul
     if (!originalContent.includes(oldString)) {
       const lines = originalContent.split('\n');
       const preview = lines.slice(0, 20).map((l, i) => `${i + 1}: ${l}`).join('\n');
+      logger.warn('edit_file failed - old_string not found', { filePath });
       return {
         success: false,
         error: `old_string not found in file.\n\nSearched for:\n"${oldString.slice(0, 200)}${oldString.length > 200 ? '...' : ''}"\n\nFile preview (first 20 lines):\n${preview}\n\nUse read_file to check the exact content and try again.`,
@@ -373,6 +390,7 @@ async function executeEditFile(args: Record<string, unknown>): Promise<ToolResul
     const occurrences = originalContent.split(oldString).length - 1;
 
     if (!replaceAll && occurrences > 1) {
+      logger.warn('edit_file failed - multiple occurrences', { filePath, occurrences });
       return {
         success: false,
         error: `old_string appears ${occurrences} times in the file. Either:\n1. Make old_string more specific\n2. Use replace_all: true to replace all occurrences`,
@@ -414,6 +432,7 @@ async function executeEditFile(args: Record<string, unknown>): Promise<ToolResul
     newPreview.forEach((line) => diffPreview.push(`+ ${line}`));
     if (newLinesArr.length > 5) diffPreview.push('+ ...');
 
+    logger.toolSuccess('edit_file', args, { file: filePath, replacements, oldLines: oldLinesArr.length, newLines: newLinesArr.length }, 0);
     return {
       success: true,
       result: JSON.stringify({
@@ -430,6 +449,7 @@ async function executeEditFile(args: Record<string, unknown>): Promise<ToolResul
     };
   } catch (error) {
     const err = error as NodeJS.ErrnoException;
+    logger.toolError('edit_file', args, err, 0);
     return { success: false, error: `File edit failed (${filePath}): ${err.message}` };
   }
 }
@@ -524,11 +544,14 @@ async function executeListFiles(args: Record<string, unknown>): Promise<ToolResu
   const directoryPath = (args['directory_path'] as string) || '.';
   const recursive = (args['recursive'] as boolean) || false;
 
+  logger.toolStart('list_files', { directory_path: directoryPath, recursive });
+
   try {
     const resolvedPath = resolvePath(directoryPath);
 
     if (recursive) {
       const files = await getFilesRecursively(resolvedPath);
+      logger.toolSuccess('list_files', args, { fileCount: files.length }, 0);
       return { success: true, result: JSON.stringify(files, null, 2) };
     } else {
       const entries = await fs.readdir(resolvedPath, { withFileTypes: true });
@@ -537,10 +560,12 @@ async function executeListFiles(args: Record<string, unknown>): Promise<ToolResu
         type: entry.isDirectory() ? 'directory' : 'file',
         path: path.join(directoryPath, entry.name),
       }));
+      logger.toolSuccess('list_files', args, { fileCount: files.length }, 0);
       return { success: true, result: JSON.stringify(files, null, 2) };
     }
   } catch (error) {
     const err = error as NodeJS.ErrnoException;
+    logger.toolError('list_files', args, err, 0);
     if (err.code === 'ENOENT') {
       return { success: false, error: `Directory not found: ${directoryPath}` };
     }
@@ -636,6 +661,8 @@ async function executeFindFiles(args: Record<string, unknown>): Promise<ToolResu
   const pattern = args['pattern'] as string;
   const directoryPath = (args['directory_path'] as string) || '.';
 
+  logger.toolStart('find_files', { pattern, directory_path: directoryPath });
+
   try {
     const resolvedPath = resolvePath(directoryPath);
 
@@ -647,6 +674,8 @@ async function executeFindFiles(args: Record<string, unknown>): Promise<ToolResu
 
     const matchedFiles = await findFilesRecursively(resolvedPath, regex, resolvedPath);
 
+    logger.toolSuccess('find_files', args, { matchedCount: matchedFiles.length }, 0);
+
     if (matchedFiles.length === 0) {
       return { success: true, result: `No files found matching pattern "${pattern}".` };
     }
@@ -654,6 +683,7 @@ async function executeFindFiles(args: Record<string, unknown>): Promise<ToolResu
     return { success: true, result: JSON.stringify(matchedFiles, null, 2) };
   } catch (error) {
     const err = error as NodeJS.ErrnoException;
+    logger.toolError('find_files', args, err, 0);
     return { success: false, error: `File search failed: ${err.message}` };
   }
 }
@@ -787,6 +817,8 @@ async function executeSearchContent(args: Record<string, unknown>): Promise<Tool
   const filePattern = args['file_pattern'] as string | undefined;
   const maxResults = (args['max_results'] as number) || 50;
 
+  logger.toolStart('search_content', { pattern, directory_path: directoryPath, file_pattern: filePattern, maxResults });
+
   try {
     const resolvedPath = resolvePath(directoryPath);
     const searchRegex = new RegExp(pattern, 'gi');
@@ -804,6 +836,8 @@ async function executeSearchContent(args: Record<string, unknown>): Promise<Tool
       resolvedPath, searchRegex, resolvedPath, fileRegex, { count: 0 }, maxResults
     );
 
+    logger.toolSuccess('search_content', args, { matchedCount: results.length }, 0);
+
     if (results.length === 0) {
       return { success: true, result: `No matches found for pattern "${pattern}".` };
     }
@@ -811,6 +845,7 @@ async function executeSearchContent(args: Record<string, unknown>): Promise<Tool
     return { success: true, result: JSON.stringify(results, null, 2) };
   } catch (error) {
     const err = error as NodeJS.ErrnoException;
+    logger.toolError('search_content', args, err, 0);
     return { success: false, error: `Content search failed: ${err.message}` };
   }
 }

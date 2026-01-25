@@ -22,6 +22,7 @@ import {
   isLLMAgentTool,
 } from './types.js';
 import { configManager } from '../core/config/config-manager.js';
+import { logger } from '../utils/logger.js';
 
 // Import platform utilities
 import { hasWindowsAccess } from '../utils/platform-utils.js';
@@ -259,8 +260,10 @@ class ToolRegistry {
    * @returns EnableResult with success status and optional error message
    */
   async enableToolGroup(groupId: string, persist: boolean = true, skipValidation: boolean = false): Promise<EnableResult> {
+    logger.enter('enableToolGroup', { groupId, persist, skipValidation });
     const group = this.optionalToolGroups.get(groupId);
     if (!group) {
+      logger.error('Tool group not found', { groupId });
       return { success: false, error: `Tool group '${groupId}' not found` };
     }
 
@@ -287,6 +290,8 @@ class ToolRegistry {
       });
     }
 
+    logger.info(`Tool group enabled: ${groupId}`, { toolCount: group.tools.length });
+    logger.exit('enableToolGroup', { success: true });
     return { success: true };
   }
 
@@ -295,8 +300,10 @@ class ToolRegistry {
    * @param persist - If true, saves state to config (default: true)
    */
   async disableToolGroup(groupId: string, persist: boolean = true): Promise<boolean> {
+    logger.enter('disableToolGroup', { groupId, persist });
     const group = this.optionalToolGroups.get(groupId);
     if (!group) {
+      logger.warn('Tool group not found for disable', { groupId });
       return false;
     }
 
@@ -330,6 +337,8 @@ class ToolRegistry {
       });
     }
 
+    logger.info(`Tool group disabled: ${groupId}`);
+    logger.exit('disableToolGroup', { success: true });
     return true;
   }
 

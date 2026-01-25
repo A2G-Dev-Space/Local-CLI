@@ -10,6 +10,7 @@ import { ToolDefinition } from '../../../types/index';
 import { LLMSimpleTool, ToolResult } from '../../types';
 import { wordClient } from '../word-client';
 import { OFFICE_CATEGORIES } from '../common/constants';
+import { logger } from '../../../utils/logger';
 
 // =============================================================================
 // Word Goto
@@ -33,6 +34,8 @@ const WORD_GOTO_DEFINITION: ToolDefinition = {
 };
 
 async function executeWordGoto(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('word_goto', args);
   try {
     const target = args['what'] === 'bookmark' ? args['target'] as string : parseInt(args['target'] as string);
     const response = await wordClient.wordGoto(
@@ -40,10 +43,13 @@ async function executeWordGoto(args: Record<string, unknown>): Promise<ToolResul
       target
     );
     if (response.success) {
+      logger.toolSuccess('word_goto', args, { what: args['what'], target: args['target'] }, Date.now() - startTime);
       return { success: true, result: `Navigated to ${args['what']} ${args['target']}` };
     }
+    logger.toolError('word_goto', args, new Error(response.error || 'Failed to navigate'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to navigate' };
   } catch (error) {
+    logger.toolError('word_goto', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to navigate: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -75,9 +81,12 @@ const WORD_GET_DOCUMENT_INFO_DEFINITION: ToolDefinition = {
 };
 
 async function executeWordGetDocumentInfo(_args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('word_get_document_info', _args);
   try {
     const response = await wordClient.wordGetDocumentInfo();
     if (response.success) {
+      logger.toolSuccess('word_get_document_info', _args, { name: response['name'], pages: response['pages'] }, Date.now() - startTime);
       return {
         success: true,
         result: `Document: ${response['name']}
@@ -91,8 +100,10 @@ Saved: ${response['saved'] ? 'Yes' : 'No'}
 Read-only: ${response['read_only'] ? 'Yes' : 'No'}`,
       };
     }
+    logger.toolError('word_get_document_info', _args, new Error(response.error || 'Failed to get document info'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to get document info' };
   } catch (error) {
+    logger.toolError('word_get_document_info', _args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to get document info: ${error instanceof Error ? error.message : String(error)}` };
   }
 }

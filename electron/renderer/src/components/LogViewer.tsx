@@ -58,7 +58,10 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
   // Session log state
   const [sessionLogFiles, setSessionLogFiles] = useState<SessionLogFile[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
-  const [logSource, setLogSource] = useState<'session' | 'daily'>('session'); // Default to session logs
+  const [logSource, setLogSource] = useState<'session' | 'currentRun'>('session'); // Default to session logs
+
+  // Current Run log state
+  const [currentRunId, setCurrentRunId] = useState<string | null>(null);
 
   // 필터 상태
   const [searchQuery, setSearchQuery] = useState('');
@@ -114,6 +117,46 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
       console.error(err);
     } finally {
       setIsLoading(false);
+    }
+  }, []);
+
+  // Current Run 로그 엔트리 로드
+  const loadCurrentRunLogEntries = useCallback(async () => {
+    if (!window.electronAPI?.log?.readCurrentRunLog) {
+      setError('Current run log API not available');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    try {
+      const result = await window.electronAPI.log.readCurrentRunLog();
+      if (result.success && result.entries) {
+        setLogEntries(result.entries);
+      } else {
+        setError(result.error || 'Failed to read current run log');
+      }
+    } catch (err) {
+      setError('Failed to load current run log entries');
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Current Run ID 로드
+  const loadCurrentRunId = useCallback(async () => {
+    if (!window.electronAPI?.log?.getCurrentRunId) {
+      return;
+    }
+
+    try {
+      const result = await window.electronAPI.log.getCurrentRunId();
+      if (result.success && result.runId) {
+        setCurrentRunId(result.runId);
+      }
+    } catch (err) {
+      console.error('Failed to get current run ID:', err);
     }
   }, []);
 
@@ -241,9 +284,9 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
   // 초기화
   useEffect(() => {
     if (isVisible) {
-      // Load both types of logs
-      loadLogFiles();
+      // Load session logs
       loadSessionLogFiles();
+      loadCurrentRunId();
       window.electronAPI.log.getLevel().then(setCurrentLogLevel);
 
       // Auto-select current session if in session mode
@@ -251,16 +294,16 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
         setSelectedSessionId(currentSessionId);
       }
     }
-  }, [isVisible, loadLogFiles, loadSessionLogFiles, logSource, currentSessionId]);
+  }, [isVisible, loadSessionLogFiles, loadCurrentRunId, logSource, currentSessionId]);
 
   // 파일/세션 선택 시 로드
   useEffect(() => {
     if (logSource === 'session' && selectedSessionId) {
       loadSessionLogEntries(selectedSessionId);
-    } else if (logSource === 'daily' && selectedFile && viewMode === 'file') {
-      loadLogEntries(selectedFile);
+    } else if (logSource === 'currentRun') {
+      loadCurrentRunLogEntries();
     }
-  }, [selectedFile, selectedSessionId, viewMode, logSource, loadLogEntries, loadSessionLogEntries]);
+  }, [selectedSessionId, logSource, loadSessionLogEntries, loadCurrentRunLogEntries]);
 
   // currentSessionId prop 변경 시 자동 선택
   useEffect(() => {
@@ -395,21 +438,21 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
 
       {/* 툴바 */}
       <div className="log-viewer-toolbar">
-        {/* 로그 소스 선택 (Session / Daily) */}
+        {/* 로그 소스 선택 (Session / Current Run) */}
         <div className="log-source-toggle">
           <button
             className={`source-btn ${logSource === 'session' ? 'active' : ''}`}
             onClick={() => setLogSource('session')}
-            title="Session Logs"
+            title="Session Logs (채팅 세션별 로그)"
           >
             Session
           </button>
           <button
-            className={`source-btn ${logSource === 'daily' ? 'active' : ''}`}
-            onClick={() => setLogSource('daily')}
-            title="Daily Logs"
+            className={`source-btn ${logSource === 'currentRun' ? 'active' : ''}`}
+            onClick={() => setLogSource('currentRun')}
+            title="Current Run Logs (이번 실행 로그)"
           >
-            Daily
+            This Run
           </button>
         </div>
 
@@ -430,22 +473,21 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
           </select>
         )}
 
-        {/* 파일 선택 (daily mode) */}
-        {logSource === 'daily' && (
-          <select
-            className="log-file-select"
-            value={selectedFile?.path || ''}
-            onChange={(e) => {
-              const file = logFiles.find(f => f.path === e.target.value);
-              setSelectedFile(file || null);
-            }}
-          >
-            {logFiles.map(file => (
-              <option key={file.path} value={file.path}>
-                {file.name} ({formatSize(file.size)})
-              </option>
-            ))}
-          </select>
+        {/* Current Run 표시 */}
+        {logSource === 'currentRun' && (
+          <div className="log-current-run-info">
+            <span className="run-indicator">● LIVE</span>
+            <span className="run-id">Run: {currentRunId ? currentRunId.slice(0, 16) : 'Loading...'}</span>
+            <button
+              className="log-action-btn refresh-btn"
+              onClick={loadCurrentRunLogEntries}
+              title="Refresh logs"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+              </svg>
+            </button>
+          </div>
         )}
 
         {/* 클립보드 복사 버튼 */}
@@ -613,26 +655,9 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
       <div className="log-viewer-footer">
         <span className="log-count">
           {displayEntries.length} entries
+          {logSource === 'currentRun' && ' (이번 실행)'}
+          {logSource === 'session' && selectedSessionId && ` (${selectedSessionId.slice(0, 8)}...)`}
         </span>
-        {viewMode === 'file' && selectedFile && (
-          <div className="log-file-actions">
-            <button onClick={() => openInExplorer(selectedFile)} title="Show in Explorer">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z"/>
-              </svg>
-            </button>
-            <button onClick={() => loadLogEntries(selectedFile)} title="Refresh">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
-              </svg>
-            </button>
-            <button onClick={() => deleteLogFile(selectedFile)} title="Delete">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-              </svg>
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );

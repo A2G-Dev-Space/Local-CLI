@@ -65,6 +65,12 @@ class Logger {
   private sessionWriteStream: fs.WriteStream | null = null;
   private sessionLogDir: string = '';
 
+  // Current Run logging (exe 시작부터 종료까지)
+  private currentRunLogFile: string = '';
+  private currentRunWriteStream: fs.WriteStream | null = null;
+  private currentRunId: string = '';
+  private runLogDir: string = '';
+
   constructor() {
     this.config = { ...DEFAULT_CONFIG };
   }
@@ -90,14 +96,22 @@ class Logger {
     this.sessionLogDir = path.join(this.config.logDir, 'sessions');
     await fs.promises.mkdir(this.sessionLogDir, { recursive: true });
 
+    // Current Run 로그 디렉토리 설정
+    this.runLogDir = path.join(this.config.logDir, 'runs');
+    await fs.promises.mkdir(this.runLogDir, { recursive: true });
+
     // 오래된 로그 파일 정리
     await this.cleanOldLogs();
+    await this.cleanOldRunLogs();
 
     // 현재 로그 파일 설정
     this.updateLogFile();
 
+    // Current Run 로그 파일 설정 (exe 시작 시 한 번만)
+    this.initializeCurrentRunLog();
+
     this.initialized = true;
-    this.info('Logger initialized', { logDir: this.config.logDir });
+    this.info('Logger initialized', { logDir: this.config.logDir, runId: this.currentRunId });
   }
 
   /**
@@ -146,6 +160,44 @@ class Logger {
       return new Date(match[1]);
     }
     return null;
+  }
+
+  /**
+   * 오래된 Run 로그 파일 정리 (최근 10개만 유지)
+   */
+  private async cleanOldRunLogs(): Promise<void> {
+    try {
+      const files = await fs.promises.readdir(this.runLogDir);
+      const runFiles = await Promise.all(
+        files
+          .filter((f) => f.startsWith('run-') && f.endsWith('.log'))
+          .map(async (name) => {
+            const filePath = path.join(this.runLogDir, name);
+            const stats = await fs.promises.stat(filePath);
+            return { name, path: filePath, mtime: stats.mtimeMs };
+          })
+      );
+
+      // 최신순 정렬 후 10개 초과분 삭제
+      const sorted = runFiles.sort((a, b) => b.mtime - a.mtime);
+      const filesToDelete = sorted.slice(10);
+      for (const file of filesToDelete) {
+        await fs.promises.unlink(file.path).catch(() => {});
+      }
+    } catch (error) {
+      console.error('Failed to clean old run logs:', error);
+    }
+  }
+
+  /**
+   * Current Run 로그 파일 초기화 (exe 시작 시 한 번)
+   */
+  private initializeCurrentRunLog(): void {
+    // 고유 Run ID 생성 (타임스탬프 기반)
+    const now = new Date();
+    this.currentRunId = now.toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    this.currentRunLogFile = path.join(this.runLogDir, `run-${this.currentRunId}.log`);
+    this.currentRunWriteStream = fs.createWriteStream(this.currentRunLogFile, { flags: 'a' });
   }
 
   /**
@@ -204,6 +256,11 @@ class Logger {
     if (this.initialized) {
       this.updateLogFile(); // 날짜 변경 확인
       this.writeStream?.write(logLine);
+
+      // Current Run 로그에도 기록
+      if (this.currentRunWriteStream) {
+        this.currentRunWriteStream.write(logLine);
+      }
 
       // Session 로그에도 기록
       if (this.sessionWriteStream) {
@@ -426,6 +483,94 @@ class Logger {
     }
   }
 
+  // ============================================================================
+  // Current Run Log Methods (이번 실행 로그)
+  // ============================================================================
+
+  /**
+   * Get current run ID
+   */
+  getCurrentRunId(): string {
+    return this.currentRunId;
+  }
+
+  /**
+   * Get current run log file path
+   */
+  getCurrentRunLogFilePath(): string {
+    return this.currentRunLogFile;
+  }
+
+  /**
+   * Get all run log files
+   */
+  async getRunLogFiles(): Promise<{ runId: string; path: string; size: number; modifiedAt: number }[]> {
+    try {
+      const files = await fs.promises.readdir(this.runLogDir);
+      const runFiles = await Promise.all(
+        files
+          .filter((f) => f.startsWith('run-') && f.endsWith('.log'))
+          .map(async (name) => {
+            const filePath = path.join(this.runLogDir, name);
+            const stats = await fs.promises.stat(filePath);
+            const runId = name.replace('run-', '').replace('.log', '');
+            return {
+              runId,
+              path: filePath,
+              size: stats.size,
+              modifiedAt: stats.mtimeMs,
+            };
+          })
+      );
+
+      return runFiles.sort((a, b) => b.modifiedAt - a.modifiedAt);
+    } catch (error) {
+      this.error('Failed to get run log files', error);
+      return [];
+    }
+  }
+
+  /**
+   * Read current run log (이번 실행 로그 읽기)
+   */
+  async readCurrentRunLog(): Promise<LogEntry[]> {
+    if (!this.currentRunLogFile) {
+      return [];
+    }
+    try {
+      const content = await fs.promises.readFile(this.currentRunLogFile, 'utf-8');
+      return this.parseLogEntries(content);
+    } catch (error) {
+      return [];
+    }
+  }
+
+  /**
+   * Read specific run log by runId
+   */
+  async readRunLog(runId: string): Promise<LogEntry[]> {
+    const filePath = path.join(this.runLogDir, `run-${runId}.log`);
+    try {
+      const content = await fs.promises.readFile(filePath, 'utf-8');
+      return this.parseLogEntries(content);
+    } catch (error) {
+      return [];
+    }
+  }
+
+  /**
+   * Delete run log file
+   */
+  async deleteRunLog(runId: string): Promise<void> {
+    const filePath = path.join(this.runLogDir, `run-${runId}.log`);
+    try {
+      await fs.promises.unlink(filePath);
+      this.info('Run log deleted', { runId });
+    } catch (error) {
+      this.error('Failed to delete run log', { runId, error });
+    }
+  }
+
   /**
    * 로그 파일 경로 가져오기
    */
@@ -613,6 +758,385 @@ class Logger {
         // 콜백 에러 무시
       }
     }
+  }
+
+  // ============================================================================
+  // HTTP Methods (CLI parity)
+  // ============================================================================
+
+  /**
+   * Log HTTP request (CLI parity)
+   */
+  httpRequest(method: string, url: string, body?: unknown): void {
+    this.log(LogLevel.DEBUG, `[HTTP REQUEST] ${method} ${url}`, body ? { body } : undefined);
+  }
+
+  /**
+   * Log HTTP response (CLI parity)
+   */
+  httpResponse(status: number, statusText: string, data?: unknown): void {
+    this.log(LogLevel.DEBUG, `[HTTP RESPONSE] ${status} ${statusText}`, data ? { data } : undefined);
+  }
+
+  /**
+   * Log HTTP error (CLI parity)
+   */
+  httpError(url: string, error: Error | unknown): void {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    this.log(LogLevel.ERROR, `[HTTP ERROR] ${url}`, { error: errorMessage });
+  }
+
+  /**
+   * Log HTTP stream start (CLI parity)
+   */
+  httpStreamStart(method: string, url: string): void {
+    this.log(LogLevel.DEBUG, `[HTTP STREAM START] ${method} ${url}`);
+  }
+
+  /**
+   * Log HTTP stream end (CLI parity)
+   */
+  httpStreamEnd(totalBytes: number, duration: number): void {
+    this.log(LogLevel.DEBUG, `[HTTP STREAM END]`, { totalBytes, duration });
+  }
+
+  // ============================================================================
+  // Tool Methods (CLI parity)
+  // ============================================================================
+
+  /**
+   * Log tool start (CLI parity)
+   */
+  toolStart(name: string, args: unknown, reason?: string): void {
+    this.log(LogLevel.DEBUG, `[TOOL START] ${name}`, { args, reason });
+  }
+
+  /**
+   * Log tool success (CLI parity)
+   */
+  toolSuccess(name: string, args: unknown, result: unknown, duration: number): void {
+    this.log(LogLevel.DEBUG, `[TOOL SUCCESS] ${name}`, { args, result, duration });
+  }
+
+  /**
+   * Log tool error (CLI parity)
+   */
+  toolError(name: string, args: unknown, error: Error, duration: number): void {
+    this.log(LogLevel.ERROR, `[TOOL ERROR] ${name}`, { args, error: error.message, duration });
+  }
+
+  // ============================================================================
+  // IPC Communication Methods
+  // ============================================================================
+
+  /**
+   * Log IPC send
+   */
+  ipcSend(channel: string, context: Record<string, unknown>): void {
+    this.log(LogLevel.DEBUG, `[IPC SEND] ${channel}`, context);
+  }
+
+  /**
+   * Log IPC receive
+   */
+  ipcReceive(channel: string, context: Record<string, unknown>): void {
+    this.log(LogLevel.DEBUG, `[IPC RECEIVE] ${channel}`, context);
+  }
+
+  /**
+   * Log IPC invoke
+   */
+  ipcInvoke(channel: string, context: Record<string, unknown>): void {
+    this.log(LogLevel.DEBUG, `[IPC INVOKE] ${channel}`, context);
+  }
+
+  /**
+   * Log IPC handle
+   */
+  ipcHandle(channel: string, context: Record<string, unknown>): void {
+    this.log(LogLevel.DEBUG, `[IPC HANDLE] ${channel}`, context);
+  }
+
+  /**
+   * Log IPC error
+   */
+  ipcError(channel: string, context: Record<string, unknown>): void {
+    this.log(LogLevel.ERROR, `[IPC ERROR] ${channel}`, context);
+  }
+
+  // ============================================================================
+  // Window Methods
+  // ============================================================================
+
+  /**
+   * Log window create
+   */
+  windowCreate(context: Record<string, unknown>): void {
+    this.log(LogLevel.INFO, `[WINDOW CREATE]`, context);
+  }
+
+  /**
+   * Log window close
+   */
+  windowClose(context: Record<string, unknown>): void {
+    this.log(LogLevel.INFO, `[WINDOW CLOSE]`, context);
+  }
+
+  /**
+   * Log window state change
+   */
+  windowStateChange(context: Record<string, unknown>): void {
+    this.log(LogLevel.DEBUG, `[WINDOW STATE]`, context);
+  }
+
+  /**
+   * Log window focus
+   */
+  windowFocus(context: Record<string, unknown>): void {
+    this.log(LogLevel.DEBUG, `[WINDOW FOCUS]`, context);
+  }
+
+  /**
+   * Log window blur
+   */
+  windowBlur(context: Record<string, unknown>): void {
+    this.log(LogLevel.DEBUG, `[WINDOW BLUR]`, context);
+  }
+
+  // ============================================================================
+  // System/App Methods
+  // ============================================================================
+
+  /**
+   * Log app ready
+   */
+  appReady(context: Record<string, unknown>): void {
+    this.log(LogLevel.INFO, `[APP READY]`, context);
+  }
+
+  /**
+   * Log app activate
+   */
+  appActivate(context: Record<string, unknown>): void {
+    this.log(LogLevel.DEBUG, `[APP ACTIVATE]`, context);
+  }
+
+  /**
+   * Log app before quit
+   */
+  appBeforeQuit(context: Record<string, unknown>): void {
+    this.log(LogLevel.INFO, `[APP BEFORE QUIT]`, context);
+  }
+
+  /**
+   * Log app quit
+   */
+  appQuit(context: Record<string, unknown>): void {
+    this.log(LogLevel.INFO, `[APP QUIT]`, context);
+  }
+
+  /**
+   * Log system suspend
+   */
+  systemSuspend(): void {
+    this.log(LogLevel.INFO, `[SYSTEM SUSPEND]`);
+  }
+
+  /**
+   * Log system resume
+   */
+  systemResume(context: Record<string, unknown>): void {
+    this.log(LogLevel.INFO, `[SYSTEM RESUME]`, context);
+  }
+
+  /**
+   * Log network change
+   */
+  networkChange(context: Record<string, unknown>): void {
+    this.log(LogLevel.INFO, `[NETWORK CHANGE]`, context);
+  }
+
+  /**
+   * Log system theme change
+   */
+  systemThemeChange(context: Record<string, unknown>): void {
+    this.log(LogLevel.DEBUG, `[THEME CHANGE]`, context);
+  }
+
+  // ============================================================================
+  // Auto Update Methods
+  // ============================================================================
+
+  /**
+   * Log update check start
+   */
+  updateCheckStart(): void {
+    this.log(LogLevel.INFO, `[UPDATE] Check started`);
+  }
+
+  /**
+   * Log update available
+   */
+  updateAvailable(context: Record<string, unknown>): void {
+    this.log(LogLevel.INFO, `[UPDATE] Available`, context);
+  }
+
+  /**
+   * Log update download start
+   */
+  updateDownloadStart(context: Record<string, unknown>): void {
+    this.log(LogLevel.INFO, `[UPDATE] Download started`, context);
+  }
+
+  /**
+   * Log update download progress
+   */
+  updateDownloadProgress(context: Record<string, unknown>): void {
+    this.log(LogLevel.DEBUG, `[UPDATE] Download progress`, context);
+  }
+
+  /**
+   * Log update download complete
+   */
+  updateDownloadComplete(context: Record<string, unknown>): void {
+    this.log(LogLevel.INFO, `[UPDATE] Download complete`, context);
+  }
+
+  /**
+   * Log update installing
+   */
+  updateInstalling(): void {
+    this.log(LogLevel.INFO, `[UPDATE] Installing`);
+  }
+
+  /**
+   * Log update installed
+   */
+  updateInstalled(context: Record<string, unknown>): void {
+    this.log(LogLevel.INFO, `[UPDATE] Installed`, context);
+  }
+
+  /**
+   * Log update error
+   */
+  updateError(context: Record<string, unknown>): void {
+    this.log(LogLevel.ERROR, `[UPDATE] Error`, context);
+  }
+
+  // ============================================================================
+  // UI/Component Methods (CLI parity)
+  // ============================================================================
+
+  /**
+   * Log user click (CLI parity)
+   */
+  userClick(element: string, context: Record<string, unknown>): void {
+    this.log(LogLevel.DEBUG, `[UI CLICK] ${element}`, context);
+  }
+
+  /**
+   * Log user keyboard (CLI parity)
+   */
+  userKeyboard(type: string, context: Record<string, unknown>): void {
+    this.log(LogLevel.DEBUG, `[UI KEYBOARD] ${type}`, context);
+  }
+
+  /**
+   * Log component mount (CLI parity)
+   */
+  componentMount(name: string, context: Record<string, unknown>): void {
+    this.log(LogLevel.DEBUG, `[COMPONENT MOUNT] ${name}`, context);
+  }
+
+  /**
+   * Log component unmount (CLI parity)
+   */
+  componentUnmount(name: string, context: Record<string, unknown>): void {
+    this.log(LogLevel.DEBUG, `[COMPONENT UNMOUNT] ${name}`, context);
+  }
+
+  /**
+   * Log component state change (CLI parity)
+   */
+  componentStateChange(name: string, field: string, context: Record<string, unknown>): void {
+    this.log(LogLevel.DEBUG, `[COMPONENT STATE] ${name}.${field}`, context);
+  }
+
+  /**
+   * Log screen change (CLI parity)
+   */
+  screenChange(to: string, context: Record<string, unknown>): void {
+    this.log(LogLevel.DEBUG, `[SCREEN CHANGE] ${to}`, context);
+  }
+
+  /**
+   * Log modal open (CLI parity)
+   */
+  modalOpen(id: string, context: Record<string, unknown>): void {
+    this.log(LogLevel.DEBUG, `[MODAL OPEN] ${id}`, context);
+  }
+
+  /**
+   * Log modal close (CLI parity)
+   */
+  modalClose(id: string, context: Record<string, unknown>): void {
+    this.log(LogLevel.DEBUG, `[MODAL CLOSE] ${id}`, context);
+  }
+
+  /**
+   * Log form submit (CLI parity)
+   */
+  formSubmit(formId: string, context: Record<string, unknown>): void {
+    this.log(LogLevel.DEBUG, `[FORM SUBMIT] ${formId}`, context);
+  }
+
+  /**
+   * Log loading start (CLI parity)
+   */
+  loadingStart(id: string, context: Record<string, unknown>): void {
+    this.log(LogLevel.DEBUG, `[LOADING START] ${id}`, context);
+  }
+
+  /**
+   * Log loading end (CLI parity)
+   */
+  loadingEnd(id: string, context: Record<string, unknown>): void {
+    this.log(LogLevel.DEBUG, `[LOADING END] ${id}`, context);
+  }
+
+  /**
+   * Log session start (CLI parity)
+   */
+  sessionStart(context: Record<string, unknown>): void {
+    this.log(LogLevel.INFO, `[SESSION START]`, context);
+  }
+
+  /**
+   * Log session end (CLI parity)
+   */
+  sessionEnd(context: Record<string, unknown>): void {
+    this.log(LogLevel.INFO, `[SESSION END]`, context);
+  }
+
+  /**
+   * Log error boundary (CLI parity)
+   */
+  errorBoundary(context: Record<string, unknown>): void {
+    this.log(LogLevel.ERROR, `[ERROR BOUNDARY]`, context);
+  }
+
+  /**
+   * Log global error (CLI parity)
+   */
+  globalError(context: Record<string, unknown>): void {
+    this.log(LogLevel.ERROR, `[GLOBAL ERROR]`, context);
+  }
+
+  /**
+   * Log feature usage (CLI parity)
+   */
+  featureUsage(name: string, context: Record<string, unknown>): void {
+    this.log(LogLevel.DEBUG, `[FEATURE USAGE] ${name}`, context);
   }
 }
 

@@ -8,6 +8,7 @@ import { ToolDefinition } from '../../../types/index';
 import { LLMSimpleTool, ToolResult } from '../../types';
 import { wordClient } from '../word-client';
 import { OFFICE_CATEGORIES } from '../common/index';
+import { logger } from '../../../utils/logger';
 
 // =============================================================================
 // Word Set Page Margins
@@ -33,6 +34,8 @@ const WORD_SET_PAGE_MARGINS_DEFINITION: ToolDefinition = {
 };
 
 async function executeWordSetPageMargins(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('word_set_page_margins', args);
   try {
     const response = await wordClient.wordSetPageMargins({
       top: args['top'] as number | undefined,
@@ -41,10 +44,13 @@ async function executeWordSetPageMargins(args: Record<string, unknown>): Promise
       right: args['right'] as number | undefined,
     });
     if (response.success) {
+      logger.toolSuccess('word_set_page_margins', args, { updated: true }, Date.now() - startTime);
       return { success: true, result: 'Page margins updated' };
     }
+    logger.toolError('word_set_page_margins', args, new Error(response.error || 'Failed to set margins'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to set margins' };
   } catch (error) {
+    logger.toolError('word_set_page_margins', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to set margins: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -77,13 +83,18 @@ const WORD_SET_PAGE_ORIENTATION_DEFINITION: ToolDefinition = {
 };
 
 async function executeWordSetPageOrientation(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('word_set_page_orientation', args);
   try {
     const response = await wordClient.wordSetPageOrientation(args['orientation'] as 'portrait' | 'landscape');
     if (response.success) {
+      logger.toolSuccess('word_set_page_orientation', args, { orientation: args['orientation'] }, Date.now() - startTime);
       return { success: true, result: `Page orientation set to ${args['orientation']}` };
     }
+    logger.toolError('word_set_page_orientation', args, new Error(response.error || 'Failed to set orientation'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to set orientation' };
   } catch (error) {
+    logger.toolError('word_set_page_orientation', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to set orientation: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -118,6 +129,8 @@ const WORD_SET_PAGE_SIZE_DEFINITION: ToolDefinition = {
 };
 
 async function executeWordSetPageSize(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('word_set_page_size', args);
   try {
     const response = await wordClient.wordSetPageSize(
       args['size'] as 'A4' | 'Letter' | 'Legal' | 'A3' | 'B5' | 'custom',
@@ -125,10 +138,13 @@ async function executeWordSetPageSize(args: Record<string, unknown>): Promise<To
       args['height'] as number | undefined
     );
     if (response.success) {
+      logger.toolSuccess('word_set_page_size', args, { size: args['size'] }, Date.now() - startTime);
       return { success: true, result: response.message || 'Page size updated' };
     }
+    logger.toolError('word_set_page_size', args, new Error(response.error || 'Failed to set page size'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to set page size' };
   } catch (error) {
+    logger.toolError('word_set_page_size', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to set page size: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -162,16 +178,21 @@ const WORD_SET_COLUMNS_DEFINITION: ToolDefinition = {
 };
 
 async function executeWordSetColumns(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('word_set_columns', args);
   try {
     const response = await wordClient.wordSetColumns(
       args['count'] as number,
       args['spacing'] as number | undefined
     );
     if (response.success) {
+      logger.toolSuccess('word_set_columns', args, { count: args['count'] }, Date.now() - startTime);
       return { success: true, result: `Columns set to ${args['count']}` };
     }
+    logger.toolError('word_set_columns', args, new Error(response.error || 'Failed to set columns'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to set columns' };
   } catch (error) {
+    logger.toolError('word_set_columns', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to set columns: ${error instanceof Error ? error.message : String(error)}` };
   }
 }

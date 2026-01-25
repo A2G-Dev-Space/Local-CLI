@@ -55,7 +55,7 @@ import { sessionManager } from '../../core/session/session-manager.js';
 import { initializeDocsDirectory, setDocsSearchProgressCallback } from '../../agents/docs-search/index.js';
 import { DocsSearchProgress, type DocsSearchLog } from './DocsSearchProgress.js';
 import { FileBrowser } from './FileBrowser.js';
-import { SessionBrowser } from './panels/SessionPanel.js';
+import { SessionBrowser, LogBrowser } from './panels/index.js';
 import { SettingsBrowser } from './dialogs/SettingsDialog.js';
 import { LLMSetupWizard } from './LLMSetupWizard.js';
 import { ModelSelector } from './ModelSelector.js';
@@ -80,7 +80,7 @@ import {
   type CommandHandlerContext,
   type PlanningMode,
 } from '../../core/slash-command-handler.js';
-import { closeJsonStreamLogger, getStreamLogger } from '../../utils/json-stream-logger.js';
+import { closeJsonStreamLogger } from '../../utils/json-stream-logger.js';
 import { configManager } from '../../core/config/config-manager.js';
 import { GitAutoUpdater, UpdateStatus } from '../../core/git-auto-updater.js';
 import { logger } from '../../utils/logger.js';
@@ -1513,7 +1513,8 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
     showSettings ||
     showModelSelector ||
     showSessionBrowser ||
-    showDocsBrowser;
+    showDocsBrowser ||
+    showLogFiles;
 
   // Render a single log entry
   const renderLogEntry = (entry: LogEntry) => {
@@ -2121,17 +2122,12 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         )}
       </Box>
 
-      {/* Log files info (Ctrl+O to toggle) */}
-      {showLogFiles && (() => {
-        const streamLogger = getStreamLogger();
-        const sessionLogPath = streamLogger?.getFilePath() ?? 'N/A';
-        return (
-          <Box flexDirection="column" paddingX={1} borderStyle="single" borderColor="gray">
-            <Text color="gray" dimColor>📁 Log Files (Ctrl+O to hide)</Text>
-            <Text color="gray" dimColor>  Session: {sessionLogPath}</Text>
-          </Box>
-        );
-      })()}
+      {/* Log Browser (Ctrl+O to toggle) */}
+      {showLogFiles && (
+        <Box marginTop={0}>
+          <LogBrowser onClose={() => setShowLogFiles(false)} />
+        </Box>
+      )}
     </Box>
   );
 };

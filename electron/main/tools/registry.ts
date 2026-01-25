@@ -22,6 +22,7 @@ import type {
 } from './types';
 import { isLLMSimpleTool, isLLMAgentTool } from './types';
 import { configManager } from '../core/config';
+import { logger } from '../utils/logger';
 
 // Import Core Tools from new structure
 import {
@@ -226,8 +227,10 @@ class ToolRegistry {
    * Enable an optional tool group
    */
   async enableToolGroup(groupId: string, persist: boolean = true, skipValidation: boolean = false): Promise<EnableResult> {
+    logger.enter('enableToolGroup', { groupId, persist, skipValidation });
     const group = this.optionalToolGroups.get(groupId);
     if (!group) {
+      logger.warn('Tool group not found', { groupId });
       return { success: false, error: `Tool group '${groupId}' not found` };
     }
 
@@ -235,6 +238,7 @@ class ToolRegistry {
     if (!skipValidation && group.onEnable) {
       const result = await group.onEnable();
       if (!result.success) {
+        logger.warn('Tool group validation failed', { groupId, error: result.error });
         return result;
       }
     }
@@ -252,6 +256,8 @@ class ToolRegistry {
       configManager.enableTool(groupId).catch(() => {});
     }
 
+    logger.info('Tool group enabled', { groupId, toolCount: group.tools.length });
+    logger.exit('enableToolGroup', { success: true });
     return { success: true };
   }
 
@@ -259,8 +265,10 @@ class ToolRegistry {
    * Disable an optional tool group
    */
   async disableToolGroup(groupId: string, persist: boolean = true): Promise<boolean> {
+    logger.enter('disableToolGroup', { groupId, persist });
     const group = this.optionalToolGroups.get(groupId);
     if (!group) {
+      logger.warn('Tool group not found for disable', { groupId });
       return false;
     }
 
@@ -292,6 +300,8 @@ class ToolRegistry {
       configManager.disableTool(groupId).catch(() => {});
     }
 
+    logger.info('Tool group disabled', { groupId });
+    logger.exit('disableToolGroup', { success: true });
     return true;
   }
 

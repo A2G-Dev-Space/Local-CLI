@@ -206,6 +206,39 @@
   border-color: var(--accent-color, #0078d4);
 }
 
+/* Current Run 정보 표시 */
+.log-current-run-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  background: var(--bg-secondary, #252526);
+  border: 1px solid var(--border-color, #3c3c3c);
+  border-radius: 4px;
+}
+
+.log-current-run-info .run-indicator {
+  color: #10b981;
+  font-size: 10px;
+  font-weight: 700;
+  animation: pulse 1.5s infinite;
+}
+
+.log-current-run-info .run-id {
+  color: var(--text-secondary, #8b8b8b);
+  font-size: 11px;
+}
+
+.log-current-run-info .refresh-btn {
+  padding: 2px 4px;
+  margin-left: 4px;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
 /* 검색 */
 .log-search {
   display: flex;

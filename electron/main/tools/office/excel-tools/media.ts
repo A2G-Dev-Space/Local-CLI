@@ -8,6 +8,7 @@ import { ToolDefinition } from '../../../types/index';
 import { LLMSimpleTool, ToolResult } from '../../types';
 import { excelClient } from '../excel-client';
 import { OFFICE_CATEGORIES } from '../common/constants';
+import { logger } from '../../../utils/logger';
 
 // =============================================================================
 // Excel Add Image
@@ -34,6 +35,8 @@ const EXCEL_ADD_IMAGE_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelAddImage(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_add_image', args);
   try {
     const response = await excelClient.excelAddImage(
       args['image_path'] as string,
@@ -45,10 +48,13 @@ async function executeExcelAddImage(args: Record<string, unknown>): Promise<Tool
       }
     );
     if (response.success) {
+      logger.toolSuccess('excel_add_image', args, { cell: args['cell'], imagePath: args['image_path'] }, Date.now() - startTime);
       return { success: true, result: `Image added at ${args['cell']}` };
     }
+    logger.toolError('excel_add_image', args, new Error(response.error || 'Failed to add image'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to add image' };
   } catch (error) {
+    logger.toolError('excel_add_image', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to add image: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -84,6 +90,8 @@ const EXCEL_ADD_HYPERLINK_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelAddHyperlink(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_add_hyperlink', args);
   try {
     const response = await excelClient.excelAddHyperlink(
       args['cell'] as string,
@@ -92,10 +100,13 @@ async function executeExcelAddHyperlink(args: Record<string, unknown>): Promise<
       args['sheet'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('excel_add_hyperlink', args, { cell: args['cell'] }, Date.now() - startTime);
       return { success: true, result: `Hyperlink added to ${args['cell']}` };
     }
+    logger.toolError('excel_add_hyperlink', args, new Error(response.error || 'Failed to add hyperlink'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to add hyperlink' };
   } catch (error) {
+    logger.toolError('excel_add_hyperlink', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to add hyperlink: ${error instanceof Error ? error.message : String(error)}` };
   }
 }

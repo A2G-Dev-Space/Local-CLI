@@ -14,6 +14,7 @@ import { ToolDefinition } from '../../../types/index';
 import { LLMSimpleTool, ToolResult } from '../../types';
 import { wordClient } from '../word-client';
 import { OFFICE_CATEGORIES } from '../common/constants';
+import { logger } from '../../../utils/logger';
 
 // =============================================================================
 // Word Write
@@ -47,20 +48,25 @@ Recommended: font_name="Malgun Gothic" or "Arial", font_size=11 for body text, 1
 };
 
 async function executeWordWrite(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
   const text = args['text'] as string;
   const fontName = args['font_name'] as string | undefined;
   const fontSize = args['font_size'] as number | undefined;
   const bold = args['bold'] as boolean | undefined;
   const italic = args['italic'] as boolean | undefined;
   const newParagraph = args['new_paragraph'] as boolean | undefined;
+  logger.toolStart('word_write', { textLength: text?.length, fontName, fontSize });
 
   try {
     const response = await wordClient.wordWrite(text, { fontName, fontSize, bold, italic, newParagraph });
     if (response.success) {
+      logger.toolSuccess('word_write', { textLength: text.length }, { written: true }, Date.now() - startTime);
       return { success: true, result: `Text written to document (${text.length} characters)` };
     }
+    logger.toolError('word_write', args, new Error(response.error || 'Failed to write text'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to write text' };
   } catch (error) {
+    logger.toolError('word_write', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to write text: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -93,18 +99,23 @@ Returns the full text content of the document.`,
 };
 
 async function executeWordRead(_args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('word_read', _args);
   try {
     const response = await wordClient.wordRead();
     if (response.success) {
       const content = response['content'] as string || '';
       const docName = response['document_name'] as string || 'Unknown';
+      logger.toolSuccess('word_read', _args, { docName, contentLength: content.length }, Date.now() - startTime);
       return {
         success: true,
         result: `Document: ${docName}\n\nContent:\n${content || '(empty document)'}`,
       };
     }
+    logger.toolError('word_read', _args, new Error(response.error || 'Failed to read document'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to read document' };
   } catch (error) {
+    logger.toolError('word_read', _args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to read document: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -139,6 +150,8 @@ const WORD_FIND_REPLACE_DEFINITION: ToolDefinition = {
 };
 
 async function executeWordFindReplace(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('word_find_replace', args);
   try {
     const response = await wordClient.wordFindReplace(
       args['find'] as string,
@@ -146,10 +159,13 @@ async function executeWordFindReplace(args: Record<string, unknown>): Promise<To
       args['replace_all'] as boolean ?? true
     );
     if (response.success) {
+      logger.toolSuccess('word_find_replace', args, { replaced: true }, Date.now() - startTime);
       return { success: true, result: `Replaced "${args['find']}" with "${args['replace']}"` };
     }
+    logger.toolError('word_find_replace', args, new Error(response.error || 'Failed to find/replace'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to find/replace' };
   } catch (error) {
+    logger.toolError('word_find_replace', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to find/replace: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -182,13 +198,18 @@ const WORD_SET_STYLE_DEFINITION: ToolDefinition = {
 };
 
 async function executeWordSetStyle(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('word_set_style', args);
   try {
     const response = await wordClient.wordSetStyle(args['style'] as string);
     if (response.success) {
+      logger.toolSuccess('word_set_style', args, { style: args['style'] }, Date.now() - startTime);
       return { success: true, result: `Style "${args['style']}" applied` };
     }
+    logger.toolError('word_set_style', args, new Error(response.error || 'Failed to set style'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to set style' };
   } catch (error) {
+    logger.toolError('word_set_style', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to set style: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -220,17 +241,22 @@ const WORD_GET_SELECTED_TEXT_DEFINITION: ToolDefinition = {
 };
 
 async function executeWordGetSelectedText(_args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('word_get_selected_text', _args);
   try {
     const response = await wordClient.wordGetSelectedText();
     if (response.success) {
       const text = response['text'] as string || '';
+      logger.toolSuccess('word_get_selected_text', _args, { textLength: text.length }, Date.now() - startTime);
       if (!text || text.length === 0) {
         return { success: true, result: 'No text selected' };
       }
       return { success: true, result: `Selected text: "${text}"` };
     }
+    logger.toolError('word_get_selected_text', _args, new Error(response.error || 'Failed to get selected text'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to get selected text' };
   } catch (error) {
+    logger.toolError('word_get_selected_text', _args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to get selected text: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -262,13 +288,18 @@ const WORD_SELECT_ALL_DEFINITION: ToolDefinition = {
 };
 
 async function executeWordSelectAll(_args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('word_select_all', _args);
   try {
     const response = await wordClient.wordSelectAll();
     if (response.success) {
+      logger.toolSuccess('word_select_all', _args, { selected: true }, Date.now() - startTime);
       return { success: true, result: 'All content selected' };
     }
+    logger.toolError('word_select_all', _args, new Error(response.error || 'Failed to select all'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to select all' };
   } catch (error) {
+    logger.toolError('word_select_all', _args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to select all: ${error instanceof Error ? error.message : String(error)}` };
   }
 }

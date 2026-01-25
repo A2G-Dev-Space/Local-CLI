@@ -174,6 +174,7 @@ export class SessionManager {
    * 세션 저장
    */
   async saveSession(name: string, messages: Message[]): Promise<string> {
+    logger.enter('saveSession', { name, messageCount: messages.length });
     await this.ensureSessionsDir();
 
     // 세션 ID 생성
@@ -205,6 +206,7 @@ export class SessionManager {
     const filePath = path.join(sessionsDir, `${sessionId}.json`);
     await fs.writeFile(filePath, JSON.stringify(sessionData, null, 2), 'utf-8');
 
+    logger.exit('saveSession', { sessionId, filePath });
     return sessionId;
   }
 
@@ -212,6 +214,7 @@ export class SessionManager {
    * 세션 로드
    */
   async loadSession(sessionId: string): Promise<SessionData | null> {
+    logger.enter('loadSession', { sessionId });
     await this.ensureSessionsDir();
 
     const sessionsDir = this.getSessionsDir();
@@ -237,8 +240,10 @@ export class SessionManager {
       // 로거를 해당 세션의 로그 파일로 재초기화 (append 모드)
       await initializeJsonStreamLogger(sessionData.metadata.id, true);
 
+      logger.exit('loadSession', { sessionId, messageCount: sessionData.messages.length });
       return sessionData;
     } catch (error) {
+      logger.error('Failed to load session', { sessionId, error });
       return null;
     }
   }
@@ -247,6 +252,7 @@ export class SessionManager {
    * 모든 세션 목록 가져오기
    */
   async listSessions(): Promise<SessionSummary[]> {
+    logger.enter('listSessions', { sessionsDir: this.getSessionsDir() });
     await this.ensureSessionsDir();
 
     try {
@@ -288,8 +294,10 @@ export class SessionManager {
       // 최근 업데이트 순으로 정렬
       sessions.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
+      logger.exit('listSessions', { sessionCount: sessions.length });
       return sessions;
     } catch (error) {
+      logger.error('Failed to list sessions', { error });
       return [];
     }
   }
@@ -298,6 +306,7 @@ export class SessionManager {
    * 세션 삭제
    */
   async deleteSession(sessionId: string): Promise<boolean> {
+    logger.enter('deleteSession', { sessionId });
     await this.ensureSessionsDir();
 
     const sessionsDir = this.getSessionsDir();
@@ -305,8 +314,10 @@ export class SessionManager {
 
     try {
       await fs.unlink(filePath);
+      logger.exit('deleteSession', { sessionId, success: true });
       return true;
-    } catch {
+    } catch (error) {
+      logger.error('Failed to delete session', { sessionId, error });
       return false;
     }
   }
@@ -323,10 +334,12 @@ export class SessionManager {
    * 세션 갱신 (메시지 추가)
    */
   async updateSession(sessionId: string, messages: Message[]): Promise<boolean> {
+    logger.enter('updateSession', { sessionId, messageCount: messages.length });
     await this.ensureSessionsDir();
 
     const sessionData = await this.loadSession(sessionId);
     if (!sessionData) {
+      logger.warn('Session not found for update', { sessionId });
       return false;
     }
 
@@ -341,6 +354,7 @@ export class SessionManager {
     const filePath = path.join(sessionsDir, `${sessionId}.json`);
     await fs.writeFile(filePath, JSON.stringify(sessionData, null, 2), 'utf-8');
 
+    logger.exit('updateSession', { sessionId, messageCount: messages.length });
     return true;
   }
 
@@ -392,6 +406,7 @@ export class SessionManager {
    */
   private async performAutoSave(messages: Message[]): Promise<void> {
     this.isSaving = true;
+    logger.flow('Auto-saving session', { sessionId: this.currentSessionId, messageCount: messages.length });
 
     try {
       await this.ensureSessionsDir();

@@ -8,6 +8,7 @@ import { ToolDefinition } from '../../../types/index';
 import { LLMSimpleTool, ToolResult } from '../../types';
 import { excelClient } from '../excel-client';
 import { OFFICE_CATEGORIES } from '../common/constants';
+import { logger } from '../../../utils/logger';
 
 // =============================================================================
 // Excel Set Formula
@@ -32,6 +33,8 @@ const EXCEL_SET_FORMULA_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelSetFormula(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_set_formula', args);
   try {
     const response = await excelClient.excelSetFormula(
       args['cell'] as string,
@@ -39,10 +42,13 @@ async function executeExcelSetFormula(args: Record<string, unknown>): Promise<To
       args['sheet'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('excel_set_formula', args, { cell: args['cell'] }, Date.now() - startTime);
       return { success: true, result: `Formula set in ${args['cell']}` };
     }
+    logger.toolError('excel_set_formula', args, new Error(response.error || 'Failed to set formula'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to set formula' };
   } catch (error) {
+    logger.toolError('excel_set_formula', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to set formula: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -79,6 +85,8 @@ const EXCEL_SORT_RANGE_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelSortRange(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_sort_range', args);
   try {
     const response = await excelClient.excelSortRange(
       args['range'] as string,
@@ -88,10 +96,13 @@ async function executeExcelSortRange(args: Record<string, unknown>): Promise<Too
       args['sheet'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('excel_sort_range', args, { range: args['range'], sortColumn: args['sort_column'] }, Date.now() - startTime);
       return { success: true, result: `Range sorted by column ${args['sort_column']}` };
     }
+    logger.toolError('excel_sort_range', args, new Error(response.error || 'Failed to sort range'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to sort range' };
   } catch (error) {
+    logger.toolError('excel_sort_range', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to sort range: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -126,6 +137,8 @@ const EXCEL_FREEZE_PANES_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelFreezePanes(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_freeze_panes', args);
   try {
     const response = await excelClient.excelFreezePanes(
       args['row'] as number | undefined,
@@ -133,10 +146,13 @@ async function executeExcelFreezePanes(args: Record<string, unknown>): Promise<T
       args['sheet'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('excel_freeze_panes', args, { row: args['row'], column: args['column'] }, Date.now() - startTime);
       return { success: true, result: 'Panes frozen' };
     }
+    logger.toolError('excel_freeze_panes', args, new Error(response.error || 'Failed to freeze panes'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to freeze panes' };
   } catch (error) {
+    logger.toolError('excel_freeze_panes', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to freeze panes: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -170,16 +186,21 @@ const EXCEL_AUTO_FILTER_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelAutoFilter(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_auto_filter', args);
   try {
     const response = await excelClient.excelAutoFilter(
       args['range'] as string,
       args['sheet'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('excel_auto_filter', args, { range: args['range'] }, Date.now() - startTime);
       return { success: true, result: `Auto filter applied to ${args['range']}` };
     }
+    logger.toolError('excel_auto_filter', args, new Error(response.error || 'Failed to apply auto filter'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to apply auto filter' };
   } catch (error) {
+    logger.toolError('excel_auto_filter', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to apply auto filter: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -217,6 +238,8 @@ const EXCEL_FIND_REPLACE_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelFindReplace(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_find_replace', args);
   try {
     const response = await excelClient.excelFindReplace(
       args['find'] as string,
@@ -229,10 +252,13 @@ async function executeExcelFindReplace(args: Record<string, unknown>): Promise<T
       }
     );
     if (response.success) {
+      logger.toolSuccess('excel_find_replace', args, { find: args['find'], replace: args['replace'] }, Date.now() - startTime);
       return { success: true, result: `Replaced "${args['find']}" with "${args['replace']}"` };
     }
+    logger.toolError('excel_find_replace', args, new Error(response.error || 'Failed to find/replace'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to find/replace' };
   } catch (error) {
+    logger.toolError('excel_find_replace', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to find/replace: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -267,6 +293,8 @@ const EXCEL_GROUP_ROWS_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelGroupRows(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_group_rows', args);
   try {
     const response = await excelClient.excelGroupRows(
       args['start_row'] as number,
@@ -274,10 +302,13 @@ async function executeExcelGroupRows(args: Record<string, unknown>): Promise<Too
       args['sheet'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('excel_group_rows', args, { startRow: args['start_row'], endRow: args['end_row'] }, Date.now() - startTime);
       return { success: true, result: `Rows ${args['start_row']}-${args['end_row']} grouped` };
     }
+    logger.toolError('excel_group_rows', args, new Error(response.error || 'Failed to group rows'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to group rows' };
   } catch (error) {
+    logger.toolError('excel_group_rows', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to group rows: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -312,6 +343,8 @@ const EXCEL_UNGROUP_ROWS_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelUngroupRows(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_ungroup_rows', args);
   try {
     const response = await excelClient.excelUngroupRows(
       args['start_row'] as number,
@@ -319,10 +352,13 @@ async function executeExcelUngroupRows(args: Record<string, unknown>): Promise<T
       args['sheet'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('excel_ungroup_rows', args, { startRow: args['start_row'], endRow: args['end_row'] }, Date.now() - startTime);
       return { success: true, result: `Rows ${args['start_row']}-${args['end_row']} ungrouped` };
     }
+    logger.toolError('excel_ungroup_rows', args, new Error(response.error || 'Failed to ungroup rows'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to ungroup rows' };
   } catch (error) {
+    logger.toolError('excel_ungroup_rows', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to ungroup rows: ${error instanceof Error ? error.message : String(error)}` };
   }
 }

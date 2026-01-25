@@ -9,6 +9,7 @@ import { ToolDefinition } from '../../../types/index';
 import { LLMSimpleTool, ToolResult } from '../../types';
 import { excelClient } from '../excel-client';
 import { OFFICE_CATEGORIES } from '../common/index';
+import { logger } from '../../../utils/logger';
 
 // =============================================================================
 // Excel Add Conditional Format
@@ -38,6 +39,8 @@ const EXCEL_ADD_CONDITIONAL_FORMAT_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelAddConditionalFormat(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_add_conditional_format', args);
   try {
     const response = await excelClient.excelAddConditionalFormat(
       args['range'] as string,
@@ -52,10 +55,13 @@ async function executeExcelAddConditionalFormat(args: Record<string, unknown>): 
       }
     );
     if (response.success) {
+      logger.toolSuccess('excel_add_conditional_format', args, { range: args['range'] }, Date.now() - startTime);
       return { success: true, result: `Conditional format added to ${args['range']}` };
     }
+    logger.toolError('excel_add_conditional_format', args, new Error(response.error || 'Failed to add conditional format'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to add conditional format' };
   } catch (error) {
+    logger.toolError('excel_add_conditional_format', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to add conditional format: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -89,16 +95,21 @@ const EXCEL_CLEAR_CONDITIONAL_FORMAT_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelClearConditionalFormat(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_clear_conditional_format', args);
   try {
     const response = await excelClient.excelClearConditionalFormat(
       args['range'] as string,
       args['sheet'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('excel_clear_conditional_format', args, { range: args['range'] }, Date.now() - startTime);
       return { success: true, result: `Conditional formatting cleared from ${args['range']}` };
     }
+    logger.toolError('excel_clear_conditional_format', args, new Error(response.error || 'Failed to clear conditional format'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to clear conditional format' };
   } catch (error) {
+    logger.toolError('excel_clear_conditional_format', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to clear conditional format: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -140,6 +151,8 @@ const EXCEL_SET_DATA_VALIDATION_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelSetDataValidation(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_set_data_validation', args);
   try {
     const response = await excelClient.excelSetDataValidation(
       args['range'] as string,
@@ -156,10 +169,13 @@ async function executeExcelSetDataValidation(args: Record<string, unknown>): Pro
       }
     );
     if (response.success) {
+      logger.toolSuccess('excel_set_data_validation', args, { range: args['range'] }, Date.now() - startTime);
       return { success: true, result: `Data validation set on ${args['range']}` };
     }
+    logger.toolError('excel_set_data_validation', args, new Error(response.error || 'Failed to set data validation'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to set data validation' };
   } catch (error) {
+    logger.toolError('excel_set_data_validation', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to set data validation: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -193,16 +209,21 @@ const EXCEL_CLEAR_DATA_VALIDATION_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelClearDataValidation(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_clear_data_validation', args);
   try {
     const response = await excelClient.excelClearDataValidation(
       args['range'] as string,
       args['sheet'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('excel_clear_data_validation', args, { range: args['range'] }, Date.now() - startTime);
       return { success: true, result: `Data validation cleared from ${args['range']}` };
     }
+    logger.toolError('excel_clear_data_validation', args, new Error(response.error || 'Failed to clear data validation'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to clear data validation' };
   } catch (error) {
+    logger.toolError('excel_clear_data_validation', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to clear data validation: ${error instanceof Error ? error.message : String(error)}` };
   }
 }

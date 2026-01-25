@@ -8,6 +8,7 @@
 import { Message, TodoItem } from '../types/index.js';
 import { sessionManager } from './session/session-manager.js';
 import { usageTracker } from './usage-tracker.js';
+import { logger } from '../utils/logger.js';
 import {
   getDocsInfo,
   downloadDocsFromSource,
@@ -58,17 +59,22 @@ export async function executeSlashCommand(
   context: CommandHandlerContext
 ): Promise<CommandExecutionResult> {
   const trimmedCommand = command.trim();
+  logger.enter('executeSlashCommand', { command: trimmedCommand });
 
   // Exit commands
   if (trimmedCommand === '/exit' || trimmedCommand === '/quit') {
+    logger.flow('Exit command received');
     context.exit();
+    logger.exit('executeSlashCommand', { handled: true, command: 'exit' });
     return { handled: true, shouldContinue: false };
   }
 
   // Clear command
   if (trimmedCommand === '/clear') {
+    logger.flow('Clear command - resetting messages and todos');
     context.setMessages([]);
     context.setTodos([]);
+    logger.exit('executeSlashCommand', { handled: true, command: 'clear' });
     return {
       handled: true,
       shouldContinue: false,
@@ -81,8 +87,15 @@ export async function executeSlashCommand(
 
   // Compact command - compress conversation history
   if (trimmedCommand === '/compact') {
+    logger.flow('Compact command received');
     if (context.onCompact) {
+      logger.flow('Executing compact callback');
       const result = await context.onCompact();
+      logger.vars(
+        { name: 'compactSuccess', value: result.success },
+        { name: 'originalCount', value: result.originalMessageCount },
+        { name: 'newCount', value: result.newMessageCount }
+      );
       const compactMessage = result.success
         ? `✅ 대화가 압축되었습니다. (${result.originalMessageCount}개 → ${result.newMessageCount}개 메시지)`
         : `❌ 압축 실패: ${result.error}`;
@@ -384,11 +397,14 @@ Note: All conversations are automatically saved.
 
   // Load command - load saved session
   if (trimmedCommand.startsWith('/load')) {
+    logger.flow('Load command received');
     const parts = trimmedCommand.split(' ');
     const sessionIdOrIndex = parts[1];
+    logger.vars({ name: 'sessionIdOrIndex', value: sessionIdOrIndex });
 
     try {
       const sessions = await sessionManager.listSessions();
+      logger.vars({ name: 'availableSessions', value: sessions.length });
 
       if (sessions.length === 0) {
         const noSessionMessage = '저장된 세션이 없습니다.';
@@ -451,6 +467,7 @@ Note: All conversations are automatically saved.
 
       const sessionData = await sessionManager.loadSession(sessionId);
       if (!sessionData) {
+        logger.warn('Session not found', { sessionIdOrIndex });
         const errorMessage = `세션을 찾을 수 없습니다: ${sessionIdOrIndex}`;
         const updatedMessages = [
           ...context.messages,
@@ -470,6 +487,8 @@ Note: All conversations are automatically saved.
       const loadedMessages = sessionData.messages;
       context.setMessages(loadedMessages);
 
+      logger.flow('Session loaded successfully', { messageCount: loadedMessages.length });
+      logger.exit('executeSlashCommand', { handled: true, command: 'load', sessionId });
       return {
         handled: true,
         shouldContinue: false,
@@ -478,6 +497,7 @@ Note: All conversations are automatically saved.
         },
       };
     } catch (error) {
+      logger.error('Session load failed', error as Error);
       const errorMessage = `세션 로드 실패: ${error instanceof Error ? error.message : 'Unknown error'}`;
       const updatedMessages = [
         ...context.messages,

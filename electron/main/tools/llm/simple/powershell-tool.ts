@@ -117,8 +117,10 @@ async function executePowerShell(args: Record<string, unknown>): Promise<ToolRes
   const command = args['command'] as string;
   const cwd = args['cwd'] as string | undefined;
   const timeout = (args['timeout'] as number) || DEFAULT_TIMEOUT;
+  const reason = args['reason'] as string | undefined;
+  const startTime = Date.now();
 
-  logger.info('Executing PowerShell command', { command: command.substring(0, 100), cwd, timeout });
+  logger.toolStart('powershell', args, reason);
 
   if (!command || typeof command !== 'string') {
     return { success: false, error: 'command is required and must be a string' };
@@ -149,20 +151,19 @@ async function executePowerShell(args: Record<string, unknown>): Promise<ToolRes
       output += `\n\n[Exit code: ${result.exitCode}]`;
     }
 
-    logger.info('PowerShell command completed', {
-      exitCode: result.exitCode,
-      outputLength: output.length,
-      duration: result.duration,
-    });
+    const durationMs = Date.now() - startTime;
 
     if (!result.success) {
+      logger.toolError('powershell', args, new Error(output || 'Command failed'), durationMs);
       return { success: false, error: output || '(no output)' };
     }
 
+    logger.toolSuccess('powershell', args, { outputLength: output.length, exitCode: result.exitCode }, durationMs);
     return { success: true, result: output || '(no output)' };
   } catch (error) {
+    const durationMs = Date.now() - startTime;
     const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.error('PowerShell command failed', { command, error: errorMessage });
+    logger.toolError('powershell', args, error instanceof Error ? error : new Error(errorMessage), durationMs);
     return { success: false, error: `Error executing command: ${errorMessage}` };
   }
 }

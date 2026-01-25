@@ -9,6 +9,7 @@ import { ToolDefinition } from '../../../types/index';
 import { LLMSimpleTool, ToolResult } from '../../types';
 import { excelClient } from '../excel-client';
 import { OFFICE_CATEGORIES } from '../common/index';
+import { logger } from '../../../utils/logger';
 
 // =============================================================================
 // Excel Add Chart
@@ -38,6 +39,8 @@ const EXCEL_ADD_CHART_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelAddChart(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_add_chart', args);
   try {
     const response = await excelClient.excelAddChart(
       args['data_range'] as string,
@@ -52,10 +55,13 @@ async function executeExcelAddChart(args: Record<string, unknown>): Promise<Tool
       }
     );
     if (response.success) {
+      logger.toolSuccess('excel_add_chart', args, { chartName: response['chart_name'], chartType: args['chart_type'] }, Date.now() - startTime);
       return { success: true, result: `Chart added: ${response['chart_name']}` };
     }
+    logger.toolError('excel_add_chart', args, new Error(response.error || 'Failed to add chart'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to add chart' };
   } catch (error) {
+    logger.toolError('excel_add_chart', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to add chart: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -90,6 +96,8 @@ const EXCEL_SET_CHART_TITLE_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelSetChartTitle(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_set_chart_title', args);
   try {
     const response = await excelClient.excelSetChartTitle(
       args['chart_index'] as number,
@@ -97,10 +105,13 @@ async function executeExcelSetChartTitle(args: Record<string, unknown>): Promise
       args['sheet'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('excel_set_chart_title', args, { chartIndex: args['chart_index'], title: args['title'] }, Date.now() - startTime);
       return { success: true, result: 'Chart title set' };
     }
+    logger.toolError('excel_set_chart_title', args, new Error(response.error || 'Failed to set chart title'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to set chart title' };
   } catch (error) {
+    logger.toolError('excel_set_chart_title', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to set chart title: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -134,16 +145,21 @@ const EXCEL_DELETE_CHART_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelDeleteChart(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_delete_chart', args);
   try {
     const response = await excelClient.excelDeleteChart(
       args['chart_index'] as number,
       args['sheet'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('excel_delete_chart', args, { chartIndex: args['chart_index'] }, Date.now() - startTime);
       return { success: true, result: 'Chart deleted' };
     }
+    logger.toolError('excel_delete_chart', args, new Error(response.error || 'Failed to delete chart'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to delete chart' };
   } catch (error) {
+    logger.toolError('excel_delete_chart', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to delete chart: ${error instanceof Error ? error.message : String(error)}` };
   }
 }

@@ -12,6 +12,7 @@ import { ToolDefinition } from '../../../types/index';
 import { LLMSimpleTool, ToolResult } from '../../types';
 import { wordClient } from '../word-client';
 import { OFFICE_CATEGORIES } from '../common/constants';
+import { logger } from '../../../utils/logger';
 
 // =============================================================================
 // Word Add Image
@@ -36,6 +37,8 @@ const WORD_ADD_IMAGE_DEFINITION: ToolDefinition = {
 };
 
 async function executeWordAddImage(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('word_add_image', args);
   try {
     const response = await wordClient.wordAddImage(
       args['path'] as string,
@@ -43,10 +46,13 @@ async function executeWordAddImage(args: Record<string, unknown>): Promise<ToolR
       args['height'] as number | undefined
     );
     if (response.success) {
+      logger.toolSuccess('word_add_image', args, { added: true }, Date.now() - startTime);
       return { success: true, result: 'Image added' };
     }
+    logger.toolError('word_add_image', args, new Error(response.error || 'Failed to add image'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to add image' };
   } catch (error) {
+    logger.toolError('word_add_image', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to add image: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -80,16 +86,21 @@ const WORD_ADD_HYPERLINK_DEFINITION: ToolDefinition = {
 };
 
 async function executeWordAddHyperlink(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('word_add_hyperlink', args);
   try {
     const response = await wordClient.wordAddHyperlink(
       args['text'] as string,
       args['url'] as string
     );
     if (response.success) {
+      logger.toolSuccess('word_add_hyperlink', args, { text: args['text'] }, Date.now() - startTime);
       return { success: true, result: `Hyperlink added: ${args['text']}` };
     }
+    logger.toolError('word_add_hyperlink', args, new Error(response.error || 'Failed to add hyperlink'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to add hyperlink' };
   } catch (error) {
+    logger.toolError('word_add_hyperlink', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to add hyperlink: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -130,6 +141,8 @@ const WORD_ADD_TEXTBOX_DEFINITION: ToolDefinition = {
 };
 
 async function executeWordAddTextbox(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('word_add_textbox', args);
   try {
     const response = await wordClient.wordAddTextbox(
       args['text'] as string,
@@ -145,10 +158,13 @@ async function executeWordAddTextbox(args: Record<string, unknown>): Promise<Too
       }
     );
     if (response.success) {
+      logger.toolSuccess('word_add_textbox', args, { shape_name: response['shape_name'] }, Date.now() - startTime);
       return { success: true, result: `Textbox added: ${response['shape_name']}` };
     }
+    logger.toolError('word_add_textbox', args, new Error(response.error || 'Failed to add textbox'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to add textbox' };
   } catch (error) {
+    logger.toolError('word_add_textbox', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to add textbox: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -188,6 +204,8 @@ const WORD_ADD_SHAPE_DEFINITION: ToolDefinition = {
 };
 
 async function executeWordAddShape(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('word_add_shape', args);
   try {
     const response = await wordClient.wordAddShape(
       args['shape_type'] as 'rectangle' | 'oval' | 'roundedRectangle' | 'triangle' | 'diamond' | 'arrow' | 'line',
@@ -202,10 +220,13 @@ async function executeWordAddShape(args: Record<string, unknown>): Promise<ToolR
       }
     );
     if (response.success) {
+      logger.toolSuccess('word_add_shape', args, { shape_name: response['shape_name'] }, Date.now() - startTime);
       return { success: true, result: `Shape added: ${response['shape_name']}` };
     }
+    logger.toolError('word_add_shape', args, new Error(response.error || 'Failed to add shape'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to add shape' };
   } catch (error) {
+    logger.toolError('word_add_shape', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to add shape: ${error instanceof Error ? error.message : String(error)}` };
   }
 }

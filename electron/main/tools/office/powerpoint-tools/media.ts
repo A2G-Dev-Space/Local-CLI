@@ -13,6 +13,7 @@ import { ToolDefinition } from '../../../types/index';
 import { LLMSimpleTool, ToolResult } from '../../types';
 import { powerpointClient } from '../powerpoint-client';
 import { OFFICE_CATEGORIES } from '../common/constants';
+import { logger } from '../../../utils/logger';
 
 // =============================================================================
 // PowerPoint Add Image
@@ -40,6 +41,8 @@ const POWERPOINT_ADD_IMAGE_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointAddImage(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_add_image', args);
   try {
     const response = await powerpointClient.powerpointAddImage(
       args['slide'] as number,
@@ -50,10 +53,13 @@ async function executePowerPointAddImage(args: Record<string, unknown>): Promise
       args['height'] as number | undefined
     );
     if (response.success) {
+      logger.toolSuccess('powerpoint_add_image', args, { slide: args['slide'] }, Date.now() - startTime);
       return { success: true, result: `Image added to slide ${args['slide']}` };
     }
+    logger.toolError('powerpoint_add_image', args, new Error(response.error || 'Failed to add image'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to add image' };
   } catch (error) {
+    logger.toolError('powerpoint_add_image', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to add image: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -90,6 +96,8 @@ const POWERPOINT_ADD_VIDEO_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointAddVideo(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_add_video', args);
   try {
     const response = await powerpointClient.powerpointAddVideo(
       args['slide_number'] as number,
@@ -100,10 +108,13 @@ async function executePowerPointAddVideo(args: Record<string, unknown>): Promise
       args['height'] as number | undefined
     );
     if (response.success) {
+      logger.toolSuccess('powerpoint_add_video', args, { slideNumber: args['slide_number'], shapeIndex: response['shape_index'] }, Date.now() - startTime);
       return { success: true, result: `Video added. Shape index: ${response['shape_index']}` };
     }
+    logger.toolError('powerpoint_add_video', args, new Error(response.error || 'Failed to add video'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to add video' };
   } catch (error) {
+    logger.toolError('powerpoint_add_video', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to add video: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -139,6 +150,8 @@ const POWERPOINT_ADD_AUDIO_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointAddAudio(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_add_audio', args);
   try {
     const response = await powerpointClient.powerpointAddAudio(
       args['slide_number'] as number,
@@ -148,10 +161,13 @@ async function executePowerPointAddAudio(args: Record<string, unknown>): Promise
       args['play_in_background'] as boolean | undefined
     );
     if (response.success) {
+      logger.toolSuccess('powerpoint_add_audio', args, { slideNumber: args['slide_number'], shapeIndex: response['shape_index'] }, Date.now() - startTime);
       return { success: true, result: `Audio added. Shape index: ${response['shape_index']}` };
     }
+    logger.toolError('powerpoint_add_audio', args, new Error(response.error || 'Failed to add audio'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to add audio' };
   } catch (error) {
+    logger.toolError('powerpoint_add_audio', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to add audio: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -186,6 +202,8 @@ const POWERPOINT_ADD_HYPERLINK_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointAddHyperlink(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_add_hyperlink', args);
   try {
     const response = await powerpointClient.powerpointAddHyperlink(
       args['slide_number'] as number,
@@ -194,10 +212,13 @@ async function executePowerPointAddHyperlink(args: Record<string, unknown>): Pro
       args['screen_tip'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('powerpoint_add_hyperlink', args, { slideNumber: args['slide_number'], shapeIndex: args['shape_index'] }, Date.now() - startTime);
       return { success: true, result: response.message || 'Hyperlink added' };
     }
+    logger.toolError('powerpoint_add_hyperlink', args, new Error(response.error || 'Failed to add hyperlink'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to add hyperlink' };
   } catch (error) {
+    logger.toolError('powerpoint_add_hyperlink', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to add hyperlink: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -252,6 +273,8 @@ const POWERPOINT_ADD_CHART_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointAddChart(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_add_chart', args);
   try {
     const response = await powerpointClient.powerpointAddChart(
       args['slide_number'] as number,
@@ -263,10 +286,13 @@ async function executePowerPointAddChart(args: Record<string, unknown>): Promise
       args['data'] as { categories: string[]; series: { name: string; values: number[] }[] } | undefined
     );
     if (response.success) {
+      logger.toolSuccess('powerpoint_add_chart', args, { slideNumber: args['slide_number'], chartType: args['chart_type'], shapeIndex: response['shape_index'] }, Date.now() - startTime);
       return { success: true, result: `Chart added. Shape index: ${response['shape_index']}` };
     }
+    logger.toolError('powerpoint_add_chart', args, new Error(response.error || 'Failed to add chart'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to add chart' };
   } catch (error) {
+    logger.toolError('powerpoint_add_chart', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to add chart: ${error instanceof Error ? error.message : String(error)}` };
   }
 }

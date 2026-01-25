@@ -8,3 +8,6 @@ export { SessionBrowser as SessionPanel } from './SessionPanel.js';
 
 // Re-export with original name for backwards compatibility
 export { SessionBrowser } from './SessionPanel.js';
+
+// Log Browser
+export { LogBrowser } from './LogPanel.js';

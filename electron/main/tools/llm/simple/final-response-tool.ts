@@ -12,6 +12,7 @@
 import type { ToolDefinition } from '../../../core';
 import type { LLMSimpleTool, ToolResult, ToolCategory } from '../../types';
 import type { TodoItem } from './todo-tools';
+import { logger } from '../../../utils/logger';
 
 // =============================================================================
 // Constants
@@ -93,8 +94,12 @@ Example:
 
 async function executeFinalResponse(args: Record<string, unknown>): Promise<ToolResult> {
   const message = args['message'] as string;
+  const startTime = Date.now();
+
+  logger.toolStart('final_response', { messageLength: message?.length || 0 });
 
   if (!message || typeof message !== 'string') {
+    logger.toolError('final_response', args, new Error('Missing required parameter: message'), Date.now() - startTime);
     return {
       success: false,
       error: 'Missing required parameter: message is required',
@@ -119,6 +124,7 @@ async function executeFinalResponse(args: Record<string, unknown>): Promise<Tool
   // Check if all todos are completed
   if (!areAllTodosCompleted(todos)) {
     const incompleteSummary = getIncompleteTodosSummary(todos);
+    logger.warn('final_response blocked: incomplete TODOs', { incompleteTodos: todos.filter(t => t.status !== 'completed' && t.status !== 'failed').length });
 
     return {
       success: false,
@@ -130,6 +136,8 @@ async function executeFinalResponse(args: Record<string, unknown>): Promise<Tool
   if (finalResponseCallback) {
     finalResponseCallback(message);
   }
+
+  logger.toolSuccess('final_response', { messageLength: message.length }, { delivered: true }, Date.now() - startTime);
 
   return {
     success: true,

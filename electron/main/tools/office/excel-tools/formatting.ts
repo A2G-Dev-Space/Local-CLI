@@ -9,6 +9,7 @@ import { ToolDefinition } from '../../../types/index';
 import { LLMSimpleTool, ToolResult } from '../../types';
 import { excelClient } from '../excel-client';
 import { OFFICE_CATEGORIES } from '../common/index';
+import { logger } from '../../../utils/logger';
 
 // =============================================================================
 // Excel Set Font
@@ -37,6 +38,8 @@ const EXCEL_SET_FONT_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelSetFont(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_set_font', args);
   try {
     const response = await excelClient.excelSetFont(
       args['range'] as string,
@@ -50,10 +53,13 @@ async function executeExcelSetFont(args: Record<string, unknown>): Promise<ToolR
       args['sheet'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('excel_set_font', args, { range: args['range'] }, Date.now() - startTime);
       return { success: true, result: `Font properties set for ${args['range']}` };
     }
+    logger.toolError('excel_set_font', args, new Error(response.error || 'Failed to set font'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to set font' };
   } catch (error) {
+    logger.toolError('excel_set_font', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to set font: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -88,6 +94,8 @@ const EXCEL_SET_FILL_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelSetFill(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_set_fill', args);
   try {
     const response = await excelClient.excelSetFill(
       args['range'] as string,
@@ -95,10 +103,13 @@ async function executeExcelSetFill(args: Record<string, unknown>): Promise<ToolR
       args['sheet'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('excel_set_fill', args, { range: args['range'], color: args['color'] }, Date.now() - startTime);
       return { success: true, result: `Fill color set for ${args['range']}` };
     }
+    logger.toolError('excel_set_fill', args, new Error(response.error || 'Failed to set fill'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to set fill' };
   } catch (error) {
+    logger.toolError('excel_set_fill', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to set fill: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -134,6 +145,8 @@ Common formats: "#,##0" (thousands), "0.00" (2 decimals), "0%" (percent), "yyyy-
 };
 
 async function executeExcelSetNumberFormat(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_set_number_format', args);
   try {
     const response = await excelClient.excelSetNumberFormat(
       args['range'] as string,
@@ -141,10 +154,13 @@ async function executeExcelSetNumberFormat(args: Record<string, unknown>): Promi
       args['sheet'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('excel_set_number_format', args, { range: args['range'], format: args['format'] }, Date.now() - startTime);
       return { success: true, result: `Number format set for ${args['range']}` };
     }
+    logger.toolError('excel_set_number_format', args, new Error(response.error || 'Failed to set number format'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to set number format' };
   } catch (error) {
+    logger.toolError('excel_set_number_format', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to set number format: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -180,6 +196,8 @@ const EXCEL_SET_BORDER_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelSetBorder(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_set_border', args);
   try {
     const response = await excelClient.excelSetBorder(
       args['range'] as string,
@@ -190,10 +208,13 @@ async function executeExcelSetBorder(args: Record<string, unknown>): Promise<Too
       args['sheet'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('excel_set_border', args, { range: args['range'] }, Date.now() - startTime);
       return { success: true, result: `Border set for ${args['range']}` };
     }
+    logger.toolError('excel_set_border', args, new Error(response.error || 'Failed to set border'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to set border' };
   } catch (error) {
+    logger.toolError('excel_set_border', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to set border: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -230,6 +251,8 @@ const EXCEL_SET_ALIGNMENT_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelSetAlignment(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_set_alignment', args);
   try {
     const response = await excelClient.excelSetAlignment(
       args['range'] as string,
@@ -241,10 +264,13 @@ async function executeExcelSetAlignment(args: Record<string, unknown>): Promise<
       args['sheet'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('excel_set_alignment', args, { range: args['range'] }, Date.now() - startTime);
       return { success: true, result: `Alignment set for ${args['range']}` };
     }
+    logger.toolError('excel_set_alignment', args, new Error(response.error || 'Failed to set alignment'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to set alignment' };
   } catch (error) {
+    logger.toolError('excel_set_alignment', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to set alignment: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -278,16 +304,21 @@ const EXCEL_MERGE_CELLS_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelMergeCells(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_merge_cells', args);
   try {
     const response = await excelClient.excelMergeCells(
       args['range'] as string,
       args['sheet'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('excel_merge_cells', args, { range: args['range'] }, Date.now() - startTime);
       return { success: true, result: `Cells merged: ${args['range']}` };
     }
+    logger.toolError('excel_merge_cells', args, new Error(response.error || 'Failed to merge cells'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to merge cells' };
   } catch (error) {
+    logger.toolError('excel_merge_cells', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to merge cells: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -321,16 +352,21 @@ const EXCEL_UNMERGE_CELLS_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelUnmergeCells(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_unmerge_cells', args);
   try {
     const response = await excelClient.excelUnmergeCells(
       args['range'] as string,
       args['sheet'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('excel_unmerge_cells', args, { range: args['range'] }, Date.now() - startTime);
       return { success: true, result: `Cells unmerged: ${args['range']}` };
     }
+    logger.toolError('excel_unmerge_cells', args, new Error(response.error || 'Failed to unmerge cells'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to unmerge cells' };
   } catch (error) {
+    logger.toolError('excel_unmerge_cells', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to unmerge cells: ${error instanceof Error ? error.message : String(error)}` };
   }
 }

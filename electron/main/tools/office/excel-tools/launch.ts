@@ -10,6 +10,7 @@ import { LLMSimpleTool, ToolResult } from '../../types';
 import { excelClient } from '../excel-client';
 import { saveScreenshot } from '../common/utils';
 import { OFFICE_SCREENSHOT_PATH_DESC, OFFICE_CATEGORIES } from '../common/constants';
+import { logger } from '../../../utils/logger';
 
 // =============================================================================
 // Excel Launch
@@ -33,13 +34,18 @@ The Excel window will be visible so you can see the changes in real-time.`,
 };
 
 async function executeExcelLaunch(_args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_launch', _args);
   try {
     const response = await excelClient.excelLaunch();
     if (response.success) {
+      logger.toolSuccess('excel_launch', _args, { message: response.message }, Date.now() - startTime);
       return { success: true, result: response.message || 'Excel launched successfully' };
     }
+    logger.toolError('excel_launch', _args, new Error(response.error || 'Failed to launch Excel'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to launch Excel' };
   } catch (error) {
+    logger.toolError('excel_launch', _args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to launch Excel: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -71,13 +77,18 @@ const EXCEL_CREATE_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelCreate(_args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_create', _args);
   try {
     const response = await excelClient.excelCreate();
     if (response.success) {
+      logger.toolSuccess('excel_create', _args, { message: response.message }, Date.now() - startTime);
       return { success: true, result: response.message || 'New workbook created' };
     }
+    logger.toolError('excel_create', _args, new Error(response.error || 'Failed to create workbook'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to create workbook' };
   } catch (error) {
+    logger.toolError('excel_create', _args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to create workbook: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -110,13 +121,18 @@ const EXCEL_OPEN_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelOpen(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_open', args);
   try {
     const response = await excelClient.excelOpen(args['path'] as string);
     if (response.success) {
+      logger.toolSuccess('excel_open', args, { workbookName: response['workbook_name'], path: args['path'] }, Date.now() - startTime);
       return { success: true, result: `Workbook opened: ${response['workbook_name'] || args['path']}` };
     }
+    logger.toolError('excel_open', args, new Error(response.error || 'Failed to open workbook'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to open workbook' };
   } catch (error) {
+    logger.toolError('excel_open', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to open workbook: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -149,13 +165,18 @@ const EXCEL_SAVE_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelSave(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_save', args);
   try {
     const response = await excelClient.excelSave(args['path'] as string | undefined);
     if (response.success) {
+      logger.toolSuccess('excel_save', args, { path: response['path'] }, Date.now() - startTime);
       return { success: true, result: `Workbook saved: ${response['path'] || 'current location'}` };
     }
+    logger.toolError('excel_save', args, new Error(response.error || 'Failed to save workbook'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to save workbook' };
   } catch (error) {
+    logger.toolError('excel_save', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to save workbook: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -188,17 +209,22 @@ Captures the used range and saves to ${OFFICE_SCREENSHOT_PATH_DESC}.`,
 };
 
 async function executeExcelScreenshot(_args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_screenshot', _args);
   try {
     const response = await excelClient.excelScreenshot();
     if (response.success && response.image) {
       const filePath = await saveScreenshot(response.image, 'excel');
+      logger.toolSuccess('excel_screenshot', _args, { filePath }, Date.now() - startTime);
       return {
         success: true,
         result: `Excel screenshot saved to: ${filePath}`,
       };
     }
+    logger.toolError('excel_screenshot', _args, new Error(response.error || 'Failed to capture screenshot'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to capture screenshot' };
   } catch (error) {
+    logger.toolError('excel_screenshot', _args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to capture screenshot: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -231,13 +257,18 @@ const EXCEL_CLOSE_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelClose(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_close', args);
   try {
     const response = await excelClient.excelClose(args['save'] === true);
     if (response.success) {
+      logger.toolSuccess('excel_close', args, { saved: args['save'] === true }, Date.now() - startTime);
       return { success: true, result: `Workbook closed${args['save'] ? ' (saved)' : ''}` };
     }
+    logger.toolError('excel_close', args, new Error(response.error || 'Failed to close workbook'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to close workbook' };
   } catch (error) {
+    logger.toolError('excel_close', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to close workbook: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -270,13 +301,18 @@ const EXCEL_QUIT_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelQuit(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_quit', args);
   try {
     const response = await excelClient.excelQuit(args['save'] === true);
     if (response.success) {
+      logger.toolSuccess('excel_quit', args, { saved: args['save'] === true }, Date.now() - startTime);
       return { success: true, result: `Excel closed${args['save'] ? ' (all workbooks saved)' : ''}` };
     }
+    logger.toolError('excel_quit', args, new Error(response.error || 'Failed to quit Excel'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to quit Excel' };
   } catch (error) {
+    logger.toolError('excel_quit', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to quit Excel: ${error instanceof Error ? error.message : String(error)}` };
   }
 }

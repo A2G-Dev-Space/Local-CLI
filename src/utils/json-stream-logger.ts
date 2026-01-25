@@ -29,7 +29,22 @@ export interface StreamLogEntry {
     | 'server_request'  // Windows 서버 요청
     | 'server_response' // Windows 서버 응답
     | 'debug'
-    | 'info';
+    | 'info'
+    // New log types for comprehensive logging
+    | 'ui_interaction'      // UI 인터랙션 (클릭, 키보드, 스크롤 등)
+    | 'component_lifecycle' // 컴포넌트 라이프사이클 (mount, unmount, render)
+    | 'screen_change'       // 화면/탭/라우트 전환
+    | 'form_event'          // 폼 이벤트 (submit, validation 등)
+    | 'modal_event'         // 모달/다이얼로그/토스트 이벤트
+    | 'loading_event'       // 로딩/스켈레톤/진행률 이벤트
+    | 'animation_event'     // 애니메이션/트랜지션 이벤트
+    | 'layout_event'        // 레이아웃 이벤트 (resize, breakpoint 등)
+    | 'ipc_event'           // IPC 통신 이벤트 (Electron)
+    | 'window_event'        // 윈도우 이벤트 (Electron)
+    | 'system_event'        // 시스템 이벤트 (app ready, quit 등)
+    | 'update_event'        // 자동 업데이트 이벤트
+    | 'session_event'       // 세션 이벤트 (start, end, milestone)
+    | 'http_event';         // HTTP 이벤트 (stream start/end 등)
   content: string;
   metadata?: Record<string, unknown>;
 }
@@ -494,6 +509,295 @@ export class JsonStreamLogger {
         response: response ? (typeof response === 'string' ? response.substring(0, 500) : response) : undefined,
         error,
         durationMs,
+      },
+    });
+  }
+
+  // ============================================================================
+  // New Log Methods for Comprehensive Logging
+  // ============================================================================
+
+  /**
+   * Log UI interaction (click, keyboard, scroll, drag)
+   */
+  logUIInteraction(action: string, element?: string, context?: Record<string, unknown>): void {
+    this.log({
+      timestamp: new Date().toISOString(),
+      type: 'ui_interaction',
+      content: `UI: ${action}${element ? ` - ${element}` : ''}`,
+      metadata: {
+        action,
+        element,
+        ...context,
+      },
+    });
+  }
+
+  /**
+   * Log component lifecycle (mount, unmount, render, stateChange)
+   */
+  logComponentLifecycle(
+    event: 'mount' | 'unmount' | 'render' | 'renderComplete' | 'stateChange',
+    componentName: string,
+    context?: Record<string, unknown>
+  ): void {
+    this.log({
+      timestamp: new Date().toISOString(),
+      type: 'component_lifecycle',
+      content: `Component ${event}: ${componentName}`,
+      metadata: {
+        event,
+        componentName,
+        ...context,
+      },
+    });
+  }
+
+  /**
+   * Log screen/navigation changes
+   */
+  logScreenChange(
+    changeType: 'screen' | 'tab' | 'route',
+    target: string,
+    context?: Record<string, unknown>
+  ): void {
+    this.log({
+      timestamp: new Date().toISOString(),
+      type: 'screen_change',
+      content: `${changeType.charAt(0).toUpperCase() + changeType.slice(1)} change: ${target}`,
+      metadata: {
+        changeType,
+        target,
+        ...context,
+      },
+    });
+  }
+
+  /**
+   * Log form events
+   */
+  logFormEvent(
+    event: 'start' | 'submit' | 'result' | 'error' | 'fieldChange' | 'validation',
+    formId: string,
+    context?: Record<string, unknown>
+  ): void {
+    this.log({
+      timestamp: new Date().toISOString(),
+      type: 'form_event',
+      content: `Form ${event}: ${formId}`,
+      metadata: {
+        event,
+        formId,
+        ...context,
+      },
+    });
+  }
+
+  /**
+   * Log modal/dialog/toast events
+   */
+  logModalEvent(
+    event: 'modalOpen' | 'modalClose' | 'dialogShow' | 'dialogResult' | 'toastShow' | 'toastDismiss',
+    id: string,
+    context?: Record<string, unknown>
+  ): void {
+    this.log({
+      timestamp: new Date().toISOString(),
+      type: 'modal_event',
+      content: `${event}: ${id}`,
+      metadata: {
+        event,
+        id,
+        ...context,
+      },
+    });
+  }
+
+  /**
+   * Log loading/skeleton/progress events
+   */
+  logLoadingEvent(
+    event: 'loadingStart' | 'loadingEnd' | 'loadingError' | 'skeletonShow' | 'skeletonHide' |
+           'progressStart' | 'progressUpdate' | 'progressComplete' | 'progressError',
+    id: string,
+    context?: Record<string, unknown>
+  ): void {
+    this.log({
+      timestamp: new Date().toISOString(),
+      type: 'loading_event',
+      content: `${event}: ${id}`,
+      metadata: {
+        event,
+        id,
+        ...context,
+      },
+    });
+  }
+
+  /**
+   * Log animation/transition events
+   */
+  logAnimationEvent(
+    event: 'animationStart' | 'animationEnd' | 'transitionStart' | 'transitionEnd' | 'hoverEnter' | 'hoverLeave',
+    name: string,
+    context?: Record<string, unknown>
+  ): void {
+    this.log({
+      timestamp: new Date().toISOString(),
+      type: 'animation_event',
+      content: `${event}: ${name}`,
+      metadata: {
+        event,
+        name,
+        ...context,
+      },
+    });
+  }
+
+  /**
+   * Log layout events (viewport, breakpoint, shift)
+   */
+  logLayoutEvent(
+    event: 'viewportResize' | 'breakpointChange' | 'layoutShift' | 'scrollPosition',
+    context?: Record<string, unknown>
+  ): void {
+    this.log({
+      timestamp: new Date().toISOString(),
+      type: 'layout_event',
+      content: `Layout: ${event}`,
+      metadata: {
+        event,
+        ...context,
+      },
+    });
+  }
+
+  /**
+   * Log IPC events (Electron)
+   */
+  logIPCEvent(
+    event: 'send' | 'receive' | 'invoke' | 'handle' | 'error',
+    channel: string,
+    context?: Record<string, unknown>
+  ): void {
+    this.log({
+      timestamp: new Date().toISOString(),
+      type: 'ipc_event',
+      content: `IPC ${event}: ${channel}`,
+      metadata: {
+        event,
+        channel,
+        ...context,
+      },
+    });
+  }
+
+  /**
+   * Log window events (Electron)
+   */
+  logWindowEvent(
+    event: 'create' | 'close' | 'stateChange' | 'focus' | 'blur',
+    context?: Record<string, unknown>
+  ): void {
+    this.log({
+      timestamp: new Date().toISOString(),
+      type: 'window_event',
+      content: `Window: ${event}`,
+      metadata: {
+        event,
+        ...context,
+      },
+    });
+  }
+
+  /**
+   * Log system events (app lifecycle)
+   */
+  logSystemEvent(
+    event: 'appReady' | 'appActivate' | 'appBeforeQuit' | 'appQuit' | 'systemSuspend' | 'systemResume' |
+           'networkChange' | 'themeChange',
+    context?: Record<string, unknown>
+  ): void {
+    this.log({
+      timestamp: new Date().toISOString(),
+      type: 'system_event',
+      content: `System: ${event}`,
+      metadata: {
+        event,
+        ...context,
+      },
+    });
+  }
+
+  /**
+   * Log auto-update events
+   */
+  logUpdateEvent(
+    event: 'checkStart' | 'available' | 'downloadStart' | 'downloadProgress' | 'downloadComplete' |
+           'installing' | 'installed' | 'error',
+    context?: Record<string, unknown>
+  ): void {
+    this.log({
+      timestamp: new Date().toISOString(),
+      type: 'update_event',
+      content: `Update: ${event}`,
+      metadata: {
+        event,
+        ...context,
+      },
+    });
+  }
+
+  /**
+   * Log session events
+   */
+  logSessionEvent(
+    event: 'start' | 'end' | 'milestone' | 'featureUsage',
+    context?: Record<string, unknown>
+  ): void {
+    this.log({
+      timestamp: new Date().toISOString(),
+      type: 'session_event',
+      content: `Session: ${event}`,
+      metadata: {
+        event,
+        ...context,
+      },
+    });
+  }
+
+  /**
+   * Log HTTP stream events
+   */
+  logHTTPEvent(
+    event: 'streamStart' | 'streamChunk' | 'streamEnd' | 'error',
+    context?: Record<string, unknown>
+  ): void {
+    this.log({
+      timestamp: new Date().toISOString(),
+      type: 'http_event',
+      content: `HTTP: ${event}`,
+      metadata: {
+        event,
+        ...context,
+      },
+    });
+  }
+
+  /**
+   * Log error boundary/unhandled errors
+   */
+  logErrorEvent(
+    event: 'errorBoundary' | 'unhandledRejection' | 'globalError',
+    context?: Record<string, unknown>
+  ): void {
+    this.log({
+      timestamp: new Date().toISOString(),
+      type: 'error',
+      content: `Error: ${event}`,
+      metadata: {
+        event,
+        ...context,
       },
     });
   }

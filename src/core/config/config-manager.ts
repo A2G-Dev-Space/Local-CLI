@@ -19,6 +19,7 @@ import {
   writeJsonFile,
   directoryExists,
 } from '../../utils/file-system.js';
+import { logger } from '../../utils/logger.js';
 
 /**
  * 기본 설정 (빈 엔드포인트)
@@ -50,7 +51,9 @@ export class ConfigManager {
    * ~/.local-cli/ 디렉토리 및 설정 파일 생성
    */
   async initialize(): Promise<void> {
+    logger.enter('ConfigManager.initialize');
     if (this.initialized) {
+      logger.flow('ConfigManager already initialized');
       return;
     }
 
@@ -66,6 +69,7 @@ export class ConfigManager {
     await this.loadOrCreateConfig();
 
     this.initialized = true;
+    logger.exit('ConfigManager.initialize', { success: true });
   }
 
   /**
@@ -88,9 +92,12 @@ export class ConfigManager {
    */
   async saveConfig(): Promise<void> {
     if (!this.config) {
-      throw new Error('Configuration not initialized');
+      const error = new Error('Configuration not initialized');
+      logger.error('Config save failed', error);
+      throw error;
     }
 
+    logger.flow('Saving configuration');
     await writeJsonFile(CONFIG_FILE_PATH, this.config);
   }
 
