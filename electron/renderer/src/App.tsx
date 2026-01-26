@@ -31,6 +31,7 @@ const Settings = lazy(() => import('./components/Settings'));
 const UsageStats = lazy(() => import('./components/UsageStats'));
 const ToolSelector = lazy(() => import('./components/ToolSelector'));
 const DocsBrowser = lazy(() => import('./components/DocsBrowser'));
+const UpdateModal = lazy(() => import('./components/UpdateModal'));
 import './components/ResizablePanel.css';
 import './components/SplitView.css';
 import './components/LogViewer.css';
@@ -135,6 +136,16 @@ const App: React.FC = () => {
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [recentCommands, setRecentCommands] = useState<string[]>([]);
 
+  // App version (from package.json)
+  const [appVersion, setAppVersion] = useState<string>('1.0.0');
+
+  // Update modal state
+  const [updateModalOpen, setUpdateModalOpen] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState<'checking' | 'available' | 'downloading' | 'downloaded' | 'error' | 'not-available'>('checking');
+  const [updateInfo, setUpdateInfo] = useState<{ version: string; releaseNotes?: string | { note?: string | null }[]; releaseDate?: string } | undefined>(undefined);
+  const [updateProgress, setUpdateProgress] = useState<{ percent: number; transferred: number; total: number; bytesPerSecond: number } | undefined>(undefined);
+  const [updateError, setUpdateError] = useState<string | undefined>(undefined);
+
   // Model selector state (for Chat panel header)
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [endpoints, setEndpoints] = useState<EndpointConfig[]>([]);
@@ -205,6 +216,46 @@ const App: React.FC = () => {
       unsubMaximize();
       unsubFocus();
       unsubTheme();
+    };
+  }, []);
+
+  // Auto-update event listeners
+  useEffect(() => {
+    if (!window.electronAPI?.update) return;
+
+    const unsubAvailable = window.electronAPI.update.onAvailable((info) => {
+      setUpdateInfo(info);
+      setUpdateStatus('available');
+      setUpdateModalOpen(true);
+    });
+
+    const unsubNotAvailable = window.electronAPI.update.onNotAvailable(() => {
+      // Optionally show "no updates" - usually silent
+    });
+
+    const unsubProgress = window.electronAPI.update.onDownloadProgress((progress) => {
+      setUpdateProgress(progress);
+      setUpdateStatus('downloading');
+    });
+
+    const unsubDownloaded = window.electronAPI.update.onDownloaded((info) => {
+      setUpdateInfo(info);
+      setUpdateStatus('downloaded');
+      setUpdateModalOpen(true);
+    });
+
+    const unsubError = window.electronAPI.update.onError((error) => {
+      setUpdateError(error);
+      setUpdateStatus('error');
+      setUpdateModalOpen(true);
+    });
+
+    return () => {
+      unsubAvailable();
+      unsubNotAvailable();
+      unsubProgress();
+      unsubDownloaded();
+      unsubError();
     };
   }, []);
 
@@ -688,6 +739,27 @@ const App: React.FC = () => {
     }
   }, [responsive.shouldHideSidebar]);
 
+  // Update modal handlers
+  const handleUpdateInstall = useCallback(() => {
+    window.electronAPI?.update?.install();
+  }, []);
+
+  const handleUpdateLater = useCallback(() => {
+    setUpdateModalOpen(false);
+    // If available, start background download
+    if (updateStatus === 'available') {
+      window.electronAPI?.update?.startDownload();
+    }
+  }, [updateStatus]);
+
+  const handleUpdateClose = useCallback(() => {
+    setUpdateModalOpen(false);
+    // If available, start background download
+    if (updateStatus === 'available') {
+      window.electronAPI?.update?.startDownload();
+    }
+  }, [updateStatus]);
+
 
   return (
     <AgentProvider>
@@ -1011,6 +1083,22 @@ const App: React.FC = () => {
       </div>
 
       {/* Status Bar removed */}
+
+      {/* Update Modal (Lazy) */}
+      {updateModalOpen && (
+        <Suspense fallback={null}>
+          <UpdateModal
+            isOpen={updateModalOpen}
+            status={updateStatus}
+            updateInfo={updateInfo}
+            progress={updateProgress}
+            error={updateError}
+            onInstall={handleUpdateInstall}
+            onLater={handleUpdateLater}
+            onClose={handleUpdateClose}
+          />
+        </Suspense>
+      )}
     </div>
     </AgentProvider>
   );
