@@ -10,7 +10,7 @@
 
 import { spawn } from 'child_process';
 import fs, { createReadStream, createWriteStream } from 'fs';
-import { rm, copyFile, chmod, writeFile } from 'fs/promises';
+import { rm, copyFile, chmod } from 'fs/promises';
 import { pipeline } from 'stream/promises';
 import path from 'path';
 import os from 'os';
