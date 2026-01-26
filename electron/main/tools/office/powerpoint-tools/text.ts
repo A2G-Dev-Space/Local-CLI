@@ -9,6 +9,7 @@ import { ToolDefinition } from '../../../types/index';
 import { LLMSimpleTool, ToolResult } from '../../types';
 import { powerpointClient } from '../powerpoint-client';
 import { OFFICE_CATEGORIES } from '../common/constants';
+import { logger } from '../../../utils/logger';
 
 // =============================================================================
 // PowerPoint Write Text
@@ -37,6 +38,8 @@ Shape index 1 is usually the title placeholder, index 2 is the content placehold
 };
 
 async function executePowerPointWriteText(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_write_text', args);
   try {
     const response = await powerpointClient.powerpointWriteText(
       args['slide'] as number,
@@ -49,10 +52,13 @@ async function executePowerPointWriteText(args: Record<string, unknown>): Promis
       }
     );
     if (response.success) {
+      logger.toolSuccess('powerpoint_write_text', args, { slide: args['slide'], shape: args['shape'] }, Date.now() - startTime);
       return { success: true, result: `Text written to slide ${args['slide']}, shape ${args['shape']}` };
     }
+    logger.toolError('powerpoint_write_text', args, new Error(response.error || 'Failed to write text'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to write text' };
   } catch (error) {
+    logger.toolError('powerpoint_write_text', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to write text: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -85,18 +91,23 @@ const POWERPOINT_READ_SLIDE_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointReadSlide(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_read_slide', args);
   try {
     const response = await powerpointClient.powerpointReadSlide(args['slide'] as number);
     if (response.success) {
       const texts = response['texts'] as Array<{ shape_index: number; shape_name: string; text: string }> || [];
       const textContent = texts.map(t => `[Shape ${t.shape_index}] ${t.text}`).join('\n');
+      logger.toolSuccess('powerpoint_read_slide', args, { slide: args['slide'], shapeCount: response['shape_count'] }, Date.now() - startTime);
       return {
         success: true,
         result: `Slide ${args['slide']} (${response['shape_count']} shapes):\n${textContent || '(no text content)'}`,
       };
     }
+    logger.toolError('powerpoint_read_slide', args, new Error(response.error || 'Failed to read slide'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to read slide' };
   } catch (error) {
+    logger.toolError('powerpoint_read_slide', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to read slide: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -134,6 +145,8 @@ const POWERPOINT_ADD_TEXTBOX_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointAddTextbox(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_add_textbox', args);
   try {
     const response = await powerpointClient.powerpointAddTextbox(
       args['slide'] as number,
@@ -144,10 +157,13 @@ async function executePowerPointAddTextbox(args: Record<string, unknown>): Promi
       args['height'] as number ?? 50
     );
     if (response.success) {
+      logger.toolSuccess('powerpoint_add_textbox', args, { slide: args['slide'], shapeIndex: response['shape_index'] }, Date.now() - startTime);
       return { success: true, result: `Textbox added to slide ${args['slide']} (shape index: ${response['shape_index']})` };
     }
+    logger.toolError('powerpoint_add_textbox', args, new Error(response.error || 'Failed to add textbox'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to add textbox' };
   } catch (error) {
+    logger.toolError('powerpoint_add_textbox', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to add textbox: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -186,6 +202,8 @@ const POWERPOINT_SET_FONT_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointSetFont(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_set_font', args);
   try {
     const response = await powerpointClient.powerpointSetFont(
       args['slide'] as number,
@@ -199,10 +217,13 @@ async function executePowerPointSetFont(args: Record<string, unknown>): Promise<
       }
     );
     if (response.success) {
+      logger.toolSuccess('powerpoint_set_font', args, { slide: args['slide'], shape: args['shape'] }, Date.now() - startTime);
       return { success: true, result: 'Font properties set' };
     }
+    logger.toolError('powerpoint_set_font', args, new Error(response.error || 'Failed to set font'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to set font' };
   } catch (error) {
+    logger.toolError('powerpoint_set_font', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to set font: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -237,6 +258,8 @@ const POWERPOINT_SET_TEXT_ALIGNMENT_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointSetTextAlignment(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_set_text_alignment', args);
   try {
     const response = await powerpointClient.powerpointSetTextAlignment(
       args['slide_number'] as number,
@@ -245,10 +268,13 @@ async function executePowerPointSetTextAlignment(args: Record<string, unknown>):
       args['vertical'] as 'top' | 'middle' | 'bottom' | undefined
     );
     if (response.success) {
+      logger.toolSuccess('powerpoint_set_text_alignment', args, { slideNumber: args['slide_number'], shapeIndex: args['shape_index'] }, Date.now() - startTime);
       return { success: true, result: response.message || 'Text alignment set' };
     }
+    logger.toolError('powerpoint_set_text_alignment', args, new Error(response.error || 'Failed to set text alignment'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to set text alignment' };
   } catch (error) {
+    logger.toolError('powerpoint_set_text_alignment', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to set text alignment: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -283,6 +309,8 @@ const POWERPOINT_SET_BULLET_LIST_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointSetBulletList(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_set_bullet_list', args);
   try {
     const response = await powerpointClient.powerpointSetBulletList(
       args['slide_number'] as number,
@@ -291,10 +319,13 @@ async function executePowerPointSetBulletList(args: Record<string, unknown>): Pr
       args['bullet_char'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('powerpoint_set_bullet_list', args, { slideNumber: args['slide_number'], shapeIndex: args['shape_index'], bulletType: args['bullet_type'] }, Date.now() - startTime);
       return { success: true, result: response.message || 'Bullet style set' };
     }
+    logger.toolError('powerpoint_set_bullet_list', args, new Error(response.error || 'Failed to set bullet style'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to set bullet style' };
   } catch (error) {
+    logger.toolError('powerpoint_set_bullet_list', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to set bullet style: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -330,6 +361,8 @@ const POWERPOINT_SET_LINE_SPACING_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointSetLineSpacing(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_set_line_spacing', args);
   try {
     const response = await powerpointClient.powerpointSetLineSpacing(
       args['slide_number'] as number,
@@ -339,10 +372,13 @@ async function executePowerPointSetLineSpacing(args: Record<string, unknown>): P
       args['space_before'] as number | undefined
     );
     if (response.success) {
+      logger.toolSuccess('powerpoint_set_line_spacing', args, { slideNumber: args['slide_number'], shapeIndex: args['shape_index'], lineSpacing: args['line_spacing'] }, Date.now() - startTime);
       return { success: true, result: response.message || 'Line spacing set' };
     }
+    logger.toolError('powerpoint_set_line_spacing', args, new Error(response.error || 'Failed to set line spacing'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to set line spacing' };
   } catch (error) {
+    logger.toolError('powerpoint_set_line_spacing', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to set line spacing: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -379,6 +415,8 @@ const POWERPOINT_SET_TEXTBOX_BORDER_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointSetTextboxBorder(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_set_textbox_border', args);
   try {
     const response = await powerpointClient.powerpointSetTextboxBorder(
       args['slide_number'] as number,
@@ -391,10 +429,13 @@ async function executePowerPointSetTextboxBorder(args: Record<string, unknown>):
       }
     );
     if (response.success) {
+      logger.toolSuccess('powerpoint_set_textbox_border', args, { slideNumber: args['slide_number'], shapeIndex: args['shape_index'] }, Date.now() - startTime);
       return { success: true, result: response.message || 'Textbox border updated' };
     }
+    logger.toolError('powerpoint_set_textbox_border', args, new Error(response.error || 'Failed to set textbox border'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to set textbox border' };
   } catch (error) {
+    logger.toolError('powerpoint_set_textbox_border', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to set textbox border: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -430,6 +471,8 @@ const POWERPOINT_SET_TEXTBOX_FILL_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointSetTextboxFill(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_set_textbox_fill', args);
   try {
     const response = await powerpointClient.powerpointSetTextboxFill(
       args['slide_number'] as number,
@@ -441,10 +484,13 @@ async function executePowerPointSetTextboxFill(args: Record<string, unknown>): P
       }
     );
     if (response.success) {
+      logger.toolSuccess('powerpoint_set_textbox_fill', args, { slideNumber: args['slide_number'], shapeIndex: args['shape_index'] }, Date.now() - startTime);
       return { success: true, result: response.message || 'Textbox fill updated' };
     }
+    logger.toolError('powerpoint_set_textbox_fill', args, new Error(response.error || 'Failed to set textbox fill'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to set textbox fill' };
   } catch (error) {
+    logger.toolError('powerpoint_set_textbox_fill', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to set textbox fill: ${error instanceof Error ? error.message : String(error)}` };
   }
 }

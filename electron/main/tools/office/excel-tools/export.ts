@@ -8,6 +8,7 @@ import { ToolDefinition } from '../../../types/index';
 import { LLMSimpleTool, ToolResult } from '../../types';
 import { excelClient } from '../excel-client';
 import { OFFICE_CATEGORIES } from '../common/constants';
+import { logger } from '../../../utils/logger';
 
 // =============================================================================
 // Excel Export to PDF
@@ -31,16 +32,21 @@ const EXCEL_EXPORT_PDF_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelExportPDF(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_export_pdf', args);
   try {
     const response = await excelClient.excelExportPDF(
       args['path'] as string,
       args['sheet'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('excel_export_pdf', args, { path: response['path'] || args['path'] }, Date.now() - startTime);
       return { success: true, result: `Exported to PDF: ${response['path'] || args['path']}` };
     }
+    logger.toolError('excel_export_pdf', args, new Error(response.error || 'Failed to export to PDF'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to export to PDF' };
   } catch (error) {
+    logger.toolError('excel_export_pdf', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to export to PDF: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -74,16 +80,21 @@ const EXCEL_PRINT_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelPrint(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_print', args);
   try {
     const response = await excelClient.excelPrint(
       args['copies'] as number ?? 1,
       args['sheet'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('excel_print', args, { copies: args['copies'] ?? 1 }, Date.now() - startTime);
       return { success: true, result: `Print job sent (${args['copies'] ?? 1} copies)` };
     }
+    logger.toolError('excel_print', args, new Error(response.error || 'Failed to print'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to print' };
   } catch (error) {
+    logger.toolError('excel_print', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to print: ${error instanceof Error ? error.message : String(error)}` };
   }
 }

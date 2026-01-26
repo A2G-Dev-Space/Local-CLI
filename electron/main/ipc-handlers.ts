@@ -190,8 +190,10 @@ export function setupIpcHandlers(): void {
 
   // 새 세션 생성
   ipcMain.handle('session:create', async (_event, name?: string, workingDirectory?: string): Promise<{ success: boolean; session?: Session; error?: string }> => {
+    logger.ipcHandle('session:create', { name, workingDirectory });
     try {
       const session = await sessionManager.createSession(name, workingDirectory);
+      logger.sessionStart({ sessionId: session.id, name: session.name, workingDirectory });
       return { success: true, session };
     } catch (error) {
       logger.error('Failed to create session', error);
@@ -204,11 +206,14 @@ export function setupIpcHandlers(): void {
 
   // 세션 로드
   ipcMain.handle('session:load', async (_event, sessionId: string): Promise<{ success: boolean; session?: Session; error?: string }> => {
+    logger.ipcHandle('session:load', { sessionId });
     try {
       const session = await sessionManager.loadSession(sessionId);
       if (session) {
+        logger.flow('Session loaded', { sessionId, messageCount: session.messages?.length || 0 });
         return { success: true, session };
       }
+      logger.warn('Session not found', { sessionId });
       return { success: false, error: 'Session not found' };
     } catch (error) {
       logger.error('Failed to load session', { sessionId, error });
@@ -221,11 +226,13 @@ export function setupIpcHandlers(): void {
 
   // 세션 저장
   ipcMain.handle('session:save', async (_event, session: Session): Promise<{ success: boolean; error?: string }> => {
+    logger.ipcHandle('session:save', { sessionId: session.id, messageCount: session.messages?.length || 0 });
     try {
       const success = await sessionManager.saveSession(session);
+      logger.flow('Session saved', { sessionId: session.id, success });
       return { success };
     } catch (error) {
-      logger.error('Failed to save session', error);
+      logger.ipcError('session:save', { sessionId: session.id, error });
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
@@ -400,6 +407,7 @@ export function setupIpcHandlers(): void {
         multiSelections?: boolean;
       }
     ): Promise<DialogResult> => {
+      logger.ipcHandle('dialog:openFile', { title: options?.title, defaultPath: options?.defaultPath });
       try {
         const result = await dialog.showOpenDialog(mainWindow!, {
           title: options?.title || '파일 열기',
@@ -539,11 +547,13 @@ export function setupIpcHandlers(): void {
   ipcMain.handle(
     'fs:readFile',
     async (_event, filePath: string): Promise<FileContentResult> => {
+      logger.ipcHandle('fs:readFile', { filePath });
       try {
         const content = await fs.promises.readFile(filePath, 'utf-8');
+        logger.flow('File read successfully', { filePath, contentLength: content.length });
         return { success: true, content };
       } catch (error) {
-        logger.error('Failed to read file', { filePath, error });
+        logger.ipcError('fs:readFile', { filePath, error });
         return {
           success: false,
           error: error instanceof Error ? error.message : String(error),
@@ -633,11 +643,13 @@ export function setupIpcHandlers(): void {
   ipcMain.handle(
     'powershell:execute',
     async (_event, command: string) => {
+      logger.ipcHandle('powershell:execute', { commandLength: command.length });
       try {
         const result = await powerShellManager.execute(command);
+        logger.flow('PowerShell command executed', { exitCode: result.exitCode, outputLength: result.output?.length || 0 });
         return { ...result, success: true };
       } catch (error) {
-        logger.error('PowerShell execute error', { command, error });
+        logger.ipcError('powershell:execute', { command, error });
         return {
           success: false,
           error: error instanceof Error ? error.message : String(error),
@@ -884,6 +896,47 @@ export function setupIpcHandlers(): void {
     return { success: true, sessionId: logger.getCurrentSessionId() };
   });
 
+  // Current Run log handlers (이번 실행 로그)
+  ipcMain.handle('log:getRunFiles', async () => {
+    try {
+      const files = await logger.getRunLogFiles();
+      return { success: true, files };
+    } catch (error) {
+      return { success: false, error: (error as Error).message, files: [] };
+    }
+  });
+
+  ipcMain.handle('log:getCurrentRunId', () => {
+    return { success: true, runId: logger.getCurrentRunId() };
+  });
+
+  ipcMain.handle('log:readCurrentRunLog', async () => {
+    try {
+      const entries = await logger.readCurrentRunLog();
+      return { success: true, entries };
+    } catch (error) {
+      return { success: false, error: (error as Error).message, entries: [] };
+    }
+  });
+
+  ipcMain.handle('log:readRunLog', async (_event, runId: string) => {
+    try {
+      const entries = await logger.readRunLog(runId);
+      return { success: true, entries };
+    } catch (error) {
+      return { success: false, error: (error as Error).message, entries: [] };
+    }
+  });
+
+  ipcMain.handle('log:deleteRunLog', async (_event, runId: string) => {
+    try {
+      await logger.deleteRunLog(runId);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  });
+
   // ============ 시스템 ============
 
   // 시스템 정보
@@ -1041,8 +1094,10 @@ export function setupIpcHandlers(): void {
 
   // 채팅 메시지 전송 (non-streaming)
   ipcMain.handle('chat:send', async (_event, messages: Message[]) => {
+    logger.ipcHandle('chat:send', { messageCount: messages.length });
     try {
       const result = await llmClient.chat(messages, false);
+      logger.flow('Chat send completed', { success: true });
       return { success: true, ...result };
     } catch (error) {
       logger.error('Chat send failed', error);
@@ -1055,11 +1110,14 @@ export function setupIpcHandlers(): void {
 
   // 채팅 메시지 전송 (streaming)
   ipcMain.handle('chat:sendStream', async (_event, messages: Message[]) => {
+    logger.ipcHandle('chat:sendStream', { messageCount: messages.length });
+    logger.httpStreamStart('POST', 'llm/chat');
     try {
       // Streaming은 IPC event로 청크 전송
       const result = await llmClient.chat(messages, true, (chunk, done) => {
         mainWindow?.webContents.send('chat:chunk', { chunk, done });
       });
+      logger.httpStreamEnd(0, 0);
       return { success: true, ...result };
     } catch (error) {
       logger.error('Chat stream failed', error);
@@ -1301,6 +1359,7 @@ export function setupIpcHandlers(): void {
     existingMessages: Message[],
     config: AgentConfig
   ) => {
+    logger.ipcHandle('agent:run', { messageLength: userMessage.length, existingMessagesCount: existingMessages.length, config });
     try {
       // Set main window for agent IPC
       setAgentMainWindow(mainWindow);

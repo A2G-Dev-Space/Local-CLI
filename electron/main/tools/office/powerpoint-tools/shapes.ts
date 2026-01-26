@@ -13,6 +13,7 @@ import { ToolDefinition } from '../../../types/index';
 import { LLMSimpleTool, ToolResult } from '../../types';
 import { powerpointClient } from '../powerpoint-client';
 import { OFFICE_CATEGORIES } from '../common/constants';
+import { logger } from '../../../utils/logger';
 
 // =============================================================================
 // PowerPoint Add Shape
@@ -41,6 +42,8 @@ const POWERPOINT_ADD_SHAPE_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointAddShape(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_add_shape', args);
   try {
     const response = await powerpointClient.powerpointAddShape(
       args['slide'] as number,
@@ -52,10 +55,13 @@ async function executePowerPointAddShape(args: Record<string, unknown>): Promise
       args['fill_color'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('powerpoint_add_shape', args, { slide: args['slide'], shapeType: args['shape_type'] }, Date.now() - startTime);
       return { success: true, result: `${args['shape_type']} shape added to slide ${args['slide']}` };
     }
+    logger.toolError('powerpoint_add_shape', args, new Error(response.error || 'Failed to add shape'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to add shape' };
   } catch (error) {
+    logger.toolError('powerpoint_add_shape', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to add shape: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -88,16 +94,21 @@ const POWERPOINT_DELETE_SHAPE_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointDeleteShape(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_delete_shape', args);
   try {
     const response = await powerpointClient.powerpointDeleteShape(
       args['slide_number'] as number,
       args['shape_index'] as number
     );
     if (response.success) {
+      logger.toolSuccess('powerpoint_delete_shape', args, { slideNumber: args['slide_number'], shapeIndex: args['shape_index'] }, Date.now() - startTime);
       return { success: true, result: response.message || 'Shape deleted' };
     }
+    logger.toolError('powerpoint_delete_shape', args, new Error(response.error || 'Failed to delete shape'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to delete shape' };
   } catch (error) {
+    logger.toolError('powerpoint_delete_shape', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to delete shape: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -130,16 +141,21 @@ const POWERPOINT_DUPLICATE_SHAPE_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointDuplicateShape(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_duplicate_shape', args);
   try {
     const response = await powerpointClient.powerpointDuplicateShape(
       args['slide_number'] as number,
       args['shape_index'] as number
     );
     if (response.success) {
+      logger.toolSuccess('powerpoint_duplicate_shape', args, { slideNumber: args['slide_number'], newShapeIndex: response['new_shape_index'] }, Date.now() - startTime);
       return { success: true, result: `Shape duplicated. New shape index: ${response['new_shape_index']}` };
     }
+    logger.toolError('powerpoint_duplicate_shape', args, new Error(response.error || 'Failed to duplicate shape'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to duplicate shape' };
   } catch (error) {
+    logger.toolError('powerpoint_duplicate_shape', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to duplicate shape: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -173,6 +189,8 @@ const POWERPOINT_ROTATE_SHAPE_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointRotateShape(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_rotate_shape', args);
   try {
     const response = await powerpointClient.powerpointRotateShape(
       args['slide_number'] as number,
@@ -180,10 +198,13 @@ async function executePowerPointRotateShape(args: Record<string, unknown>): Prom
       args['angle'] as number
     );
     if (response.success) {
+      logger.toolSuccess('powerpoint_rotate_shape', args, { slideNumber: args['slide_number'], shapeIndex: args['shape_index'], angle: args['angle'] }, Date.now() - startTime);
       return { success: true, result: response.message || 'Shape rotated' };
     }
+    logger.toolError('powerpoint_rotate_shape', args, new Error(response.error || 'Failed to rotate shape'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to rotate shape' };
   } catch (error) {
+    logger.toolError('powerpoint_rotate_shape', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to rotate shape: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -216,16 +237,21 @@ const POWERPOINT_GET_SHAPE_INFO_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointGetShapeInfo(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_get_shape_info', args);
   try {
     const response = await powerpointClient.powerpointGetShapeInfo(
       args['slide_number'] as number,
       args['shape_index'] as number
     );
     if (response.success) {
+      logger.toolSuccess('powerpoint_get_shape_info', args, { slideNumber: args['slide_number'], shapeIndex: args['shape_index'] }, Date.now() - startTime);
       return { success: true, result: JSON.stringify(response, null, 2) };
     }
+    logger.toolError('powerpoint_get_shape_info', args, new Error(response.error || 'Failed to get shape info'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to get shape info' };
   } catch (error) {
+    logger.toolError('powerpoint_get_shape_info', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to get shape info: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -259,6 +285,8 @@ const POWERPOINT_SET_SHAPE_NAME_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointSetShapeName(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_set_shape_name', args);
   try {
     const response = await powerpointClient.powerpointSetShapeName(
       args['slide_number'] as number,
@@ -266,10 +294,13 @@ async function executePowerPointSetShapeName(args: Record<string, unknown>): Pro
       args['name'] as string
     );
     if (response.success) {
+      logger.toolSuccess('powerpoint_set_shape_name', args, { slideNumber: args['slide_number'], shapeIndex: args['shape_index'], name: args['name'] }, Date.now() - startTime);
       return { success: true, result: response.message || 'Shape name set' };
     }
+    logger.toolError('powerpoint_set_shape_name', args, new Error(response.error || 'Failed to set shape name'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to set shape name' };
   } catch (error) {
+    logger.toolError('powerpoint_set_shape_name', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to set shape name: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -301,13 +332,18 @@ const POWERPOINT_GET_SHAPE_LIST_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointGetShapeList(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_get_shape_list', args);
   try {
     const response = await powerpointClient.powerpointGetShapeList(args['slide_number'] as number);
     if (response.success) {
+      logger.toolSuccess('powerpoint_get_shape_list', args, { slideNumber: args['slide_number'] }, Date.now() - startTime);
       return { success: true, result: JSON.stringify(response, null, 2) };
     }
+    logger.toolError('powerpoint_get_shape_list', args, new Error(response.error || 'Failed to get shape list'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to get shape list' };
   } catch (error) {
+    logger.toolError('powerpoint_get_shape_list', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to get shape list: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -342,6 +378,8 @@ const POWERPOINT_SET_SHAPE_POSITION_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointSetShapePosition(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_set_shape_position', args);
   try {
     const response = await powerpointClient.powerpointSetShapePosition(
       args['slide_number'] as number,
@@ -350,10 +388,13 @@ async function executePowerPointSetShapePosition(args: Record<string, unknown>):
       args['top'] as number
     );
     if (response.success) {
+      logger.toolSuccess('powerpoint_set_shape_position', args, { slideNumber: args['slide_number'], shapeIndex: args['shape_index'] }, Date.now() - startTime);
       return { success: true, result: response.message || 'Shape position set' };
     }
+    logger.toolError('powerpoint_set_shape_position', args, new Error(response.error || 'Failed to set shape position'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to set shape position' };
   } catch (error) {
+    logger.toolError('powerpoint_set_shape_position', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to set shape position: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -389,6 +430,8 @@ const POWERPOINT_SET_SHAPE_SIZE_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointSetShapeSize(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_set_shape_size', args);
   try {
     const response = await powerpointClient.powerpointSetShapeSize(
       args['slide_number'] as number,
@@ -398,10 +441,13 @@ async function executePowerPointSetShapeSize(args: Record<string, unknown>): Pro
       args['lock_aspect_ratio'] as boolean | undefined
     );
     if (response.success) {
+      logger.toolSuccess('powerpoint_set_shape_size', args, { slideNumber: args['slide_number'], shapeIndex: args['shape_index'] }, Date.now() - startTime);
       return { success: true, result: response.message || 'Shape size set' };
     }
+    logger.toolError('powerpoint_set_shape_size', args, new Error(response.error || 'Failed to set shape size'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to set shape size' };
   } catch (error) {
+    logger.toolError('powerpoint_set_shape_size', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to set shape size: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -441,6 +487,8 @@ const POWERPOINT_SET_SHAPE_STYLE_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointSetShapeStyle(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_set_shape_style', args);
   try {
     const response = await powerpointClient.powerpointSetShapeStyle(
       args['slide_number'] as number,
@@ -456,10 +504,13 @@ async function executePowerPointSetShapeStyle(args: Record<string, unknown>): Pr
       }
     );
     if (response.success) {
+      logger.toolSuccess('powerpoint_set_shape_style', args, { slideNumber: args['slide_number'], shapeIndex: args['shape_index'] }, Date.now() - startTime);
       return { success: true, result: response.message || 'Shape style updated' };
     }
+    logger.toolError('powerpoint_set_shape_style', args, new Error(response.error || 'Failed to set shape style'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to set shape style' };
   } catch (error) {
+    logger.toolError('powerpoint_set_shape_style', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to set shape style: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -493,6 +544,8 @@ const POWERPOINT_SET_SHAPE_OPACITY_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointSetShapeOpacity(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_set_shape_opacity', args);
   try {
     const response = await powerpointClient.powerpointSetShapeOpacity(
       args['slide_number'] as number,
@@ -500,10 +553,13 @@ async function executePowerPointSetShapeOpacity(args: Record<string, unknown>): 
       args['opacity'] as number
     );
     if (response.success) {
+      logger.toolSuccess('powerpoint_set_shape_opacity', args, { slideNumber: args['slide_number'], shapeIndex: args['shape_index'], opacity: args['opacity'] }, Date.now() - startTime);
       return { success: true, result: response.message || 'Shape opacity set' };
     }
+    logger.toolError('powerpoint_set_shape_opacity', args, new Error(response.error || 'Failed to set shape opacity'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to set shape opacity' };
   } catch (error) {
+    logger.toolError('powerpoint_set_shape_opacity', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to set shape opacity: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -536,16 +592,21 @@ const POWERPOINT_BRING_TO_FRONT_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointBringToFront(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_bring_to_front', args);
   try {
     const response = await powerpointClient.powerpointBringToFront(
       args['slide_number'] as number,
       args['shape_index'] as number
     );
     if (response.success) {
+      logger.toolSuccess('powerpoint_bring_to_front', args, { slideNumber: args['slide_number'], shapeIndex: args['shape_index'] }, Date.now() - startTime);
       return { success: true, result: response.message || 'Shape brought to front' };
     }
+    logger.toolError('powerpoint_bring_to_front', args, new Error(response.error || 'Failed to bring shape to front'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to bring shape to front' };
   } catch (error) {
+    logger.toolError('powerpoint_bring_to_front', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to bring shape to front: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -574,16 +635,21 @@ const POWERPOINT_SEND_TO_BACK_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointSendToBack(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_send_to_back', args);
   try {
     const response = await powerpointClient.powerpointSendToBack(
       args['slide_number'] as number,
       args['shape_index'] as number
     );
     if (response.success) {
+      logger.toolSuccess('powerpoint_send_to_back', args, { slideNumber: args['slide_number'], shapeIndex: args['shape_index'] }, Date.now() - startTime);
       return { success: true, result: response.message || 'Shape sent to back' };
     }
+    logger.toolError('powerpoint_send_to_back', args, new Error(response.error || 'Failed to send shape to back'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to send shape to back' };
   } catch (error) {
+    logger.toolError('powerpoint_send_to_back', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to send shape to back: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -612,16 +678,21 @@ const POWERPOINT_BRING_FORWARD_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointBringForward(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_bring_forward', args);
   try {
     const response = await powerpointClient.powerpointBringForward(
       args['slide_number'] as number,
       args['shape_index'] as number
     );
     if (response.success) {
+      logger.toolSuccess('powerpoint_bring_forward', args, { slideNumber: args['slide_number'], shapeIndex: args['shape_index'] }, Date.now() - startTime);
       return { success: true, result: response.message || 'Shape brought forward' };
     }
+    logger.toolError('powerpoint_bring_forward', args, new Error(response.error || 'Failed to bring shape forward'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to bring shape forward' };
   } catch (error) {
+    logger.toolError('powerpoint_bring_forward', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to bring shape forward: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -650,16 +721,21 @@ const POWERPOINT_SEND_BACKWARD_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointSendBackward(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_send_backward', args);
   try {
     const response = await powerpointClient.powerpointSendBackward(
       args['slide_number'] as number,
       args['shape_index'] as number
     );
     if (response.success) {
+      logger.toolSuccess('powerpoint_send_backward', args, { slideNumber: args['slide_number'], shapeIndex: args['shape_index'] }, Date.now() - startTime);
       return { success: true, result: response.message || 'Shape sent backward' };
     }
+    logger.toolError('powerpoint_send_backward', args, new Error(response.error || 'Failed to send shape backward'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to send shape backward' };
   } catch (error) {
+    logger.toolError('powerpoint_send_backward', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to send shape backward: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -693,6 +769,8 @@ const POWERPOINT_ALIGN_SHAPES_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointAlignShapes(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_align_shapes', args);
   try {
     const response = await powerpointClient.powerpointAlignShapes(
       args['slide_number'] as number,
@@ -700,10 +778,13 @@ async function executePowerPointAlignShapes(args: Record<string, unknown>): Prom
       args['alignment'] as 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom'
     );
     if (response.success) {
+      logger.toolSuccess('powerpoint_align_shapes', args, { slideNumber: args['slide_number'], alignment: args['alignment'] }, Date.now() - startTime);
       return { success: true, result: response.message || 'Shapes aligned' };
     }
+    logger.toolError('powerpoint_align_shapes', args, new Error(response.error || 'Failed to align shapes'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to align shapes' };
   } catch (error) {
+    logger.toolError('powerpoint_align_shapes', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to align shapes: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -737,6 +818,8 @@ const POWERPOINT_DISTRIBUTE_SHAPES_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointDistributeShapes(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_distribute_shapes', args);
   try {
     const response = await powerpointClient.powerpointDistributeShapes(
       args['slide_number'] as number,
@@ -744,10 +827,13 @@ async function executePowerPointDistributeShapes(args: Record<string, unknown>):
       args['direction'] as 'horizontal' | 'vertical'
     );
     if (response.success) {
+      logger.toolSuccess('powerpoint_distribute_shapes', args, { slideNumber: args['slide_number'], direction: args['direction'] }, Date.now() - startTime);
       return { success: true, result: response.message || 'Shapes distributed' };
     }
+    logger.toolError('powerpoint_distribute_shapes', args, new Error(response.error || 'Failed to distribute shapes'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to distribute shapes' };
   } catch (error) {
+    logger.toolError('powerpoint_distribute_shapes', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to distribute shapes: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -780,16 +866,21 @@ const POWERPOINT_GROUP_SHAPES_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointGroupShapes(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_group_shapes', args);
   try {
     const response = await powerpointClient.powerpointGroupShapes(
       args['slide_number'] as number,
       args['shape_indices'] as number[]
     );
     if (response.success) {
+      logger.toolSuccess('powerpoint_group_shapes', args, { slideNumber: args['slide_number'], groupIndex: response['group_index'] }, Date.now() - startTime);
       return { success: true, result: `Shapes grouped. Group index: ${response['group_index']}` };
     }
+    logger.toolError('powerpoint_group_shapes', args, new Error(response.error || 'Failed to group shapes'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to group shapes' };
   } catch (error) {
+    logger.toolError('powerpoint_group_shapes', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to group shapes: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -822,16 +913,21 @@ const POWERPOINT_UNGROUP_SHAPES_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointUngroupShapes(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_ungroup_shapes', args);
   try {
     const response = await powerpointClient.powerpointUngroupShapes(
       args['slide_number'] as number,
       args['group_index'] as number
     );
     if (response.success) {
+      logger.toolSuccess('powerpoint_ungroup_shapes', args, { slideNumber: args['slide_number'], shapeCount: response['shape_count'] }, Date.now() - startTime);
       return { success: true, result: `Group ungrouped. ${response['shape_count']} shapes` };
     }
+    logger.toolError('powerpoint_ungroup_shapes', args, new Error(response.error || 'Failed to ungroup shapes'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to ungroup shapes' };
   } catch (error) {
+    logger.toolError('powerpoint_ungroup_shapes', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to ungroup shapes: ${error instanceof Error ? error.message : String(error)}` };
   }
 }

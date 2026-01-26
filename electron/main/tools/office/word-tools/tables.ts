@@ -9,6 +9,7 @@ import { ToolDefinition } from '../../../types/index';
 import { LLMSimpleTool, ToolResult } from '../../types';
 import { wordClient } from '../word-client';
 import { OFFICE_CATEGORIES } from '../common/constants';
+import { logger } from '../../../utils/logger';
 
 // =============================================================================
 // Word Add Table
@@ -33,6 +34,8 @@ const WORD_ADD_TABLE_DEFINITION: ToolDefinition = {
 };
 
 async function executeWordAddTable(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('word_add_table', args);
   try {
     const response = await wordClient.wordAddTable(
       args['rows'] as number,
@@ -40,10 +43,13 @@ async function executeWordAddTable(args: Record<string, unknown>): Promise<ToolR
       args['data'] as string[][] | undefined
     );
     if (response.success) {
+      logger.toolSuccess('word_add_table', args, { rows: args['rows'], cols: args['cols'] }, Date.now() - startTime);
       return { success: true, result: `Table added (${args['rows']}x${args['cols']})` };
     }
+    logger.toolError('word_add_table', args, new Error(response.error || 'Failed to add table'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to add table' };
   } catch (error) {
+    logger.toolError('word_add_table', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to add table: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -82,6 +88,8 @@ const WORD_SET_TABLE_CELL_DEFINITION: ToolDefinition = {
 };
 
 async function executeWordSetTableCell(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('word_set_table_cell', args);
   try {
     const response = await wordClient.wordSetTableCell(
       args['table_index'] as number,
@@ -95,10 +103,13 @@ async function executeWordSetTableCell(args: Record<string, unknown>): Promise<T
       }
     );
     if (response.success) {
+      logger.toolSuccess('word_set_table_cell', args, { updated: true }, Date.now() - startTime);
       return { success: true, result: response.message || 'Table cell updated' };
     }
+    logger.toolError('word_set_table_cell', args, new Error(response.error || 'Failed to set table cell'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to set table cell' };
   } catch (error) {
+    logger.toolError('word_set_table_cell', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to set table cell: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -135,6 +146,8 @@ const WORD_MERGE_TABLE_CELLS_DEFINITION: ToolDefinition = {
 };
 
 async function executeWordMergeTableCells(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('word_merge_table_cells', args);
   try {
     const response = await wordClient.wordMergeTableCells(
       args['table_index'] as number,
@@ -144,10 +157,13 @@ async function executeWordMergeTableCells(args: Record<string, unknown>): Promis
       args['end_col'] as number
     );
     if (response.success) {
+      logger.toolSuccess('word_merge_table_cells', args, { merged: true }, Date.now() - startTime);
       return { success: true, result: 'Table cells merged' };
     }
+    logger.toolError('word_merge_table_cells', args, new Error(response.error || 'Failed to merge cells'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to merge cells' };
   } catch (error) {
+    logger.toolError('word_merge_table_cells', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to merge cells: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -181,16 +197,21 @@ const WORD_SET_TABLE_STYLE_DEFINITION: ToolDefinition = {
 };
 
 async function executeWordSetTableStyle(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('word_set_table_style', args);
   try {
     const response = await wordClient.wordSetTableStyle(
       args['table_index'] as number,
       args['style'] as string
     );
     if (response.success) {
+      logger.toolSuccess('word_set_table_style', args, { style: args['style'] }, Date.now() - startTime);
       return { success: true, result: `Table style set to "${args['style']}"` };
     }
+    logger.toolError('word_set_table_style', args, new Error(response.error || 'Failed to set table style'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to set table style' };
   } catch (error) {
+    logger.toolError('word_set_table_style', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to set table style: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -225,6 +246,8 @@ const WORD_SET_TABLE_BORDER_DEFINITION: ToolDefinition = {
 };
 
 async function executeWordSetTableBorder(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('word_set_table_border', args);
   try {
     const response = await wordClient.wordSetTableBorder(
       args['table_index'] as number,
@@ -234,10 +257,13 @@ async function executeWordSetTableBorder(args: Record<string, unknown>): Promise
       }
     );
     if (response.success) {
+      logger.toolSuccess('word_set_table_border', args, { style: args['style'] }, Date.now() - startTime);
       return { success: true, result: 'Table border set' };
     }
+    logger.toolError('word_set_table_border', args, new Error(response.error || 'Failed to set table border'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to set table border' };
   } catch (error) {
+    logger.toolError('word_set_table_border', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to set table border: ${error instanceof Error ? error.message : String(error)}` };
   }
 }

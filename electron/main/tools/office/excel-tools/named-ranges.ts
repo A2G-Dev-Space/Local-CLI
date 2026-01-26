@@ -9,6 +9,7 @@ import { ToolDefinition } from '../../../types/index';
 import { LLMSimpleTool, ToolResult } from '../../types';
 import { excelClient } from '../excel-client';
 import { OFFICE_CATEGORIES } from '../common/index';
+import { logger } from '../../../utils/logger';
 
 // =============================================================================
 // Excel Create Named Range
@@ -33,6 +34,8 @@ const EXCEL_CREATE_NAMED_RANGE_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelCreateNamedRange(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_create_named_range', args);
   try {
     const response = await excelClient.excelCreateNamedRange(
       args['name'] as string,
@@ -40,10 +43,13 @@ async function executeExcelCreateNamedRange(args: Record<string, unknown>): Prom
       args['sheet'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('excel_create_named_range', args, { name: args['name'], range: args['range'] }, Date.now() - startTime);
       return { success: true, result: `Named range "${args['name']}" created` };
     }
+    logger.toolError('excel_create_named_range', args, new Error(response.error || 'Failed to create named range'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to create named range' };
   } catch (error) {
+    logger.toolError('excel_create_named_range', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to create named range: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -75,18 +81,24 @@ const EXCEL_GET_NAMED_RANGES_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelGetNamedRanges(_args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_get_named_ranges', _args);
   try {
     const response = await excelClient.excelGetNamedRanges();
     if (response.success) {
       const ranges = response['named_ranges'] as Array<{ name: string; refersTo: string }> || [];
       if (ranges.length === 0) {
+        logger.toolSuccess('excel_get_named_ranges', _args, { count: 0 }, Date.now() - startTime);
         return { success: true, result: 'No named ranges found' };
       }
       const list = ranges.map(r => `- ${r.name}: ${r.refersTo}`).join('\n');
+      logger.toolSuccess('excel_get_named_ranges', _args, { count: ranges.length }, Date.now() - startTime);
       return { success: true, result: `Named ranges:\n${list}` };
     }
+    logger.toolError('excel_get_named_ranges', _args, new Error(response.error || 'Failed to get named ranges'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to get named ranges' };
   } catch (error) {
+    logger.toolError('excel_get_named_ranges', _args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to get named ranges: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -119,13 +131,18 @@ const EXCEL_DELETE_NAMED_RANGE_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelDeleteNamedRange(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_delete_named_range', args);
   try {
     const response = await excelClient.excelDeleteNamedRange(args['name'] as string);
     if (response.success) {
+      logger.toolSuccess('excel_delete_named_range', args, { name: args['name'] }, Date.now() - startTime);
       return { success: true, result: `Named range "${args['name']}" deleted` };
     }
+    logger.toolError('excel_delete_named_range', args, new Error(response.error || 'Failed to delete named range'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to delete named range' };
   } catch (error) {
+    logger.toolError('excel_delete_named_range', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to delete named range: ${error instanceof Error ? error.message : String(error)}` };
   }
 }

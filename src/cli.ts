@@ -15,9 +15,10 @@ import { createRequire } from 'module';
 import { configManager } from './core/config/config-manager.js';
 import { createLLMClient } from './core/llm/llm-client.js';
 import { PlanExecuteApp } from './ui/components/PlanExecuteApp.js';
-import { setupLogging } from './utils/logger.js';
+import { setupLogging, logger } from './utils/logger.js';
 import { runEvalMode } from './eval/index.js';
 import { initializeOptionalTools } from './tools/registry.js';
+import { sessionManager } from './core/session/session-manager.js';
 
 // Read version from package.json (single source of truth)
 const require = createRequire(import.meta.url);
@@ -62,23 +63,43 @@ program
       });
       cleanup = loggingSetup.cleanup;
 
+      // Log session start
+      logger.sessionStart({
+        sessionId: sessionManager.getCurrentSessionId(),
+        verbose: options.verbose,
+        debug: options.debug,
+        llmLog: options.llmLog,
+        cwd: process.cwd(),
+        platform: process.platform,
+        nodeVersion: process.version,
+      });
+
       // ConfigManager 초기화
+      logger.flow('Initializing config manager');
       await configManager.initialize();
+      logger.flow('Config manager initialized');
 
       // Load saved optional tool states (e.g., browser tools, Office tools)
+      logger.flow('Initializing optional tools');
       await initializeOptionalTools();
+      logger.flow('Optional tools initialized');
 
       // LLMClient 생성 (엔드포인트가 없으면 null)
       let llmClient = null;
       let modelInfo = { model: 'Not configured', endpoint: 'Not configured' };
 
       if (configManager.hasEndpoints()) {
+        logger.flow('Creating LLM client');
         try {
           llmClient = createLLMClient();
           modelInfo = llmClient.getModelInfo();
-        } catch {
+          logger.flow('LLM client created', { model: modelInfo.model, endpoint: modelInfo.endpoint });
+        } catch (error) {
           // LLMClient 생성 실패 시 null 유지
+          logger.warn('Failed to create LLM client', { error: error instanceof Error ? error.message : String(error) });
         }
+      } else {
+        logger.flow('No LLM endpoints configured');
       }
 
       // Ink UI 시작 (verbose/debug/llm-log 모드에서만 시작 메시지 표시)
@@ -110,6 +131,12 @@ program
       console.log();
       process.exit(1);
     } finally {
+      // Log session end
+      logger.sessionEnd({
+        sessionId: sessionManager.getCurrentSessionId(),
+        exitReason: 'normal',
+      });
+
       // JSON Stream Logger 정리
       if (cleanup) {
         await cleanup();

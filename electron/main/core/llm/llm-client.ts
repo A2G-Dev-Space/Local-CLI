@@ -297,12 +297,20 @@ class LLMClient {
       }),
     };
 
-    logger.info('LLM Request', {
-      endpoint: endpoint.name,
+    logger.enter('chatCompletion', {
       model: modelId,
       messagesCount: options.messages.length,
+      hasTools: !!options.tools,
       attempt: currentAttempt,
       maxRetries,
+    });
+
+    logger.httpRequest('POST', url, {
+      model: modelId,
+      messages: `${options.messages.length} messages`,
+      temperature: requestBody.temperature,
+      max_tokens: requestBody.max_tokens,
+      tools: options.tools ? `${options.tools.length} tools` : 'none',
     });
 
     this.abortController = new AbortController();
@@ -347,10 +355,16 @@ class LLMClient {
 
       const data = await response.json() as LLMResponse;
 
-      logger.info('LLM Response', {
+      logger.httpResponse(200, 'OK', {
         model: data.model,
         choices: data.choices.length,
         usage: data.usage,
+      });
+
+      logger.exit('chatCompletion', {
+        success: true,
+        choices: data.choices.length,
+        tokensUsed: data.usage?.total_tokens || 0,
       });
 
       // Track usage (CLI parity - with context tracking)
@@ -372,6 +386,8 @@ class LLMClient {
       // User abort (CLI parity)
       if (error instanceof Error && (error.name === 'AbortError' || this.isInterrupted)) {
         this.isInterrupted = false;
+        logger.flow('API 호출 취소됨 (사용자 인터럽트)');
+        logger.exit('chatCompletion', { success: false, aborted: true });
         throw new Error('INTERRUPTED');
       }
 
@@ -393,6 +409,8 @@ class LLMClient {
 
       // Context length error - use custom error class
       if (this.isContextLengthError(error)) {
+        logger.error('Context length exceeded', { error: (error as Error).message });
+        logger.exit('chatCompletion', { success: false, error: 'context_length_exceeded' });
         // If already ContextLengthError, rethrow as-is
         if (error instanceof ContextLengthError) {
           throw error;
@@ -403,6 +421,8 @@ class LLMClient {
         });
       }
 
+      logger.error('LLM API error', { error: (error as Error).message });
+      logger.exit('chatCompletion', { success: false, error: (error as Error).message });
       throw error;
     }
   }
@@ -443,11 +463,13 @@ class LLMClient {
       }),
     };
 
-    logger.info('LLM Stream Request', {
-      endpoint: endpoint.name,
+    logger.enter('chatCompletionStream', {
       model: modelId,
       messagesCount: options.messages.length,
+      hasTools: !!options.tools,
     });
+
+    logger.httpStreamStart('POST', url);
 
     this.abortController = new AbortController();
 
@@ -538,7 +560,9 @@ class LLMClient {
 
       this.abortController = null;
 
-      logger.info('LLM Stream Complete', {
+      logger.httpStreamEnd(fullContent.length, 0);
+      logger.exit('chatCompletionStream', {
+        success: true,
         contentLength: fullContent.length,
       });
 
@@ -549,9 +573,13 @@ class LLMClient {
 
       if (error instanceof Error && (error.name === 'AbortError' || this.isInterrupted)) {
         this.isInterrupted = false;
+        logger.flow('Stream 취소됨 (사용자 인터럽트)');
+        logger.exit('chatCompletionStream', { success: false, aborted: true });
         throw new Error('INTERRUPTED');
       }
 
+      logger.error('Stream error', { error: (error as Error).message });
+      logger.exit('chatCompletionStream', { success: false, error: (error as Error).message });
       throw error;
     }
   }

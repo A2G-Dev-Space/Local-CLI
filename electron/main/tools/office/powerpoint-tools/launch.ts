@@ -10,6 +10,7 @@ import { LLMSimpleTool, ToolResult } from '../../types';
 import { powerpointClient } from '../powerpoint-client';
 import { saveScreenshot } from '../common/utils';
 import { OFFICE_SCREENSHOT_PATH_DESC, OFFICE_CATEGORIES } from '../common/constants';
+import { logger } from '../../../utils/logger';
 
 // =============================================================================
 // PowerPoint Launch
@@ -33,13 +34,18 @@ The PowerPoint window will be visible so you can see the changes in real-time.`,
 };
 
 async function executePowerPointLaunch(_args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_launch', _args);
   try {
     const response = await powerpointClient.powerpointLaunch();
     if (response.success) {
+      logger.toolSuccess('powerpoint_launch', _args, { message: response.message }, Date.now() - startTime);
       return { success: true, result: response.message || 'PowerPoint launched successfully' };
     }
+    logger.toolError('powerpoint_launch', _args, new Error(response.error || 'Failed to launch PowerPoint'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to launch PowerPoint' };
   } catch (error) {
+    logger.toolError('powerpoint_launch', _args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to launch PowerPoint: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -71,13 +77,18 @@ const POWERPOINT_CREATE_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointCreate(_args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_create', _args);
   try {
     const response = await powerpointClient.powerpointCreate();
     if (response.success) {
+      logger.toolSuccess('powerpoint_create', _args, { message: response.message }, Date.now() - startTime);
       return { success: true, result: response.message || 'New presentation created' };
     }
+    logger.toolError('powerpoint_create', _args, new Error(response.error || 'Failed to create presentation'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to create presentation' };
   } catch (error) {
+    logger.toolError('powerpoint_create', _args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to create presentation: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -110,13 +121,18 @@ const POWERPOINT_OPEN_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointOpen(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_open', args);
   try {
     const response = await powerpointClient.powerpointOpen(args['path'] as string);
     if (response.success) {
+      logger.toolSuccess('powerpoint_open', args, { presentationName: response['presentation_name'], path: args['path'] }, Date.now() - startTime);
       return { success: true, result: `Presentation opened: ${response['presentation_name'] || args['path']}` };
     }
+    logger.toolError('powerpoint_open', args, new Error(response.error || 'Failed to open presentation'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to open presentation' };
   } catch (error) {
+    logger.toolError('powerpoint_open', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to open presentation: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -149,17 +165,22 @@ Saves to ${OFFICE_SCREENSHOT_PATH_DESC}.`,
 };
 
 async function executePowerPointScreenshot(_args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_screenshot', _args);
   try {
     const response = await powerpointClient.powerpointScreenshot();
     if (response.success && response.image) {
       const filePath = await saveScreenshot(response.image, 'powerpoint');
+      logger.toolSuccess('powerpoint_screenshot', _args, { filePath }, Date.now() - startTime);
       return {
         success: true,
         result: `PowerPoint screenshot saved to: ${filePath}`,
       };
     }
+    logger.toolError('powerpoint_screenshot', _args, new Error(response.error || 'Failed to capture screenshot'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to capture screenshot' };
   } catch (error) {
+    logger.toolError('powerpoint_screenshot', _args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to capture screenshot: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -192,13 +213,18 @@ const POWERPOINT_CLOSE_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointClose(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_close', args);
   try {
     const response = await powerpointClient.powerpointClose(args['save'] === true);
     if (response.success) {
+      logger.toolSuccess('powerpoint_close', args, { saved: args['save'] === true }, Date.now() - startTime);
       return { success: true, result: `Presentation closed${args['save'] ? ' (saved)' : ''}` };
     }
+    logger.toolError('powerpoint_close', args, new Error(response.error || 'Failed to close presentation'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to close presentation' };
   } catch (error) {
+    logger.toolError('powerpoint_close', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to close presentation: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -231,13 +257,18 @@ const POWERPOINT_QUIT_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointQuit(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_quit', args);
   try {
     const response = await powerpointClient.powerpointQuit(args['save'] === true);
     if (response.success) {
+      logger.toolSuccess('powerpoint_quit', args, { saved: args['save'] === true }, Date.now() - startTime);
       return { success: true, result: `PowerPoint closed${args['save'] ? ' (all presentations saved)' : ''}` };
     }
+    logger.toolError('powerpoint_quit', args, new Error(response.error || 'Failed to quit PowerPoint'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to quit PowerPoint' };
   } catch (error) {
+    logger.toolError('powerpoint_quit', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to quit PowerPoint: ${error instanceof Error ? error.message : String(error)}` };
   }
 }

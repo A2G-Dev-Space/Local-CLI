@@ -11,6 +11,7 @@
 import { ToolDefinition } from '../../types/index.js';
 import { LLMSimpleTool, ToolResult, ToolCategory } from '../types.js';
 import { browserClient } from './browser-client.js';
+import { logger } from '../../utils/logger.js';
 
 const BROWSER_CATEGORIES: ToolCategory[] = ['llm-simple'];
 
@@ -50,9 +51,12 @@ async function executeBrowserLaunch(args: Record<string, unknown>): Promise<Tool
   const headless = args['headless'] === true;
   const browser = (args['browser'] as 'chrome' | 'edge') || 'chrome';
 
+  logger.toolStart('browser_launch', { headless, browser });
+
   try {
     // Check if browser is already active
     if (await browserClient.isBrowserActive()) {
+      logger.toolSuccess('browser_launch', args, { alreadyRunning: true }, 0);
       return {
         success: true,
         result: 'Browser is already running.',
@@ -66,17 +70,20 @@ async function executeBrowserLaunch(args: Record<string, unknown>): Promise<Tool
     const response = await browserClient.launch({ headless, browser });
 
     if (!response.success) {
+      logger.toolError('browser_launch', args, new Error(response.error || 'Failed to launch browser'), 0);
       return {
         success: false,
         error: response.error || 'Failed to launch browser',
       };
     }
 
+    logger.toolSuccess('browser_launch', args, { browser: response['browser'] || browser, headless }, 0);
     return {
       success: true,
       result: `${response['browser'] || browser} launched successfully (headless: ${headless})`,
     };
   } catch (error) {
+    logger.toolError('browser_launch', args, error as Error, 0);
     return {
       success: false,
       error: `Failed to launch browser: ${error instanceof Error ? error.message : String(error)}`,
@@ -123,9 +130,12 @@ Common URLs:
 async function executeBrowserNavigate(args: Record<string, unknown>): Promise<ToolResult> {
   const url = args['url'] as string;
 
+  logger.toolStart('browser_navigate', { url });
+
   try {
     // Auto-launch if not running
     if (!(await browserClient.isBrowserActive())) {
+      logger.flow('Browser not active, auto-launching');
       await browserClient.startServer();
       await browserClient.launch({ headless: false });
     }
@@ -133,17 +143,20 @@ async function executeBrowserNavigate(args: Record<string, unknown>): Promise<To
     const response = await browserClient.navigate(url);
 
     if (!response.success) {
+      logger.toolError('browser_navigate', args, new Error(response.error || 'Failed to navigate'), 0);
       return {
         success: false,
         error: response.error || 'Failed to navigate',
       };
     }
 
+    logger.toolSuccess('browser_navigate', args, { url: response.url, title: response.title }, 0);
     return {
       success: true,
       result: `Navigated to ${response.url}\nPage title: ${response.title}`,
     };
   } catch (error) {
+    logger.toolError('browser_navigate', args, error as Error, 0);
     return {
       success: false,
       error: `Failed to navigate: ${error instanceof Error ? error.message : String(error)}`,
@@ -189,8 +202,11 @@ Use this to verify that pages loaded correctly or to check UI elements.`,
 async function executeBrowserScreenshot(args: Record<string, unknown>): Promise<ToolResult> {
   const fullPage = args['full_page'] === true;
 
+  logger.toolStart('browser_screenshot', { fullPage });
+
   try {
     if (!(await browserClient.isBrowserActive())) {
+      logger.toolError('browser_screenshot', args, new Error('Browser not running'), 0);
       return {
         success: false,
         error: 'Browser is not running. Use browser_launch first.',
@@ -200,6 +216,7 @@ async function executeBrowserScreenshot(args: Record<string, unknown>): Promise<
     const response = await browserClient.screenshot(fullPage);
 
     if (!response.success || !response.image) {
+      logger.toolError('browser_screenshot', args, new Error(response.error || 'Failed to take screenshot'), 0);
       return {
         success: false,
         error: response.error || 'Failed to take screenshot',
@@ -209,6 +226,7 @@ async function executeBrowserScreenshot(args: Record<string, unknown>): Promise<
     // Save screenshot to file
     const savedPath = browserClient.saveScreenshot(response.image, 'browser');
 
+    logger.toolSuccess('browser_screenshot', args, { savedPath, url: response.url, title: response.title }, 0);
     return {
       success: true,
       result: `Screenshot captured of "${response.title}" (${response.url})\nSaved to: ${savedPath}`,
@@ -222,6 +240,7 @@ async function executeBrowserScreenshot(args: Record<string, unknown>): Promise<
       },
     };
   } catch (error) {
+    logger.toolError('browser_screenshot', args, error as Error, 0);
     return {
       success: false,
       error: `Failed to take screenshot: ${error instanceof Error ? error.message : String(error)}`,
@@ -268,9 +287,13 @@ Examples:
 
 async function executeBrowserClick(args: Record<string, unknown>): Promise<ToolResult> {
   const selector = args['selector'] as string;
+  const startTime = Date.now();
+
+  logger.toolStart('browser_click', { selector });
 
   try {
     if (!(await browserClient.isBrowserActive())) {
+      logger.toolError('browser_click', args, new Error('Browser not running'), Date.now() - startTime);
       return {
         success: false,
         error: 'Browser is not running. Use browser_launch first.',
@@ -280,17 +303,20 @@ async function executeBrowserClick(args: Record<string, unknown>): Promise<ToolR
     const response = await browserClient.click(selector);
 
     if (!response.success) {
+      logger.toolError('browser_click', args, new Error(response.error || `Failed to click: ${selector}`), Date.now() - startTime);
       return {
         success: false,
         error: response.error || `Failed to click: ${selector}`,
       };
     }
 
+    logger.toolSuccess('browser_click', args, { selector, currentUrl: response['current_url'] }, Date.now() - startTime);
     return {
       success: true,
       result: `Clicked element: ${selector}\nCurrent URL: ${response['current_url'] || 'unknown'}`,
     };
   } catch (error) {
+    logger.toolError('browser_click', args, error as Error, Date.now() - startTime);
     return {
       success: false,
       error: `Failed to click: ${error instanceof Error ? error.message : String(error)}`,
@@ -342,9 +368,13 @@ Examples:
 async function executeBrowserFill(args: Record<string, unknown>): Promise<ToolResult> {
   const selector = args['selector'] as string;
   const value = args['value'] as string;
+  const startTime = Date.now();
+
+  logger.toolStart('browser_fill', { selector, valueLength: value?.length });
 
   try {
     if (!(await browserClient.isBrowserActive())) {
+      logger.toolError('browser_fill', args, new Error('Browser not running'), Date.now() - startTime);
       return {
         success: false,
         error: 'Browser is not running. Use browser_launch first.',
@@ -354,17 +384,20 @@ async function executeBrowserFill(args: Record<string, unknown>): Promise<ToolRe
     const response = await browserClient.fill(selector, value);
 
     if (!response.success) {
+      logger.toolError('browser_fill', args, new Error(response.error || `Failed to fill: ${selector}`), Date.now() - startTime);
       return {
         success: false,
         error: response.error || `Failed to fill: ${selector}`,
       };
     }
 
+    logger.toolSuccess('browser_fill', args, { selector, valueLength: value.length }, Date.now() - startTime);
     return {
       success: true,
       result: `Filled "${selector}" with text (${value.length} characters)`,
     };
   } catch (error) {
+    logger.toolError('browser_fill', args, error as Error, Date.now() - startTime);
     return {
       success: false,
       error: `Failed to fill: ${error instanceof Error ? error.message : String(error)}`,
@@ -407,9 +440,13 @@ Use this to read content from the page, like error messages or confirmation text
 
 async function executeBrowserGetText(args: Record<string, unknown>): Promise<ToolResult> {
   const selector = args['selector'] as string;
+  const startTime = Date.now();
+
+  logger.toolStart('browser_get_text', { selector });
 
   try {
     if (!(await browserClient.isBrowserActive())) {
+      logger.toolError('browser_get_text', args, new Error('Browser not running'), Date.now() - startTime);
       return {
         success: false,
         error: 'Browser is not running. Use browser_launch first.',
@@ -419,17 +456,21 @@ async function executeBrowserGetText(args: Record<string, unknown>): Promise<Too
     const response = await browserClient.getText(selector);
 
     if (!response.success) {
+      logger.toolError('browser_get_text', args, new Error(response.error || `Failed to get text: ${selector}`), Date.now() - startTime);
       return {
         success: false,
         error: response.error || `Failed to get text: ${selector}`,
       };
     }
 
+    const text = (response['text'] as string) || '(empty)';
+    logger.toolSuccess('browser_get_text', args, { selector, textLength: text.length }, Date.now() - startTime);
     return {
       success: true,
-      result: (response['text'] as string) || '(empty)',
+      result: text,
     };
   } catch (error) {
+    logger.toolError('browser_get_text', args, error as Error, Date.now() - startTime);
     return {
       success: false,
       error: `Failed to get text: ${error instanceof Error ? error.message : String(error)}`,
@@ -466,15 +507,21 @@ Use this when you are done testing.`,
   },
 };
 
-async function executeBrowserClose(_args: Record<string, unknown>): Promise<ToolResult> {
+async function executeBrowserClose(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+
+  logger.toolStart('browser_close', {});
+
   try {
     await browserClient.close();
 
+    logger.toolSuccess('browser_close', args, { closed: true }, Date.now() - startTime);
     return {
       success: true,
       result: 'Browser closed successfully',
     };
   } catch (error) {
+    logger.toolError('browser_close', args, error as Error, Date.now() - startTime);
     return {
       success: false,
       error: `Failed to close browser: ${error instanceof Error ? error.message : String(error)}`,
@@ -517,9 +564,14 @@ Use this tool when you need to:
   },
 };
 
-async function executeBrowserGetContent(_args: Record<string, unknown>): Promise<ToolResult> {
+async function executeBrowserGetContent(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+
+  logger.toolStart('browser_get_content', {});
+
   try {
     if (!(await browserClient.isBrowserActive())) {
+      logger.toolError('browser_get_content', args, new Error('Browser not running'), Date.now() - startTime);
       return {
         success: false,
         error: 'Browser is not running. Use browser_launch first.',
@@ -529,6 +581,7 @@ async function executeBrowserGetContent(_args: Record<string, unknown>): Promise
     const response = await browserClient.getHtml();
 
     if (!response.success) {
+      logger.toolError('browser_get_content', args, new Error(response.error || 'Failed to get page content'), Date.now() - startTime);
       return {
         success: false,
         error: response.error || 'Failed to get page content',
@@ -542,11 +595,13 @@ async function executeBrowserGetContent(_args: Record<string, unknown>): Promise
       ? html.substring(0, maxLen) + `\n...(truncated, ${html.length} total chars)`
       : html;
 
+    logger.toolSuccess('browser_get_content', args, { url: response.url, title: response.title, htmlLength: html.length }, Date.now() - startTime);
     return {
       success: true,
       result: `Page: ${response.title} (${response.url})\n\nHTML:\n${truncatedHtml}`,
     };
   } catch (error) {
+    logger.toolError('browser_get_content', args, error as Error, Date.now() - startTime);
     return {
       success: false,
       error: `Failed to get page content: ${error instanceof Error ? error.message : String(error)}`,
@@ -589,9 +644,14 @@ Use this tool to:
   },
 };
 
-async function executeBrowserGetConsole(_args: Record<string, unknown>): Promise<ToolResult> {
+async function executeBrowserGetConsole(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+
+  logger.toolStart('browser_get_console', {});
+
   try {
     if (!(await browserClient.isBrowserActive())) {
+      logger.toolError('browser_get_console', args, new Error('Browser not running'), Date.now() - startTime);
       return {
         success: false,
         error: 'Browser is not running. Use browser_launch first.',
@@ -601,6 +661,7 @@ async function executeBrowserGetConsole(_args: Record<string, unknown>): Promise
     const response = await browserClient.getConsole();
 
     if (!response.success) {
+      logger.toolError('browser_get_console', args, new Error(response.error || 'Failed to get console logs'), Date.now() - startTime);
       return {
         success: false,
         error: response.error || 'Failed to get console logs',
@@ -609,6 +670,7 @@ async function executeBrowserGetConsole(_args: Record<string, unknown>): Promise
 
     const logs = response.logs || [];
     if (logs.length === 0) {
+      logger.toolSuccess('browser_get_console', args, { logCount: 0 }, Date.now() - startTime);
       return {
         success: true,
         result: 'No console messages captured.',
@@ -621,11 +683,13 @@ async function executeBrowserGetConsole(_args: Record<string, unknown>): Promise
       return `[${timestamp}] ${icon} ${log.level}: ${log.message}`;
     }).join('\n');
 
+    logger.toolSuccess('browser_get_console', args, { logCount: logs.length }, Date.now() - startTime);
     return {
       success: true,
       result: `Console logs (${logs.length} messages):\n\n${formatted}`,
     };
   } catch (error) {
+    logger.toolError('browser_get_console', args, error as Error, Date.now() - startTime);
     return {
       success: false,
       error: `Failed to get console logs: ${error instanceof Error ? error.message : String(error)}`,
@@ -669,9 +733,14 @@ Use this tool to:
   },
 };
 
-async function executeBrowserGetNetwork(_args: Record<string, unknown>): Promise<ToolResult> {
+async function executeBrowserGetNetwork(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+
+  logger.toolStart('browser_get_network', {});
+
   try {
     if (!(await browserClient.isBrowserActive())) {
+      logger.toolError('browser_get_network', args, new Error('Browser not running'), Date.now() - startTime);
       return {
         success: false,
         error: 'Browser is not running. Use browser_launch first.',
@@ -681,6 +750,7 @@ async function executeBrowserGetNetwork(_args: Record<string, unknown>): Promise
     const response = await browserClient.getNetwork();
 
     if (!response.success) {
+      logger.toolError('browser_get_network', args, new Error(response.error || 'Failed to get network logs'), Date.now() - startTime);
       return {
         success: false,
         error: response.error || 'Failed to get network logs',
@@ -689,6 +759,7 @@ async function executeBrowserGetNetwork(_args: Record<string, unknown>): Promise
 
     const logs = response.logs || [];
     if (logs.length === 0) {
+      logger.toolSuccess('browser_get_network', args, { logCount: 0 }, Date.now() - startTime);
       return {
         success: true,
         result: 'No network requests captured.',
@@ -704,11 +775,13 @@ async function executeBrowserGetNetwork(_args: Record<string, unknown>): Promise
       }
     }).join('\n');
 
+    logger.toolSuccess('browser_get_network', args, { logCount: logs.length }, Date.now() - startTime);
     return {
       success: true,
       result: `Network logs (${logs.length} entries):\n\n${formatted}`,
     };
   } catch (error) {
+    logger.toolError('browser_get_network', args, error as Error, Date.now() - startTime);
     return {
       success: false,
       error: `Failed to get network logs: ${error instanceof Error ? error.message : String(error)}`,
@@ -745,9 +818,14 @@ Use this to make the browser window visible and focused when needed.`,
   },
 };
 
-async function executeBrowserFocus(_args: Record<string, unknown>): Promise<ToolResult> {
+async function executeBrowserFocus(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+
+  logger.toolStart('browser_focus', {});
+
   try {
     if (!(await browserClient.isBrowserActive())) {
+      logger.toolError('browser_focus', args, new Error('Browser not running'), Date.now() - startTime);
       return {
         success: false,
         error: 'Browser is not running. Use browser_launch first.',
@@ -757,17 +835,20 @@ async function executeBrowserFocus(_args: Record<string, unknown>): Promise<Tool
     const response = await browserClient.focus();
 
     if (!response.success) {
+      logger.toolError('browser_focus', args, new Error(response.error || 'Failed to focus browser window'), Date.now() - startTime);
       return {
         success: false,
         error: response.error || 'Failed to focus browser window',
       };
     }
 
+    logger.toolSuccess('browser_focus', args, { focused: true }, Date.now() - startTime);
     return {
       success: true,
       result: 'Browser window brought to foreground.',
     };
   } catch (error) {
+    logger.toolError('browser_focus', args, error as Error, Date.now() - startTime);
     return {
       success: false,
       error: `Failed to focus browser: ${error instanceof Error ? error.message : String(error)}`,
@@ -829,9 +910,13 @@ Use this for form submission (Enter), navigation, or keyboard shortcuts.`,
 async function executeBrowserPressKey(args: Record<string, unknown>): Promise<ToolResult> {
   const key = args['key'] as string;
   const selector = args['selector'] as string | undefined;
+  const startTime = Date.now();
+
+  logger.toolStart('browser_press_key', { key, selector });
 
   try {
     if (!(await browserClient.isBrowserActive())) {
+      logger.toolError('browser_press_key', args, new Error('Browser not running'), Date.now() - startTime);
       return {
         success: false,
         error: 'Browser is not running. Use browser_launch first.',
@@ -841,17 +926,20 @@ async function executeBrowserPressKey(args: Record<string, unknown>): Promise<To
     const response = await browserClient.pressKey(key, selector);
 
     if (!response.success) {
+      logger.toolError('browser_press_key', args, new Error(response.error || `Failed to press key: ${key}`), Date.now() - startTime);
       return {
         success: false,
         error: response.error || `Failed to press key: ${key}`,
       };
     }
 
+    logger.toolSuccess('browser_press_key', args, { key, selector }, Date.now() - startTime);
     return {
       success: true,
       result: `Key "${key}" pressed${selector ? ` on ${selector}` : ''}`,
     };
   } catch (error) {
+    logger.toolError('browser_press_key', args, error as Error, Date.now() - startTime);
     return {
       success: false,
       error: `Failed to press key: ${error instanceof Error ? error.message : String(error)}`,
@@ -900,9 +988,13 @@ Useful for inputs that have keystroke handlers or autocomplete.`,
 async function executeBrowserType(args: Record<string, unknown>): Promise<ToolResult> {
   const text = args['text'] as string;
   const selector = args['selector'] as string | undefined;
+  const startTime = Date.now();
+
+  logger.toolStart('browser_type', { textLength: text?.length, selector });
 
   try {
     if (!(await browserClient.isBrowserActive())) {
+      logger.toolError('browser_type', args, new Error('Browser not running'), Date.now() - startTime);
       return {
         success: false,
         error: 'Browser is not running. Use browser_launch first.',
@@ -912,17 +1004,20 @@ async function executeBrowserType(args: Record<string, unknown>): Promise<ToolRe
     const response = await browserClient.type(text, selector);
 
     if (!response.success) {
+      logger.toolError('browser_type', args, new Error(response.error || 'Failed to type text'), Date.now() - startTime);
       return {
         success: false,
         error: response.error || 'Failed to type text',
       };
     }
 
+    logger.toolSuccess('browser_type', args, { textLength: text.length, selector }, Date.now() - startTime);
     return {
       success: true,
       result: `Typed ${text.length} characters${selector ? ` into ${selector}` : ''}`,
     };
   } catch (error) {
+    logger.toolError('browser_type', args, error as Error, Date.now() - startTime);
     return {
       success: false,
       error: `Failed to type: ${error instanceof Error ? error.message : String(error)}`,
@@ -970,8 +1065,12 @@ Examples:
 
 async function executeBrowserExecuteScript(args: Record<string, unknown>): Promise<ToolResult> {
   const script = args['script'] as string;
+  const startTime = Date.now();
+
+  logger.toolStart('browser_execute_script', { scriptLength: script?.length });
 
   if (!script) {
+    logger.toolError('browser_execute_script', args, new Error('Script argument required'), Date.now() - startTime);
     return {
       success: false,
       error: "The 'script' argument is required.",
@@ -980,6 +1079,7 @@ async function executeBrowserExecuteScript(args: Record<string, unknown>): Promi
 
   try {
     if (!(await browserClient.isBrowserActive())) {
+      logger.toolError('browser_execute_script', args, new Error('Browser not running'), Date.now() - startTime);
       return {
         success: false,
         error: 'Browser is not running. Use browser_launch first.',
@@ -989,6 +1089,7 @@ async function executeBrowserExecuteScript(args: Record<string, unknown>): Promi
     const response = await browserClient.executeScript(script);
 
     if (!response.success) {
+      logger.toolError('browser_execute_script', args, new Error(response.error || 'Failed to execute script'), Date.now() - startTime);
       return {
         success: false,
         error: response.error || 'Failed to execute script',
@@ -996,11 +1097,13 @@ async function executeBrowserExecuteScript(args: Record<string, unknown>): Promi
       };
     }
 
+    logger.toolSuccess('browser_execute_script', args, { scriptLength: script.length }, Date.now() - startTime);
     return {
       success: true,
       result: JSON.stringify(response['result'], null, 2),
     };
   } catch (error) {
+    logger.toolError('browser_execute_script', args, error as Error, Date.now() - startTime);
     return {
       success: false,
       error: `Failed to execute script: ${error instanceof Error ? error.message : String(error)}`,

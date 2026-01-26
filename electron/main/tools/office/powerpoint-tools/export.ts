@@ -8,6 +8,7 @@ import { ToolDefinition } from '../../../types/index';
 import { LLMSimpleTool, ToolResult } from '../../types';
 import { powerpointClient } from '../powerpoint-client';
 import { OFFICE_CATEGORIES } from '../common/constants';
+import { logger } from '../../../utils/logger';
 
 // =============================================================================
 // PowerPoint Save
@@ -30,13 +31,18 @@ const POWERPOINT_SAVE_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointSave(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_save', args);
   try {
     const response = await powerpointClient.powerpointSave(args['path'] as string | undefined);
     if (response.success) {
+      logger.toolSuccess('powerpoint_save', args, { path: response['path'] || 'current location' }, Date.now() - startTime);
       return { success: true, result: `Presentation saved: ${response['path'] || 'current location'}` };
     }
+    logger.toolError('powerpoint_save', args, new Error(response.error || 'Failed to save presentation'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to save presentation' };
   } catch (error) {
+    logger.toolError('powerpoint_save', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to save presentation: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -69,13 +75,18 @@ const POWERPOINT_EXPORT_PDF_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointExportPDF(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_export_pdf', args);
   try {
     const response = await powerpointClient.powerpointExportToPDF(args['path'] as string);
     if (response.success) {
+      logger.toolSuccess('powerpoint_export_pdf', args, { path: response['path'] || args['path'] }, Date.now() - startTime);
       return { success: true, result: `Exported to PDF: ${response['path'] || args['path']}` };
     }
+    logger.toolError('powerpoint_export_pdf', args, new Error(response.error || 'Failed to export to PDF'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to export to PDF' };
   } catch (error) {
+    logger.toolError('powerpoint_export_pdf', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to export to PDF: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -108,14 +119,19 @@ const POWERPOINT_START_SLIDESHOW_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointStartSlideshow(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_start_slideshow', args);
   try {
     const fromSlide = args['from_slide'] as number ?? 1;
     const response = await powerpointClient.powerpointStartSlideshow(fromSlide);
     if (response.success) {
+      logger.toolSuccess('powerpoint_start_slideshow', args, { fromSlide }, Date.now() - startTime);
       return { success: true, result: `Slideshow started from slide ${fromSlide}` };
     }
+    logger.toolError('powerpoint_start_slideshow', args, new Error(response.error || 'Failed to start slideshow'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to start slideshow' };
   } catch (error) {
+    logger.toolError('powerpoint_start_slideshow', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to start slideshow: ${error instanceof Error ? error.message : String(error)}` };
   }
 }

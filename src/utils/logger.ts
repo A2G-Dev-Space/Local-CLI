@@ -862,6 +862,1498 @@ export class Logger {
     console.log(displayResult);
     console.log(color('─'.repeat(80)));
   }
+
+  // ============================================================================
+  // HTTP Extended Methods
+  // ============================================================================
+
+  /**
+   * Log HTTP error
+   */
+  httpError(url: string, error: Error | unknown): void {
+    if (this.level < LogLevel.DEBUG) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const pid = this.getPid();
+    const traceId = this.getTraceIdStr();
+    const loc = this.getLocation(location);
+
+    console.log(
+      timestamp,
+      prefix,
+      pid,
+      traceId,
+      loc,
+      chalk.red('✗ HTTP ERROR:'),
+      url
+    );
+
+    if (error instanceof Error) {
+      console.log(chalk.red('  Message:'), error.message);
+    } else {
+      console.log(chalk.red('  Error:'), error);
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logError(error instanceof Error ? error : new Error(String(error)), `HTTP ${url}`);
+    }
+  }
+
+  /**
+   * Log HTTP stream start
+   */
+  httpStreamStart(method: string, url: string): void {
+    if (this.level < LogLevel.DEBUG) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const pid = this.getPid();
+    const traceId = this.getTraceIdStr();
+    const loc = this.getLocation(location);
+
+    console.log(
+      timestamp,
+      prefix,
+      pid,
+      traceId,
+      loc,
+      chalk.cyan('⇢ HTTP STREAM START:'),
+      chalk.bold(method),
+      url
+    );
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`HTTP Stream Start: ${method} ${url}`);
+    }
+  }
+
+  /**
+   * Log HTTP stream chunk
+   */
+  httpStreamChunk(data: unknown): void {
+    if (this.level < LogLevel.VERBOSE) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const pid = this.getPid();
+    const traceId = this.getTraceIdStr();
+    const loc = this.getLocation(location);
+
+    const chunkSize = typeof data === 'string' ? data.length : JSON.stringify(data).length;
+    console.log(
+      timestamp,
+      prefix,
+      pid,
+      traceId,
+      loc,
+      chalk.gray('⇨ HTTP STREAM CHUNK:'),
+      `${chunkSize} bytes`
+    );
+  }
+
+  /**
+   * Log HTTP stream end
+   */
+  httpStreamEnd(totalBytes: number, duration: number): void {
+    if (this.level < LogLevel.DEBUG) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const pid = this.getPid();
+    const traceId = this.getTraceIdStr();
+    const loc = this.getLocation(location);
+
+    console.log(
+      timestamp,
+      prefix,
+      pid,
+      traceId,
+      loc,
+      chalk.cyan('⇠ HTTP STREAM END:'),
+      `${totalBytes} bytes in ${duration}ms`
+    );
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`HTTP Stream End`, { totalBytes, duration });
+    }
+  }
+
+  // ============================================================================
+  // Tool Individual Methods
+  // ============================================================================
+
+  /**
+   * Log tool start
+   */
+  toolStart(name: string, args: unknown, reason?: string): void {
+    if (this.level < LogLevel.DEBUG) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const pid = this.getPid();
+    const traceId = this.getTraceIdStr();
+    const loc = this.getLocation(location);
+
+    console.log(
+      timestamp,
+      prefix,
+      pid,
+      traceId,
+      loc,
+      chalk.blue('🔧 TOOL START:'),
+      chalk.bold(name)
+    );
+    if (reason) {
+      console.log(chalk.blue('  Reason:'), reason);
+    }
+    if (args && this.level >= LogLevel.VERBOSE) {
+      console.log(chalk.blue('  Args:'), JSON.stringify(args, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logToolStart(name, args, reason);
+    }
+  }
+
+  /**
+   * Log tool success
+   */
+  toolSuccess(name: string, _args: unknown, result: unknown, duration: number): void {
+    if (this.level < LogLevel.DEBUG) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const pid = this.getPid();
+    const traceId = this.getTraceIdStr();
+    const loc = this.getLocation(location);
+
+    console.log(
+      timestamp,
+      prefix,
+      pid,
+      traceId,
+      loc,
+      chalk.green('✓ TOOL SUCCESS:'),
+      chalk.bold(name),
+      chalk.dim(`(${duration}ms)`)
+    );
+    if (result && this.level >= LogLevel.VERBOSE) {
+      console.log(chalk.green('  Result:'), this.formatValue(result));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logToolEnd(name, true, result, undefined, duration);
+    }
+  }
+
+  /**
+   * Log tool error
+   */
+  toolError(name: string, args: unknown, error: Error, duration: number): void {
+    if (this.level < LogLevel.ERROR) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const pid = this.getPid();
+    const traceId = this.getTraceIdStr();
+    const loc = this.getLocation(location);
+
+    console.log(
+      timestamp,
+      prefix,
+      pid,
+      traceId,
+      loc,
+      chalk.red('✗ TOOL ERROR:'),
+      chalk.bold(name),
+      chalk.dim(`(${duration}ms)`)
+    );
+    console.log(chalk.red('  Error:'), error.message);
+    if (args) {
+      console.log(chalk.red('  Args:'), JSON.stringify(args, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logToolEnd(name, false, undefined, error.message, duration);
+    }
+  }
+
+  // ============================================================================
+  // UI/UX Interaction Methods
+  // ============================================================================
+
+  /**
+   * Log user click event
+   */
+  userClick(element: string, context: Record<string, unknown>): void {
+    if (this.level < LogLevel.DEBUG) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.yellow('👆 USER CLICK:'), element);
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.yellow('  Context:'), JSON.stringify(context, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[UI] User Click: ${element}`, context);
+    }
+  }
+
+  /**
+   * Log user keyboard event
+   */
+  userKeyboard(type: string, context: Record<string, unknown>): void {
+    if (this.level < LogLevel.DEBUG) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.yellow('⌨️  USER KEYBOARD:'), type);
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.yellow('  Context:'), JSON.stringify(context, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[UI] User Keyboard: ${type}`, context);
+    }
+  }
+
+  /**
+   * Log user scroll event
+   */
+  userScroll(context: Record<string, unknown>): void {
+    if (this.level < LogLevel.VERBOSE) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.gray('📜 USER SCROLL'));
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.gray('  Context:'), JSON.stringify(context, null, 2));
+    }
+  }
+
+  /**
+   * Log user drag start
+   */
+  userDragStart(element: string, context: Record<string, unknown>): void {
+    if (this.level < LogLevel.DEBUG) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.yellow('🖱️  USER DRAG START:'), element);
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.yellow('  Context:'), JSON.stringify(context, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[UI] User Drag Start: ${element}`, context);
+    }
+  }
+
+  /**
+   * Log user drag end
+   */
+  userDragEnd(element: string, context: Record<string, unknown>): void {
+    if (this.level < LogLevel.DEBUG) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.yellow('🖱️  USER DRAG END:'), element);
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.yellow('  Context:'), JSON.stringify(context, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[UI] User Drag End: ${element}`, context);
+    }
+  }
+
+  // ============================================================================
+  // Component Lifecycle Methods
+  // ============================================================================
+
+  /**
+   * Log component mount
+   */
+  componentMount(name: string, context: Record<string, unknown>): void {
+    if (this.level < LogLevel.DEBUG) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.green('📦 COMPONENT MOUNT:'), name);
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.green('  Context:'), JSON.stringify(context, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[COMPONENT] Mount: ${name}`, context);
+    }
+  }
+
+  /**
+   * Log component unmount
+   */
+  componentUnmount(name: string, context: Record<string, unknown>): void {
+    if (this.level < LogLevel.DEBUG) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.red('📦 COMPONENT UNMOUNT:'), name);
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.red('  Context:'), JSON.stringify(context, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[COMPONENT] Unmount: ${name}`, context);
+    }
+  }
+
+  /**
+   * Log component render
+   */
+  componentRender(name: string, context: Record<string, unknown>): void {
+    if (this.level < LogLevel.VERBOSE) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.blue('📦 COMPONENT RENDER:'), name);
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.blue('  Context:'), JSON.stringify(context, null, 2));
+    }
+  }
+
+  /**
+   * Log component render complete
+   */
+  componentRenderComplete(name: string, context: Record<string, unknown>): void {
+    if (this.level < LogLevel.VERBOSE) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.green('✓ COMPONENT RENDER COMPLETE:'), name);
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.green('  Context:'), JSON.stringify(context, null, 2));
+    }
+  }
+
+  /**
+   * Log component state change
+   */
+  componentStateChange(name: string, field: string, context: Record<string, unknown>): void {
+    if (this.level < LogLevel.DEBUG) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.yellow('🔄 COMPONENT STATE:'), `${name}.${field}`);
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.yellow('  Context:'), JSON.stringify(context, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[COMPONENT] State Change: ${name}.${field}`, context);
+    }
+  }
+
+  // ============================================================================
+  // Screen/Navigation Methods
+  // ============================================================================
+
+  /**
+   * Log screen change
+   */
+  screenChange(to: string, context: Record<string, unknown>): void {
+    if (this.level < LogLevel.DEBUG) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.magenta('📱 SCREEN CHANGE:'), to);
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.magenta('  Context:'), JSON.stringify(context, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[SCREEN] Change: ${to}`, context);
+    }
+  }
+
+  /**
+   * Log tab change
+   */
+  tabChange(container: string, context: Record<string, unknown>): void {
+    if (this.level < LogLevel.DEBUG) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.magenta('🗂️  TAB CHANGE:'), container);
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.magenta('  Context:'), JSON.stringify(context, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[TAB] Change: ${container}`, context);
+    }
+  }
+
+  /**
+   * Log route change
+   */
+  routeChange(context: Record<string, unknown>): void {
+    if (this.level < LogLevel.DEBUG) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.magenta('🛤️  ROUTE CHANGE'));
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.magenta('  Context:'), JSON.stringify(context, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[ROUTE] Change`, context);
+    }
+  }
+
+  // ============================================================================
+  // Form Methods
+  // ============================================================================
+
+  /**
+   * Log form start
+   */
+  formStart(formId: string, context: Record<string, unknown>): void {
+    if (this.level < LogLevel.DEBUG) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.blue('📝 FORM START:'), formId);
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.blue('  Context:'), JSON.stringify(context, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[FORM] Start: ${formId}`, context);
+    }
+  }
+
+  /**
+   * Log form submit
+   */
+  formSubmit(formId: string, context: Record<string, unknown>): void {
+    if (this.level < LogLevel.DEBUG) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.blue('📤 FORM SUBMIT:'), formId);
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.blue('  Context:'), JSON.stringify(context, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[FORM] Submit: ${formId}`, context);
+    }
+  }
+
+  /**
+   * Log form result
+   */
+  formResult(formId: string, context: Record<string, unknown>): void {
+    if (this.level < LogLevel.DEBUG) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.green('✓ FORM RESULT:'), formId);
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.green('  Context:'), JSON.stringify(context, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[FORM] Result: ${formId}`, context);
+    }
+  }
+
+  /**
+   * Log form error
+   */
+  formError(formId: string, context: Record<string, unknown>): void {
+    if (this.level < LogLevel.DEBUG) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.red('✗ FORM ERROR:'), formId);
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.red('  Context:'), JSON.stringify(context, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[FORM] Error: ${formId}`, context);
+    }
+  }
+
+  /**
+   * Log field change
+   */
+  fieldChange(formId: string, field: string, context: Record<string, unknown>): void {
+    if (this.level < LogLevel.VERBOSE) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.gray('📝 FIELD CHANGE:'), `${formId}.${field}`);
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.gray('  Context:'), JSON.stringify(context, null, 2));
+    }
+  }
+
+  /**
+   * Log field validation
+   */
+  fieldValidation(formId: string, field: string, context: Record<string, unknown>): void {
+    if (this.level < LogLevel.DEBUG) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.yellow('✓ FIELD VALIDATION:'), `${formId}.${field}`);
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.yellow('  Context:'), JSON.stringify(context, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[FORM] Field Validation: ${formId}.${field}`, context);
+    }
+  }
+
+  // ============================================================================
+  // Modal/Dialog Methods
+  // ============================================================================
+
+  /**
+   * Log modal open
+   */
+  modalOpen(id: string, context: Record<string, unknown>): void {
+    if (this.level < LogLevel.DEBUG) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.cyan('📭 MODAL OPEN:'), id);
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.cyan('  Context:'), JSON.stringify(context, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[MODAL] Open: ${id}`, context);
+    }
+  }
+
+  /**
+   * Log modal close
+   */
+  modalClose(id: string, context: Record<string, unknown>): void {
+    if (this.level < LogLevel.DEBUG) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.cyan('📪 MODAL CLOSE:'), id);
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.cyan('  Context:'), JSON.stringify(context, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[MODAL] Close: ${id}`, context);
+    }
+  }
+
+  /**
+   * Log dialog show
+   */
+  dialogShow(type: string, context: Record<string, unknown>): void {
+    if (this.level < LogLevel.DEBUG) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.cyan('💬 DIALOG SHOW:'), type);
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.cyan('  Context:'), JSON.stringify(context, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[DIALOG] Show: ${type}`, context);
+    }
+  }
+
+  /**
+   * Log dialog result
+   */
+  dialogResult(type: string, context: Record<string, unknown>): void {
+    if (this.level < LogLevel.DEBUG) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.cyan('💬 DIALOG RESULT:'), type);
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.cyan('  Context:'), JSON.stringify(context, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[DIALOG] Result: ${type}`, context);
+    }
+  }
+
+  /**
+   * Log toast show
+   */
+  toastShow(context: Record<string, unknown>): void {
+    if (this.level < LogLevel.DEBUG) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.yellow('🔔 TOAST SHOW'));
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.yellow('  Context:'), JSON.stringify(context, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[TOAST] Show`, context);
+    }
+  }
+
+  /**
+   * Log toast dismiss
+   */
+  toastDismiss(context: Record<string, unknown>): void {
+    if (this.level < LogLevel.DEBUG) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.gray('🔕 TOAST DISMISS'));
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.gray('  Context:'), JSON.stringify(context, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[TOAST] Dismiss`, context);
+    }
+  }
+
+  // ============================================================================
+  // Loading Methods
+  // ============================================================================
+
+  /**
+   * Log loading start
+   */
+  loadingStart(id: string, context: Record<string, unknown>): void {
+    if (this.level < LogLevel.DEBUG) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.blue('⏳ LOADING START:'), id);
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.blue('  Context:'), JSON.stringify(context, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[LOADING] Start: ${id}`, context);
+    }
+  }
+
+  /**
+   * Log loading end
+   */
+  loadingEnd(id: string, context: Record<string, unknown>): void {
+    if (this.level < LogLevel.DEBUG) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.green('✓ LOADING END:'), id);
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.green('  Context:'), JSON.stringify(context, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[LOADING] End: ${id}`, context);
+    }
+  }
+
+  /**
+   * Log loading error
+   */
+  loadingError(id: string, context: Record<string, unknown>): void {
+    if (this.level < LogLevel.DEBUG) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.red('✗ LOADING ERROR:'), id);
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.red('  Context:'), JSON.stringify(context, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[LOADING] Error: ${id}`, context);
+    }
+  }
+
+  /**
+   * Log skeleton show
+   */
+  skeletonShow(id: string, context: Record<string, unknown>): void {
+    if (this.level < LogLevel.VERBOSE) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.gray('💀 SKELETON SHOW:'), id);
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.gray('  Context:'), JSON.stringify(context, null, 2));
+    }
+  }
+
+  /**
+   * Log skeleton hide
+   */
+  skeletonHide(id: string, context: Record<string, unknown>): void {
+    if (this.level < LogLevel.VERBOSE) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.gray('💀 SKELETON HIDE:'), id);
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.gray('  Context:'), JSON.stringify(context, null, 2));
+    }
+  }
+
+  /**
+   * Log progress start
+   */
+  progressStart(id: string, context: Record<string, unknown>): void {
+    if (this.level < LogLevel.DEBUG) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.blue('📊 PROGRESS START:'), id);
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.blue('  Context:'), JSON.stringify(context, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[PROGRESS] Start: ${id}`, context);
+    }
+  }
+
+  /**
+   * Log progress update
+   */
+  progressUpdate(id: string, context: Record<string, unknown>): void {
+    if (this.level < LogLevel.VERBOSE) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.blue('📊 PROGRESS UPDATE:'), id);
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.blue('  Context:'), JSON.stringify(context, null, 2));
+    }
+  }
+
+  /**
+   * Log progress complete
+   */
+  progressComplete(id: string, context: Record<string, unknown>): void {
+    if (this.level < LogLevel.DEBUG) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.green('✓ PROGRESS COMPLETE:'), id);
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.green('  Context:'), JSON.stringify(context, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[PROGRESS] Complete: ${id}`, context);
+    }
+  }
+
+  /**
+   * Log progress error
+   */
+  progressError(id: string, context: Record<string, unknown>): void {
+    if (this.level < LogLevel.DEBUG) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.red('✗ PROGRESS ERROR:'), id);
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.red('  Context:'), JSON.stringify(context, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[PROGRESS] Error: ${id}`, context);
+    }
+  }
+
+  // ============================================================================
+  // Animation Methods
+  // ============================================================================
+
+  /**
+   * Log animation start
+   */
+  animationStart(name: string, context: Record<string, unknown>): void {
+    if (this.level < LogLevel.VERBOSE) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.magenta('🎬 ANIMATION START:'), name);
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.magenta('  Context:'), JSON.stringify(context, null, 2));
+    }
+  }
+
+  /**
+   * Log animation end
+   */
+  animationEnd(name: string, context: Record<string, unknown>): void {
+    if (this.level < LogLevel.VERBOSE) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.magenta('🎬 ANIMATION END:'), name);
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.magenta('  Context:'), JSON.stringify(context, null, 2));
+    }
+  }
+
+  /**
+   * Log transition start
+   */
+  transitionStart(name: string, context: Record<string, unknown>): void {
+    if (this.level < LogLevel.VERBOSE) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.magenta('🔀 TRANSITION START:'), name);
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.magenta('  Context:'), JSON.stringify(context, null, 2));
+    }
+  }
+
+  /**
+   * Log transition end
+   */
+  transitionEnd(name: string, context: Record<string, unknown>): void {
+    if (this.level < LogLevel.VERBOSE) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.magenta('🔀 TRANSITION END:'), name);
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.magenta('  Context:'), JSON.stringify(context, null, 2));
+    }
+  }
+
+  /**
+   * Log hover enter
+   */
+  hoverEnter(element: string, context: Record<string, unknown>): void {
+    if (this.level < LogLevel.VERBOSE) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.gray('🖱️  HOVER ENTER:'), element);
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.gray('  Context:'), JSON.stringify(context, null, 2));
+    }
+  }
+
+  /**
+   * Log hover leave
+   */
+  hoverLeave(element: string, context: Record<string, unknown>): void {
+    if (this.level < LogLevel.VERBOSE) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.gray('🖱️  HOVER LEAVE:'), element);
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.gray('  Context:'), JSON.stringify(context, null, 2));
+    }
+  }
+
+  // ============================================================================
+  // Layout Methods
+  // ============================================================================
+
+  /**
+   * Log viewport resize
+   */
+  viewportResize(context: Record<string, unknown>): void {
+    if (this.level < LogLevel.DEBUG) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.blue('📐 VIEWPORT RESIZE'));
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.blue('  Context:'), JSON.stringify(context, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[LAYOUT] Viewport Resize`, context);
+    }
+  }
+
+  /**
+   * Log breakpoint change
+   */
+  breakpointChange(context: Record<string, unknown>): void {
+    if (this.level < LogLevel.DEBUG) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.blue('📐 BREAKPOINT CHANGE'));
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.blue('  Context:'), JSON.stringify(context, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[LAYOUT] Breakpoint Change`, context);
+    }
+  }
+
+  /**
+   * Log layout shift
+   */
+  layoutShift(context: Record<string, unknown>): void {
+    if (this.level < LogLevel.DEBUG) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.yellow('📐 LAYOUT SHIFT'));
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.yellow('  Context:'), JSON.stringify(context, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[LAYOUT] Shift`, context);
+    }
+  }
+
+  /**
+   * Log scroll position
+   */
+  scrollPosition(context: Record<string, unknown>): void {
+    if (this.level < LogLevel.VERBOSE) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.gray('📜 SCROLL POSITION'));
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.gray('  Context:'), JSON.stringify(context, null, 2));
+    }
+  }
+
+  // ============================================================================
+  // Error Boundary Methods
+  // ============================================================================
+
+  /**
+   * Log error boundary catch
+   */
+  errorBoundary(context: Record<string, unknown>): void {
+    if (this.level < LogLevel.ERROR) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.red('🛡️  ERROR BOUNDARY'));
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.red('  Context:'), JSON.stringify(context, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logError(new Error('Error Boundary'), 'errorBoundary');
+    }
+  }
+
+  /**
+   * Log unhandled rejection
+   */
+  unhandledRejection(context: Record<string, unknown>): void {
+    if (this.level < LogLevel.ERROR) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.red('⚠️  UNHANDLED REJECTION'));
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.red('  Context:'), JSON.stringify(context, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logError(new Error('Unhandled Rejection'), 'unhandledRejection');
+    }
+  }
+
+  /**
+   * Log global error
+   */
+  globalError(context: Record<string, unknown>): void {
+    if (this.level < LogLevel.ERROR) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.red('💥 GLOBAL ERROR'));
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.red('  Context:'), JSON.stringify(context, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logError(new Error('Global Error'), 'globalError');
+    }
+  }
+
+  // ============================================================================
+  // Session Methods
+  // ============================================================================
+
+  /**
+   * Log session start
+   */
+  sessionStart(context: Record<string, unknown>): void {
+    if (this.level < LogLevel.INFO) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.green('🚀 SESSION START'));
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.green('  Context:'), JSON.stringify(context, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logInfo(`Session Start`, context);
+    }
+  }
+
+  /**
+   * Log session end
+   */
+  sessionEnd(context: Record<string, unknown>): void {
+    if (this.level < LogLevel.INFO) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.red('🏁 SESSION END'));
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.red('  Context:'), JSON.stringify(context, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logInfo(`Session End`, context);
+    }
+  }
+
+  /**
+   * Log user milestone
+   */
+  userMilestone(name: string, context: Record<string, unknown>): void {
+    if (this.level < LogLevel.INFO) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.yellow('🏆 USER MILESTONE:'), name);
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.yellow('  Context:'), JSON.stringify(context, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logInfo(`User Milestone: ${name}`, context);
+    }
+  }
+
+  /**
+   * Log feature usage
+   */
+  featureUsage(name: string, context: Record<string, unknown>): void {
+    if (this.level < LogLevel.DEBUG) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.cyan('📊 FEATURE USAGE:'), name);
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.cyan('  Context:'), JSON.stringify(context, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`Feature Usage: ${name}`, context);
+    }
+  }
+
+  // ============================================================================
+  // Update Methods (for S3AutoUpdater)
+  // ============================================================================
+
+  /**
+   * Log update check start
+   */
+  updateCheckStart(): void {
+    if (this.level < LogLevel.INFO) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.cyan('🔄 UPDATE CHECK START'));
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logInfo('Update Check Start', {});
+    }
+  }
+
+  /**
+   * Log update available
+   */
+  updateAvailable(context: Record<string, unknown>): void {
+    if (this.level < LogLevel.INFO) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.green('✨ UPDATE AVAILABLE'));
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.green('  Version:'), context['version']);
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logInfo('Update Available', context);
+    }
+  }
+
+  /**
+   * Log update download start
+   */
+  updateDownloadStart(context: Record<string, unknown>): void {
+    if (this.level < LogLevel.INFO) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.cyan('⬇️  UPDATE DOWNLOAD START'));
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.cyan('  Context:'), JSON.stringify(context, null, 2));
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logInfo('Update Download Start', context);
+    }
+  }
+
+  /**
+   * Log update download progress
+   */
+  updateDownloadProgress(context: Record<string, unknown>): void {
+    if (this.level < LogLevel.DEBUG) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.cyan('⬇️  DOWNLOAD PROGRESS:'), `${context['percent']}%`);
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug('Update Download Progress', context);
+    }
+  }
+
+  /**
+   * Log update download complete
+   */
+  updateDownloadComplete(context: Record<string, unknown>): void {
+    if (this.level < LogLevel.INFO) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.green('✅ UPDATE DOWNLOAD COMPLETE'));
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.green('  Version:'), context['version']);
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logInfo('Update Download Complete', context);
+    }
+  }
+
+  /**
+   * Log update installing
+   */
+  updateInstalling(): void {
+    if (this.level < LogLevel.INFO) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.yellow('🔧 UPDATE INSTALLING'));
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logInfo('Update Installing', {});
+    }
+  }
+
+  /**
+   * Log update installed
+   */
+  updateInstalled(context: Record<string, unknown>): void {
+    if (this.level < LogLevel.INFO) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.green('🎉 UPDATE INSTALLED'));
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.green('  Version:'), context['version']);
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logInfo('Update Installed', context);
+    }
+  }
+
+  /**
+   * Log update error
+   */
+  updateError(context: Record<string, unknown>): void {
+    if (this.level < LogLevel.ERROR) return;
+
+    const location = this.getCallLocation();
+    const timestamp = this.getTimestamp();
+    const prefix = this.getPrefix();
+    const loc = this.getLocation(location);
+
+    console.log(timestamp, prefix, loc, chalk.red('❌ UPDATE ERROR'));
+    if (Object.keys(context).length > 0) {
+      console.log(chalk.red('  Error:'), context['error']);
+    }
+
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logError(new Error(String(context['error'] || 'Unknown error')), 'updateError');
+    }
+  }
 }
 
 /**

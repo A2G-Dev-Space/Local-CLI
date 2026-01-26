@@ -8,6 +8,7 @@ import { ToolDefinition } from '../../../types/index';
 import { LLMSimpleTool, ToolResult } from '../../types';
 import { wordClient } from '../word-client';
 import { OFFICE_CATEGORIES } from '../common/constants';
+import { logger } from '../../../utils/logger';
 
 // =============================================================================
 // Word Set Font
@@ -35,6 +36,8 @@ const WORD_SET_FONT_DEFINITION: ToolDefinition = {
 };
 
 async function executeWordSetFont(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('word_set_font', args);
   try {
     const response = await wordClient.wordSetFont({
       fontName: args['font_name'] as string | undefined,
@@ -45,10 +48,13 @@ async function executeWordSetFont(args: Record<string, unknown>): Promise<ToolRe
       color: args['color'] as string | undefined,
     });
     if (response.success) {
+      logger.toolSuccess('word_set_font', args, { set: true }, Date.now() - startTime);
       return { success: true, result: 'Font properties set' };
     }
+    logger.toolError('word_set_font', args, new Error(response.error || 'Failed to set font'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to set font' };
   } catch (error) {
+    logger.toolError('word_set_font', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to set font: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -85,6 +91,8 @@ const WORD_SET_PARAGRAPH_DEFINITION: ToolDefinition = {
 };
 
 async function executeWordSetParagraph(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('word_set_paragraph', args);
   try {
     const response = await wordClient.wordSetParagraph({
       alignment: args['alignment'] as 'left' | 'center' | 'right' | 'justify' | undefined,
@@ -94,10 +102,13 @@ async function executeWordSetParagraph(args: Record<string, unknown>): Promise<T
       firstLineIndent: args['first_line_indent'] as number | undefined,
     });
     if (response.success) {
+      logger.toolSuccess('word_set_paragraph', args, { set: true }, Date.now() - startTime);
       return { success: true, result: 'Paragraph formatting set' };
     }
+    logger.toolError('word_set_paragraph', args, new Error(response.error || 'Failed to set paragraph'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to set paragraph' };
   } catch (error) {
+    logger.toolError('word_set_paragraph', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to set paragraph: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -130,15 +141,20 @@ const WORD_INSERT_BREAK_DEFINITION: ToolDefinition = {
 };
 
 async function executeWordInsertBreak(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('word_insert_break', args);
   try {
     const response = await wordClient.wordInsertBreak(
       args['break_type'] as 'page' | 'line' | 'section' ?? 'page'
     );
     if (response.success) {
+      logger.toolSuccess('word_insert_break', args, { break_type: args['break_type'] || 'page' }, Date.now() - startTime);
       return { success: true, result: `${args['break_type'] || 'page'} break inserted` };
     }
+    logger.toolError('word_insert_break', args, new Error(response.error || 'Failed to insert break'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to insert break' };
   } catch (error) {
+    logger.toolError('word_insert_break', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to insert break: ${error instanceof Error ? error.message : String(error)}` };
   }
 }

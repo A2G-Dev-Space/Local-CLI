@@ -1028,6 +1028,27 @@ const electronAPI = {
     getCurrentSessionId: (): Promise<{ success: boolean; sessionId: string | null }> => {
       return ipcRenderer.invoke('log:getCurrentSessionId');
     },
+
+    // Current Run log methods (이번 실행 로그)
+    getRunFiles: (): Promise<{ success: boolean; files: Array<{ runId: string; path: string; size: number; modifiedAt: number }> }> => {
+      return ipcRenderer.invoke('log:getRunFiles');
+    },
+
+    getCurrentRunId: (): Promise<{ success: boolean; runId: string }> => {
+      return ipcRenderer.invoke('log:getCurrentRunId');
+    },
+
+    readCurrentRunLog: (): Promise<{ success: boolean; entries: Array<{ timestamp: string; level: string; message: string; data?: unknown }> }> => {
+      return ipcRenderer.invoke('log:readCurrentRunLog');
+    },
+
+    readRunLog: (runId: string): Promise<{ success: boolean; entries: Array<{ timestamp: string; level: string; message: string; data?: unknown }> }> => {
+      return ipcRenderer.invoke('log:readRunLog', runId);
+    },
+
+    deleteRunLog: (runId: string): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke('log:deleteRunLog', runId);
+    },
   },
 
   // ============ 시스템 ============

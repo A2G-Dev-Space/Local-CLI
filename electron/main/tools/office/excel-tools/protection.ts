@@ -8,6 +8,7 @@ import { ToolDefinition } from '../../../types/index';
 import { LLMSimpleTool, ToolResult } from '../../types';
 import { excelClient } from '../excel-client';
 import { OFFICE_CATEGORIES } from '../common/constants';
+import { logger } from '../../../utils/logger';
 
 // =============================================================================
 // Excel Protect Sheet
@@ -31,16 +32,21 @@ const EXCEL_PROTECT_SHEET_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelProtectSheet(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_protect_sheet', args);
   try {
     const response = await excelClient.excelProtectSheet(
       args['password'] as string | undefined,
       args['sheet'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('excel_protect_sheet', args, { sheet: args['sheet'] }, Date.now() - startTime);
       return { success: true, result: 'Sheet protected' };
     }
+    logger.toolError('excel_protect_sheet', args, new Error(response.error || 'Failed to protect sheet'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to protect sheet' };
   } catch (error) {
+    logger.toolError('excel_protect_sheet', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to protect sheet: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -74,16 +80,21 @@ const EXCEL_UNPROTECT_SHEET_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelUnprotectSheet(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_unprotect_sheet', args);
   try {
     const response = await excelClient.excelUnprotectSheet(
       args['password'] as string | undefined,
       args['sheet'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('excel_unprotect_sheet', args, { sheet: args['sheet'] }, Date.now() - startTime);
       return { success: true, result: 'Sheet unprotected' };
     }
+    logger.toolError('excel_unprotect_sheet', args, new Error(response.error || 'Failed to unprotect sheet'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to unprotect sheet' };
   } catch (error) {
+    logger.toolError('excel_unprotect_sheet', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to unprotect sheet: ${error instanceof Error ? error.message : String(error)}` };
   }
 }

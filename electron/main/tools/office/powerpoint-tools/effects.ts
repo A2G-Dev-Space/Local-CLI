@@ -9,6 +9,7 @@ import { ToolDefinition } from '../../../types/index';
 import { LLMSimpleTool, ToolResult } from '../../types';
 import { powerpointClient } from '../powerpoint-client';
 import { OFFICE_CATEGORIES } from '../common/constants';
+import { logger } from '../../../utils/logger';
 
 // =============================================================================
 // PowerPoint Add Animation
@@ -34,6 +35,8 @@ const POWERPOINT_ADD_ANIMATION_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointAddAnimation(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_add_animation', args);
   try {
     const response = await powerpointClient.powerpointAddAnimation(
       args['slide'] as number,
@@ -42,10 +45,13 @@ async function executePowerPointAddAnimation(args: Record<string, unknown>): Pro
       args['trigger'] as string ?? 'on_click'
     );
     if (response.success) {
+      logger.toolSuccess('powerpoint_add_animation', args, { slide: args['slide'], shape: args['shape'], effect: args['effect'] }, Date.now() - startTime);
       return { success: true, result: 'Animation added' };
     }
+    logger.toolError('powerpoint_add_animation', args, new Error(response.error || 'Failed to add animation'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to add animation' };
   } catch (error) {
+    logger.toolError('powerpoint_add_animation', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to add animation: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -80,6 +86,8 @@ const POWERPOINT_SET_TRANSITION_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointSetTransition(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_set_transition', args);
   try {
     const response = await powerpointClient.powerpointSetTransition(
       args['slide'] as number,
@@ -87,10 +95,13 @@ async function executePowerPointSetTransition(args: Record<string, unknown>): Pr
       args['duration'] as number ?? 1
     );
     if (response.success) {
+      logger.toolSuccess('powerpoint_set_transition', args, { slide: args['slide'], transition: args['transition'] }, Date.now() - startTime);
       return { success: true, result: `Transition set for slide ${args['slide']}` };
     }
+    logger.toolError('powerpoint_set_transition', args, new Error(response.error || 'Failed to set transition'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to set transition' };
   } catch (error) {
+    logger.toolError('powerpoint_set_transition', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to set transition: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -125,6 +136,8 @@ const POWERPOINT_SET_BACKGROUND_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointSetBackground(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_set_background', args);
   try {
     const response = await powerpointClient.powerpointSetBackground(
       args['slide'] as number,
@@ -134,10 +147,13 @@ async function executePowerPointSetBackground(args: Record<string, unknown>): Pr
       }
     );
     if (response.success) {
+      logger.toolSuccess('powerpoint_set_background', args, { slide: args['slide'] }, Date.now() - startTime);
       return { success: true, result: `Background set for slide ${args['slide']}` };
     }
+    logger.toolError('powerpoint_set_background', args, new Error(response.error || 'Failed to set background'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to set background' };
   } catch (error) {
+    logger.toolError('powerpoint_set_background', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to set background: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -177,6 +193,8 @@ const POWERPOINT_SET_SHADOW_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointSetShadow(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_set_shadow', args);
   try {
     const response = await powerpointClient.powerpointSetShadow(
       args['slide_number'] as number,
@@ -192,10 +210,13 @@ async function executePowerPointSetShadow(args: Record<string, unknown>): Promis
       }
     );
     if (response.success) {
+      logger.toolSuccess('powerpoint_set_shadow', args, { slideNumber: args['slide_number'], shapeIndex: args['shape_index'] }, Date.now() - startTime);
       return { success: true, result: response.message || 'Shadow effect updated' };
     }
+    logger.toolError('powerpoint_set_shadow', args, new Error(response.error || 'Failed to set shadow'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to set shadow' };
   } catch (error) {
+    logger.toolError('powerpoint_set_shadow', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to set shadow: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -234,6 +255,8 @@ const POWERPOINT_SET_REFLECTION_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointSetReflection(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_set_reflection', args);
   try {
     const response = await powerpointClient.powerpointSetReflection(
       args['slide_number'] as number,
@@ -248,10 +271,13 @@ async function executePowerPointSetReflection(args: Record<string, unknown>): Pr
       }
     );
     if (response.success) {
+      logger.toolSuccess('powerpoint_set_reflection', args, { slideNumber: args['slide_number'], shapeIndex: args['shape_index'] }, Date.now() - startTime);
       return { success: true, result: response.message || 'Reflection effect updated' };
     }
+    logger.toolError('powerpoint_set_reflection', args, new Error(response.error || 'Failed to set reflection'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to set reflection' };
   } catch (error) {
+    logger.toolError('powerpoint_set_reflection', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to set reflection: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -283,13 +309,18 @@ const POWERPOINT_APPLY_THEME_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointApplyTheme(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_apply_theme', args);
   try {
     const response = await powerpointClient.powerpointApplyTheme(args['theme_path'] as string);
     if (response.success) {
+      logger.toolSuccess('powerpoint_apply_theme', args, { themePath: args['theme_path'] }, Date.now() - startTime);
       return { success: true, result: response.message || 'Theme applied' };
     }
+    logger.toolError('powerpoint_apply_theme', args, new Error(response.error || 'Failed to apply theme'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to apply theme' };
   } catch (error) {
+    logger.toolError('powerpoint_apply_theme', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to apply theme: ${error instanceof Error ? error.message : String(error)}` };
   }
 }

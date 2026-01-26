@@ -11,6 +11,7 @@ import { ToolDefinition } from '../../../types/index';
 import { LLMSimpleTool, ToolResult } from '../../types';
 import { excelClient } from '../excel-client';
 import { OFFICE_CATEGORIES } from '../common/constants';
+import { logger } from '../../../utils/logger';
 
 // =============================================================================
 // Excel Set Column Width
@@ -36,6 +37,8 @@ const EXCEL_SET_COLUMN_WIDTH_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelSetColumnWidth(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_set_column_width', args);
   try {
     const response = await excelClient.excelSetColumnWidth(
       args['column'] as string,
@@ -44,10 +47,13 @@ async function executeExcelSetColumnWidth(args: Record<string, unknown>): Promis
       args['sheet'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('excel_set_column_width', args, { column: args['column'] }, Date.now() - startTime);
       return { success: true, result: `Column ${args['column']} width set` };
     }
+    logger.toolError('excel_set_column_width', args, new Error(response.error || 'Failed to set column width'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to set column width' };
   } catch (error) {
+    logger.toolError('excel_set_column_width', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to set column width: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -83,6 +89,8 @@ const EXCEL_SET_ROW_HEIGHT_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelSetRowHeight(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_set_row_height', args);
   try {
     const response = await excelClient.excelSetRowHeight(
       args['row'] as number,
@@ -91,10 +99,13 @@ async function executeExcelSetRowHeight(args: Record<string, unknown>): Promise<
       args['sheet'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('excel_set_row_height', args, { row: args['row'] }, Date.now() - startTime);
       return { success: true, result: `Row ${args['row']} height set` };
     }
+    logger.toolError('excel_set_row_height', args, new Error(response.error || 'Failed to set row height'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to set row height' };
   } catch (error) {
+    logger.toolError('excel_set_row_height', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to set row height: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -129,6 +140,8 @@ const EXCEL_INSERT_ROW_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelInsertRow(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_insert_row', args);
   try {
     const count = args['count'] as number ?? 1;
     const response = await excelClient.excelInsertRow(
@@ -137,10 +150,13 @@ async function executeExcelInsertRow(args: Record<string, unknown>): Promise<Too
       args['sheet'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('excel_insert_row', args, { row: args['row'], count }, Date.now() - startTime);
       return { success: true, result: `${count} row(s) inserted at row ${args['row']}` };
     }
+    logger.toolError('excel_insert_row', args, new Error(response.error || 'Failed to insert row'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to insert row' };
   } catch (error) {
+    logger.toolError('excel_insert_row', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to insert row: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -175,6 +191,8 @@ const EXCEL_DELETE_ROW_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelDeleteRow(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_delete_row', args);
   try {
     const count = args['count'] as number ?? 1;
     const response = await excelClient.excelDeleteRow(
@@ -183,10 +201,13 @@ async function executeExcelDeleteRow(args: Record<string, unknown>): Promise<Too
       args['sheet'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('excel_delete_row', args, { row: args['row'], count }, Date.now() - startTime);
       return { success: true, result: `${count} row(s) deleted at row ${args['row']}` };
     }
+    logger.toolError('excel_delete_row', args, new Error(response.error || 'Failed to delete row'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to delete row' };
   } catch (error) {
+    logger.toolError('excel_delete_row', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to delete row: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -220,16 +241,21 @@ const EXCEL_HIDE_COLUMN_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelHideColumn(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_hide_column', args);
   try {
     const response = await excelClient.excelHideColumn(
       args['column'] as string,
       args['sheet'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('excel_hide_column', args, { column: args['column'] }, Date.now() - startTime);
       return { success: true, result: `Column ${args['column']} hidden` };
     }
+    logger.toolError('excel_hide_column', args, new Error(response.error || 'Failed to hide column'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to hide column' };
   } catch (error) {
+    logger.toolError('excel_hide_column', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to hide column: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -263,16 +289,21 @@ const EXCEL_SHOW_COLUMN_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelShowColumn(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_show_column', args);
   try {
     const response = await excelClient.excelShowColumn(
       args['column'] as string,
       args['sheet'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('excel_show_column', args, { column: args['column'] }, Date.now() - startTime);
       return { success: true, result: `Column ${args['column']} shown` };
     }
+    logger.toolError('excel_show_column', args, new Error(response.error || 'Failed to show column'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to show column' };
   } catch (error) {
+    logger.toolError('excel_show_column', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to show column: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -306,16 +337,21 @@ const EXCEL_HIDE_ROW_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelHideRow(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_hide_row', args);
   try {
     const response = await excelClient.excelHideRow(
       args['row'] as number,
       args['sheet'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('excel_hide_row', args, { row: args['row'] }, Date.now() - startTime);
       return { success: true, result: `Row ${args['row']} hidden` };
     }
+    logger.toolError('excel_hide_row', args, new Error(response.error || 'Failed to hide row'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to hide row' };
   } catch (error) {
+    logger.toolError('excel_hide_row', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to hide row: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -349,16 +385,21 @@ const EXCEL_SHOW_ROW_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelShowRow(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_show_row', args);
   try {
     const response = await excelClient.excelShowRow(
       args['row'] as number,
       args['sheet'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('excel_show_row', args, { row: args['row'] }, Date.now() - startTime);
       return { success: true, result: `Row ${args['row']} shown` };
     }
+    logger.toolError('excel_show_row', args, new Error(response.error || 'Failed to show row'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to show row' };
   } catch (error) {
+    logger.toolError('excel_show_row', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to show row: ${error instanceof Error ? error.message : String(error)}` };
   }
 }

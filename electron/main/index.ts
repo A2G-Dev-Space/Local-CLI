@@ -151,10 +151,12 @@ async function createWindow(): Promise<void> {
 
   // 창 포커스 이벤트
   mainWindow.on('focus', () => {
+    logger.windowFocus({ windowId: mainWindow?.id });
     mainWindow?.webContents.send('window:focus', true);
   });
 
   mainWindow.on('blur', () => {
+    logger.windowBlur({ windowId: mainWindow?.id });
     mainWindow?.webContents.send('window:focus', false);
   });
 
@@ -185,13 +187,17 @@ async function createWindow(): Promise<void> {
 
   // 창 닫힘 처리
   mainWindow.on('closed', () => {
+    logger.windowClose({ windowId: 'main' });
     mainWindow = null;
   });
 
-  logger.info('Main window created', {
+  logger.windowCreate({
+    id: mainWindow.id,
     width: defaultWidth,
     height: defaultHeight,
     isDev,
+    frame: false,
+    titleBarStyle: 'hidden',
   });
 }
 
@@ -206,7 +212,7 @@ nativeTheme.on('updated', () => {
     mainWindow.setBackgroundColor(isDark ? '#1e1e1e' : '#ffffff');
   }
 
-  logger.info('System theme changed', { theme: isDark ? 'dark' : 'light' });
+  logger.systemThemeChange({ theme: isDark ? 'dark' : 'light', isDark });
 });
 
 // ============ Auto Updater 설정 ============
@@ -239,13 +245,13 @@ function setupAutoUpdater(): void {
 
   // 업데이트 확인 시작
   autoUpdater.on('checking-for-update', () => {
-    logger.info('Checking for updates...');
+    logger.updateCheckStart();
     mainWindow?.webContents.send('update:checking');
   });
 
   // 업데이트 가능
   autoUpdater.on('update-available', (info) => {
-    logger.info('Update available', { version: info.version });
+    logger.updateAvailable({ version: info.version, releaseDate: info.releaseDate });
     mainWindow?.webContents.send('update:available', info);
 
     // Release Notes 파싱
@@ -283,13 +289,13 @@ function setupAutoUpdater(): void {
 
   // 다운로드 진행률
   autoUpdater.on('download-progress', (progress) => {
-    logger.info('Download progress', { percent: progress.percent });
+    logger.updateDownloadProgress({ percent: progress.percent, bytesPerSecond: progress.bytesPerSecond, transferred: progress.transferred, total: progress.total });
     mainWindow?.webContents.send('update:download-progress', progress);
   });
 
   // 다운로드 완료
   autoUpdater.on('update-downloaded', (info) => {
-    logger.info('Update downloaded', { version: info.version });
+    logger.updateDownloadComplete({ version: info.version });
     mainWindow?.webContents.send('update:downloaded', info);
 
     // Release Notes 파싱
@@ -321,7 +327,7 @@ function setupAutoUpdater(): void {
 
   // 에러 처리
   autoUpdater.on('error', (error) => {
-    logger.error('Auto-updater error', { error: error.message });
+    logger.updateError({ error: error.message, stack: error.stack });
     mainWindow?.webContents.send('update:error', error.message);
   });
 
@@ -351,13 +357,17 @@ app.whenReady().then(async () => {
   // Tool Manager 초기화 (저장된 도구 그룹 활성화)
   await toolManager.initialize();
 
-  logger.info('Application starting', {
+  // appReady 로깅 (상세 시스템 이벤트)
+  logger.appReady({
     version: app.getVersion(),
     platform: process.platform,
     arch: process.arch,
     isDev,
     configPath: configManager.getConfigPath(),
     sessionsDir: sessionManager.getSessionsDirectory(),
+    nodeVersion: process.versions.node,
+    electronVersion: process.versions.electron,
+    chromeVersion: process.versions.chrome,
   });
 
   // IPC 핸들러 등록
@@ -388,7 +398,7 @@ app.on('window-all-closed', () => {
 
 // 앱 종료 전 정리
 app.on('before-quit', async () => {
-  logger.info('Application shutting down');
+  logger.appBeforeQuit({ reason: 'user_initiated' });
 
   // PowerShell 세션 종료
   await powerShellManager.terminate();

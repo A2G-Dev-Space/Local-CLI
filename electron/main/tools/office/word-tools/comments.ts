@@ -8,6 +8,7 @@ import { ToolDefinition } from '../../../types/index';
 import { LLMSimpleTool, ToolResult } from '../../types';
 import { wordClient } from '../word-client';
 import { OFFICE_CATEGORIES } from '../common/constants';
+import { logger } from '../../../utils/logger';
 
 // =============================================================================
 // Word Add Comment
@@ -31,16 +32,21 @@ const WORD_ADD_COMMENT_DEFINITION: ToolDefinition = {
 };
 
 async function executeWordAddComment(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('word_add_comment', args);
   try {
     const response = await wordClient.wordAddComment(
       args['text'] as string,
       args['author'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('word_add_comment', args, { added: true }, Date.now() - startTime);
       return { success: true, result: 'Comment added' };
     }
+    logger.toolError('word_add_comment', args, new Error(response.error || 'Failed to add comment'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to add comment' };
   } catch (error) {
+    logger.toolError('word_add_comment', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to add comment: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -72,19 +78,24 @@ const WORD_GET_COMMENTS_DEFINITION: ToolDefinition = {
 };
 
 async function executeWordGetComments(_args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('word_get_comments', _args);
   try {
     const response = await wordClient.wordGetComments();
     if (response.success) {
       const comments = response['comments'] as Array<{ index: number; author: string; text: string; scope: string }> || [];
       const count = response['count'] as number || 0;
+      logger.toolSuccess('word_get_comments', _args, { count }, Date.now() - startTime);
       if (count === 0) {
         return { success: true, result: 'No comments found' };
       }
       const list = comments.map(c => `[${c.index}] ${c.author}: "${c.text}" (on: "${c.scope?.slice(0, 30)}...")`).join('\n');
       return { success: true, result: `${count} comments:\n${list}` };
     }
+    logger.toolError('word_get_comments', _args, new Error(response.error || 'Failed to get comments'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to get comments' };
   } catch (error) {
+    logger.toolError('word_get_comments', _args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to get comments: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -117,13 +128,18 @@ const WORD_DELETE_COMMENT_DEFINITION: ToolDefinition = {
 };
 
 async function executeWordDeleteComment(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('word_delete_comment', args);
   try {
     const response = await wordClient.wordDeleteComment(args['index'] as number);
     if (response.success) {
+      logger.toolSuccess('word_delete_comment', args, { index: args['index'] }, Date.now() - startTime);
       return { success: true, result: `Comment ${args['index']} deleted` };
     }
+    logger.toolError('word_delete_comment', args, new Error(response.error || 'Failed to delete comment'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to delete comment' };
   } catch (error) {
+    logger.toolError('word_delete_comment', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to delete comment: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -155,13 +171,18 @@ const WORD_DELETE_ALL_COMMENTS_DEFINITION: ToolDefinition = {
 };
 
 async function executeWordDeleteAllComments(_args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('word_delete_all_comments', _args);
   try {
     const response = await wordClient.wordDeleteAllComments();
     if (response.success) {
+      logger.toolSuccess('word_delete_all_comments', _args, { deleted: true }, Date.now() - startTime);
       return { success: true, result: response.message || 'All comments deleted' };
     }
+    logger.toolError('word_delete_all_comments', _args, new Error(response.error || 'Failed to delete comments'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to delete comments' };
   } catch (error) {
+    logger.toolError('word_delete_all_comments', _args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to delete comments: ${error instanceof Error ? error.message : String(error)}` };
   }
 }

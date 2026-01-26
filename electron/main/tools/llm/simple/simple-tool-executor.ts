@@ -235,7 +235,7 @@ export async function executeSimpleTool(
   // Extract reason from args (not required for TODO tools)
   const reason = args['reason'] as string | undefined;
 
-  logger.enter(`executeSimpleTool:${toolName}`, { reason });
+  logger.toolStart(toolName, args, reason);
 
   // Call the callback to notify UI about tool execution (pass all args)
   // Skip for TODO tools which don't have reason parameter
@@ -247,10 +247,11 @@ export async function executeSimpleTool(
   const result = await tool.execute(args);
   const durationMs = Date.now() - startTime;
 
-  logger.exit(`executeSimpleTool:${toolName}`, {
-    success: result.success,
-    durationMs,
-  });
+  if (result.success) {
+    logger.toolSuccess(toolName, args, result.result, durationMs);
+  } else {
+    logger.toolError(toolName, args, new Error(result.error || 'Unknown error'), durationMs);
+  }
 
   // Call the response callback to notify UI about tool result
   // Skip response callback for TODO tools and final_response to avoid cluttering UI

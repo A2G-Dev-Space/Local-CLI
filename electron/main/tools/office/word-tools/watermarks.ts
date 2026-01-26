@@ -8,6 +8,7 @@ import { ToolDefinition } from '../../../types/index';
 import { LLMSimpleTool, ToolResult } from '../../types';
 import { wordClient } from '../word-client';
 import { OFFICE_CATEGORIES } from '../common/constants';
+import { logger } from '../../../utils/logger';
 
 // =============================================================================
 // Word Add Watermark
@@ -34,6 +35,8 @@ const WORD_ADD_WATERMARK_DEFINITION: ToolDefinition = {
 };
 
 async function executeWordAddWatermark(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('word_add_watermark', args);
   try {
     const response = await wordClient.wordAddWatermark(args['text'] as string, {
       fontName: args['font_name'] as string | undefined,
@@ -42,10 +45,13 @@ async function executeWordAddWatermark(args: Record<string, unknown>): Promise<T
       semitransparent: args['semitransparent'] as boolean | undefined,
     });
     if (response.success) {
+      logger.toolSuccess('word_add_watermark', args, { text: args['text'] }, Date.now() - startTime);
       return { success: true, result: 'Watermark added' };
     }
+    logger.toolError('word_add_watermark', args, new Error(response.error || 'Failed to add watermark'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to add watermark' };
   } catch (error) {
+    logger.toolError('word_add_watermark', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to add watermark: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -77,13 +83,18 @@ const WORD_REMOVE_WATERMARK_DEFINITION: ToolDefinition = {
 };
 
 async function executeWordRemoveWatermark(_args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('word_remove_watermark', _args);
   try {
     const response = await wordClient.wordRemoveWatermark();
     if (response.success) {
+      logger.toolSuccess('word_remove_watermark', _args, { removed: true }, Date.now() - startTime);
       return { success: true, result: 'Watermark removed' };
     }
+    logger.toolError('word_remove_watermark', _args, new Error(response.error || 'Failed to remove watermark'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to remove watermark' };
   } catch (error) {
+    logger.toolError('word_remove_watermark', _args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to remove watermark: ${error instanceof Error ? error.message : String(error)}` };
   }
 }

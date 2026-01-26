@@ -8,6 +8,7 @@ import { ToolDefinition } from '../../../types/index';
 import { LLMSimpleTool, ToolResult } from '../../types';
 import { excelClient } from '../excel-client';
 import { OFFICE_CATEGORIES } from '../common/constants';
+import { logger } from '../../../utils/logger';
 
 // =============================================================================
 // Excel Add Comment
@@ -32,6 +33,8 @@ const EXCEL_ADD_COMMENT_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelAddComment(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_add_comment', args);
   try {
     const response = await excelClient.excelAddComment(
       args['cell'] as string,
@@ -40,10 +43,13 @@ async function executeExcelAddComment(args: Record<string, unknown>): Promise<To
       args['sheet'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('excel_add_comment', args, { cell: args['cell'] }, Date.now() - startTime);
       return { success: true, result: `Comment added to ${args['cell']}` };
     }
+    logger.toolError('excel_add_comment', args, new Error(response.error || 'Failed to add comment'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to add comment' };
   } catch (error) {
+    logger.toolError('excel_add_comment', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to add comment: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -77,6 +83,8 @@ const EXCEL_GET_COMMENT_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelGetComment(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_get_comment', args);
   try {
     const response = await excelClient.excelGetComment(
       args['cell'] as string,
@@ -84,12 +92,16 @@ async function executeExcelGetComment(args: Record<string, unknown>): Promise<To
     );
     if (response.success) {
       if (response['has_comment']) {
+        logger.toolSuccess('excel_get_comment', args, { cell: args['cell'], hasComment: true }, Date.now() - startTime);
         return { success: true, result: `Comment at ${args['cell']}: "${response['text']}"` };
       }
+      logger.toolSuccess('excel_get_comment', args, { cell: args['cell'], hasComment: false }, Date.now() - startTime);
       return { success: true, result: `No comment at ${args['cell']}` };
     }
+    logger.toolError('excel_get_comment', args, new Error(response.error || 'Failed to get comment'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to get comment' };
   } catch (error) {
+    logger.toolError('excel_get_comment', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to get comment: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -123,16 +135,21 @@ const EXCEL_DELETE_COMMENT_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelDeleteComment(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_delete_comment', args);
   try {
     const response = await excelClient.excelDeleteComment(
       args['cell'] as string,
       args['sheet'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('excel_delete_comment', args, { cell: args['cell'] }, Date.now() - startTime);
       return { success: true, result: `Comment deleted from ${args['cell']}` };
     }
+    logger.toolError('excel_delete_comment', args, new Error(response.error || 'Failed to delete comment'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to delete comment' };
   } catch (error) {
+    logger.toolError('excel_delete_comment', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to delete comment: ${error instanceof Error ? error.message : String(error)}` };
   }
 }

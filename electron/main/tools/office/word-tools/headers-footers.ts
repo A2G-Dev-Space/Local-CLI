@@ -8,6 +8,7 @@ import { ToolDefinition } from '../../../types/index';
 import { LLMSimpleTool, ToolResult } from '../../types';
 import { wordClient } from '../word-client';
 import { OFFICE_CATEGORIES } from '../common/constants';
+import { logger } from '../../../utils/logger';
 
 // =============================================================================
 // Word Insert Header
@@ -32,6 +33,8 @@ const WORD_INSERT_HEADER_DEFINITION: ToolDefinition = {
 };
 
 async function executeWordInsertHeader(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('word_insert_header', args);
   try {
     const response = await wordClient.wordInsertHeader(
       args['text'] as string,
@@ -41,10 +44,13 @@ async function executeWordInsertHeader(args: Record<string, unknown>): Promise<T
       }
     );
     if (response.success) {
+      logger.toolSuccess('word_insert_header', args, { inserted: true }, Date.now() - startTime);
       return { success: true, result: 'Header inserted' };
     }
+    logger.toolError('word_insert_header', args, new Error(response.error || 'Failed to insert header'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to insert header' };
   } catch (error) {
+    logger.toolError('word_insert_header', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to insert header: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -79,6 +85,8 @@ const WORD_INSERT_FOOTER_DEFINITION: ToolDefinition = {
 };
 
 async function executeWordInsertFooter(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('word_insert_footer', args);
   try {
     const response = await wordClient.wordInsertFooter(
       args['text'] as string,
@@ -88,10 +96,13 @@ async function executeWordInsertFooter(args: Record<string, unknown>): Promise<T
       }
     );
     if (response.success) {
+      logger.toolSuccess('word_insert_footer', args, { inserted: true }, Date.now() - startTime);
       return { success: true, result: 'Footer inserted' };
     }
+    logger.toolError('word_insert_footer', args, new Error(response.error || 'Failed to insert footer'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to insert footer' };
   } catch (error) {
+    logger.toolError('word_insert_footer', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to insert footer: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -124,15 +135,20 @@ const WORD_INSERT_PAGE_NUMBER_DEFINITION: ToolDefinition = {
 };
 
 async function executeWordInsertPageNumber(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('word_insert_page_number', args);
   try {
     const response = await wordClient.wordInsertPageNumber(
       args['alignment'] as 'left' | 'center' | 'right' ?? 'center'
     );
     if (response.success) {
+      logger.toolSuccess('word_insert_page_number', args, { inserted: true }, Date.now() - startTime);
       return { success: true, result: 'Page numbers inserted' };
     }
+    logger.toolError('word_insert_page_number', args, new Error(response.error || 'Failed to insert page numbers'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to insert page numbers' };
   } catch (error) {
+    logger.toolError('word_insert_page_number', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to insert page numbers: ${error instanceof Error ? error.message : String(error)}` };
   }
 }

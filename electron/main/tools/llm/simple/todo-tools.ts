@@ -9,6 +9,7 @@
 
 import type { ToolDefinition } from '../../../core';
 import type { LLMSimpleTool, ToolResult, ToolCategory } from '../../types';
+import { logger } from '../../../utils/logger';
 
 // =============================================================================
 // Constants
@@ -99,8 +100,12 @@ Example - Mark first task complete, second in progress:
 
 async function executeWriteTodos(args: Record<string, unknown>): Promise<ToolResult> {
   const todos = args['todos'] as TodoItem[];
+  const startTime = Date.now();
+
+  logger.toolStart('write_todos', { todoCount: todos?.length || 0 });
 
   if (!todos || !Array.isArray(todos)) {
+    logger.toolError('write_todos', args, new Error('Missing todos array'), Date.now() - startTime);
     return { success: false, error: 'Missing required parameter: todos array is required' };
   }
 
@@ -120,6 +125,7 @@ async function executeWriteTodos(args: Record<string, unknown>): Promise<ToolRes
 
   try {
     const success = await todoWriteCallback(todos);
+    const durationMs = Date.now() - startTime;
 
     if (success) {
       const completed = todos.filter((t) => t.status === 'completed').length;
@@ -129,15 +135,20 @@ async function executeWriteTodos(args: Record<string, unknown>): Promise<ToolRes
 
       const summary = `TODO list updated (${todos.length} items): ${completed} completed, ${inProgress} in progress, ${pending} pending, ${failed} failed`;
 
+      logger.toolSuccess('write_todos', { todoCount: todos.length }, { completed, inProgress, pending, failed }, durationMs);
+
       return {
         success: true,
         result: summary,
         metadata: { todoCount: todos.length, completed, inProgress, pending, failed },
       };
     } else {
+      logger.toolError('write_todos', args, new Error('Failed to update TODO list'), durationMs);
       return { success: false, error: 'Failed to update TODO list' };
     }
   } catch (error) {
+    const durationMs = Date.now() - startTime;
+    logger.toolError('write_todos', args, error instanceof Error ? error : new Error(String(error)), durationMs);
     return {
       success: false,
       error: `Error writing TODOs: ${error instanceof Error ? error.message : 'Unknown error'}`,

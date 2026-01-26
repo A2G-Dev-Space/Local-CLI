@@ -8,6 +8,7 @@ import { ToolDefinition } from '../../../types/index';
 import { LLMSimpleTool, ToolResult } from '../../types';
 import { powerpointClient } from '../powerpoint-client';
 import { OFFICE_CATEGORIES } from '../common/constants';
+import { logger } from '../../../utils/logger';
 
 // =============================================================================
 // PowerPoint Add Table
@@ -36,6 +37,8 @@ const POWERPOINT_ADD_TABLE_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointAddTable(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_add_table', args);
   try {
     const response = await powerpointClient.powerpointAddTable(
       args['slide_number'] as number,
@@ -48,10 +51,13 @@ async function executePowerPointAddTable(args: Record<string, unknown>): Promise
       args['data'] as string[][] | undefined
     );
     if (response.success) {
+      logger.toolSuccess('powerpoint_add_table', args, { slideNumber: args['slide_number'], rows: args['rows'], cols: args['cols'], shapeIndex: response['shape_index'] }, Date.now() - startTime);
       return { success: true, result: `Table added. Shape index: ${response['shape_index']}` };
     }
+    logger.toolError('powerpoint_add_table', args, new Error(response.error || 'Failed to add table'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to add table' };
   } catch (error) {
+    logger.toolError('powerpoint_add_table', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to add table: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -91,6 +97,8 @@ const POWERPOINT_SET_TABLE_CELL_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointSetTableCell(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_set_table_cell', args);
   try {
     const response = await powerpointClient.powerpointSetTableCell(
       args['slide_number'] as number,
@@ -106,10 +114,13 @@ async function executePowerPointSetTableCell(args: Record<string, unknown>): Pro
       }
     );
     if (response.success) {
+      logger.toolSuccess('powerpoint_set_table_cell', args, { slideNumber: args['slide_number'], shapeIndex: args['shape_index'], row: args['row'], col: args['col'] }, Date.now() - startTime);
       return { success: true, result: response.message || 'Table cell updated' };
     }
+    logger.toolError('powerpoint_set_table_cell', args, new Error(response.error || 'Failed to update table cell'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to update table cell' };
   } catch (error) {
+    logger.toolError('powerpoint_set_table_cell', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to update table cell: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -145,6 +156,8 @@ const POWERPOINT_SET_TABLE_STYLE_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointSetTableStyle(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_set_table_style', args);
   try {
     const response = await powerpointClient.powerpointSetTableStyle(
       args['slide_number'] as number,
@@ -156,10 +169,13 @@ async function executePowerPointSetTableStyle(args: Record<string, unknown>): Pr
       }
     );
     if (response.success) {
+      logger.toolSuccess('powerpoint_set_table_style', args, { slideNumber: args['slide_number'], shapeIndex: args['shape_index'] }, Date.now() - startTime);
       return { success: true, result: response.message || 'Table style updated' };
     }
+    logger.toolError('powerpoint_set_table_style', args, new Error(response.error || 'Failed to update table style'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to update table style' };
   } catch (error) {
+    logger.toolError('powerpoint_set_table_style', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to update table style: ${error instanceof Error ? error.message : String(error)}` };
   }
 }

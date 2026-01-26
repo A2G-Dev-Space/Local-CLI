@@ -9,6 +9,7 @@ import { ToolDefinition } from '../../../types/index';
 import { LLMSimpleTool, ToolResult } from '../../types';
 import { excelClient } from '../excel-client';
 import { OFFICE_CATEGORIES } from '../common/index';
+import { logger } from '../../../utils/logger';
 
 // =============================================================================
 // Excel Write Cell
@@ -41,6 +42,8 @@ Use cell references like "A1", "B2", "C10", etc.
 };
 
 async function executeExcelWriteCell(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_write_cell', args);
   try {
     const response = await excelClient.excelWriteCell(
       args['cell'] as string,
@@ -54,10 +57,13 @@ async function executeExcelWriteCell(args: Record<string, unknown>): Promise<Too
       }
     );
     if (response.success) {
+      logger.toolSuccess('excel_write_cell', args, { cell: args['cell'] }, Date.now() - startTime);
       return { success: true, result: `Value written to cell ${args['cell']}` };
     }
+    logger.toolError('excel_write_cell', args, new Error(response.error || 'Failed to write cell'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to write cell' };
   } catch (error) {
+    logger.toolError('excel_write_cell', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to write cell: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -91,6 +97,8 @@ const EXCEL_READ_CELL_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelReadCell(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_read_cell', args);
   try {
     const response = await excelClient.excelReadCell(
       args['cell'] as string,
@@ -98,10 +106,13 @@ async function executeExcelReadCell(args: Record<string, unknown>): Promise<Tool
     );
     if (response.success) {
       const value = response['value'];
+      logger.toolSuccess('excel_read_cell', args, { cell: args['cell'], hasValue: value != null }, Date.now() - startTime);
       return { success: true, result: `Cell ${args['cell']}: ${value ?? '(empty)'}` };
     }
+    logger.toolError('excel_read_cell', args, new Error(response.error || 'Failed to read cell'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to read cell' };
   } catch (error) {
+    logger.toolError('excel_read_cell', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to read cell: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -138,6 +149,8 @@ Example: start_cell="A1", values=[["Name", "Age"], ["John", 25]]`,
 };
 
 async function executeExcelWriteRange(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_write_range', args);
   const values = args['values'] as unknown[][];
   try {
     const response = await excelClient.excelWriteRange(
@@ -148,10 +161,13 @@ async function executeExcelWriteRange(args: Record<string, unknown>): Promise<To
     if (response.success) {
       const rows = values.length;
       const cols = values[0]?.length || 0;
+      logger.toolSuccess('excel_write_range', args, { startCell: args['start_cell'], rows, cols }, Date.now() - startTime);
       return { success: true, result: `Written ${rows}x${cols} values starting at ${args['start_cell']}` };
     }
+    logger.toolError('excel_write_range', args, new Error(response.error || 'Failed to write range'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to write range' };
   } catch (error) {
+    logger.toolError('excel_write_range', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to write range: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -186,6 +202,8 @@ Returns a 2D array of values.`,
 };
 
 async function executeExcelReadRange(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_read_range', args);
   try {
     const response = await excelClient.excelReadRange(
       args['range'] as string,
@@ -195,13 +213,16 @@ async function executeExcelReadRange(args: Record<string, unknown>): Promise<Too
       const values = response['values'];
       const rows = response['rows'] as number || 0;
       const cols = response['columns'] as number || 0;
+      logger.toolSuccess('excel_read_range', args, { range: args['range'], rows, cols }, Date.now() - startTime);
       return {
         success: true,
         result: `Range ${args['range']} (${rows}x${cols}):\n${JSON.stringify(values, null, 2)}`,
       };
     }
+    logger.toolError('excel_read_range', args, new Error(response.error || 'Failed to read range'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to read range' };
   } catch (error) {
+    logger.toolError('excel_read_range', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to read range: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -235,16 +256,21 @@ const EXCEL_COPY_RANGE_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelCopyRange(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_copy_range', args);
   try {
     const response = await excelClient.excelCopyRange(
       args['range'] as string,
       args['sheet'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('excel_copy_range', args, { range: args['range'] }, Date.now() - startTime);
       return { success: true, result: `Range ${args['range']} copied to clipboard` };
     }
+    logger.toolError('excel_copy_range', args, new Error(response.error || 'Failed to copy range'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to copy range' };
   } catch (error) {
+    logger.toolError('excel_copy_range', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to copy range: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -278,16 +304,21 @@ const EXCEL_PASTE_RANGE_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelPasteRange(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_paste_range', args);
   try {
     const response = await excelClient.excelPasteRange(
       args['destination'] as string,
       args['sheet'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('excel_paste_range', args, { destination: args['destination'] }, Date.now() - startTime);
       return { success: true, result: `Pasted to ${args['destination']}` };
     }
+    logger.toolError('excel_paste_range', args, new Error(response.error || 'Failed to paste'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to paste' };
   } catch (error) {
+    logger.toolError('excel_paste_range', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to paste: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -322,6 +353,8 @@ const EXCEL_CLEAR_RANGE_DEFINITION: ToolDefinition = {
 };
 
 async function executeExcelClearRange(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_clear_range', args);
   try {
     const response = await excelClient.excelClearRange(
       args['range'] as string,
@@ -329,10 +362,13 @@ async function executeExcelClearRange(args: Record<string, unknown>): Promise<To
       args['sheet'] as string | undefined
     );
     if (response.success) {
+      logger.toolSuccess('excel_clear_range', args, { range: args['range'], clearType: args['clear_type'] }, Date.now() - startTime);
       return { success: true, result: response.message || `Range ${args['range']} cleared` };
     }
+    logger.toolError('excel_clear_range', args, new Error(response.error || 'Failed to clear range'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to clear range' };
   } catch (error) {
+    logger.toolError('excel_clear_range', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to clear range: ${error instanceof Error ? error.message : String(error)}` };
   }
 }

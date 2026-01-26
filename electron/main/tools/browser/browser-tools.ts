@@ -8,6 +8,7 @@
 import { ToolDefinition } from '../../core';
 import { LLMSimpleTool, ToolResult, BROWSER_CATEGORIES } from '../types';
 import { browserClient } from './browser-client';
+import { logger } from '../../utils/logger';
 
 // =============================================================================
 // Browser Launch
@@ -40,16 +41,21 @@ Only use headless: true when explicitly requested by the user.`,
 };
 
 async function executeBrowserLaunch(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('browser_launch', args);
   try {
     const response = await browserClient.launch({
       browser: args['browser'] as 'chrome' | 'edge' | undefined,
       headless: args['headless'] as boolean | undefined,
     });
     if (response.success) {
+      logger.toolSuccess('browser_launch', args, { message: response.message }, Date.now() - startTime);
       return { success: true, result: response.message || 'Browser launched' };
     }
+    logger.toolError('browser_launch', args, new Error(response.error || 'Failed to launch browser'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to launch browser' };
   } catch (error) {
+    logger.toolError('browser_launch', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to launch browser: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -81,13 +87,18 @@ const BROWSER_CLOSE_DEFINITION: ToolDefinition = {
 };
 
 async function executeBrowserClose(_args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('browser_close', _args);
   try {
     const response = await browserClient.close();
     if (response.success) {
+      logger.toolSuccess('browser_close', _args, { message: response.message }, Date.now() - startTime);
       return { success: true, result: response.message || 'Browser closed' };
     }
+    logger.toolError('browser_close', _args, new Error(response.error || 'Failed to close browser'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to close browser' };
   } catch (error) {
+    logger.toolError('browser_close', _args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to close browser: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -120,13 +131,18 @@ const BROWSER_NAVIGATE_DEFINITION: ToolDefinition = {
 };
 
 async function executeBrowserNavigate(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('browser_navigate', args);
   try {
     const response = await browserClient.navigate(args['url'] as string);
     if (response.success) {
+      logger.toolSuccess('browser_navigate', args, { url: response['url'], title: response['title'] }, Date.now() - startTime);
       return { success: true, result: `Navigated to: ${response['url']} - ${response['title']}` };
     }
+    logger.toolError('browser_navigate', args, new Error(response.error || 'Failed to navigate'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to navigate' };
   } catch (error) {
+    logger.toolError('browser_navigate', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to navigate: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -159,13 +175,18 @@ const BROWSER_CLICK_DEFINITION: ToolDefinition = {
 };
 
 async function executeBrowserClick(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('browser_click', args);
   try {
     const response = await browserClient.click(args['selector'] as string);
     if (response.success) {
+      logger.toolSuccess('browser_click', args, { selector: args['selector'] }, Date.now() - startTime);
       return { success: true, result: `Clicked element: ${args['selector']}` };
     }
+    logger.toolError('browser_click', args, new Error(response.error || 'Failed to click element'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to click element' };
   } catch (error) {
+    logger.toolError('browser_click', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to click: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -200,6 +221,8 @@ const BROWSER_TYPE_DEFINITION: ToolDefinition = {
 };
 
 async function executeBrowserType(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('browser_type', { selector: args['selector'], textLength: (args['text'] as string)?.length });
   try {
     const response = await browserClient.type(
       args['selector'] as string,
@@ -207,10 +230,13 @@ async function executeBrowserType(args: Record<string, unknown>): Promise<ToolRe
       args['clear'] !== false
     );
     if (response.success) {
+      logger.toolSuccess('browser_type', { selector: args['selector'] }, { typed: true }, Date.now() - startTime);
       return { success: true, result: `Typed text into: ${args['selector']}` };
     }
+    logger.toolError('browser_type', args, new Error(response.error || 'Failed to type text'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to type text' };
   } catch (error) {
+    logger.toolError('browser_type', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to type: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -244,17 +270,22 @@ Returns base64 encoded PNG image and saves to file.`,
 };
 
 async function executeBrowserScreenshot(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('browser_screenshot', args);
   try {
     const response = await browserClient.screenshot(args['full_page'] === true);
     if (response.success) {
+      logger.toolSuccess('browser_screenshot', args, { filepath: response['filepath'] }, Date.now() - startTime);
       return {
         success: true,
         result: `Screenshot saved to: ${response['filepath']}`,
         metadata: { filepath: response['filepath'] as string },
       };
     }
+    logger.toolError('browser_screenshot', args, new Error(response.error || 'Failed to take screenshot'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to take screenshot' };
   } catch (error) {
+    logger.toolError('browser_screenshot', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to screenshot: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -287,15 +318,20 @@ const BROWSER_GET_HTML_DEFINITION: ToolDefinition = {
 };
 
 async function executeBrowserGetHtml(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('browser_get_html', args);
   try {
     const response = await browserClient.getHtml(args['selector'] as string | undefined);
     if (response.success) {
       const html = response['html'] as string;
       const truncated = html.length > 10000 ? html.slice(0, 10000) + '\n... (truncated)' : html;
+      logger.toolSuccess('browser_get_html', args, { htmlLength: html.length }, Date.now() - startTime);
       return { success: true, result: truncated };
     }
+    logger.toolError('browser_get_html', args, new Error(response.error || 'Failed to get HTML'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to get HTML' };
   } catch (error) {
+    logger.toolError('browser_get_html', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to get HTML: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -329,16 +365,21 @@ const BROWSER_WAIT_DEFINITION: ToolDefinition = {
 };
 
 async function executeBrowserWait(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('browser_wait', args);
   try {
     const response = await browserClient.waitFor(
       args['selector'] as string | undefined,
       args['timeout'] as number | undefined
     );
     if (response.success) {
+      logger.toolSuccess('browser_wait', args, { message: response.message }, Date.now() - startTime);
       return { success: true, result: response.message || 'Wait completed' };
     }
+    logger.toolError('browser_wait', args, new Error(response.error || 'Wait failed'), Date.now() - startTime);
     return { success: false, error: response.error || 'Wait failed' };
   } catch (error) {
+    logger.toolError('browser_wait', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Wait failed: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -371,13 +412,18 @@ const BROWSER_CONNECT_DEFINITION: ToolDefinition = {
 };
 
 async function executeBrowserConnect(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('browser_connect', args);
   try {
     const response = await browserClient.connect(args['port'] as number | undefined);
     if (response.success) {
+      logger.toolSuccess('browser_connect', args, { url: response['url'] }, Date.now() - startTime);
       return { success: true, result: `Connected to browser at ${response['url']}` };
     }
+    logger.toolError('browser_connect', args, new Error(response.error || 'Failed to connect'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to connect' };
   } catch (error) {
+    logger.toolError('browser_connect', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to connect: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -416,13 +462,18 @@ Examples:
 };
 
 async function executeBrowserExecuteScript(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('browser_execute_script', { scriptLength: (args['script'] as string)?.length });
   try {
     const response = await browserClient.executeScript(args['script'] as string);
     if (response.success) {
+      logger.toolSuccess('browser_execute_script', { scriptLength: (args['script'] as string)?.length }, { hasResult: !!response['result'] }, Date.now() - startTime);
       return { success: true, result: JSON.stringify(response['result'], null, 2) };
     }
+    logger.toolError('browser_execute_script', args, new Error(response.error || 'Script execution failed'), Date.now() - startTime);
     return { success: false, error: response.error || 'Script execution failed' };
   } catch (error) {
+    logger.toolError('browser_execute_script', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Script failed: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -456,13 +507,18 @@ const BROWSER_FILL_DEFINITION: ToolDefinition = {
 };
 
 async function executeBrowserFill(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('browser_fill', { selector: args['selector'], valueLength: (args['value'] as string)?.length });
   try {
     const response = await browserClient.fill(args['selector'] as string, args['value'] as string);
     if (response.success) {
+      logger.toolSuccess('browser_fill', { selector: args['selector'] }, { filled: true }, Date.now() - startTime);
       return { success: true, result: `Filled field: ${args['selector']}` };
     }
+    logger.toolError('browser_fill', args, new Error(response.error || 'Failed to fill field'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to fill field' };
   } catch (error) {
+    logger.toolError('browser_fill', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to fill: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -495,13 +551,18 @@ const BROWSER_FOCUS_DEFINITION: ToolDefinition = {
 };
 
 async function executeBrowserFocus(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('browser_focus', args);
   try {
     const response = await browserClient.focus(args['selector'] as string);
     if (response.success) {
+      logger.toolSuccess('browser_focus', args, { selector: args['selector'] }, Date.now() - startTime);
       return { success: true, result: `Focused element: ${args['selector']}` };
     }
+    logger.toolError('browser_focus', args, new Error(response.error || 'Failed to focus element'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to focus element' };
   } catch (error) {
+    logger.toolError('browser_focus', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to focus: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -533,13 +594,18 @@ const BROWSER_GET_CONSOLE_DEFINITION: ToolDefinition = {
 };
 
 async function executeBrowserGetConsole(_args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('browser_get_console', _args);
   try {
     const response = await browserClient.getConsole();
     if (response.success) {
+      logger.toolSuccess('browser_get_console', _args, { message: response.message }, Date.now() - startTime);
       return { success: true, result: response.message || 'Console logging enabled' };
     }
+    logger.toolError('browser_get_console', _args, new Error(response.error || 'Failed to enable console'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to enable console' };
   } catch (error) {
+    logger.toolError('browser_get_console', _args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -571,8 +637,11 @@ const BROWSER_GET_HEALTH_DEFINITION: ToolDefinition = {
 };
 
 async function executeBrowserGetHealth(_args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('browser_get_health', _args);
   try {
     const response = await browserClient.getHealth();
+    logger.toolSuccess('browser_get_health', _args, { connected: response['connected'], port: response['port'] }, Date.now() - startTime);
     return {
       success: true,
       result: JSON.stringify({
@@ -583,6 +652,7 @@ async function executeBrowserGetHealth(_args: Record<string, unknown>): Promise<
       }, null, 2),
     };
   } catch (error) {
+    logger.toolError('browser_get_health', _args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -614,17 +684,22 @@ const BROWSER_GET_NETWORK_DEFINITION: ToolDefinition = {
 };
 
 async function executeBrowserGetNetwork(_args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('browser_get_network', _args);
   try {
     const response = await browserClient.getNetwork();
     if (response.success) {
       const resources = response['resources'] as Array<unknown>;
+      logger.toolSuccess('browser_get_network', _args, { resourceCount: response['count'] }, Date.now() - startTime);
       return {
         success: true,
         result: `Found ${response['count']} network resources:\n${JSON.stringify(resources.slice(0, 20), null, 2)}${resources.length > 20 ? '\n... (truncated)' : ''}`,
       };
     }
+    logger.toolError('browser_get_network', _args, new Error(response.error || 'Failed to get network info'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to get network info' };
   } catch (error) {
+    logger.toolError('browser_get_network', _args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -656,9 +731,12 @@ const BROWSER_GET_PAGE_INFO_DEFINITION: ToolDefinition = {
 };
 
 async function executeBrowserGetPageInfo(_args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('browser_get_page_info', _args);
   try {
     const response = await browserClient.getPageInfo();
     if (response.success) {
+      logger.toolSuccess('browser_get_page_info', _args, { url: response['url'], title: response['title'] }, Date.now() - startTime);
       return {
         success: true,
         result: JSON.stringify({
@@ -673,8 +751,10 @@ async function executeBrowserGetPageInfo(_args: Record<string, unknown>): Promis
         }, null, 2),
       };
     }
+    logger.toolError('browser_get_page_info', _args, new Error(response.error || 'Failed to get page info'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to get page info' };
   } catch (error) {
+    logger.toolError('browser_get_page_info', _args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -707,15 +787,20 @@ const BROWSER_GET_TEXT_DEFINITION: ToolDefinition = {
 };
 
 async function executeBrowserGetText(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('browser_get_text', args);
   try {
     const response = await browserClient.getText(args['selector'] as string | undefined);
     if (response.success) {
       const text = response['text'] as string;
       const truncated = text.length > 5000 ? text.slice(0, 5000) + '\n... (truncated)' : text;
+      logger.toolSuccess('browser_get_text', args, { textLength: text.length }, Date.now() - startTime);
       return { success: true, result: truncated };
     }
+    logger.toolError('browser_get_text', args, new Error(response.error || 'Failed to get text'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to get text' };
   } catch (error) {
+    logger.toolError('browser_get_text', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -749,13 +834,18 @@ Supports special keys: Enter, Tab, Escape, Backspace, Delete, ArrowUp, ArrowDown
 };
 
 async function executeBrowserPressKey(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('browser_press_key', args);
   try {
     const response = await browserClient.pressKey(args['key'] as string);
     if (response.success) {
+      logger.toolSuccess('browser_press_key', args, { key: args['key'] }, Date.now() - startTime);
       return { success: true, result: `Pressed key: ${args['key']}` };
     }
+    logger.toolError('browser_press_key', args, new Error(response.error || 'Failed to press key'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to press key' };
   } catch (error) {
+    logger.toolError('browser_press_key', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -790,16 +880,21 @@ Use this for advanced operations not covered by other tools.`,
 };
 
 async function executeBrowserSend(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('browser_send', { method: args['method'] });
   try {
     const response = await browserClient.send(
       args['method'] as string,
       args['params'] as Record<string, unknown> | undefined
     );
     if (response.success) {
+      logger.toolSuccess('browser_send', { method: args['method'] }, { hasResult: !!response['result'] }, Date.now() - startTime);
       return { success: true, result: JSON.stringify(response['result'], null, 2) };
     }
+    logger.toolError('browser_send', args, new Error(response.error || 'Failed to send CDP command'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to send CDP command' };
   } catch (error) {
+    logger.toolError('browser_send', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
