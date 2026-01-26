@@ -1,21 +1,39 @@
 /**
- * Git-based Auto-Update System
+ * Auto-Update System
  *
- * Updates the CLI by cloning/pulling from GitHub repository
- * No API rate limits, uses pure git commands
+ * Updates the CLI by downloading from internal server or GitHub repository
+ * Binary mode: Downloads from a2g.samsungds.net
+ * Node.js mode: Uses git clone/pull from GitHub
  *
  * Refactored to use callbacks for Ink UI compatibility (no console.log/ora)
  */
 
 import { spawn } from 'child_process';
 import fs, { createReadStream, createWriteStream } from 'fs';
-import { rm, copyFile, chmod } from 'fs/promises';
+import { rm, copyFile, chmod, writeFile } from 'fs/promises';
 import { pipeline } from 'stream/promises';
 import path from 'path';
 import os from 'os';
 import zlib from 'zlib';
+import http from 'http';
 import { logger } from '../utils/logger.js';
 import { isRunningAsBinary } from './binary-auto-updater.js';
+
+/**
+ * Internal binary server configuration
+ */
+const BINARY_SERVER_URL = 'http://a2g.samsungds.net:13000/nexus-coder/cli';
+const LATEST_JSON_URL = `${BINARY_SERVER_URL}/latest.json`;
+
+/**
+ * Latest version info from server
+ */
+interface LatestVersionInfo {
+  version: string;
+  binaryUrl: string;
+  wasmUrl: string;
+  releaseDate?: string;
+}
 
 /**
  * Update status for UI display
@@ -79,12 +97,14 @@ export class GitAutoUpdater {
   private repoUrl: string = 'https://github.com/A2G-Dev-Space/Local-CLI.git';
   private repoDir: string;
   private commitFile: string;
+  private versionFile: string;
   private enabled: boolean = true;
   private onStatus: StatusCallback | null = null;
 
   constructor(options?: { repoUrl?: string; enabled?: boolean; onStatus?: StatusCallback }) {
     this.repoDir = path.join(os.homedir(), '.nexus-coder', 'repo');
     this.commitFile = path.join(os.homedir(), '.nexus-coder', 'current-commit');
+    this.versionFile = path.join(os.homedir(), '.nexus-coder', 'current-version');
 
     if (options?.repoUrl) {
       this.repoUrl = options.repoUrl;
@@ -167,11 +187,51 @@ export class GitAutoUpdater {
   }
 
   /**
-   * Binary mode: Check for updates using git ls-remote (no persistent repo)
-   * Flow: ls-remote → compare with saved commit → clone if needed → extract → cleanup
+   * Binary mode: Check for updates from internal server
+   * Flow: fetch latest.json → compare version → download binary if needed
    */
   private async runBinaryMode(): Promise<boolean> {
-    logger.flow('Running in binary mode - using ls-remote for update check');
+    logger.flow('Running in binary mode - checking internal server for updates');
+
+    try {
+      // Get latest version info from internal server
+      const latestInfo = await this.fetchLatestVersionInfo();
+      if (!latestInfo) {
+        logger.error('Failed to get latest version info');
+        // Fallback to git-based update
+        logger.flow('Falling back to git-based update');
+        return await this.runBinaryModeGit();
+      }
+
+      // Get saved version from file
+      const savedVersion = this.getSavedVersion();
+
+      logger.debug('Version check', { remote: latestInfo.version, saved: savedVersion || 'none' });
+
+      // Compare versions
+      if (savedVersion === latestInfo.version) {
+        logger.flow('Already up to date');
+        this.emitStatus({ type: 'no_update' });
+        return false;
+      }
+
+      // Need update - download from internal server
+      logger.flow('Update available, starting download from internal server');
+      return await this.downloadAndInstallBinary(latestInfo);
+
+    } catch (error) {
+      logger.error('Binary mode update failed', error);
+      // Fallback to git-based update
+      logger.flow('Error occurred, falling back to git-based update');
+      return await this.runBinaryModeGit();
+    }
+  }
+
+  /**
+   * Fallback: Binary mode using git (original logic)
+   */
+  private async runBinaryModeGit(): Promise<boolean> {
+    logger.flow('Running in binary mode - using git ls-remote for update check');
 
     try {
       // Get remote latest commit using ls-remote (no clone needed)
@@ -185,7 +245,7 @@ export class GitAutoUpdater {
       // Get saved commit from file
       const savedCommit = this.getSavedCommit();
 
-      logger.debug('Version check', { remote: remoteCommit.slice(0, 7), saved: savedCommit?.slice(0, 7) || 'none' });
+      logger.debug('Version check (git)', { remote: remoteCommit.slice(0, 7), saved: savedCommit?.slice(0, 7) || 'none' });
 
       // Compare commits
       if (savedCommit === remoteCommit) {
@@ -195,12 +255,187 @@ export class GitAutoUpdater {
       }
 
       // Need update - clone, extract, cleanup
-      logger.flow('Update available, starting update process');
+      logger.flow('Update available, starting git-based update process');
       return await this.updateBinary(remoteCommit);
 
     } catch (error) {
-      logger.error('Binary mode update failed', error);
+      logger.error('Git-based binary mode update failed', error);
       this.emitStatus({ type: 'error', message: 'Update check failed' });
+      return false;
+    }
+  }
+
+  /**
+   * Fetch latest.json from internal server
+   */
+  private async fetchLatestVersionInfo(): Promise<LatestVersionInfo | null> {
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        logger.debug('Timeout fetching latest.json');
+        resolve(null);
+      }, 5000); // 5 second timeout
+
+      http.get(LATEST_JSON_URL, (res) => {
+        if (res.statusCode !== 200) {
+          clearTimeout(timeout);
+          logger.debug('Failed to fetch latest.json: ' + res.statusCode);
+          resolve(null);
+          return;
+        }
+
+        let data = '';
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          clearTimeout(timeout);
+          try {
+            const info = JSON.parse(data) as LatestVersionInfo;
+            resolve(info);
+          } catch (e) {
+            logger.debug('Failed to parse latest.json');
+            resolve(null);
+          }
+        });
+      }).on('error', (err) => {
+        clearTimeout(timeout);
+        logger.debug('Error fetching latest.json: ' + err.message);
+        resolve(null);
+      });
+    });
+  }
+
+  /**
+   * Get saved version from file
+   */
+  private getSavedVersion(): string | null {
+    try {
+      if (fs.existsSync(this.versionFile)) {
+        return fs.readFileSync(this.versionFile, 'utf-8').trim();
+      }
+    } catch (error) {
+      logger.debug('Failed to read saved version: ' + (error instanceof Error ? error.message : String(error)));
+    }
+    return null;
+  }
+
+  /**
+   * Save version to file
+   */
+  private saveVersion(version: string): void {
+    try {
+      const dir = path.dirname(this.versionFile);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      fs.writeFileSync(this.versionFile, version);
+      logger.debug('Saved version: ' + version);
+    } catch (error) {
+      logger.debug('Failed to save version: ' + (error instanceof Error ? error.message : String(error)));
+    }
+  }
+
+  /**
+   * Download file from URL
+   */
+  private downloadFile(url: string, destPath: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const file = createWriteStream(destPath);
+
+      http.get(url, (res) => {
+        if (res.statusCode !== 200) {
+          reject(new Error(`Failed to download: ${res.statusCode}`));
+          return;
+        }
+
+        res.pipe(file);
+        file.on('finish', () => {
+          file.close();
+          resolve();
+        });
+      }).on('error', (err) => {
+        fs.unlink(destPath, () => {}); // Delete partial file
+        reject(err);
+      });
+    });
+  }
+
+  /**
+   * Download and install binary from internal server
+   */
+  private async downloadAndInstallBinary(info: LatestVersionInfo): Promise<boolean> {
+    const totalSteps = 3;
+    const isFirstRun = !this.getSavedVersion();
+    const statusType = isFirstRun ? 'first_run' : 'updating';
+
+    try {
+      const installDir = path.join(os.homedir(), '.local', 'bin');
+      const tempDir = path.join(os.homedir(), '.nexus-coder', 'temp');
+      const nexusGzTemp = path.join(tempDir, 'nexus.gz');
+      const yogaTemp = path.join(tempDir, 'yoga.wasm');
+      const nexusDest = path.join(installDir, 'nexus');
+      const yogaDest = path.join(installDir, 'yoga.wasm');
+
+      // Ensure directories exist
+      if (!fs.existsSync(installDir)) {
+        fs.mkdirSync(installDir, { recursive: true });
+      }
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
+
+      // Step 1: Download binary
+      this.emitStatus({ type: statusType, step: 1, totalSteps, message: `Downloading v${info.version}...` } as UpdateStatus);
+      await this.downloadFile(info.binaryUrl, nexusGzTemp);
+
+      // Download yoga.wasm (optional, don't fail if missing)
+      try {
+        await this.downloadFile(info.wasmUrl, yogaTemp);
+      } catch (e) {
+        logger.debug('yoga.wasm download failed (optional): ' + (e instanceof Error ? e.message : String(e)));
+      }
+
+      // Step 2: Extract and install
+      this.emitStatus({ type: statusType, step: 2, totalSteps, message: 'Installing update...' } as UpdateStatus);
+
+      // Remove existing binary first to avoid ETXTBSY error
+      await rm(nexusDest, { force: true });
+      await pipeline(
+        createReadStream(nexusGzTemp),
+        zlib.createGunzip(),
+        createWriteStream(nexusDest)
+      );
+      await chmod(nexusDest, 0o755);
+
+      // Copy yoga.wasm if downloaded
+      if (fs.existsSync(yogaTemp)) {
+        await copyFile(yogaTemp, yogaDest);
+      }
+
+      // Step 3: Cleanup and save version
+      this.emitStatus({ type: statusType, step: 3, totalSteps, message: 'Finalizing...' } as UpdateStatus);
+
+      // Cleanup temp files
+      await rm(tempDir, { recursive: true, force: true });
+
+      // Configure PATH
+      await this.ensurePathConfigured(installDir);
+      await this.unlinkNpm();
+
+      // Save version
+      this.saveVersion(info.version);
+
+      // Complete
+      const shell = process.env['SHELL'] || '/bin/bash';
+      const rcFile = shell.includes('zsh') ? '~/.zshrc' : '~/.bashrc';
+      const restartMsg = isFirstRun
+        ? `Setup complete! Run: source ${rcFile} && nexus`
+        : `Updated to v${info.version}! Please restart.`;
+      this.emitStatus({ type: 'complete', needsRestart: true, message: restartMsg });
+      return true;
+
+    } catch (error: unknown) {
+      logger.error('Download and install failed', error as Error);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.emitStatus({ type: 'error', message: `Update failed: ${message}` });
       return false;
     }
   }
