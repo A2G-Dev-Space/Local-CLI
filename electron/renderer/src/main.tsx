@@ -10,12 +10,12 @@ import ErrorBoundary from './components/ErrorBoundary';
 
 // Global error handlers for uncaught errors
 window.onerror = (message, source, lineno, colno, error) => {
-  console.error('Global error:', { message, source, lineno, colno, error });
+  window.electronAPI?.log?.error('[Global] Uncaught error', { message, source, lineno, colno, error: error instanceof Error ? error.message : String(error) });
   return false;
 };
 
 window.onunhandledrejection = (event) => {
-  console.error('Unhandled promise rejection:', event.reason);
+  window.electronAPI?.log?.error('[Global] Unhandled promise rejection', { reason: event.reason instanceof Error ? event.reason.message : String(event.reason) });
 };
 
 // Mount the application
@@ -30,5 +30,5 @@ if (root) {
     </React.StrictMode>
   );
 } else {
-  console.error('Root element not found');
+  window.electronAPI?.log?.error('[Main] Root element not found');
 }

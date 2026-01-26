@@ -78,7 +78,7 @@ const DocsBrowser: React.FC<DocsBrowserProps> = ({ isOpen, onClose }) => {
         setError(result.error || 'Failed to load docs info');
       }
     } catch (err) {
-      console.error('Failed to load docs info:', err);
+      window.electronAPI?.log?.error('[DocsBrowser] Failed to load docs info', { error: err instanceof Error ? err.message : String(err) });
       setError('Failed to load documentation info');
     } finally {
       setIsLoading(false);
@@ -109,7 +109,7 @@ const DocsBrowser: React.FC<DocsBrowserProps> = ({ isOpen, onClose }) => {
         setError(result.message || 'Download failed');
       }
     } catch (err) {
-      console.error('Download failed:', err);
+      window.electronAPI?.log?.error('[DocsBrowser] Download failed', { error: err instanceof Error ? err.message : String(err) });
       setError('Download failed. Check your internet connection.');
     } finally {
       setDownloadingSource(null);

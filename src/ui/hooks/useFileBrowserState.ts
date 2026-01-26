@@ -7,6 +7,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { loadFileList, FileItem } from './useFileList.js';
 import { detectAtTrigger, insertFilePaths } from './atFileProcessor.js';
+import { logger } from '../../utils/logger.js';
 
 export interface FileBrowserState {
   showFileBrowser: boolean;
@@ -45,7 +46,7 @@ export function useFileBrowserState(
         }
       } catch (error) {
         if (mounted) {
-          console.error('Failed to preload file list:', error);
+          logger.error('Failed to preload file list', error);
           setIsLoadingFiles(false);
         }
       }

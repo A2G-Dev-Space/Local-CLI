@@ -158,7 +158,7 @@ const App: React.FC = () => {
     const init = async () => {
       // Check if electronAPI is available
       if (!window.electronAPI) {
-        console.error('electronAPI is not available');
+        // Can't use electronAPI.log since it's not available
         return;
       }
 
@@ -197,7 +197,7 @@ const App: React.FC = () => {
           loadFileTree(dirResult.directory);
         }
       } catch (error) {
-        console.error('Failed to initialize app:', error);
+        window.electronAPI?.log?.error('[App] Failed to initialize app', { error: error instanceof Error ? error.message : String(error) });
       }
     };
 
@@ -356,7 +356,7 @@ const App: React.FC = () => {
           setCurrentEndpointId(result.currentEndpointId || null);
         }
       } catch (err) {
-        console.error('Failed to load endpoints:', err);
+        window.electronAPI?.log?.error('[App] Failed to load endpoints', { error: err instanceof Error ? err.message : String(err) });
       }
     };
     // Load on mount and when settings dialog closes
@@ -387,7 +387,7 @@ const App: React.FC = () => {
         setCurrentEndpointId(endpointId);
       }
     } catch (err) {
-      console.error('Failed to set model:', err);
+      window.electronAPI?.log?.error('[App] Failed to set model', { error: err instanceof Error ? err.message : String(err) });
     }
     setIsModelDropdownOpen(false);
   }, []);
@@ -411,7 +411,7 @@ const App: React.FC = () => {
         setFileTree(nodes);
       }
     } catch (error) {
-      console.error('Failed to load file tree:', error);
+      window.electronAPI?.log?.error('[App] Failed to load file tree', { error: error instanceof Error ? error.message : String(error) });
     }
   }, []);
 
@@ -438,7 +438,7 @@ const App: React.FC = () => {
         }
       }
     } catch (error) {
-      console.error('Failed to open folder:', error);
+      window.electronAPI?.log?.error('[App] Failed to open folder', { error: error instanceof Error ? error.message : String(error) });
     }
   }, [loadFileTree]);
 
@@ -456,7 +456,7 @@ const App: React.FC = () => {
         setCurrentSession(result.session);
       }
     } catch (error) {
-      console.error('Failed to create session:', error);
+      window.electronAPI?.log?.error('[App] Failed to create session', { error: error instanceof Error ? error.message : String(error) });
     }
   }, [currentDirectory]);
 
@@ -475,7 +475,7 @@ const App: React.FC = () => {
         setCurrentSession(result.session);
       }
     } catch (error) {
-      console.error('Failed to load session:', error);
+      window.electronAPI?.log?.error('[App] Failed to load session', { error: error instanceof Error ? error.message : String(error) });
     }
   }, []);
 
@@ -606,7 +606,7 @@ const App: React.FC = () => {
       setIsDocsBrowserOpen(true);
     },
     onLoad: () => {
-      console.log('Load session');
+      window.electronAPI?.log?.debug('[App] Load session requested');
       // TODO: Show session browser
     },
     onCompact: async () => {

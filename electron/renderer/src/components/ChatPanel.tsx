@@ -243,7 +243,7 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
     try {
       await window.electronAPI.session.addMessage(message);
     } catch (error) {
-      console.error('Failed to save message to session:', error);
+      window.electronAPI?.log?.error('[ChatPanel] Failed to save message to session', { error: error instanceof Error ? error.message : String(error) });
     }
   }, []);
 
@@ -378,7 +378,7 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
           onSessionChange(result.session);
         }
       } catch (error) {
-        console.error('Failed to create session:', error);
+        window.electronAPI?.log?.error('[ChatPanel] Failed to create session', { error: error instanceof Error ? error.message : String(error) });
       }
     }
 
@@ -387,7 +387,7 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
 
     // Check if agent API is available
     if (!window.electronAPI?.agent) {
-      console.warn('electronAPI.agent not available, using fallback');
+      window.electronAPI?.log?.warn('[ChatPanel] electronAPI.agent not available, using fallback');
       setTimeout(async () => {
         const assistantMessage: ChatMessage = {
           id: `assistant-${Date.now()}`,
@@ -423,10 +423,10 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
       );
 
       if (!result.success && result.error) {
-        console.error('Agent error:', result.error);
+        window.electronAPI?.log?.error('[ChatPanel] Agent error', { error: result.error });
       }
     } catch (error) {
-      console.error('Agent error:', error);
+      window.electronAPI?.log?.error('[ChatPanel] Agent error', { error: error instanceof Error ? error.message : String(error) });
       const errorMessage: ChatMessage = {
         id: `error-${Date.now()}`,
         role: 'system',
@@ -497,7 +497,7 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
 
   // Retry failed tool execution
   const handleToolRetry = useCallback((id: string) => {
-    console.log('Retrying tool:', id);
+    window.electronAPI?.log?.debug('[ChatPanel] Retrying tool', { toolId: id });
   }, []);
 
   // Compact conversation
@@ -570,7 +570,7 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
         setMessages(prev => [...prev, errorMessage]);
       }
     } catch (error) {
-      console.error('Compact error:', error);
+      window.electronAPI?.log?.error('[ChatPanel] Compact error', { error: error instanceof Error ? error.message : String(error) });
       const errorMessage: ChatMessage = {
         id: `system-${Date.now()}`,
         role: 'system',

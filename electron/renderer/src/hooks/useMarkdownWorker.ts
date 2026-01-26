@@ -38,7 +38,7 @@ const CodeBlock: React.FC<CodeBlockProps> = React.memo(({ code, language }) => {
       setCopied(true);
       timeoutRef.current = setTimeout(() => setCopied(false), 2000);
     } catch (error) {
-      console.error('Failed to copy to clipboard:', error);
+      window.electronAPI?.log?.error('[MarkdownWorker] Failed to copy to clipboard', { error: error instanceof Error ? error.message : String(error) });
     }
   }, [code]);
 

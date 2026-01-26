@@ -84,7 +84,7 @@ const UsageStats: React.FC<UsageStatsProps> = ({ isOpen, onClose }) => {
       await window.electronAPI.usage.resetSession();
       loadSummary();
     } catch (err) {
-      console.error('Failed to reset session:', err);
+      window.electronAPI?.log?.error('[UsageStats] Failed to reset session', { error: err instanceof Error ? err.message : String(err) });
     }
   }, [loadSummary]);
 

@@ -950,6 +950,23 @@ const electronAPI = {
 
   // ============ 로그 ============
   log: {
+    // Renderer에서 로그 쓰기 (Log Viewer에 표시됨)
+    info: (message: string, data?: unknown): void => {
+      ipcRenderer.send('log:write', 'info', message, data);
+    },
+
+    warn: (message: string, data?: unknown): void => {
+      ipcRenderer.send('log:write', 'warn', message, data);
+    },
+
+    error: (message: string, data?: unknown): void => {
+      ipcRenderer.send('log:write', 'error', message, data);
+    },
+
+    debug: (message: string, data?: unknown): void => {
+      ipcRenderer.send('log:write', 'debug', message, data);
+    },
+
     getFiles: (): Promise<LogFile[]> => {
       return ipcRenderer.invoke('log:getFiles');
     },

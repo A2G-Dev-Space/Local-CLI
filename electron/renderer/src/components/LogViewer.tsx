@@ -92,7 +92,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
         setSessionLogFiles(result.files);
       }
     } catch (err) {
-      console.error('Failed to load session log files:', err);
+      window.electronAPI?.log?.error('[LogViewer] Failed to load session log files', { error: err instanceof Error ? err.message : String(err) });
     }
   }, []);
 
@@ -114,7 +114,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
       }
     } catch (err) {
       setError('Failed to load session log entries');
-      console.error(err);
+      window.electronAPI?.log?.error('[LogViewer] Failed to load session log entries', { error: err instanceof Error ? err.message : String(err) });
     } finally {
       setIsLoading(false);
     }
@@ -138,7 +138,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
       }
     } catch (err) {
       setError('Failed to load current run log entries');
-      console.error(err);
+      window.electronAPI?.log?.error('[LogViewer] Failed to load current run log entries', { error: err instanceof Error ? err.message : String(err) });
     } finally {
       setIsLoading(false);
     }
@@ -156,7 +156,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
         setCurrentRunId(result.runId);
       }
     } catch (err) {
-      console.error('Failed to get current run ID:', err);
+      window.electronAPI?.log?.error('[LogViewer] Failed to get current run ID', { error: err instanceof Error ? err.message : String(err) });
     }
   }, []);
 
@@ -175,7 +175,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
       }
     } catch (err) {
       setError('Failed to load log files');
-      console.error(err);
+      window.electronAPI?.log?.error('[LogViewer] Failed to load log files', { error: err instanceof Error ? err.message : String(err) });
     }
   }, [selectedFile]);
 
@@ -192,7 +192,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
       }
     } catch (err) {
       setError('Failed to load log entries');
-      console.error(err);
+      window.electronAPI?.log?.error('[LogViewer] Failed to load log entries', { error: err instanceof Error ? err.message : String(err) });
     } finally {
       setIsLoading(false);
     }
@@ -218,7 +218,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
       }
     } catch (err) {
       setError('Failed to delete log file');
-      console.error(err);
+      window.electronAPI?.log?.error('[LogViewer] Failed to delete log file', { error: err instanceof Error ? err.message : String(err) });
     }
   }, [loadLogFiles, selectedFile]);
 
@@ -236,7 +236,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
       }
     } catch (err) {
       setError('Failed to clear logs');
-      console.error(err);
+      window.electronAPI?.log?.error('[LogViewer] Failed to clear logs', { error: err instanceof Error ? err.message : String(err) });
     }
   }, [loadLogFiles]);
 
@@ -261,7 +261,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
       setTimeout(() => setCopySuccess(false), 2000);
     } catch (err) {
       setError('Failed to copy to clipboard');
-      console.error(err);
+      window.electronAPI?.log?.error('[LogViewer] Failed to copy to clipboard', { error: err instanceof Error ? err.message : String(err) });
     }
   }, [viewMode, logEntries]);
 

@@ -63,7 +63,7 @@ class RequestDeduplicator {
     } catch {
       // If args can't be serialized, log warning and use unique key (no dedup)
       if (this.config.debug) {
-        console.warn(`[Dedup] Cannot serialize args for ${name}, skipping dedup`);
+        window.electronAPI?.log?.warn(`[Dedup] Cannot serialize args for ${name}, skipping dedup`);
       }
       return `${name}:${Date.now()}:${Math.random()}`;
     }
@@ -85,13 +85,13 @@ class RequestDeduplicator {
     if (existing) {
       existing.subscribers++;
       if (this.config.debug) {
-        console.log(`[Dedup] Cache hit for ${name}, subscribers: ${existing.subscribers}`);
+        window.electronAPI?.log?.debug(`[Dedup] Cache hit for ${name}`, { subscribers: existing.subscribers });
       }
       return existing.promise;
     }
 
     if (this.config.debug) {
-      console.log(`[Dedup] New request for ${name}`);
+      window.electronAPI?.log?.debug(`[Dedup] New request for ${name}`);
     }
 
     const promise = fn().finally(() => {
