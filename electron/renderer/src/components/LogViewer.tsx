@@ -3,16 +3,149 @@
  * - Linux CLI 스타일 로그 뷰어
  * - 실시간 로그 스트리밍
  * - 로그 레벨별 필터링/검색
+ * - 로그 카테고리별 필터링
  * - 로그 파일 관리 (열기/다운로드/삭제)
  */
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import type { LogFile, LogEntry } from '../../../preload/index';
+import type { LogFile, LogEntry, LogCategory } from '../../../preload/index';
 import './LogViewer.css';
 
 // 로그 레벨 정의
 const LOG_LEVELS = ['DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL'] as const;
 type LogLevelName = typeof LOG_LEVELS[number];
+
+// 로그 카테고리 정의
+const LOG_CATEGORIES: { id: LogCategory; label: string; description: string; color: string }[] = [
+  { id: 'all', label: 'All', description: '모든 로그 표시', color: '#8b5cf6' },
+  { id: 'chat', label: 'Chat', description: '대화 관련 로그', color: '#10b981' },
+  { id: 'tool', label: 'Tool', description: '도구 실행 로그', color: '#f59e0b' },
+  { id: 'http', label: 'HTTP', description: 'HTTP 요청/응답 로그', color: '#3b82f6' },
+  { id: 'llm', label: 'LLM', description: 'LLM API 로그', color: '#ec4899' },
+  { id: 'ui', label: 'UI', description: 'UI 컴포넌트 로그', color: '#06b6d4' },
+  { id: 'system', label: 'System', description: '시스템 로그', color: '#6366f1' },
+  { id: 'debug', label: 'Debug', description: '디버그 로그', color: '#6b7280' },
+];
+
+/**
+ * 메시지에서 카테고리 감지
+ * 메시지 prefix 및 키워드를 분석하여 카테고리 결정
+ *
+ * json-stream-logger.ts의 StreamLogEntry.type과 매핑:
+ * - chat: user_input, assistant_response
+ * - tool: tool_call, tool_start, tool_end, todo_update, planning_start, planning_end
+ * - http: server_request, server_response, http_event
+ * - llm: (LLM API 관련)
+ * - ui: ui_interaction, component_lifecycle, screen_change, form_event, modal_event,
+ *       loading_event, animation_event, layout_event
+ * - system: system_message, ipc_event, window_event, system_event, update_event, session_event
+ * - debug: debug, info
+ */
+function detectCategory(message: string, level: string): LogCategory {
+  const msg = message.toLowerCase();
+
+  // Chat 카테고리: 사용자 입력, 어시스턴트 응답
+  if (msg.includes('[chat]') || msg.includes('[user]') || msg.includes('[assistant]') ||
+      msg.includes('user message') || msg.includes('assistant response') ||
+      msg.includes('user input') || msg.includes('send message') ||
+      msg.includes('user_input') || msg.includes('assistant_response') ||
+      msg.includes('message from user') || msg.includes('response from assistant')) {
+    return 'chat';
+  }
+
+  // Tool 카테고리: 도구 실행
+  if (msg.includes('[tool]') || msg.includes('[bash]') || msg.includes('[read]') ||
+      msg.includes('[write]') || msg.includes('[edit]') || msg.includes('[glob]') ||
+      msg.includes('[grep]') || msg.includes('tool:') || msg.includes('tool execution') ||
+      msg.includes('toolcall') || msg.includes('tool call') || msg.includes('tool result') ||
+      msg.includes('tool_call') || msg.includes('tool_start') || msg.includes('tool_end') ||
+      msg.includes('tool start:') || msg.includes('tool end:') ||
+      msg.includes('todo_update') || msg.includes('todo update') ||
+      msg.includes('planning_start') || msg.includes('planning_end') ||
+      msg.includes('planning start') || msg.includes('planning end')) {
+    return 'tool';
+  }
+
+  // HTTP 카테고리: HTTP 요청/응답
+  if (msg.includes('[http]') || msg.includes('[request]') || msg.includes('[response]') ||
+      msg.includes('http request') || msg.includes('http response') ||
+      msg.includes('fetch') || msg.includes('api call') ||
+      msg.includes('stream start') || msg.includes('stream end') || msg.includes('stream chunk') ||
+      msg.includes('server_request') || msg.includes('server_response') ||
+      msg.includes('http_event') || msg.includes('http:') ||
+      msg.includes('streamstart') || msg.includes('streamend') || msg.includes('streamchunk') ||
+      msg.includes('browser server') || msg.includes('office server')) {
+    return 'http';
+  }
+
+  // LLM 카테고리: LLM API
+  if (msg.includes('[llm]') || msg.includes('[api]') || msg.includes('[openai]') ||
+      msg.includes('llm request') || msg.includes('llm response') ||
+      msg.includes('completion') || msg.includes('model:') ||
+      msg.includes('tokens') || msg.includes('chat:') ||
+      msg.includes('llmrequest') || msg.includes('llmresponse') ||
+      msg.includes('llm_request') || msg.includes('llm_response') ||
+      msg.includes('anthropic') || msg.includes('claude') ||
+      msg.includes('gpt-') || msg.includes('endpoint') ||
+      msg.includes('prompt') && msg.includes('token')) {
+    return 'llm';
+  }
+
+  // UI 카테고리: UI 컴포넌트
+  if (msg.includes('[ui]') || msg.includes('[component]') || msg.includes('[render]') ||
+      msg.includes('[modal]') || msg.includes('[form]') || msg.includes('[dialog]') ||
+      msg.includes('[loading]') || msg.includes('[animation]') || msg.includes('[layout]') ||
+      msg.includes('component') || msg.includes('render') || msg.includes('mount') ||
+      msg.includes('chatpanel') || msg.includes('logviewer') || msg.includes('settings') ||
+      msg.includes('fileexplorer') || msg.includes('sessionbrowser') ||
+      msg.includes('ui_interaction') || msg.includes('component_lifecycle') ||
+      msg.includes('screen_change') || msg.includes('form_event') ||
+      msg.includes('modal_event') || msg.includes('loading_event') ||
+      msg.includes('animation_event') || msg.includes('layout_event') ||
+      msg.includes('ui:') || msg.includes('modal') || msg.includes('toast') ||
+      msg.includes('skeleton') || msg.includes('progress') && msg.includes('bar') ||
+      msg.includes('viewport') || msg.includes('breakpoint') ||
+      msg.includes('transition') || msg.includes('hover') ||
+      msg.includes('statechange') || msg.includes('state change') ||
+      msg.includes('click') || msg.includes('keyboard') || msg.includes('scroll')) {
+    return 'ui';
+  }
+
+  // System 카테고리: 시스템 관련
+  if (msg.includes('[system]') || msg.includes('[session]') || msg.includes('[config]') ||
+      msg.includes('[update]') || msg.includes('[window]') || msg.includes('[ipc]') ||
+      msg.includes('[preload]') || msg.includes('[main]') || msg.includes('[app]') ||
+      msg.includes('[global]') ||
+      msg.includes('session') || msg.includes('startup') || msg.includes('shutdown') ||
+      msg.includes('initialize') || msg.includes('electron') || msg.includes('window') ||
+      msg.includes('system_message') || msg.includes('ipc_event') ||
+      msg.includes('window_event') || msg.includes('system_event') ||
+      msg.includes('update_event') || msg.includes('session_event') ||
+      msg.includes('system:') || msg.includes('ipc:') ||
+      msg.includes('appready') || msg.includes('appquit') ||
+      msg.includes('app ready') || msg.includes('app quit') ||
+      msg.includes('network') || msg.includes('theme') ||
+      msg.includes('milestone') || msg.includes('feature usage')) {
+    return 'system';
+  }
+
+  // Debug 카테고리: 디버그 로그
+  if (level === 'DEBUG' || msg.includes('[debug]') || msg.includes('debug:') ||
+      msg.includes('[vars]') || msg.includes('[flow]') || msg.includes('[enter]') ||
+      msg.includes('[exit]') || msg.includes('[state]') || msg.includes('[timer]') ||
+      msg.includes('verbose') || msg.includes('trace')) {
+    return 'debug';
+  }
+
+  // 기본값: 레벨에 따라 결정
+  // ERROR, FATAL, WARN은 system으로
+  if (level === 'ERROR' || level === 'FATAL' || level === 'WARN') {
+    return 'system';
+  }
+
+  // INFO는 content 분석 후 기본값으로 system
+  return 'system';
+}
 
 // 로그 레벨 색상 (Linux CLI 스타일)
 const LOG_LEVEL_COLORS: Record<LogLevelName, string> = {
@@ -66,6 +199,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
   // 필터 상태
   const [searchQuery, setSearchQuery] = useState('');
   const [levelFilter, setLevelFilter] = useState<Set<LogLevelName>>(new Set(LOG_LEVELS));
+  const [categoryFilter, setCategoryFilter] = useState<LogCategory>('all'); // 카테고리 필터
   const [showTimestamp, setShowTimestamp] = useState(true);
   const [autoScroll, setAutoScroll] = useState(true);
   const [wrapLines, setWrapLines] = useState(false);
@@ -92,7 +226,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
         setSessionLogFiles(result.files);
       }
     } catch (err) {
-      console.error('Failed to load session log files:', err);
+      window.electronAPI?.log?.error('[LogViewer] Failed to load session log files', { error: err instanceof Error ? err.message : String(err) });
     }
   }, []);
 
@@ -114,7 +248,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
       }
     } catch (err) {
       setError('Failed to load session log entries');
-      console.error(err);
+      window.electronAPI?.log?.error('[LogViewer] Failed to load session log entries', { error: err instanceof Error ? err.message : String(err) });
     } finally {
       setIsLoading(false);
     }
@@ -138,7 +272,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
       }
     } catch (err) {
       setError('Failed to load current run log entries');
-      console.error(err);
+      window.electronAPI?.log?.error('[LogViewer] Failed to load current run log entries', { error: err instanceof Error ? err.message : String(err) });
     } finally {
       setIsLoading(false);
     }
@@ -156,7 +290,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
         setCurrentRunId(result.runId);
       }
     } catch (err) {
-      console.error('Failed to get current run ID:', err);
+      window.electronAPI?.log?.error('[LogViewer] Failed to get current run ID', { error: err instanceof Error ? err.message : String(err) });
     }
   }, []);
 
@@ -175,7 +309,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
       }
     } catch (err) {
       setError('Failed to load log files');
-      console.error(err);
+      window.electronAPI?.log?.error('[LogViewer] Failed to load log files', { error: err instanceof Error ? err.message : String(err) });
     }
   }, [selectedFile]);
 
@@ -192,7 +326,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
       }
     } catch (err) {
       setError('Failed to load log entries');
-      console.error(err);
+      window.electronAPI?.log?.error('[LogViewer] Failed to load log entries', { error: err instanceof Error ? err.message : String(err) });
     } finally {
       setIsLoading(false);
     }
@@ -218,7 +352,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
       }
     } catch (err) {
       setError('Failed to delete log file');
-      console.error(err);
+      window.electronAPI?.log?.error('[LogViewer] Failed to delete log file', { error: err instanceof Error ? err.message : String(err) });
     }
   }, [loadLogFiles, selectedFile]);
 
@@ -236,7 +370,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
       }
     } catch (err) {
       setError('Failed to clear logs');
-      console.error(err);
+      window.electronAPI?.log?.error('[LogViewer] Failed to clear logs', { error: err instanceof Error ? err.message : String(err) });
     }
   }, [loadLogFiles]);
 
@@ -261,7 +395,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
       setTimeout(() => setCopySuccess(false), 2000);
     } catch (err) {
       setError('Failed to copy to clipboard');
-      console.error(err);
+      window.electronAPI?.log?.error('[LogViewer] Failed to copy to clipboard', { error: err instanceof Error ? err.message : String(err) });
     }
   }, [viewMode, logEntries]);
 
@@ -328,6 +462,12 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
       const level = entry.level as LogLevelName;
       if (!levelFilter.has(level)) return false;
 
+      // 카테고리 필터 (all이면 모두 통과)
+      if (categoryFilter !== 'all') {
+        const entryCategory = entry.category || detectCategory(entry.message, entry.level);
+        if (entryCategory !== categoryFilter) return false;
+      }
+
       // 검색 필터
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
@@ -338,7 +478,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
 
       return true;
     });
-  }, [logEntries, levelFilter, searchQuery]);
+  }, [logEntries, levelFilter, categoryFilter, searchQuery]);
 
   // 레벨 필터 토글
   const toggleLevelFilter = useCallback((level: LogLevelName) => {
@@ -540,6 +680,21 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
               title={level}
             >
               {level.charAt(0)}
+            </button>
+          ))}
+        </div>
+
+        {/* 카테고리 필터 */}
+        <div className="log-category-filters">
+          {LOG_CATEGORIES.map(cat => (
+            <button
+              key={cat.id}
+              className={`category-filter-btn ${categoryFilter === cat.id ? 'active' : ''}`}
+              style={{ '--category-color': cat.color } as React.CSSProperties}
+              onClick={() => setCategoryFilter(cat.id)}
+              title={cat.description}
+            >
+              {cat.label}
             </button>
           ))}
         </div>

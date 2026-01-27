@@ -208,6 +208,13 @@ export class Logger {
    * Log error
    */
   error(message: string, error?: Error | unknown): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logError(error || new Error(message), this.prefix || 'logger');
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.ERROR) return;
 
     const location = this.getCallLocation();
@@ -246,18 +253,19 @@ export class Logger {
         console.error(chalk.red('  Error:'), error);
       }
     }
-
-    // Log to JSON stream if enabled
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logError(error || new Error(message), this.prefix || 'logger');
-    }
   }
 
   /**
    * Log warning
    */
   warn(message: string, data?: unknown): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logInfo(`[WARN] ${message}`, data);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.WARN) return;
 
     const location = this.getCallLocation();
@@ -280,18 +288,19 @@ export class Logger {
     if (data) {
       console.warn(chalk.yellow('  Data:'), JSON.stringify(data, null, 2));
     }
-
-    // Log to JSON stream if enabled
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logInfo(`[WARN] ${message}`, data);
-    }
   }
 
   /**
    * Log info
    */
   info(message: string, data?: unknown): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logInfo(message, data);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.INFO) return;
 
     const location = this.getCallLocation();
@@ -314,18 +323,19 @@ export class Logger {
     if (data) {
       console.log(chalk.blue('  Data:'), JSON.stringify(data, null, 2));
     }
-
-    // Log to JSON stream if enabled
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logInfo(message, data);
-    }
   }
 
   /**
    * Log debug
    */
   debug(message: string, data?: unknown): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(message, data);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -348,18 +358,19 @@ export class Logger {
     if (data) {
       console.log(chalk.magenta('  Data:'), JSON.stringify(data, null, 2));
     }
-
-    // Log to JSON stream if enabled
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(message, data);
-    }
   }
 
   /**
    * Log verbose (most detailed)
    */
   verbose(message: string, data?: unknown): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[VERBOSE] ${message}`, data);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.VERBOSE) return;
 
     const location = this.getCallLocation();
@@ -382,18 +393,19 @@ export class Logger {
     if (data) {
       console.log(chalk.gray('  Data:'), JSON.stringify(data, null, 2));
     }
-
-    // Log to JSON stream if enabled
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`[VERBOSE] ${message}`, data);
-    }
   }
 
   /**
    * Log flow - 실행 흐름 추적 (함수 호출, 분기 등)
    */
   flow(message: string, context?: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[FLOW] ${message}`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -416,18 +428,23 @@ export class Logger {
     if (context) {
       console.log(chalk.green('  Context:'), JSON.stringify(context, null, 2));
     }
-
-    // Log to JSON stream if enabled
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`[FLOW] ${message}`, context);
-    }
   }
 
   /**
    * Log variables - 변수 값 추적
    */
   vars(...variables: VariableLog[]): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      const varsData = variables.reduce((acc, v) => {
+        acc[v.name] = v.value;
+        return acc;
+      }, {} as Record<string, unknown>);
+      jsonLogger.logDebug('[VARS]', varsData);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -449,22 +466,19 @@ export class Logger {
     variables.forEach(variable => {
       console.log('  ', this.formatVariable(variable));
     });
-
-    // Log to JSON stream if enabled
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      const varsData = variables.reduce((acc, v) => {
-        acc[v.name] = v.value;
-        return acc;
-      }, {} as Record<string, unknown>);
-      jsonLogger.logDebug('[VARS]', varsData);
-    }
   }
 
   /**
    * Log function enter
    */
   enter(functionName: string, args?: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[ENTER] ${functionName}`, args);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -487,18 +501,19 @@ export class Logger {
     if (args) {
       console.log(chalk.green('  Args:'), JSON.stringify(args, null, 2));
     }
-
-    // Log to JSON stream if enabled
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`[ENTER] ${functionName}`, args);
-    }
   }
 
   /**
    * Log function exit
    */
   exit(functionName: string, result?: unknown): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[EXIT] ${functionName}`, { result });
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -521,18 +536,19 @@ export class Logger {
     if (result !== undefined) {
       console.log(chalk.green('  Result:'), this.formatValue(result));
     }
-
-    // Log to JSON stream if enabled
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`[EXIT] ${functionName}`, { result });
-    }
   }
 
   /**
    * Log state change
    */
   state(description: string, before: unknown, after: unknown): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[STATE] ${description}`, { before, after });
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -554,20 +570,21 @@ export class Logger {
 
     console.log(chalk.red('  Before:'), this.formatValue(before));
     console.log(chalk.green('  After:'), this.formatValue(after));
-
-    // Log to JSON stream if enabled
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`[STATE] ${description}`, { before, after });
-    }
   }
 
   /**
    * Start performance timer
    */
   startTimer(label: string): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[TIMER] Start: ${label}`);
+    }
+
     this.timers.set(label, Date.now());
 
+    // Console output controlled by log level
     if (this.level >= LogLevel.DEBUG) {
       const location = this.getCallLocation();
       const timestamp = this.getTimestamp();
@@ -601,6 +618,13 @@ export class Logger {
     const elapsed = Date.now() - startTime;
     this.timers.delete(label);
 
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[TIMER] End: ${label}`, { elapsed });
+    }
+
+    // Console output controlled by log level
     if (this.level >= LogLevel.DEBUG) {
       const location = this.getCallLocation();
       const timestamp = this.getTimestamp();
@@ -628,6 +652,13 @@ export class Logger {
    * Log HTTP request
    */
   httpRequest(method: string, url: string, body?: unknown): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`HTTP ${method} ${url}`, { body });
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -651,18 +682,19 @@ export class Logger {
     if (body) {
       console.log(chalk.cyan('  Body:'), JSON.stringify(body, null, 2));
     }
-
-    // Log to JSON stream if enabled
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`HTTP ${method} ${url}`, { body });
-    }
   }
 
   /**
    * Log HTTP response
    */
   httpResponse(status: number, statusText: string, data?: unknown): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`HTTP Response ${status} ${statusText}`, { status, statusText, data });
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -686,18 +718,19 @@ export class Logger {
     if (data && this.level >= LogLevel.VERBOSE) {
       console.log(chalk.cyan('  Data:'), JSON.stringify(data, null, 2));
     }
-
-    // Log to JSON stream if enabled
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`HTTP Response ${status} ${statusText}`, { status, statusText, data: this.level >= LogLevel.VERBOSE ? data : undefined });
-    }
   }
 
   /**
    * Log tool execution
    */
   toolExecution(toolName: string, args: unknown, result?: unknown, error?: Error): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logToolCall(toolName, args, result, error);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -734,18 +767,19 @@ export class Logger {
         console.log(chalk.green('  Result:'), JSON.stringify(result, null, 2));
       }
     }
-
-    // Log to JSON stream if enabled
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logToolCall(toolName, args, result, error);
-    }
   }
 
   /**
    * Log bash command execution with formatted display
    */
   bashExecution(formattedDisplay: string): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug('[BASH] Execution', { output: formattedDisplay });
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.INFO) return;
 
     // Split formatted display into lines and colorize
@@ -771,6 +805,13 @@ export class Logger {
    * Log LLM request (--llm-log mode only)
    */
   llmRequest(messages: unknown[], model: string, tools?: unknown[]): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug('[LLM] Request', { model, messageCount: messages?.length, toolCount: tools?.length });
+    }
+
+    // Console output only in --llm-log mode
     if (!llmLogEnabled) return;
 
     const timestamp = this.getTimestamp();
@@ -811,6 +852,13 @@ export class Logger {
    * Log LLM response (--llm-log mode only)
    */
   llmResponse(response: string, toolCalls?: unknown[]): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug('[LLM] Response', { responseLength: response?.length, toolCallCount: toolCalls?.length });
+    }
+
+    // Console output only in --llm-log mode
     if (!llmLogEnabled) return;
 
     const timestamp = this.getTimestamp();
@@ -846,6 +894,13 @@ export class Logger {
    * Log tool execution result (--llm-log mode only)
    */
   llmToolResult(toolName: string, result: string, success: boolean): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[LLM] Tool Result: ${toolName}`, { success, resultLength: result?.length });
+    }
+
+    // Console output only in --llm-log mode
     if (!llmLogEnabled) return;
 
     const timestamp = this.getTimestamp();
@@ -871,6 +926,13 @@ export class Logger {
    * Log HTTP error
    */
   httpError(url: string, error: Error | unknown): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logError(error instanceof Error ? error : new Error(String(error)), `HTTP ${url}`);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -895,17 +957,19 @@ export class Logger {
     } else {
       console.log(chalk.red('  Error:'), error);
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logError(error instanceof Error ? error : new Error(String(error)), `HTTP ${url}`);
-    }
   }
 
   /**
    * Log HTTP stream start
    */
   httpStreamStart(method: string, url: string): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`HTTP Stream Start: ${method} ${url}`);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -925,17 +989,20 @@ export class Logger {
       chalk.bold(method),
       url
     );
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`HTTP Stream Start: ${method} ${url}`);
-    }
   }
 
   /**
    * Log HTTP stream chunk
    */
   httpStreamChunk(data: unknown): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const chunkSize = typeof data === 'string' ? data.length : JSON.stringify(data).length;
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug('[HTTP] Stream Chunk', { bytes: chunkSize });
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.VERBOSE) return;
 
     const location = this.getCallLocation();
@@ -945,7 +1012,6 @@ export class Logger {
     const traceId = this.getTraceIdStr();
     const loc = this.getLocation(location);
 
-    const chunkSize = typeof data === 'string' ? data.length : JSON.stringify(data).length;
     console.log(
       timestamp,
       prefix,
@@ -961,6 +1027,13 @@ export class Logger {
    * Log HTTP stream end
    */
   httpStreamEnd(totalBytes: number, duration: number): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`HTTP Stream End`, { totalBytes, duration });
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -979,11 +1052,6 @@ export class Logger {
       chalk.cyan('⇠ HTTP STREAM END:'),
       `${totalBytes} bytes in ${duration}ms`
     );
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`HTTP Stream End`, { totalBytes, duration });
-    }
   }
 
   // ============================================================================
@@ -994,6 +1062,13 @@ export class Logger {
    * Log tool start
    */
   toolStart(name: string, args: unknown, reason?: string): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logToolStart(name, args, reason);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -1018,17 +1093,19 @@ export class Logger {
     if (args && this.level >= LogLevel.VERBOSE) {
       console.log(chalk.blue('  Args:'), JSON.stringify(args, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logToolStart(name, args, reason);
-    }
   }
 
   /**
    * Log tool success
    */
   toolSuccess(name: string, _args: unknown, result: unknown, duration: number): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logToolEnd(name, true, result, undefined, duration);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -1051,17 +1128,19 @@ export class Logger {
     if (result && this.level >= LogLevel.VERBOSE) {
       console.log(chalk.green('  Result:'), this.formatValue(result));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logToolEnd(name, true, result, undefined, duration);
-    }
   }
 
   /**
    * Log tool error
    */
   toolError(name: string, args: unknown, error: Error, duration: number): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logToolEnd(name, false, undefined, error.message, duration);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.ERROR) return;
 
     const location = this.getCallLocation();
@@ -1085,11 +1164,6 @@ export class Logger {
     if (args) {
       console.log(chalk.red('  Args:'), JSON.stringify(args, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logToolEnd(name, false, undefined, error.message, duration);
-    }
   }
 
   // ============================================================================
@@ -1100,6 +1174,13 @@ export class Logger {
    * Log user click event
    */
   userClick(element: string, context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[UI] User Click: ${element}`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -1111,17 +1192,19 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.yellow('  Context:'), JSON.stringify(context, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`[UI] User Click: ${element}`, context);
-    }
   }
 
   /**
    * Log user keyboard event
    */
   userKeyboard(type: string, context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[UI] User Keyboard: ${type}`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -1133,17 +1216,19 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.yellow('  Context:'), JSON.stringify(context, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`[UI] User Keyboard: ${type}`, context);
-    }
   }
 
   /**
    * Log user scroll event
    */
   userScroll(context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug('[UI] User Scroll', context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.VERBOSE) return;
 
     const location = this.getCallLocation();
@@ -1161,6 +1246,13 @@ export class Logger {
    * Log user drag start
    */
   userDragStart(element: string, context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[UI] User Drag Start: ${element}`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -1172,17 +1264,19 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.yellow('  Context:'), JSON.stringify(context, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`[UI] User Drag Start: ${element}`, context);
-    }
   }
 
   /**
    * Log user drag end
    */
   userDragEnd(element: string, context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[UI] User Drag End: ${element}`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -1194,11 +1288,6 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.yellow('  Context:'), JSON.stringify(context, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`[UI] User Drag End: ${element}`, context);
-    }
   }
 
   // ============================================================================
@@ -1209,6 +1298,13 @@ export class Logger {
    * Log component mount
    */
   componentMount(name: string, context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[COMPONENT] Mount: ${name}`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -1220,17 +1316,19 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.green('  Context:'), JSON.stringify(context, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`[COMPONENT] Mount: ${name}`, context);
-    }
   }
 
   /**
    * Log component unmount
    */
   componentUnmount(name: string, context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[COMPONENT] Unmount: ${name}`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -1242,17 +1340,19 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.red('  Context:'), JSON.stringify(context, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`[COMPONENT] Unmount: ${name}`, context);
-    }
   }
 
   /**
    * Log component render
    */
   componentRender(name: string, context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[COMPONENT] Render: ${name}`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.VERBOSE) return;
 
     const location = this.getCallLocation();
@@ -1270,6 +1370,13 @@ export class Logger {
    * Log component render complete
    */
   componentRenderComplete(name: string, context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[COMPONENT] Render Complete: ${name}`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.VERBOSE) return;
 
     const location = this.getCallLocation();
@@ -1287,6 +1394,13 @@ export class Logger {
    * Log component state change
    */
   componentStateChange(name: string, field: string, context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[COMPONENT] State Change: ${name}.${field}`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -1298,11 +1412,6 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.yellow('  Context:'), JSON.stringify(context, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`[COMPONENT] State Change: ${name}.${field}`, context);
-    }
   }
 
   // ============================================================================
@@ -1313,6 +1422,13 @@ export class Logger {
    * Log screen change
    */
   screenChange(to: string, context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[SCREEN] Change: ${to}`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -1324,17 +1440,19 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.magenta('  Context:'), JSON.stringify(context, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`[SCREEN] Change: ${to}`, context);
-    }
   }
 
   /**
    * Log tab change
    */
   tabChange(container: string, context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[TAB] Change: ${container}`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -1346,17 +1464,19 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.magenta('  Context:'), JSON.stringify(context, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`[TAB] Change: ${container}`, context);
-    }
   }
 
   /**
    * Log route change
    */
   routeChange(context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[ROUTE] Change`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -1368,11 +1488,6 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.magenta('  Context:'), JSON.stringify(context, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`[ROUTE] Change`, context);
-    }
   }
 
   // ============================================================================
@@ -1383,6 +1498,13 @@ export class Logger {
    * Log form start
    */
   formStart(formId: string, context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[FORM] Start: ${formId}`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -1394,17 +1516,19 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.blue('  Context:'), JSON.stringify(context, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`[FORM] Start: ${formId}`, context);
-    }
   }
 
   /**
    * Log form submit
    */
   formSubmit(formId: string, context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[FORM] Submit: ${formId}`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -1416,17 +1540,19 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.blue('  Context:'), JSON.stringify(context, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`[FORM] Submit: ${formId}`, context);
-    }
   }
 
   /**
    * Log form result
    */
   formResult(formId: string, context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[FORM] Result: ${formId}`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -1438,17 +1564,19 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.green('  Context:'), JSON.stringify(context, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`[FORM] Result: ${formId}`, context);
-    }
   }
 
   /**
    * Log form error
    */
   formError(formId: string, context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[FORM] Error: ${formId}`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -1460,17 +1588,19 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.red('  Context:'), JSON.stringify(context, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`[FORM] Error: ${formId}`, context);
-    }
   }
 
   /**
    * Log field change
    */
   fieldChange(formId: string, field: string, context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[FORM] Field Change: ${formId}.${field}`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.VERBOSE) return;
 
     const location = this.getCallLocation();
@@ -1488,6 +1618,13 @@ export class Logger {
    * Log field validation
    */
   fieldValidation(formId: string, field: string, context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[FORM] Field Validation: ${formId}.${field}`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -1499,11 +1636,6 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.yellow('  Context:'), JSON.stringify(context, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`[FORM] Field Validation: ${formId}.${field}`, context);
-    }
   }
 
   // ============================================================================
@@ -1514,6 +1646,13 @@ export class Logger {
    * Log modal open
    */
   modalOpen(id: string, context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[MODAL] Open: ${id}`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -1525,17 +1664,19 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.cyan('  Context:'), JSON.stringify(context, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`[MODAL] Open: ${id}`, context);
-    }
   }
 
   /**
    * Log modal close
    */
   modalClose(id: string, context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[MODAL] Close: ${id}`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -1547,17 +1688,19 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.cyan('  Context:'), JSON.stringify(context, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`[MODAL] Close: ${id}`, context);
-    }
   }
 
   /**
    * Log dialog show
    */
   dialogShow(type: string, context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[DIALOG] Show: ${type}`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -1569,17 +1712,19 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.cyan('  Context:'), JSON.stringify(context, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`[DIALOG] Show: ${type}`, context);
-    }
   }
 
   /**
    * Log dialog result
    */
   dialogResult(type: string, context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[DIALOG] Result: ${type}`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -1591,17 +1736,19 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.cyan('  Context:'), JSON.stringify(context, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`[DIALOG] Result: ${type}`, context);
-    }
   }
 
   /**
    * Log toast show
    */
   toastShow(context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[TOAST] Show`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -1613,17 +1760,19 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.yellow('  Context:'), JSON.stringify(context, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`[TOAST] Show`, context);
-    }
   }
 
   /**
    * Log toast dismiss
    */
   toastDismiss(context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[TOAST] Dismiss`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -1635,11 +1784,6 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.gray('  Context:'), JSON.stringify(context, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`[TOAST] Dismiss`, context);
-    }
   }
 
   // ============================================================================
@@ -1650,6 +1794,13 @@ export class Logger {
    * Log loading start
    */
   loadingStart(id: string, context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[LOADING] Start: ${id}`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -1661,17 +1812,19 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.blue('  Context:'), JSON.stringify(context, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`[LOADING] Start: ${id}`, context);
-    }
   }
 
   /**
    * Log loading end
    */
   loadingEnd(id: string, context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[LOADING] End: ${id}`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -1683,17 +1836,19 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.green('  Context:'), JSON.stringify(context, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`[LOADING] End: ${id}`, context);
-    }
   }
 
   /**
    * Log loading error
    */
   loadingError(id: string, context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[LOADING] Error: ${id}`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -1705,17 +1860,19 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.red('  Context:'), JSON.stringify(context, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`[LOADING] Error: ${id}`, context);
-    }
   }
 
   /**
    * Log skeleton show
    */
   skeletonShow(id: string, context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[UI] Skeleton Show: ${id}`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.VERBOSE) return;
 
     const location = this.getCallLocation();
@@ -1733,6 +1890,13 @@ export class Logger {
    * Log skeleton hide
    */
   skeletonHide(id: string, context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[UI] Skeleton Hide: ${id}`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.VERBOSE) return;
 
     const location = this.getCallLocation();
@@ -1750,6 +1914,13 @@ export class Logger {
    * Log progress start
    */
   progressStart(id: string, context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[PROGRESS] Start: ${id}`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -1761,17 +1932,19 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.blue('  Context:'), JSON.stringify(context, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`[PROGRESS] Start: ${id}`, context);
-    }
   }
 
   /**
    * Log progress update
    */
   progressUpdate(id: string, context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[PROGRESS] Update: ${id}`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.VERBOSE) return;
 
     const location = this.getCallLocation();
@@ -1789,6 +1962,13 @@ export class Logger {
    * Log progress complete
    */
   progressComplete(id: string, context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[PROGRESS] Complete: ${id}`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -1800,17 +1980,19 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.green('  Context:'), JSON.stringify(context, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`[PROGRESS] Complete: ${id}`, context);
-    }
   }
 
   /**
    * Log progress error
    */
   progressError(id: string, context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[PROGRESS] Error: ${id}`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -1822,11 +2004,6 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.red('  Context:'), JSON.stringify(context, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`[PROGRESS] Error: ${id}`, context);
-    }
   }
 
   // ============================================================================
@@ -1837,6 +2014,13 @@ export class Logger {
    * Log animation start
    */
   animationStart(name: string, context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[UI] Animation Start: ${name}`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.VERBOSE) return;
 
     const location = this.getCallLocation();
@@ -1854,6 +2038,13 @@ export class Logger {
    * Log animation end
    */
   animationEnd(name: string, context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[UI] Animation End: ${name}`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.VERBOSE) return;
 
     const location = this.getCallLocation();
@@ -1871,6 +2062,13 @@ export class Logger {
    * Log transition start
    */
   transitionStart(name: string, context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[UI] Transition Start: ${name}`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.VERBOSE) return;
 
     const location = this.getCallLocation();
@@ -1888,6 +2086,13 @@ export class Logger {
    * Log transition end
    */
   transitionEnd(name: string, context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[UI] Transition End: ${name}`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.VERBOSE) return;
 
     const location = this.getCallLocation();
@@ -1905,6 +2110,13 @@ export class Logger {
    * Log hover enter
    */
   hoverEnter(element: string, context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[UI] Hover Enter: ${element}`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.VERBOSE) return;
 
     const location = this.getCallLocation();
@@ -1922,6 +2134,13 @@ export class Logger {
    * Log hover leave
    */
   hoverLeave(element: string, context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[UI] Hover Leave: ${element}`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.VERBOSE) return;
 
     const location = this.getCallLocation();
@@ -1943,6 +2162,13 @@ export class Logger {
    * Log viewport resize
    */
   viewportResize(context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[LAYOUT] Viewport Resize`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -1954,17 +2180,19 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.blue('  Context:'), JSON.stringify(context, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`[LAYOUT] Viewport Resize`, context);
-    }
   }
 
   /**
    * Log breakpoint change
    */
   breakpointChange(context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[LAYOUT] Breakpoint Change`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -1976,17 +2204,19 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.blue('  Context:'), JSON.stringify(context, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`[LAYOUT] Breakpoint Change`, context);
-    }
   }
 
   /**
    * Log layout shift
    */
   layoutShift(context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`[LAYOUT] Shift`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -1998,17 +2228,19 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.yellow('  Context:'), JSON.stringify(context, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`[LAYOUT] Shift`, context);
-    }
   }
 
   /**
    * Log scroll position
    */
   scrollPosition(context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug('[UI] Scroll Position', context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.VERBOSE) return;
 
     const location = this.getCallLocation();
@@ -2030,6 +2262,13 @@ export class Logger {
    * Log error boundary catch
    */
   errorBoundary(context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logError(new Error('Error Boundary'), 'errorBoundary');
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.ERROR) return;
 
     const location = this.getCallLocation();
@@ -2041,17 +2280,19 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.red('  Context:'), JSON.stringify(context, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logError(new Error('Error Boundary'), 'errorBoundary');
-    }
   }
 
   /**
    * Log unhandled rejection
    */
   unhandledRejection(context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logError(new Error('Unhandled Rejection'), 'unhandledRejection');
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.ERROR) return;
 
     const location = this.getCallLocation();
@@ -2063,17 +2304,19 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.red('  Context:'), JSON.stringify(context, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logError(new Error('Unhandled Rejection'), 'unhandledRejection');
-    }
   }
 
   /**
    * Log global error
    */
   globalError(context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logError(new Error('Global Error'), 'globalError');
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.ERROR) return;
 
     const location = this.getCallLocation();
@@ -2085,11 +2328,6 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.red('  Context:'), JSON.stringify(context, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logError(new Error('Global Error'), 'globalError');
-    }
   }
 
   // ============================================================================
@@ -2100,6 +2338,13 @@ export class Logger {
    * Log session start
    */
   sessionStart(context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logInfo(`Session Start`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.INFO) return;
 
     const location = this.getCallLocation();
@@ -2111,17 +2356,19 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.green('  Context:'), JSON.stringify(context, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logInfo(`Session Start`, context);
-    }
   }
 
   /**
    * Log session end
    */
   sessionEnd(context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logInfo(`Session End`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.INFO) return;
 
     const location = this.getCallLocation();
@@ -2133,17 +2380,19 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.red('  Context:'), JSON.stringify(context, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logInfo(`Session End`, context);
-    }
   }
 
   /**
    * Log user milestone
    */
   userMilestone(name: string, context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logInfo(`User Milestone: ${name}`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.INFO) return;
 
     const location = this.getCallLocation();
@@ -2155,17 +2404,19 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.yellow('  Context:'), JSON.stringify(context, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logInfo(`User Milestone: ${name}`, context);
-    }
   }
 
   /**
    * Log feature usage
    */
   featureUsage(name: string, context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug(`Feature Usage: ${name}`, context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -2177,11 +2428,6 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.cyan('  Context:'), JSON.stringify(context, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug(`Feature Usage: ${name}`, context);
-    }
   }
 
   // ============================================================================
@@ -2192,6 +2438,13 @@ export class Logger {
    * Log update check start
    */
   updateCheckStart(): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logInfo('Update Check Start', {});
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.INFO) return;
 
     const location = this.getCallLocation();
@@ -2200,17 +2453,19 @@ export class Logger {
     const loc = this.getLocation(location);
 
     console.log(timestamp, prefix, loc, chalk.cyan('🔄 UPDATE CHECK START'));
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logInfo('Update Check Start', {});
-    }
   }
 
   /**
    * Log update available
    */
   updateAvailable(context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logInfo('Update Available', context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.INFO) return;
 
     const location = this.getCallLocation();
@@ -2222,17 +2477,19 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.green('  Version:'), context['version']);
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logInfo('Update Available', context);
-    }
   }
 
   /**
    * Log update download start
    */
   updateDownloadStart(context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logInfo('Update Download Start', context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.INFO) return;
 
     const location = this.getCallLocation();
@@ -2244,17 +2501,19 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.cyan('  Context:'), JSON.stringify(context, null, 2));
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logInfo('Update Download Start', context);
-    }
   }
 
   /**
    * Log update download progress
    */
   updateDownloadProgress(context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logDebug('Update Download Progress', context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.DEBUG) return;
 
     const location = this.getCallLocation();
@@ -2263,17 +2522,19 @@ export class Logger {
     const loc = this.getLocation(location);
 
     console.log(timestamp, prefix, loc, chalk.cyan('⬇️  DOWNLOAD PROGRESS:'), `${context['percent']}%`);
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logDebug('Update Download Progress', context);
-    }
   }
 
   /**
    * Log update download complete
    */
   updateDownloadComplete(context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logInfo('Update Download Complete', context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.INFO) return;
 
     const location = this.getCallLocation();
@@ -2285,17 +2546,19 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.green('  Version:'), context['version']);
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logInfo('Update Download Complete', context);
-    }
   }
 
   /**
    * Log update installing
    */
   updateInstalling(): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logInfo('Update Installing', {});
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.INFO) return;
 
     const location = this.getCallLocation();
@@ -2304,17 +2567,19 @@ export class Logger {
     const loc = this.getLocation(location);
 
     console.log(timestamp, prefix, loc, chalk.yellow('🔧 UPDATE INSTALLING'));
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logInfo('Update Installing', {});
-    }
   }
 
   /**
    * Log update installed
    */
   updateInstalled(context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logInfo('Update Installed', context);
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.INFO) return;
 
     const location = this.getCallLocation();
@@ -2326,17 +2591,19 @@ export class Logger {
     if (Object.keys(context).length > 0) {
       console.log(chalk.green('  Version:'), context['version']);
     }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logInfo('Update Installed', context);
-    }
   }
 
   /**
    * Log update error
    */
   updateError(context: Record<string, unknown>): void {
+    // Always log to file first (for Ctrl+O LogBrowser)
+    const jsonLogger = getJsonStreamLogger();
+    if (jsonLogger?.isActive()) {
+      jsonLogger.logError(new Error(String(context['error'] || 'Unknown error')), 'updateError');
+    }
+
+    // Console output controlled by log level
     if (this.level < LogLevel.ERROR) return;
 
     const location = this.getCallLocation();
@@ -2347,11 +2614,6 @@ export class Logger {
     console.log(timestamp, prefix, loc, chalk.red('❌ UPDATE ERROR'));
     if (Object.keys(context).length > 0) {
       console.log(chalk.red('  Error:'), context['error']);
-    }
-
-    const jsonLogger = getJsonStreamLogger();
-    if (jsonLogger?.isActive()) {
-      jsonLogger.logError(new Error(String(context['error'] || 'Unknown error')), 'updateError');
     }
   }
 }

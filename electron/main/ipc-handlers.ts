@@ -746,6 +746,26 @@ export function setupIpcHandlers(): void {
 
   // ============ 로그 ============
 
+  // Renderer에서 보낸 로그 쓰기 (Log Viewer에 표시됨)
+  ipcMain.on('log:write', (_event, level: string, message: string, data?: unknown) => {
+    switch (level) {
+      case 'error':
+        logger.error(`[Renderer] ${message}`, data);
+        break;
+      case 'warn':
+        logger.warn(`[Renderer] ${message}`, data);
+        break;
+      case 'info':
+        logger.info(`[Renderer] ${message}`, data);
+        break;
+      case 'debug':
+        logger.debug(`[Renderer] ${message}`, data);
+        break;
+      default:
+        logger.info(`[Renderer] ${message}`, data);
+    }
+  });
+
   // 로그 파일 목록
   ipcMain.handle('log:getFiles', async () => {
     return await logger.getLogFiles();

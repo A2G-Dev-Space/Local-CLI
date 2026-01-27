@@ -98,7 +98,7 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
         setCurrentEndpointId(result.currentEndpointId || null);
       }
     } catch (err) {
-      console.error('Failed to load endpoints:', err);
+      window.electronAPI?.log?.error('[Settings] Failed to load endpoints', { error: err instanceof Error ? err.message : String(err) });
       setError('Failed to load endpoints');
     } finally {
       setIsLoading(false);
@@ -118,7 +118,7 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
         setColorPalette(config.colorPalette as ColorPalette);
       }
     } catch (err) {
-      console.error('Failed to load appearance settings:', err);
+      window.electronAPI?.log?.error('[Settings] Failed to load appearance settings', { error: err instanceof Error ? err.message : String(err) });
     }
   }, []);
 
@@ -134,7 +134,7 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
         document.querySelector('.app-root')?.setAttribute('data-palette', value as string);
       }
     } catch (err) {
-      console.error(`Failed to save ${key}:`, err);
+      window.electronAPI?.log?.error(`[Settings] Failed to save ${key}`, { error: err instanceof Error ? err.message : String(err) });
     }
   }, []);
 
@@ -291,7 +291,8 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
         setError(result.error || 'Failed to save endpoint');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      window.electronAPI?.log?.error('[Settings] Failed to save endpoint', { error: err instanceof Error ? err.message : String(err) });
+      setError(err instanceof Error ? err.message : 'Failed to save endpoint. Please try again.');
     } finally {
       setIsTesting(false);
     }
@@ -326,7 +327,7 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
         setTimeout(() => setSuccessMessage(null), 2000);
       }
     } catch (err) {
-      console.error('Failed to set current endpoint:', err);
+      window.electronAPI?.log?.error('[Settings] Failed to set current endpoint', { error: err instanceof Error ? err.message : String(err) });
     }
   }, []);
 
@@ -337,7 +338,7 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
       await window.electronAPI.llm.healthCheckAll();
       await loadEndpoints();
     } catch (err) {
-      console.error('Health check failed:', err);
+      window.electronAPI?.log?.error('[Settings] Health check failed', { error: err instanceof Error ? err.message : String(err) });
     } finally {
       setIsLoading(false);
     }

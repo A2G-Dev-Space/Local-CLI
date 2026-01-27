@@ -163,7 +163,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
 
   // User question handlers
   const handleQuestionAnswer = useCallback(async (questionId: string, answer: string) => {
-    console.log('Question answered:', questionId, answer);
+    window.electronAPI?.log?.debug('[AgentContext] Question answered', { questionId, answer });
     setIsQuestionOpen(false);
     setCurrentQuestion(null);
 

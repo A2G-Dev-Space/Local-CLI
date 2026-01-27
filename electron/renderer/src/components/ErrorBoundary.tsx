@@ -31,7 +31,7 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
+    window.electronAPI?.log?.error('[ErrorBoundary] Caught an error', { error: error.message, componentStack: errorInfo?.componentStack });
     this.setState({ errorInfo });
 
     // 로그 서버로 전송 가능 (선택적)

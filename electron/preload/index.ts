@@ -84,12 +84,16 @@ export interface LogFile {
   date: string;
 }
 
+// 로그 카테고리 타입
+export type LogCategory = 'all' | 'chat' | 'tool' | 'http' | 'llm' | 'ui' | 'system' | 'debug';
+
 // 로그 엔트리 타입
 export interface LogEntry {
   timestamp: string;
   level: string;
   message: string;
   data?: unknown;
+  category?: LogCategory; // Computed from message prefix
 }
 
 // 테마 타입
@@ -950,6 +954,23 @@ const electronAPI = {
 
   // ============ 로그 ============
   log: {
+    // Renderer에서 로그 쓰기 (Log Viewer에 표시됨)
+    info: (message: string, data?: unknown): void => {
+      ipcRenderer.send('log:write', 'info', message, data);
+    },
+
+    warn: (message: string, data?: unknown): void => {
+      ipcRenderer.send('log:write', 'warn', message, data);
+    },
+
+    error: (message: string, data?: unknown): void => {
+      ipcRenderer.send('log:write', 'error', message, data);
+    },
+
+    debug: (message: string, data?: unknown): void => {
+      ipcRenderer.send('log:write', 'debug', message, data);
+    },
+
     getFiles: (): Promise<LogFile[]> => {
       return ipcRenderer.invoke('log:getFiles');
     },

@@ -777,7 +777,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
       if (timeSinceLastCtrlC < DOUBLE_TAP_THRESHOLD) {
         // Double-tap detected - exit
         logger.flow('Ctrl+C double-tap detected - exiting');
-        handleExit().catch(console.error);
+        handleExit().catch((err) => logger.error('Exit failed', err));
         return;
       }
 

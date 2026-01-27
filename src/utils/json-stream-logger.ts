@@ -13,6 +13,9 @@ import { PROJECTS_DIR } from '../constants.js';
 // Flush interval for periodic buffer writes (in milliseconds)
 const FLUSH_INTERVAL_MS = 1000;
 
+// 로그 카테고리 타입
+export type LogCategory = 'all' | 'chat' | 'tool' | 'http' | 'llm' | 'ui' | 'system' | 'debug';
+
 export interface StreamLogEntry {
   timestamp: string;
   type:
@@ -46,7 +49,114 @@ export interface StreamLogEntry {
     | 'session_event'       // 세션 이벤트 (start, end, milestone)
     | 'http_event';         // HTTP 이벤트 (stream start/end 등)
   content: string;
+  category?: LogCategory;  // 로그 카테고리 (파일 분할용)
   metadata?: Record<string, unknown>;
+}
+
+/**
+ * 로그 타입에서 카테고리 결정
+ */
+function getLogCategory(type: StreamLogEntry['type']): LogCategory {
+  switch (type) {
+    // Chat 카테고리
+    case 'user_input':
+    case 'assistant_response':
+      return 'chat';
+
+    // Tool 카테고리
+    case 'tool_call':
+    case 'tool_start':
+    case 'tool_end':
+    case 'todo_update':
+    case 'planning_start':
+    case 'planning_end':
+      return 'tool';
+
+    // HTTP 카테고리
+    case 'server_request':
+    case 'server_response':
+    case 'http_event':
+      return 'http';
+
+    // UI 카테고리
+    case 'ui_interaction':
+    case 'component_lifecycle':
+    case 'screen_change':
+    case 'form_event':
+    case 'modal_event':
+    case 'loading_event':
+    case 'animation_event':
+    case 'layout_event':
+      return 'ui';
+
+    // System 카테고리
+    case 'system_message':
+    case 'ipc_event':
+    case 'window_event':
+    case 'system_event':
+    case 'update_event':
+    case 'session_event':
+    case 'error':
+      return 'system';
+
+    // Debug 카테고리
+    case 'debug':
+    case 'info':
+      return 'debug';
+
+    default:
+      return 'system';
+  }
+}
+
+/**
+ * 메시지 내용에서 카테고리 재결정
+ * 메시지 접두사(prefix)를 분석하여 더 정확한 카테고리 결정
+ */
+function refineCategoryFromContent(category: LogCategory, content: string): LogCategory {
+  const msg = content.toLowerCase();
+
+  // LLM 관련 메시지는 llm 카테고리로
+  if (msg.includes('[llm]') || msg.includes('llm request') || msg.includes('llm response') ||
+      msg.includes('llm tool') || msg.includes('completion') || msg.includes('tokens')) {
+    return 'llm';
+  }
+
+  // HTTP 관련 메시지
+  if (msg.includes('[http]') || msg.includes('stream start') || msg.includes('stream end') ||
+      msg.includes('stream chunk') || msg.includes('http request') || msg.includes('http response')) {
+    return 'http';
+  }
+
+  // Tool 관련 메시지
+  if (msg.includes('[tool]') || msg.includes('[bash]') || msg.includes('[read]') ||
+      msg.includes('[write]') || msg.includes('[edit]') || msg.includes('tool execution') ||
+      msg.includes('tool result')) {
+    return 'tool';
+  }
+
+  // UI 관련 메시지
+  if (msg.includes('[ui]') || msg.includes('[component]') || msg.includes('[render]') ||
+      msg.includes('[modal]') || msg.includes('[form]') || msg.includes('[loading]')) {
+    return 'ui';
+  }
+
+  // System 관련 메시지
+  if (msg.includes('[system]') || msg.includes('[session]') || msg.includes('[config]') ||
+      msg.includes('[update]') || msg.includes('[window]') || msg.includes('[ipc]')) {
+    return 'system';
+  }
+
+  // 기존 카테고리 유지
+  return category;
+}
+
+// 카테고리 스트림 정보
+interface CategoryStreamInfo {
+  stream: WriteStream;
+  buffer: StreamLogEntry[];
+  isFirstEntry: boolean;
+  filePath: string;
 }
 
 export class JsonStreamLogger {
@@ -63,6 +173,11 @@ export class JsonStreamLogger {
   private errorStreamInitialized = false;
   private appendMode = false;
   private verbose = false;
+
+  // 카테고리별 스트림 관리 (파일 분할용)
+  private categoryStreams: Map<LogCategory, CategoryStreamInfo> = new Map();
+  private enableCategorySplit = true; // 카테고리별 파일 분할 활성화
+  private pendingStreamInits: Set<Promise<void>> = new Set(); // 초기화 중인 스트림 promise 추적
 
   constructor(filePath: string, errorFilePath: string) {
     this.filePath = filePath;
@@ -116,6 +231,7 @@ export class JsonStreamLogger {
       this.flushInterval = setInterval(() => {
         this.flush();
         this.flushErrors();
+        this.flushCategories();
       }, FLUSH_INTERVAL_MS);
 
       if (this.verbose) {
@@ -146,6 +262,77 @@ export class JsonStreamLogger {
   }
 
   /**
+   * Initialize category stream (lazy initialization)
+   * 이 메서드는 log()에서 미리 Map에 등록된 후에도 호출될 수 있음
+   * stream이 null인 경우 스트림을 생성하고 기존 info를 업데이트함
+   */
+  private async initializeCategoryStream(category: LogCategory): Promise<void> {
+    if (!this.enableCategorySplit) {
+      return;
+    }
+
+    // 기존 info 확인 (log()에서 미리 등록했을 수 있음)
+    const existingInfo = this.categoryStreams.get(category);
+
+    // 이미 유효한 스트림이 있으면 return
+    if (existingInfo && existingInfo.stream && !existingInfo.stream.destroyed) {
+      return;
+    }
+
+    try {
+      // Generate category file path: {sessionId}_log.json → {sessionId}_{category}.json
+      const categoryFilePath = existingInfo?.filePath || this.filePath.replace('_log.json', `_${category}.json`);
+
+      // Create directory if it doesn't exist
+      await mkdir(dirname(categoryFilePath), { recursive: true });
+
+      // Check if file exists and we're in append mode
+      let fileExists = false;
+      try {
+        await access(categoryFilePath);
+        fileExists = true;
+      } catch {
+        fileExists = false;
+      }
+
+      let stream: WriteStream;
+      let isFirstEntry = true;
+
+      if (this.appendMode && fileExists) {
+        // Append mode: remove closing bracket and continue
+        await this.prepareFileForAppend(categoryFilePath);
+        stream = createWriteStream(categoryFilePath, { flags: 'a' });
+        isFirstEntry = false;
+      } else {
+        // New file mode: create fresh file
+        stream = createWriteStream(categoryFilePath, { flags: 'w' });
+        stream.write('[\n');
+        isFirstEntry = true;
+      }
+
+      // 기존 info가 있으면 스트림만 업데이트, 없으면 새로 생성
+      if (existingInfo) {
+        existingInfo.stream = stream;
+        existingInfo.isFirstEntry = isFirstEntry;
+        // filePath는 이미 설정되어 있음
+      } else {
+        this.categoryStreams.set(category, {
+          stream,
+          buffer: [],
+          isFirstEntry,
+          filePath: categoryFilePath,
+        });
+      }
+
+      if (this.verbose) {
+        console.log(chalk.dim(`   Category log: ${categoryFilePath}`));
+      }
+    } catch (error) {
+      console.error(chalk.red(`Failed to initialize category stream (${category}):`), error);
+    }
+  }
+
+  /**
    * Log an entry to the JSON stream
    */
   log(entry: StreamLogEntry): void {
@@ -153,7 +340,17 @@ export class JsonStreamLogger {
       return;
     }
 
-    // Add to appropriate buffer
+    // Determine category if not set
+    if (!entry.category) {
+      const baseCategory = getLogCategory(entry.type);
+      // Refine category based on message content (for more accurate categorization)
+      entry.category = refineCategoryFromContent(baseCategory, entry.content);
+    }
+
+    // Add to main buffer
+    this.buffer.push(entry);
+
+    // Add to error buffer if error
     if (entry.type === 'error') {
       // Initialize error stream on first error (lazy initialization)
       if (!this.errorStreamInitialized) {
@@ -163,7 +360,38 @@ export class JsonStreamLogger {
       }
       this.errorBuffer.push(entry);
     }
-    this.buffer.push(entry);
+
+    // Add to category buffer (for file splitting)
+    if (this.enableCategorySplit && entry.category && entry.category !== 'all') {
+      const category = entry.category;
+
+      // 스트림이 없으면 먼저 버퍼만 있는 임시 객체를 등록 (스트림은 나중에 초기화)
+      if (!this.categoryStreams.has(category)) {
+        // 파일 경로 생성
+        const categoryFilePath = this.filePath.replace('_log.json', `_${category}.json`);
+
+        // 먼저 Map에 등록 (스트림은 null, 버퍼만 준비)
+        this.categoryStreams.set(category, {
+          stream: null as unknown as WriteStream,
+          buffer: [],
+          isFirstEntry: true,
+          filePath: categoryFilePath,
+        });
+
+        // 비동기로 스트림 초기화 (promise 추적)
+        const initPromise = this.initializeCategoryStream(category).catch(err => {
+          console.error(chalk.red(`Failed to initialize category stream (${category}):`), err);
+        });
+        this.pendingStreamInits.add(initPromise);
+        initPromise.finally(() => this.pendingStreamInits.delete(initPromise));
+      }
+
+      // 이제 항상 streamInfo가 존재함
+      const streamInfo = this.categoryStreams.get(category);
+      if (streamInfo) {
+        streamInfo.buffer.push(entry);
+      }
+    }
   }
 
   /**
@@ -263,6 +491,40 @@ export class JsonStreamLogger {
       this.errorBuffer = [];
     } catch (error) {
       console.error(chalk.red('Failed to write to error JSON stream:'), error);
+    }
+  }
+
+  /**
+   * Flush buffered entries to category files
+   */
+  private flushCategories(): void {
+    for (const [_category, streamInfo] of this.categoryStreams) {
+      // stream이 없거나, writable하지 않거나, 버퍼가 비었으면 skip
+      // stream이 아직 초기화 안됐으면 버퍼가 유지되고, 다음 flush에서 다시 시도
+      if (!streamInfo.stream || !streamInfo.stream.writable || streamInfo.buffer.length === 0) {
+        continue;
+      }
+
+      try {
+        for (const entry of streamInfo.buffer) {
+          // Add comma if not first entry
+          if (!streamInfo.isFirstEntry) {
+            streamInfo.stream.write(',\n');
+          }
+          streamInfo.isFirstEntry = false;
+
+          // Write the entry as formatted JSON
+          const json = JSON.stringify(entry, null, 2);
+          // Indent each line by 2 spaces for array formatting
+          const indentedJson = json.split('\n').map(line => '  ' + line).join('\n');
+          streamInfo.stream.write(indentedJson);
+        }
+
+        // Clear category buffer
+        streamInfo.buffer = [];
+      } catch (error) {
+        console.error(chalk.red(`Failed to write to category stream:`), error);
+      }
     }
   }
 
@@ -834,6 +1096,11 @@ export class JsonStreamLogger {
       this.flushInterval = null;
     }
 
+    // Wait for all pending category stream initializations to complete
+    if (this.pendingStreamInits.size > 0) {
+      await Promise.all(this.pendingStreamInits);
+    }
+
     // Flush any remaining buffers
     this.flush();
 
@@ -842,7 +1109,10 @@ export class JsonStreamLogger {
       this.flushErrors();
     }
 
-    // Close both streams
+    // Flush category buffers
+    this.flushCategories();
+
+    // Close all streams
     const promises: Promise<void>[] = [];
 
     // Close main stream if not already destroyed
@@ -888,11 +1158,35 @@ export class JsonStreamLogger {
       }));
     }
 
+    // Close category streams
+    for (const [category, streamInfo] of this.categoryStreams) {
+      if (streamInfo.stream && !streamInfo.stream.destroyed) {
+        if (streamInfo.stream.writable) {
+          streamInfo.stream.write('\n]\n');
+        }
+
+        promises.push(new Promise<void>((resolve, reject) => {
+          streamInfo.stream.end((error?: Error) => {
+            if (error) {
+              console.error(chalk.red(`Failed to close category stream (${category}):`), error);
+              reject(error);
+            } else {
+              if (this.verbose) {
+                console.log(chalk.dim(`✅ Category log saved: ${streamInfo.filePath}`));
+              }
+              resolve();
+            }
+          });
+        }));
+      }
+    }
+
     await Promise.all(promises);
-    
+
     // Clear references
     this.writeStream = null;
     this.errorWriteStream = null;
+    this.categoryStreams.clear();
   }
 
   /**

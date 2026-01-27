@@ -239,7 +239,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   const handleDrop = useCallback((targetNode: FileNode, e: React.DragEvent) => {
     e.preventDefault();
     if (draggedNode && targetNode.type === 'folder') {
-      console.log(`Move ${draggedNode.path} to ${targetNode.path}`);
+      window.electronAPI?.log?.debug('[FileExplorer] Move file', { from: draggedNode.path, to: targetNode.path });
       // Implement file move logic here
     }
     setDraggedNode(null);
@@ -262,7 +262,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
         break;
       case 'copy-path':
         navigator.clipboard.writeText(contextMenu.node.path).catch(err => {
-          console.error('Failed to copy path:', err);
+          window.electronAPI?.log?.error('[FileExplorer] Failed to copy path', { error: err instanceof Error ? err.message : String(err) });
         });
         break;
       case 'refresh':
@@ -374,7 +374,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
                 onDirectoryChange(result.filePaths[0]);
               }
             }).catch(err => {
-              console.error('Failed to open folder dialog:', err);
+              window.electronAPI?.log?.error('[FileExplorer] Failed to open folder dialog', { error: err instanceof Error ? err.message : String(err) });
             });
           }}
           title="Open Folder"

@@ -68,7 +68,7 @@ const SessionBrowser: React.FC<SessionBrowserProps> = ({
         setSessions(result.sessions);
       }
     } catch (err) {
-      console.error('Search failed:', err);
+      window.electronAPI?.log?.error('[SessionBrowser] Search failed', { error: err instanceof Error ? err.message : String(err) });
     } finally {
       setLoading(false);
     }
