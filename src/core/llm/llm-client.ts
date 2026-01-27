@@ -858,11 +858,8 @@ export class LLMClient {
             if (toolName === 'final_response') {
               if (result.success && result.metadata?.['isFinalResponse']) {
                 // Success - return immediately
+                // Note: emitAssistantResponse is already called via finalResponseCallback in final-response-tool.ts
                 logger.flow('final_response tool executed successfully - returning');
-
-                // Emit assistant response for UI
-                const { emitAssistantResponse } = await import('../../tools/llm/simple/file-tools.js');
-                emitAssistantResponse(result.result || '');
 
                 // Add tool result to messages for completeness
                 workingMessages.push({
