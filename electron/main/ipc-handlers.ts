@@ -964,6 +964,34 @@ export function setupIpcHandlers(): void {
     app.quit();
   });
 
+  // ============ 자동 업데이트 ============
+
+  // 현재 버전 가져오기
+  ipcMain.handle('update:getVersion', () => {
+    return app.getVersion();
+  });
+
+  // 다운로드 시작
+  ipcMain.handle('update:startDownload', async () => {
+    try {
+      const { autoUpdater } = await import('electron-updater');
+      autoUpdater.downloadUpdate();
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  });
+
+  // 설치 (재시작)
+  ipcMain.handle('update:install', async () => {
+    try {
+      const { autoUpdater } = await import('electron-updater');
+      autoUpdater.quitAndInstall();
+    } catch (error) {
+      logger.error('Failed to install update', { error });
+    }
+  });
+
   // 개발자 도구 토글
   ipcMain.handle('devTools:toggle', () => {
     mainWindow?.webContents.toggleDevTools();

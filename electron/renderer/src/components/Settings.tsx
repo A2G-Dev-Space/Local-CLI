@@ -209,18 +209,37 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
     setView('llm-delete');
   }, []);
 
+  // Use ref to always have current formData (avoids stale closure issues)
+  const formDataRef = React.useRef(formData);
+  React.useEffect(() => {
+    formDataRef.current = formData;
+  }, [formData]);
+
   // Test and save endpoint
   const handleSaveEndpoint = useCallback(async () => {
+    // Guard against undefined API
+    if (!window.electronAPI?.llm) {
+      setError('LLM API not available');
+      return;
+    }
+
+    // Use ref to get current formData (avoids stale closure)
+    const currentFormData = formDataRef.current;
+    if (!currentFormData) {
+      setError('Form data not initialized');
+      return;
+    }
+
     // Validation
-    if (!formData.name.trim()) {
+    if (!currentFormData.name?.trim()) {
       setError('Name is required');
       return;
     }
-    if (!formData.baseUrl.trim()) {
+    if (!currentFormData.baseUrl?.trim()) {
       setError('Base URL is required');
       return;
     }
-    if (!formData.modelId.trim()) {
+    if (!currentFormData.modelId?.trim()) {
       setError('Model ID is required');
       return;
     }
@@ -231,9 +250,9 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
     try {
       // Test connection
       const testResult = await window.electronAPI.llm.testConnection(
-        formData.baseUrl,
-        formData.apiKey,
-        formData.modelId
+        currentFormData.baseUrl,
+        currentFormData.apiKey || undefined,
+        currentFormData.modelId
       );
 
       if (!testResult.success) {
@@ -244,13 +263,13 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
 
       // Save endpoint
       const endpointData: Omit<EndpointConfig, 'id' | 'createdAt' | 'updatedAt'> = {
-        name: formData.name.trim(),
-        baseUrl: formData.baseUrl.trim(),
-        apiKey: formData.apiKey.trim() || undefined,
+        name: currentFormData.name.trim(),
+        baseUrl: currentFormData.baseUrl.trim(),
+        apiKey: currentFormData.apiKey?.trim() || undefined,
         models: [{
-          id: formData.modelId.trim(),
-          name: formData.modelName.trim() || formData.modelId.trim(),
-          maxTokens: parseInt(formData.maxContextLength) || 128000,
+          id: currentFormData.modelId.trim(),
+          name: currentFormData.modelName?.trim() || currentFormData.modelId.trim(),
+          maxTokens: parseInt(currentFormData.maxContextLength) || 128000,
           enabled: true,
           healthStatus: 'healthy',
         }],
@@ -276,7 +295,7 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
     } finally {
       setIsTesting(false);
     }
-  }, [formData, view, selectedEndpoint, loadEndpoints]);
+  }, [view, selectedEndpoint, loadEndpoints]);
 
   // Delete endpoint
   const handleDeleteEndpoint = useCallback(async () => {

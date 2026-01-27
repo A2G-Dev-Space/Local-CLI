@@ -249,36 +249,10 @@ function setupAutoUpdater(): void {
     mainWindow?.webContents.send('update:checking');
   });
 
-  // 업데이트 가능
+  // 업데이트 가능 - renderer로만 전달 (커스텀 UI 사용)
   autoUpdater.on('update-available', (info) => {
     logger.updateAvailable({ version: info.version, releaseDate: info.releaseDate });
     mainWindow?.webContents.send('update:available', info);
-
-    // Release Notes 파싱
-    let releaseNotes = '';
-    if (info.releaseNotes) {
-      if (typeof info.releaseNotes === 'string') {
-        releaseNotes = info.releaseNotes;
-      } else if (Array.isArray(info.releaseNotes)) {
-        releaseNotes = info.releaseNotes.map((note: { note?: string | null }) => note.note || '').join('\n');
-      }
-    }
-
-    const message = `새 버전 v${info.version}이 출시되었습니다.\n\n` +
-      (releaseNotes ? `📋 변경사항:\n${releaseNotes}\n\n` : '') +
-      '지금 다운로드하시겠습니까?';
-
-    dialog.showMessageBox(mainWindow!, {
-      type: 'info',
-      title: '업데이트 가능',
-      message,
-      buttons: ['다운로드', '나중에'],
-      defaultId: 0,
-    }).then((result) => {
-      if (result.response === 0) {
-        autoUpdater.downloadUpdate();
-      }
-    });
   });
 
   // 업데이트 없음
@@ -293,36 +267,10 @@ function setupAutoUpdater(): void {
     mainWindow?.webContents.send('update:download-progress', progress);
   });
 
-  // 다운로드 완료
+  // 다운로드 완료 - renderer로만 전달 (커스텀 UI 사용)
   autoUpdater.on('update-downloaded', (info) => {
     logger.updateDownloadComplete({ version: info.version });
     mainWindow?.webContents.send('update:downloaded', info);
-
-    // Release Notes 파싱
-    let releaseNotes = '';
-    if (info.releaseNotes) {
-      if (typeof info.releaseNotes === 'string') {
-        releaseNotes = info.releaseNotes;
-      } else if (Array.isArray(info.releaseNotes)) {
-        releaseNotes = info.releaseNotes.map((note: { note?: string | null }) => note.note || '').join('\n');
-      }
-    }
-
-    const message = `v${info.version} 업데이트가 준비되었습니다.\n\n` +
-      (releaseNotes ? `📋 변경사항:\n${releaseNotes}\n\n` : '') +
-      '지금 재시작하여 업데이트를 적용하시겠습니까?';
-
-    dialog.showMessageBox(mainWindow!, {
-      type: 'info',
-      title: '업데이트 준비 완료',
-      message,
-      buttons: ['지금 재시작', '나중에'],
-      defaultId: 0,
-    }).then((result) => {
-      if (result.response === 0) {
-        autoUpdater.quitAndInstall();
-      }
-    });
   });
 
   // 에러 처리

@@ -1,0 +1,238 @@
+/* =====================================================
+   Update Modal Component Styles
+   ===================================================== */
+
+.update-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: var(--z-modal);
+  animation: fadeIn var(--transition-fast) forwards;
+  backdrop-filter: blur(4px);
+}
+
+.update-modal {
+  width: 100%;
+  max-width: 420px;
+  background-color: var(--color-bg-elevated);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+  border: 1px solid var(--color-border-default);
+  animation: slideInUp var(--transition-smooth) forwards;
+  overflow: hidden;
+}
+
+.update-modal-content {
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-3);
+}
+
+/* Icons */
+.update-modal-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  margin-bottom: var(--space-2);
+}
+
+.update-modal-icon-checking {
+  background-color: var(--color-info-bg);
+  color: var(--color-info);
+}
+
+.update-modal-icon-update {
+  background: linear-gradient(135deg, var(--color-accent-primary), var(--color-accent-hover));
+  color: white;
+}
+
+.update-modal-icon-ready {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+}
+
+.update-modal-icon-success {
+  background-color: var(--color-success-bg);
+  color: var(--color-success);
+}
+
+.update-modal-icon-error {
+  background-color: var(--color-error-bg);
+  color: var(--color-error);
+}
+
+/* Spinner animation */
+.update-modal-spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Title & Message */
+.update-modal-title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.update-modal-message {
+  font-size: var(--font-size-base);
+  color: var(--color-text-secondary);
+  margin: 0;
+  line-height: var(--line-height-relaxed);
+}
+
+.update-modal-error {
+  color: var(--color-error);
+}
+
+.update-modal-restart-notice {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  margin-top: var(--space-1);
+}
+
+/* Version Info */
+.update-modal-version-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  background-color: var(--color-bg-surface);
+  border-radius: var(--radius-lg);
+  margin: var(--space-2) 0;
+}
+
+.update-modal-version-current {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+}
+
+.update-modal-version-new {
+  font-size: var(--font-size-sm);
+  color: var(--color-accent-primary);
+  font-weight: var(--font-weight-semibold);
+  font-family: var(--font-mono);
+}
+
+.update-modal-version-info svg {
+  color: var(--color-text-muted);
+}
+
+/* Progress Bar */
+.update-modal-progress {
+  width: 100%;
+  margin-top: var(--space-3);
+}
+
+.update-modal-progress-bar {
+  width: 100%;
+  height: 8px;
+  background-color: var(--color-bg-surface);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.update-modal-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-accent-primary), var(--color-accent-hover));
+  border-radius: var(--radius-full);
+  transition: width 0.3s ease;
+}
+
+.update-modal-progress-info {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--space-2);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+}
+
+/* Release Notes */
+.update-modal-notes {
+  width: 100%;
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  background-color: var(--color-bg-surface);
+  border-radius: var(--radius-md);
+  text-align: left;
+  font-size: var(--font-size-sm);
+}
+
+.update-modal-notes strong {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+.update-modal-notes p {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-relaxed);
+  white-space: pre-wrap;
+}
+
+/* Actions */
+.update-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  background-color: var(--color-bg-surface);
+  border-top: 1px solid var(--color-border-muted);
+}
+
+.update-modal-btn {
+  padding: var(--space-2) var(--space-5);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+  cursor: pointer;
+  border: none;
+}
+
+.update-modal-btn-secondary {
+  color: var(--color-text-secondary);
+  background-color: var(--color-bg-overlay);
+}
+
+.update-modal-btn-secondary:hover {
+  background-color: var(--color-border-default);
+  color: var(--color-text-primary);
+}
+
+.update-modal-btn-primary {
+  color: white;
+  background-color: var(--color-accent-primary);
+}
+
+.update-modal-btn-primary:hover {
+  background-color: var(--color-accent-hover);
+}
+
+.update-modal-btn-install {
+  background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.update-modal-btn-install:hover {
+  background: linear-gradient(135deg, #059669, #047857);
+}

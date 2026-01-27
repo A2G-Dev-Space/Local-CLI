@@ -1069,6 +1069,59 @@ const electronAPI = {
     },
   },
 
+  // ============ 자동 업데이트 ============
+  update: {
+    // 현재 버전 가져오기
+    getVersion: (): Promise<string> => {
+      return ipcRenderer.invoke('update:getVersion');
+    },
+
+    // 다운로드 시작
+    startDownload: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke('update:startDownload');
+    },
+
+    // 설치 (재시작)
+    install: (): Promise<void> => {
+      return ipcRenderer.invoke('update:install');
+    },
+
+    // 업데이트 가능 이벤트
+    onAvailable: (callback: (info: { version: string; releaseNotes?: string | { note?: string | null }[]; releaseDate?: string }) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, info: { version: string; releaseNotes?: string | { note?: string | null }[]; releaseDate?: string }) => callback(info);
+      ipcRenderer.on('update:available', handler);
+      return () => ipcRenderer.removeListener('update:available', handler);
+    },
+
+    // 업데이트 없음 이벤트
+    onNotAvailable: (callback: () => void): (() => void) => {
+      const handler = () => callback();
+      ipcRenderer.on('update:not-available', handler);
+      return () => ipcRenderer.removeListener('update:not-available', handler);
+    },
+
+    // 다운로드 진행률 이벤트
+    onDownloadProgress: (callback: (progress: { percent: number; transferred: number; total: number; bytesPerSecond: number }) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, progress: { percent: number; transferred: number; total: number; bytesPerSecond: number }) => callback(progress);
+      ipcRenderer.on('update:download-progress', handler);
+      return () => ipcRenderer.removeListener('update:download-progress', handler);
+    },
+
+    // 다운로드 완료 이벤트
+    onDownloaded: (callback: (info: { version: string; releaseNotes?: string | { note?: string | null }[] }) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, info: { version: string; releaseNotes?: string | { note?: string | null }[] }) => callback(info);
+      ipcRenderer.on('update:downloaded', handler);
+      return () => ipcRenderer.removeListener('update:downloaded', handler);
+    },
+
+    // 에러 이벤트
+    onError: (callback: (error: string) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, error: string) => callback(error);
+      ipcRenderer.on('update:error', handler);
+      return () => ipcRenderer.removeListener('update:error', handler);
+    },
+  },
+
   // ============ 개발자 도구 ============
   devTools: {
     toggle: (): Promise<{ success: boolean }> => {
