@@ -276,6 +276,10 @@ export async function runAgent(
       if (planningResult.directResponse) {
         logger.flow('Planning returned direct response, skipping execution');
 
+        // Chat 로그: 사용자 입력 및 어시스턴트 응답
+        logger.info('[CHAT] User message', { content: userMessage.substring(0, 500) });
+        logger.info('[CHAT] Assistant response (direct)', { content: planningResult.directResponse.substring(0, 500) });
+
         if (callbacks.onComplete) {
           callbacks.onComplete(planningResult.directResponse);
         }
@@ -581,6 +585,9 @@ export async function runAgent(
                 if (state.mainWindow) {
                   state.mainWindow.webContents.send('agent:tellUser', '완료되지 않은 TODO가 있지만, 최대 재시도 횟수에 도달하여 작업을 종료합니다.');
                 }
+
+                // Chat 로그: fallback 응답
+                logger.info('[CHAT] Final response (fallback)', { content: fallbackMessage.substring(0, 500) });
 
                 if (callbacks.onComplete) {
                   callbacks.onComplete(fallbackMessage);

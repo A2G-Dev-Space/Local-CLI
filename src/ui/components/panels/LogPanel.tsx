@@ -163,20 +163,18 @@ export const LogBrowser: React.FC<LogBrowserProps> = ({ onClose }) => {
   }, [getCurrentLogDir]);
 
   // Load log content from file
-  const loadLogContent = useCallback(async (filePath: string, isCurrentSession = false) => {
+  const loadLogContent = useCallback(async (filePath: string) => {
     setLoading(true);
     setError(null);
     try {
       let content = await readFile(filePath, 'utf-8');
 
-      // For current session, the file might not have closing bracket yet
-      // because the logger is still writing to it
-      if (isCurrentSession) {
-        const trimmed = content.trimEnd();
-        if (!trimmed.endsWith(']')) {
-          // Add closing bracket to make valid JSON
-          content = trimmed + '\n]';
-        }
+      // File might not have closing bracket yet if logger is still writing
+      // This applies to both current session and category files
+      const trimmed = content.trimEnd();
+      if (!trimmed.endsWith(']')) {
+        // Add closing bracket to make valid JSON
+        content = trimmed + '\n]';
       }
 
       // Parse JSON array
@@ -205,7 +203,7 @@ export const LogBrowser: React.FC<LogBrowserProps> = ({ onClose }) => {
       return;
     }
 
-    await loadLogContent(logPath, true);
+    await loadLogContent(logPath);
   }, [loadLogContent]);
 
   // Initial load
