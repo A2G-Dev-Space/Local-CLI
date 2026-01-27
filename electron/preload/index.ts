@@ -84,12 +84,16 @@ export interface LogFile {
   date: string;
 }
 
+// 로그 카테고리 타입
+export type LogCategory = 'all' | 'chat' | 'tool' | 'http' | 'llm' | 'ui' | 'system' | 'debug';
+
 // 로그 엔트리 타입
 export interface LogEntry {
   timestamp: string;
   level: string;
   message: string;
   data?: unknown;
+  category?: LogCategory; // Computed from message prefix
 }
 
 // 테마 타입

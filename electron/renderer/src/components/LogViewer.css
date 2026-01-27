@@ -326,6 +326,42 @@
   color: var(--level-color);
 }
 
+/* 카테고리 필터 */
+.log-category-filters {
+  display: flex;
+  gap: 2px;
+  padding-left: 6px;
+  border-left: 1px solid var(--border-color, #3c3c3c);
+  margin-left: 4px;
+}
+
+.category-filter-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: var(--text-secondary, #888);
+  font-size: 10px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.category-filter-btn:hover {
+  background: var(--bg-hover, #3c3c3c);
+  color: var(--text-primary, #cccccc);
+}
+
+.category-filter-btn.active {
+  background: color-mix(in srgb, var(--category-color) 20%, transparent);
+  border-color: var(--category-color);
+  color: var(--category-color);
+}
+
 /* 옵션 버튼 */
 .log-options {
   display: flex;
@@ -661,6 +697,18 @@
 }
 
 /* 반응형 */
+@media (max-width: 1024px) {
+  .log-category-filters {
+    flex-wrap: wrap;
+    gap: 3px;
+  }
+
+  .category-filter-btn {
+    padding: 2px 6px;
+    font-size: 9px;
+  }
+}
+
 @media (max-width: 768px) {
   .log-viewer-toolbar {
     flex-wrap: wrap;
@@ -675,5 +723,36 @@
 
   .log-level-setting {
     display: none;
+  }
+
+  .log-level-filters {
+    order: 5;
+  }
+
+  .log-category-filters {
+    order: 6;
+    flex: 1 1 100%;
+    padding-left: 0;
+    border-left: none;
+    margin-left: 0;
+    margin-top: 4px;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 480px) {
+  .category-filter-btn {
+    padding: 2px 4px;
+    font-size: 8px;
+  }
+
+  .log-level-filters {
+    gap: 1px;
+  }
+
+  .level-filter-btn {
+    width: 20px;
+    height: 20px;
+    font-size: 9px;
   }
 }

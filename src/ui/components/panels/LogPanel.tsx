@@ -2,6 +2,7 @@
  * Log Browser Component for CLI
  *
  * Displays session logs with interactive selection and content viewing
+ * Supports category-based log file splitting
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -11,7 +12,7 @@ import { readFile, readdir, stat } from 'fs/promises';
 import { join, basename } from 'path';
 import { PROJECTS_DIR } from '../../../constants.js';
 import { getStreamLogger } from '../../../utils/json-stream-logger.js';
-import type { StreamLogEntry } from '../../../utils/json-stream-logger.js';
+import type { StreamLogEntry, LogCategory } from '../../../utils/json-stream-logger.js';
 
 interface LogBrowserProps {
   onClose: () => void;
@@ -24,7 +25,34 @@ interface LogFile {
   path: string;
   size: number;
   modifiedAt: number;
+  category?: LogCategory | 'all' | 'error'; // 카테고리 정보
 }
+
+// 카테고리 색상
+const CATEGORY_COLORS: Record<string, string> = {
+  all: 'white',
+  chat: 'green',
+  tool: 'yellow',
+  http: 'blue',
+  llm: 'magenta',
+  ui: 'cyan',
+  system: 'gray',
+  debug: 'dim',
+  error: 'red',
+};
+
+// 카테고리 레이블
+const CATEGORY_LABELS: Record<string, string> = {
+  all: '📋 All',
+  chat: '💬 Chat',
+  tool: '🔧 Tool',
+  http: '🌐 HTTP',
+  llm: '🤖 LLM',
+  ui: '🖥️ UI',
+  system: '⚙️ System',
+  debug: '🐛 Debug',
+  error: '❌ Error',
+};
 
 const MAX_LOG_LINES = 50;
 const LOG_LEVEL_COLORS: Record<string, string> = {
@@ -56,6 +84,20 @@ export const LogBrowser: React.FC<LogBrowserProps> = ({ onClose }) => {
     return join(PROJECTS_DIR, safeCwd);
   }, []);
 
+  // 파일명에서 카테고리 추출
+  const getCategoryFromFileName = (fileName: string): LogFile['category'] => {
+    if (fileName.endsWith('_log.json')) return 'all';
+    if (fileName.endsWith('_error.json')) return 'error';
+    if (fileName.endsWith('_chat.json')) return 'chat';
+    if (fileName.endsWith('_tool.json')) return 'tool';
+    if (fileName.endsWith('_http.json')) return 'http';
+    if (fileName.endsWith('_llm.json')) return 'llm';
+    if (fileName.endsWith('_ui.json')) return 'ui';
+    if (fileName.endsWith('_system.json')) return 'system';
+    if (fileName.endsWith('_debug.json')) return 'debug';
+    return undefined;
+  };
+
   // Load log files list
   const loadLogFiles = useCallback(async () => {
     setLoading(true);
@@ -66,20 +108,51 @@ export const LogBrowser: React.FC<LogBrowserProps> = ({ onClose }) => {
       const logFileList: LogFile[] = [];
 
       for (const file of files) {
-        if (file.endsWith('_log.json')) {
+        // 모든 JSON 로그 파일 포함 (카테고리별 파일 포함)
+        if (file.endsWith('.json') && (
+          file.endsWith('_log.json') ||
+          file.endsWith('_error.json') ||
+          file.endsWith('_chat.json') ||
+          file.endsWith('_tool.json') ||
+          file.endsWith('_http.json') ||
+          file.endsWith('_llm.json') ||
+          file.endsWith('_ui.json') ||
+          file.endsWith('_system.json') ||
+          file.endsWith('_debug.json')
+        )) {
           const filePath = join(logDir, file);
           const stats = await stat(filePath);
+          const category = getCategoryFromFileName(file);
           logFileList.push({
             name: file,
             path: filePath,
             size: stats.size,
             modifiedAt: stats.mtimeMs,
+            category,
           });
         }
       }
 
-      // Sort by modified time (newest first)
-      logFileList.sort((a, b) => b.modifiedAt - a.modifiedAt);
+      // Sort by: category (all first, then by name), then modified time (newest first)
+      logFileList.sort((a, b) => {
+        // Category priority: all > error > specific categories
+        const categoryOrder = ['all', 'error', 'chat', 'tool', 'http', 'llm', 'ui', 'system', 'debug'];
+        const aOrder = a.category ? categoryOrder.indexOf(a.category) : 999;
+        const bOrder = b.category ? categoryOrder.indexOf(b.category) : 999;
+
+        // Same session files grouped together by extracting session ID
+        const aSession = a.name.split('_')[0];
+        const bSession = b.name.split('_')[0];
+
+        if (aSession !== bSession) {
+          // Different sessions: sort by modified time
+          return b.modifiedAt - a.modifiedAt;
+        }
+
+        // Same session: sort by category order
+        return aOrder - bOrder;
+      });
+
       setLogFiles(logFileList);
     } catch (err) {
       setError(`Failed to load log files: ${err instanceof Error ? err.message : String(err)}`);
@@ -201,17 +274,20 @@ export const LogBrowser: React.FC<LogBrowserProps> = ({ onClose }) => {
 
   // Render log entry
   const renderLogEntry = (entry: StreamLogEntry, index: number) => {
-    const color = LOG_LEVEL_COLORS[entry.type] || 'white';
+    const typeColor = LOG_LEVEL_COLORS[entry.type] || 'white';
+    const categoryColor = entry.category ? CATEGORY_COLORS[entry.category] : 'white';
     const time = formatTimestamp(entry.timestamp);
     const typeLabel = entry.type.replace(/_/g, ' ').toUpperCase().padEnd(12);
-    const content = entry.content.length > 80
-      ? entry.content.substring(0, 77) + '...'
+    const categoryLabel = entry.category ? `[${entry.category.toUpperCase().padEnd(6)}]` : '';
+    const content = entry.content.length > 70
+      ? entry.content.substring(0, 67) + '...'
       : entry.content;
 
     return (
       <Box key={index} flexDirection="row">
         <Text color="gray" dimColor>{time} </Text>
-        <Text color={color}>[{typeLabel}] </Text>
+        {entry.category && <Text color={categoryColor}>{categoryLabel} </Text>}
+        <Text color={typeColor}>[{typeLabel}] </Text>
         <Text>{content}</Text>
       </Box>
     );
@@ -259,12 +335,18 @@ export const LogBrowser: React.FC<LogBrowserProps> = ({ onClose }) => {
             <Text color="yellow">No log files found</Text>
           ) : (
             <SelectInput
-              items={logFiles.map(file => ({
-                label: `${file.name} (${formatSize(file.size)}) - ${new Date(file.modifiedAt).toLocaleString()}`,
-                value: file.path,
-              }))}
+              items={logFiles.map(file => {
+                const categoryLabel = file.category ? CATEGORY_LABELS[file.category] || file.category : '📄';
+                const nameParts = file.name.split('_');
+                const firstPart = nameParts[0] ?? 'unknown';
+                const sessionId = firstPart.slice(0, 8);
+                return {
+                  label: `${categoryLabel} [${sessionId}] (${formatSize(file.size)}) - ${new Date(file.modifiedAt).toLocaleString()}`,
+                  value: file.path,
+                };
+              })}
               onSelect={handleFileSelect}
-              limit={10}
+              limit={15}
             />
           )}
         </>
