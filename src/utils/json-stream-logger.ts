@@ -177,6 +177,7 @@ export class JsonStreamLogger {
   // 카테고리별 스트림 관리 (파일 분할용)
   private categoryStreams: Map<LogCategory, CategoryStreamInfo> = new Map();
   private enableCategorySplit = true; // 카테고리별 파일 분할 활성화
+  private pendingStreamInits: Set<Promise<void>> = new Set(); // 초기화 중인 스트림 promise 추적
 
   constructor(filePath: string, errorFilePath: string) {
     this.filePath = filePath;
@@ -262,15 +263,25 @@ export class JsonStreamLogger {
 
   /**
    * Initialize category stream (lazy initialization)
+   * 이 메서드는 log()에서 미리 Map에 등록된 후에도 호출될 수 있음
+   * stream이 null인 경우 스트림을 생성하고 기존 info를 업데이트함
    */
   private async initializeCategoryStream(category: LogCategory): Promise<void> {
-    if (this.categoryStreams.has(category) || !this.enableCategorySplit) {
+    if (!this.enableCategorySplit) {
+      return;
+    }
+
+    // 기존 info 확인 (log()에서 미리 등록했을 수 있음)
+    const existingInfo = this.categoryStreams.get(category);
+
+    // 이미 유효한 스트림이 있으면 return
+    if (existingInfo && existingInfo.stream && !existingInfo.stream.destroyed) {
       return;
     }
 
     try {
       // Generate category file path: {sessionId}_log.json → {sessionId}_{category}.json
-      const categoryFilePath = this.filePath.replace('_log.json', `_${category}.json`);
+      const categoryFilePath = existingInfo?.filePath || this.filePath.replace('_log.json', `_${category}.json`);
 
       // Create directory if it doesn't exist
       await mkdir(dirname(categoryFilePath), { recursive: true });
@@ -299,12 +310,19 @@ export class JsonStreamLogger {
         isFirstEntry = true;
       }
 
-      this.categoryStreams.set(category, {
-        stream,
-        buffer: [],
-        isFirstEntry,
-        filePath: categoryFilePath,
-      });
+      // 기존 info가 있으면 스트림만 업데이트, 없으면 새로 생성
+      if (existingInfo) {
+        existingInfo.stream = stream;
+        existingInfo.isFirstEntry = isFirstEntry;
+        // filePath는 이미 설정되어 있음
+      } else {
+        this.categoryStreams.set(category, {
+          stream,
+          buffer: [],
+          isFirstEntry,
+          filePath: categoryFilePath,
+        });
+      }
 
       if (this.verbose) {
         console.log(chalk.dim(`   Category log: ${categoryFilePath}`));
@@ -346,12 +364,29 @@ export class JsonStreamLogger {
     // Add to category buffer (for file splitting)
     if (this.enableCategorySplit && entry.category && entry.category !== 'all') {
       const category = entry.category;
+
+      // 스트림이 없으면 먼저 버퍼만 있는 임시 객체를 등록 (스트림은 나중에 초기화)
       if (!this.categoryStreams.has(category)) {
-        this.initializeCategoryStream(category).catch(err => {
+        // 파일 경로 생성
+        const categoryFilePath = this.filePath.replace('_log.json', `_${category}.json`);
+
+        // 먼저 Map에 등록 (스트림은 null, 버퍼만 준비)
+        this.categoryStreams.set(category, {
+          stream: null as unknown as WriteStream,
+          buffer: [],
+          isFirstEntry: true,
+          filePath: categoryFilePath,
+        });
+
+        // 비동기로 스트림 초기화 (promise 추적)
+        const initPromise = this.initializeCategoryStream(category).catch(err => {
           console.error(chalk.red(`Failed to initialize category stream (${category}):`), err);
         });
+        this.pendingStreamInits.add(initPromise);
+        initPromise.finally(() => this.pendingStreamInits.delete(initPromise));
       }
 
+      // 이제 항상 streamInfo가 존재함
       const streamInfo = this.categoryStreams.get(category);
       if (streamInfo) {
         streamInfo.buffer.push(entry);
@@ -464,7 +499,9 @@ export class JsonStreamLogger {
    */
   private flushCategories(): void {
     for (const [_category, streamInfo] of this.categoryStreams) {
-      if (!streamInfo.stream || streamInfo.buffer.length === 0) {
+      // stream이 없거나, writable하지 않거나, 버퍼가 비었으면 skip
+      // stream이 아직 초기화 안됐으면 버퍼가 유지되고, 다음 flush에서 다시 시도
+      if (!streamInfo.stream || !streamInfo.stream.writable || streamInfo.buffer.length === 0) {
         continue;
       }
 
@@ -1057,6 +1094,11 @@ export class JsonStreamLogger {
     if (this.flushInterval) {
       clearInterval(this.flushInterval);
       this.flushInterval = null;
+    }
+
+    // Wait for all pending category stream initializations to complete
+    if (this.pendingStreamInits.size > 0) {
+      await Promise.all(this.pendingStreamInits);
     }
 
     // Flush any remaining buffers
