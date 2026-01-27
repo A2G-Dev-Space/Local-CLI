@@ -273,11 +273,14 @@ const UpdateModal: React.FC<UpdateModalProps> = ({
           {renderContent()}
         </div>
 
-        {renderActions() && (
-          <div className="update-modal-actions">
-            {renderActions()}
-          </div>
-        )}
+        {(() => {
+          const actions = renderActions();
+          return actions && (
+            <div className="update-modal-actions">
+              {actions}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
