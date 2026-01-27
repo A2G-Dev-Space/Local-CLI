@@ -334,6 +334,9 @@ export async function runAgent(
 
   messages.push({ role: 'user', content: userMessageWithContext });
 
+  // Chat 로그: 사용자 입력
+  logger.info('[CHAT] User message', { content: userMessage.substring(0, 500) });
+
   if (callbacks.onMessage) {
     callbacks.onMessage({ role: 'user', content: userMessage });
   }
@@ -432,6 +435,13 @@ export async function runAgent(
 
       messages.push(assistantMessage);
 
+      // Chat 로그: 어시스턴트 응답
+      logger.info('[CHAT] Assistant message', {
+        content: assistantMessage.content?.substring(0, 500),
+        hasToolCalls: !!assistantMessage.tool_calls?.length,
+        toolCount: assistantMessage.tool_calls?.length || 0,
+      });
+
       if (callbacks.onMessage) {
         callbacks.onMessage(assistantMessage);
       }
@@ -516,6 +526,9 @@ export async function runAgent(
 
               // Send agent:complete with empty response to signal completion
               // (the actual message is displayed via agent:toolResult above)
+              // Chat 로그: 최종 응답
+              logger.info('[CHAT] Final response', { content: finalResponse.substring(0, 500) });
+
               if (callbacks.onComplete) {
                 callbacks.onComplete(finalResponse);
               }
@@ -722,6 +735,9 @@ export async function simpleChat(
 ): Promise<{ response: string; messages: Message[] }> {
   logger.info('Simple chat', { userMessage: userMessage.substring(0, 100) });
 
+  // Chat 로그: 사용자 입력
+  logger.info('[CHAT] User message', { content: userMessage.substring(0, 500) });
+
   let messages: Message[] = [...existingMessages];
 
   if (systemPrompt && !messages.some((m) => m.role === 'system')) {
@@ -744,10 +760,16 @@ export async function simpleChat(
       const assistantMessage: Message = { role: 'assistant', content: result.content };
       messages.push(assistantMessage);
 
+      // Chat 로그: 어시스턴트 응답
+      logger.info('[CHAT] Assistant response', { content: result.content.substring(0, 500) });
+
       return { response: result.content, messages };
     } else {
       const result = await llmClient.chat(messages, false);
       messages.push(result.message);
+
+      // Chat 로그: 어시스턴트 응답
+      logger.info('[CHAT] Assistant response', { content: result.content.substring(0, 500) });
 
       return { response: result.content, messages };
     }

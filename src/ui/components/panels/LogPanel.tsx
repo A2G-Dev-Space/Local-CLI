@@ -69,7 +69,8 @@ const LOG_LEVEL_COLORS: Record<string, string> = {
 };
 
 export const LogBrowser: React.FC<LogBrowserProps> = ({ onClose }) => {
-  const [logSource, setLogSource] = useState<LogSource>('current');
+  // 파일 목록을 먼저 표시 (사용자가 선택하도록)
+  const [logSource, setLogSource] = useState<LogSource>('list');
   const [logFiles, setLogFiles] = useState<LogFile[]>([]);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [logEntries, setLogEntries] = useState<StreamLogEntry[]>([]);

@@ -191,6 +191,10 @@ export function emitAssistantResponse(content: string): void {
 
     if (cleanedContent) {
       assistantResponseCallback(cleanedContent);
+
+      // Log assistant response (for Ctrl+O LogBrowser chat category)
+      const streamLogger = getStreamLogger();
+      streamLogger?.logAssistantResponse(cleanedContent);
     }
   }
 }

@@ -91,6 +91,9 @@ export class PlanExecutor {
 
     logger.enter('PlanExecutor.executePlanMode', { messageLength: userMessage.length });
 
+    // Log user input (for Ctrl+O LogBrowser chat category)
+    streamLogger?.logUserInput(userMessage);
+
     // Log planning start
     streamLogger?.logPlanningStart(userMessage, {
       messageCount: messages.length,
@@ -299,6 +302,10 @@ export class PlanExecutor {
     callbacks: StateCallbacks
   ): Promise<void> {
     logger.enter('PlanExecutor.resumeTodoExecution', { messageLength: userMessage.length, todoCount: todos.length });
+
+    // Log user input (for Ctrl+O LogBrowser chat category)
+    const streamLogger = getStreamLogger();
+    streamLogger?.logUserInput(userMessage);
 
     // Store LLM client for docs search agent tool
     this.currentLLMClient = llmClient;
