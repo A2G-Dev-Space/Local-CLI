@@ -1,6 +1,6 @@
 {
   "name": "local-cli",
-  "version": "3.3.6",
+  "version": "4.0.4",
   "description": "LOCAL-CLI - OpenAI-Compatible Local CLI Coding Agent",
   "type": "module",
   "main": "dist/index.js",
@@ -34,7 +34,7 @@
       "output": "release"
     },
     "extraMetadata": {
-      "main": "dist-electron/main/index.js"
+      "main": "dist-electron/main/index.cjs"
     },
     "files": [
       "dist-electron/**/*",
