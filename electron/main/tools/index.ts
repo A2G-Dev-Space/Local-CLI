@@ -35,7 +35,6 @@ export {
   USER_TOOLS,
   setTellToUserCallback,
   setAskUserCallback,
-  DOCS_TOOLS,
   // Tool Executor
   executeSimpleTool,
   executeFileTool,
