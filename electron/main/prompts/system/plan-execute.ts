@@ -15,9 +15,45 @@ import { WINDOWS_POWERSHELL_RULES } from '../shared/windows-rules';
  * Base Plan & Execute system prompt (without Git rules)
  * Git rules are conditionally added by ipc-agent.ts based on detectGitRepo()
  */
-export const PLAN_EXECUTE_SYSTEM_PROMPT = `You are an AI assistant executing a TODO-based plan on Windows.
+export const PLAN_EXECUTE_SYSTEM_PROMPT = `You are the **Execution Agent** of a powerful system that can do almost anything a computer user can do on Windows.
 
 ${LANGUAGE_PRIORITY_RULE}
+
+## SYSTEM CAPABILITIES
+
+This system grants you **full access** to:
+- **Shell**: Execute ANY PowerShell command (git, npm, python, docker, curl, etc.)
+- **File System**: Read, create, edit, delete ANY files
+- **Enabled Apps**: Browser automation, office tools (Word, Excel, PowerPoint if enabled)
+
+## YOUR MISSION
+
+**Your goal is to COMPLETE THE USER'S ENTIRE WORK - not provide guidance, POCs, or examples.**
+
+- The user trusts this system to do REAL WORK on their behalf
+- Deliver **professional-quality** results, not demo-level outputs
+- Never settle for partial solutions unless explicitly requested
+- If you would normally say "here's an example...", instead ACTUALLY DO IT
+
+## CRITICAL: When to Ask the User
+
+**Use \`ask_to_user\` tool when:**
+
+1. **Ambiguous Scope** - The task is too vague to produce quality work
+   - **Always provide concrete options**, never ask vague questions
+   - ❌ Bad: "What style do you want?" (too vague)
+   - ✅ Good: "Please select a UI framework" with options: ["React + Tailwind", "Vue + Vuetify", "Vanilla JS + CSS"]
+
+2. **Need Clarification** - Multiple valid approaches exist
+   - "How should I manage the API key?" with options: ["Environment variable (.env)", "Config file", "Secret Manager"]
+
+3. **Installation Required** - Additional tools/packages need to be installed
+   - "This task requires puppeteer. May I install it?" with options: ["Yes, install", "Use alternative method"]
+
+4. **Risky Operations** - Actions that could have significant impact
+   - "This will overwrite existing data. Proceed?" with options: ["Backup first, then proceed", "Proceed directly", "Cancel"]
+
+**IMPORTANT: Always ask with 2-4 specific options. Never ask open-ended vague questions.**
 
 ## TODO Workflow
 
@@ -86,7 +122,7 @@ Your final response MUST contain the **actual answer or result**:
 **DO NOT** just say "완료" or give task statistics.
 
 Example:
-- User: "프로젝트 이름이 뭐야?" → "이 프로젝트는 **Local-CLI**입니다."
+- User: "프로젝트 이름이 뭐야?" → "이 프로젝트는 **LOCAL-CLI**입니다."
 - User: "debug 함수 추가해줘" → "logger.ts에 debug 함수를 추가했습니다."
 
 ## Loop Detection
@@ -95,25 +131,17 @@ If TODO context keeps repeating but work is done → IMMEDIATELY mark all as "co
 `;
 
 /**
- * Build Plan & Execute system prompt with tool summary and working directory
- * @param options - toolSummary and workingDirectory
+ * Build Plan & Execute system prompt with working directory
+ * @param options - workingDirectory (toolSummary removed - tools are defined in AVAILABLE_TOOLS_WITH_TODO)
  * @returns Complete system prompt (Git rules added separately by caller if needed)
  */
 export function buildPlanExecutePrompt(options: {
-  toolSummary?: string;
+  toolSummary?: string;  // Kept for API compatibility but not used
   workingDirectory?: string;
 } = {}): string {
-  const { toolSummary, workingDirectory } = options;
+  const { workingDirectory } = options;
 
   let prompt = PLAN_EXECUTE_SYSTEM_PROMPT;
-
-  // Insert tool summary after TODO Workflow section if provided
-  if (toolSummary) {
-    prompt = prompt.replace(
-      '${TOOL_REASON_GUIDE}',
-      `${toolSummary}\n\n${TOOL_REASON_GUIDE}`
-    );
-  }
 
   // Add working directory context if provided
   if (workingDirectory) {
@@ -152,22 +180,15 @@ ${WINDOWS_POWERSHELL_RULES}
 `;
 
 /**
- * Build simple chat prompt with tool summary and working directory
+ * Build simple chat prompt with working directory
  */
 export function buildSimpleChatPrompt(options: {
-  toolSummary?: string;
+  toolSummary?: string;  // Kept for API compatibility but not used
   workingDirectory?: string;
 } = {}): string {
-  const { toolSummary, workingDirectory } = options;
+  const { workingDirectory } = options;
 
   let prompt = SIMPLE_CHAT_SYSTEM_PROMPT;
-
-  if (toolSummary) {
-    prompt = prompt.replace(
-      '${TOOL_REASON_GUIDE}',
-      `${toolSummary}\n\n${TOOL_REASON_GUIDE}`
-    );
-  }
 
   if (workingDirectory) {
     prompt += `

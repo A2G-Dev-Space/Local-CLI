@@ -17,6 +17,11 @@ export * from './comments.js';
 export * from './protection.js';
 export * from './media.js';
 export * from './export.js';
+export * from './pivot-table.js';
+export * from './formulas.js';
+export * from './tables.js';
+export * from './page-setup.js';
+export * from './advanced.js';
 
 // Import tool arrays for aggregation
 import { launchTools } from './launch.js';
@@ -32,6 +37,11 @@ import { commentsTools } from './comments.js';
 import { protectionTools } from './protection.js';
 import { mediaTools } from './media.js';
 import { exportTools } from './export.js';
+import { pivotTableTools } from './pivot-table.js';
+import { formulasTools } from './formulas.js';
+import { tablesTools } from './tables.js';
+import { pageSetupTools } from './page-setup.js';
+import { advancedTools } from './advanced.js';
 
 import type { LLMSimpleTool } from '../../types.js';
 
@@ -52,4 +62,9 @@ export const EXCEL_TOOLS: LLMSimpleTool[] = [
   ...protectionTools,
   ...mediaTools,
   ...exportTools,
+  ...pivotTableTools,
+  ...formulasTools,
+  ...tablesTools,
+  ...pageSetupTools,
+  ...advancedTools,
 ];

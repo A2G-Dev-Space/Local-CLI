@@ -21,19 +21,21 @@ const POWERPOINT_ADD_SECTION_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are adding this section' },
         section_name: { type: 'string', description: 'Section name' },
         before_slide: { type: 'number', description: 'Insert section before this slide number' },
       },
-      required: ['section_name', 'before_slide'],
+      required: ['reason', 'section_name', 'before_slide'],
     },
   },
 };
 
 async function executePowerPointAddSection(args: Record<string, unknown>): Promise<ToolResult> {
   try {
+    const beforeSlide = Number(args['before_slide']);
     const response = await powerpointClient.powerpointAddSection(
       args['section_name'] as string,
-      args['before_slide'] as number
+      beforeSlide
     );
     if (response.success) {
       return { success: true, result: `Section added. Section index: ${response['section_index']}` };
@@ -63,20 +65,20 @@ const POWERPOINT_DELETE_SECTION_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are deleting this section' },
         section_index: { type: 'number', description: 'Section index to delete (1-based)' },
         delete_slides: { type: 'boolean', description: 'Whether to also delete slides in the section (default: false)' },
       },
-      required: ['section_index'],
+      required: ['reason', 'section_index'],
     },
   },
 };
 
 async function executePowerPointDeleteSection(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await powerpointClient.powerpointDeleteSection(
-      args['section_index'] as number,
-      (args['delete_slides'] as boolean) ?? false
-    );
+    const sectionIndex = Number(args['section_index']);
+    const deleteSlides = args['delete_slides'] != null ? Boolean(args['delete_slides']) : false;
+    const response = await powerpointClient.powerpointDeleteSection(sectionIndex, deleteSlides);
     if (response.success) {
       return { success: true, result: `Section deleted.` };
     }
@@ -104,8 +106,10 @@ const POWERPOINT_GET_SECTIONS_DEFINITION: ToolDefinition = {
     description: `Get list of all sections in the presentation.`,
     parameters: {
       type: 'object',
-      properties: {},
-      required: [],
+      properties: {
+        reason: { type: 'string', description: 'Why you are getting the sections list' },
+      },
+      required: ['reason'],
     },
   },
 };

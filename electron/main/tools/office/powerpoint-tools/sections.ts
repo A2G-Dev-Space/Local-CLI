@@ -22,10 +22,11 @@ const POWERPOINT_ADD_SECTION_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are adding a section' },
         section_name: { type: 'string', description: 'Section name' },
         before_slide: { type: 'number', description: 'Insert section before this slide number' },
       },
-      required: ['section_name', 'before_slide'],
+      required: ['reason', 'section_name', 'before_slide'],
     },
   },
 };
@@ -36,7 +37,7 @@ async function executePowerPointAddSection(args: Record<string, unknown>): Promi
   try {
     const response = await powerpointClient.powerpointAddSection(
       args['section_name'] as string,
-      args['before_slide'] as number
+      Number(args['before_slide'])
     );
     if (response.success) {
       logger.toolSuccess('powerpoint_add_section', args, { sectionName: args['section_name'], sectionIndex: response['section_index'] }, Date.now() - startTime);
@@ -69,10 +70,11 @@ const POWERPOINT_DELETE_SECTION_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are deleting this section' },
         section_index: { type: 'number', description: 'Section index to delete (1-based)' },
         delete_slides: { type: 'boolean', description: 'Whether to also delete slides in the section (default: false)' },
       },
-      required: ['section_index'],
+      required: ['reason', 'section_index'],
     },
   },
 };
@@ -82,8 +84,8 @@ async function executePowerPointDeleteSection(args: Record<string, unknown>): Pr
   logger.toolStart('powerpoint_delete_section', args);
   try {
     const response = await powerpointClient.powerpointDeleteSection(
-      args['section_index'] as number,
-      (args['delete_slides'] as boolean) ?? false
+      Number(args['section_index']),
+      args['delete_slides'] != null ? Boolean(args['delete_slides']) : false
     );
     if (response.success) {
       logger.toolSuccess('powerpoint_delete_section', args, { sectionIndex: args['section_index'] }, Date.now() - startTime);
@@ -115,8 +117,10 @@ const POWERPOINT_GET_SECTIONS_DEFINITION: ToolDefinition = {
     description: `Get list of all sections in the presentation.`,
     parameters: {
       type: 'object',
-      properties: {},
-      required: [],
+      properties: {
+        reason: { type: 'string', description: 'Why you are getting the sections list' },
+      },
+      required: ['reason'],
     },
   },
 };

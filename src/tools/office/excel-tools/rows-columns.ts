@@ -130,7 +130,7 @@ const EXCEL_INSERT_ROW_DEFINITION: ToolDefinition = {
 
 async function executeExcelInsertRow(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const count = args['count'] as number ?? 1;
+    const count = (args['count'] ?? 1) as number;
     const response = await excelClient.excelInsertRow(
       args['row'] as number,
       count,
@@ -176,7 +176,7 @@ const EXCEL_DELETE_ROW_DEFINITION: ToolDefinition = {
 
 async function executeExcelDeleteRow(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const count = args['count'] as number ?? 1;
+    const count = (args['count'] ?? 1) as number;
     const response = await excelClient.excelDeleteRow(
       args['row'] as number,
       count,
@@ -196,6 +196,98 @@ export const excelDeleteRowTool: LLMSimpleTool = {
   execute: executeExcelDeleteRow,
   categories: OFFICE_CATEGORIES,
   description: 'Delete Excel rows',
+};
+
+// =============================================================================
+// Excel Insert Column
+// =============================================================================
+
+const EXCEL_INSERT_COLUMN_DEFINITION: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'excel_insert_column',
+    description: `Insert columns at a specific position.`,
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: { type: 'string', description: 'Why you are inserting columns' },
+        column: { type: 'string', description: 'Column letter to insert at (e.g., "A", "B")' },
+        count: { type: 'number', description: 'Number of columns to insert (default: 1)' },
+        sheet: { type: 'string', description: 'Sheet name (optional)' },
+      },
+      required: ['reason', 'column'],
+    },
+  },
+};
+
+async function executeExcelInsertColumn(args: Record<string, unknown>): Promise<ToolResult> {
+  try {
+    const count = (args['count'] ?? 1) as number;
+    const response = await excelClient.excelInsertColumn(
+      args['column'] as string,
+      count,
+      args['sheet'] as string | undefined
+    );
+    if (response.success) {
+      return { success: true, result: `${count} column(s) inserted at column ${args['column']}` };
+    }
+    return { success: false, error: response.error || 'Failed to insert column' };
+  } catch (error) {
+    return { success: false, error: `Failed to insert column: ${error instanceof Error ? error.message : String(error)}` };
+  }
+}
+
+export const excelInsertColumnTool: LLMSimpleTool = {
+  definition: EXCEL_INSERT_COLUMN_DEFINITION,
+  execute: executeExcelInsertColumn,
+  categories: OFFICE_CATEGORIES,
+  description: 'Insert Excel columns',
+};
+
+// =============================================================================
+// Excel Delete Column
+// =============================================================================
+
+const EXCEL_DELETE_COLUMN_DEFINITION: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'excel_delete_column',
+    description: `Delete columns at a specific position.`,
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: { type: 'string', description: 'Why you are deleting columns' },
+        column: { type: 'string', description: 'Column letter to delete (e.g., "A", "B")' },
+        count: { type: 'number', description: 'Number of columns to delete (default: 1)' },
+        sheet: { type: 'string', description: 'Sheet name (optional)' },
+      },
+      required: ['reason', 'column'],
+    },
+  },
+};
+
+async function executeExcelDeleteColumn(args: Record<string, unknown>): Promise<ToolResult> {
+  try {
+    const count = (args['count'] ?? 1) as number;
+    const response = await excelClient.excelDeleteColumn(
+      args['column'] as string,
+      count,
+      args['sheet'] as string | undefined
+    );
+    if (response.success) {
+      return { success: true, result: `${count} column(s) deleted at column ${args['column']}` };
+    }
+    return { success: false, error: response.error || 'Failed to delete column' };
+  } catch (error) {
+    return { success: false, error: `Failed to delete column: ${error instanceof Error ? error.message : String(error)}` };
+  }
+}
+
+export const excelDeleteColumnTool: LLMSimpleTool = {
+  definition: EXCEL_DELETE_COLUMN_DEFINITION,
+  execute: executeExcelDeleteColumn,
+  categories: OFFICE_CATEGORIES,
+  description: 'Delete Excel columns',
 };
 
 // =============================================================================
@@ -371,6 +463,97 @@ export const excelShowRowTool: LLMSimpleTool = {
 };
 
 // =============================================================================
+// Excel Group Columns
+// =============================================================================
+
+const EXCEL_GROUP_COLUMNS_DEFINITION: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'excel_group_columns',
+    description: `Group columns together (creates expandable/collapsible outline).
+Useful for hiding detail columns while showing summaries.`,
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: { type: 'string', description: 'Why you are grouping columns' },
+        start_col: { type: 'string', description: 'Starting column letter (e.g., "B")' },
+        end_col: { type: 'string', description: 'Ending column letter (e.g., "D")' },
+        sheet: { type: 'string', description: 'Sheet name (optional)' },
+      },
+      required: ['reason', 'start_col', 'end_col'],
+    },
+  },
+};
+
+async function executeExcelGroupColumns(args: Record<string, unknown>): Promise<ToolResult> {
+  try {
+    const response = await excelClient.excelGroupColumns(
+      args['start_col'] as string,
+      args['end_col'] as string,
+      args['sheet'] as string | undefined
+    );
+    if (response.success) {
+      return { success: true, result: `Grouped columns ${args['start_col']} to ${args['end_col']}` };
+    }
+    return { success: false, error: response.error || 'Failed to group columns' };
+  } catch (error) {
+    return { success: false, error: `Failed to group columns: ${error instanceof Error ? error.message : String(error)}` };
+  }
+}
+
+export const excelGroupColumnsTool: LLMSimpleTool = {
+  definition: EXCEL_GROUP_COLUMNS_DEFINITION,
+  execute: executeExcelGroupColumns,
+  categories: OFFICE_CATEGORIES,
+  description: 'Group Excel columns',
+};
+
+// =============================================================================
+// Excel Ungroup Columns
+// =============================================================================
+
+const EXCEL_UNGROUP_COLUMNS_DEFINITION: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'excel_ungroup_columns',
+    description: `Ungroup previously grouped columns.`,
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: { type: 'string', description: 'Why you are ungrouping columns' },
+        start_col: { type: 'string', description: 'Starting column letter (e.g., "B")' },
+        end_col: { type: 'string', description: 'Ending column letter (e.g., "D")' },
+        sheet: { type: 'string', description: 'Sheet name (optional)' },
+      },
+      required: ['reason', 'start_col', 'end_col'],
+    },
+  },
+};
+
+async function executeExcelUngroupColumns(args: Record<string, unknown>): Promise<ToolResult> {
+  try {
+    const response = await excelClient.excelUngroupColumns(
+      args['start_col'] as string,
+      args['end_col'] as string,
+      args['sheet'] as string | undefined
+    );
+    if (response.success) {
+      return { success: true, result: `Ungrouped columns ${args['start_col']} to ${args['end_col']}` };
+    }
+    return { success: false, error: response.error || 'Failed to ungroup columns' };
+  } catch (error) {
+    return { success: false, error: `Failed to ungroup columns: ${error instanceof Error ? error.message : String(error)}` };
+  }
+}
+
+export const excelUngroupColumnsTool: LLMSimpleTool = {
+  definition: EXCEL_UNGROUP_COLUMNS_DEFINITION,
+  execute: executeExcelUngroupColumns,
+  categories: OFFICE_CATEGORIES,
+  description: 'Ungroup Excel columns',
+};
+
+// =============================================================================
 // Export all tools
 // =============================================================================
 
@@ -379,8 +562,12 @@ export const rowsColumnsTools: LLMSimpleTool[] = [
   excelSetRowHeightTool,
   excelInsertRowTool,
   excelDeleteRowTool,
+  excelInsertColumnTool,
+  excelDeleteColumnTool,
   excelHideColumnTool,
   excelShowColumnTool,
   excelHideRowTool,
   excelShowRowTool,
+  excelGroupColumnsTool,
+  excelUngroupColumnsTool,
 ];

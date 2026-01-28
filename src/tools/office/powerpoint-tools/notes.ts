@@ -21,20 +21,19 @@ const POWERPOINT_ADD_NOTE_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are adding this note' },
         slide_number: { type: 'number', description: 'Slide number' },
         note_text: { type: 'string', description: 'Note text' },
       },
-      required: ['slide_number', 'note_text'],
+      required: ['reason', 'slide_number', 'note_text'],
     },
   },
 };
 
 async function executePowerPointAddNote(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await powerpointClient.powerpointAddNote(
-      args['slide_number'] as number,
-      args['note_text'] as string
-    );
+    const slideNum = Number(args['slide_number']);
+    const response = await powerpointClient.powerpointAddNote(slideNum, args['note_text'] as string);
     if (response.success) {
       return { success: true, result: response.message || 'Note added' };
     }
@@ -63,16 +62,18 @@ const POWERPOINT_GET_NOTE_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are getting this note' },
         slide_number: { type: 'number', description: 'Slide number' },
       },
-      required: ['slide_number'],
+      required: ['reason', 'slide_number'],
     },
   },
 };
 
 async function executePowerPointGetNote(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await powerpointClient.powerpointGetNote(args['slide_number'] as number);
+    const slideNum = Number(args['slide_number']);
+    const response = await powerpointClient.powerpointGetNote(slideNum);
     if (response.success) {
       return { success: true, result: `Note: ${response['note']}` };
     }
@@ -101,19 +102,21 @@ const POWERPOINT_SET_PLACEHOLDER_TEXT_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are setting this placeholder text' },
         slide_number: { type: 'number', description: 'Slide number' },
         placeholder_type: { type: 'string', enum: ['title', 'subtitle', 'body', 'footer', 'slideNumber', 'date'], description: 'Placeholder type' },
         text: { type: 'string', description: 'Text to set' },
       },
-      required: ['slide_number', 'placeholder_type', 'text'],
+      required: ['reason', 'slide_number', 'placeholder_type', 'text'],
     },
   },
 };
 
 async function executePowerPointSetPlaceholderText(args: Record<string, unknown>): Promise<ToolResult> {
   try {
+    const slideNum = Number(args['slide_number']);
     const response = await powerpointClient.powerpointSetPlaceholderText(
-      args['slide_number'] as number,
+      slideNum,
       args['placeholder_type'] as 'title' | 'subtitle' | 'body' | 'footer' | 'slideNumber' | 'date',
       args['text'] as string
     );
@@ -145,16 +148,18 @@ const POWERPOINT_GET_PLACEHOLDERS_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are getting placeholders' },
         slide_number: { type: 'number', description: 'Slide number' },
       },
-      required: ['slide_number'],
+      required: ['reason', 'slide_number'],
     },
   },
 };
 
 async function executePowerPointGetPlaceholders(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await powerpointClient.powerpointGetPlaceholders(args['slide_number'] as number);
+    const slideNum = Number(args['slide_number']);
+    const response = await powerpointClient.powerpointGetPlaceholders(slideNum);
     if (response.success) {
       return { success: true, result: JSON.stringify(response, null, 2) };
     }
@@ -182,8 +187,10 @@ const POWERPOINT_GET_SLIDE_LAYOUTS_DEFINITION: ToolDefinition = {
     description: `Get available slide layouts.`,
     parameters: {
       type: 'object',
-      properties: {},
-      required: [],
+      properties: {
+        reason: { type: 'string', description: 'Why you are getting slide layouts' },
+      },
+      required: ['reason'],
     },
   },
 };

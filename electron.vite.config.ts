@@ -8,9 +8,16 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     build: {
       outDir: 'dist-electron/main',
+      minify: false,
       rollupOptions: {
         input: {
           index: resolve(__dirname, 'electron/main/index.ts'),
+        },
+        output: {
+          // Preserve module boundaries to help diagnose issues
+          inlineDynamicImports: false,
+          preserveModules: true,
+          preserveModulesRoot: 'electron/main',
         },
       },
     },

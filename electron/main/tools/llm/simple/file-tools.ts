@@ -204,7 +204,8 @@ const CREATE_FILE_DEFINITION: ToolDefinition = {
     name: 'create_file',
     description: `Create a NEW file with the given content.
 IMPORTANT: Only use this for files that do NOT exist yet.
-For modifying existing files, use edit_file instead.`,
+For modifying existing files, use edit_file instead.
+If the file already exists, this tool will fail.`,
     parameters: {
       type: 'object',
       properties: {
@@ -307,12 +308,32 @@ IMPORTANT: Only use this for files that already exist. For new files, use create
 
 HOW TO USE:
 1. First use read_file to see the current content
-2. Copy the EXACT text block you want to change
+2. Copy the EXACT text block you want to change (can be multiple lines)
 3. Provide old_string (text to find) and new_string (replacement)
 
 RULES:
 - old_string must match EXACTLY (including whitespace and indentation)
-- old_string must be UNIQUE in the file (if it appears multiple times, use replace_all: true)`,
+- old_string must be UNIQUE in the file (if it appears multiple times, use replace_all: true)
+- Both old_string and new_string can be multi-line
+- To delete text, use empty string "" for new_string
+
+EXAMPLES:
+1. Change a single line:
+   old_string: "const x = 1;"
+   new_string: "const x = 2;"
+
+2. Change multiple lines at once:
+   old_string: "function foo() {\\n  return 1;\\n}"
+   new_string: "function foo() {\\n  return 2;\\n}"
+
+3. Delete a line:
+   old_string: "// delete this line\\n"
+   new_string: ""
+
+4. Replace all occurrences:
+   old_string: "oldName"
+   new_string: "newName"
+   replace_all: true`,
     parameters: {
       type: 'object',
       properties: {

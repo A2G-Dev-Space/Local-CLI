@@ -20,8 +20,15 @@ function columnLetterToNumber(column: string): number {
 
 /**
  * Convert column number (1, 2, ..., 26, 27, 28, ...) to letter (A, B, ..., Z, AA, AB, ...)
+ * Excel max columns: 16384 (XFD)
  */
 function columnNumberToLetter(num: number): string {
+  if (num < 1) {
+    throw new Error(`Invalid column number: ${num}. Must be >= 1`);
+  }
+  if (num > 16384) {
+    throw new Error(`Invalid column number: ${num}. Excel maximum is 16384 (XFD)`);
+  }
   let result = '';
   while (num > 0) {
     num--;
@@ -29,6 +36,33 @@ function columnNumberToLetter(num: number): string {
     num = Math.floor(num / 26);
   }
   return result;
+}
+
+/**
+ * Format criteria for Excel formulas (SUMIF, COUNTIF, etc.)
+ * Handles:
+ * - Simple text: "Apple" → ""Apple""
+ * - Comparison operators: ">100" → "">100""
+ * - Cell references with concatenation: ">="&A1 → kept as-is
+ * - Already quoted criteria: "text" → kept as-is
+ */
+function formatFormulaCriteria(criteria: string): string {
+  // If criteria contains & (concatenation) with cell reference pattern, use as-is
+  // Pattern: looks for &$?[A-Z]+$?\d+ or &$?[A-Z]+:$?[A-Z]+ (cell or range reference)
+  const cellRefPattern = /&\$?[A-Z]+\$?\d+|&\$?[A-Z]+:\$?[A-Z]+/i;
+  if (cellRefPattern.test(criteria)) {
+    // Already contains cell reference concatenation, return as-is
+    return criteria;
+  }
+
+  // If criteria starts and ends with quotes, user explicitly formatted it
+  if (criteria.startsWith('"') && criteria.endsWith('"')) {
+    return criteria;
+  }
+
+  // Standard case: wrap in quotes with proper escaping
+  const escaped = criteria.replace(/"/g, '""');
+  return `"${escaped}"`;
 }
 
 export class ExcelClient extends OfficeClientBase {
@@ -175,7 +209,7 @@ $value = $sheet.Range('${cell}').Value2
     }
     const arrayScript = `@(${arrayLines.join(',')})`;
 
-    // Set Korean font if Korean text detected
+    // TEXT FIRST, FONT AFTER pattern (Microsoft recommended for Korean)
     const fontScript = hasKorean ? "$range.Font.Name = 'Malgun Gothic'" : '';
 
     return this.executePowerShell(`
@@ -185,9 +219,9 @@ ${sheetScript}
 $startRange = $sheet.Range('${startCell}')
 $endCell = $sheet.Cells($startRange.Row + ${rows - 1}, $startRange.Column + ${cols - 1})
 $range = $sheet.Range($startRange, $endCell)
-${fontScript}
 $data = ${arrayScript}
 $range.Value = $data
+${fontScript}
 @{ success = $true; message = "Range written from ${startCell} (${rows}x${cols})" } | ConvertTo-Json -Compress
 `);
   }
@@ -453,6 +487,55 @@ $workbook.Sheets('${escapedOld}').Name = '${escapedNew}'
 `);
   }
 
+  async excelCopySheet(sourceName: string, newName?: string, position?: 'before' | 'after', targetSheet?: string): Promise<OfficeResponse> {
+    // Validate new sheet name if provided
+    if (newName) {
+      if (newName.length > 31) {
+        return { success: false, error: 'Sheet name cannot exceed 31 characters' };
+      }
+      if (/[:\\/?*\[\]]/.test(newName)) {
+        return { success: false, error: 'Sheet name cannot contain : \\ / ? * [ ]' };
+      }
+    }
+
+    const escapedSource = sourceName.replace(/'/g, "''");
+    const escapedNew = newName?.replace(/'/g, "''") || '';
+    const escapedTarget = targetSheet?.replace(/'/g, "''") || '';
+
+    let positionScript = '';
+    if (position === 'before' && targetSheet) {
+      positionScript = `$workbook.Sheets('${escapedSource}').Copy([ref]$workbook.Sheets('${escapedTarget}'))`;
+    } else if (position === 'after' && targetSheet) {
+      positionScript = `$workbook.Sheets('${escapedSource}').Copy($null, [ref]$workbook.Sheets('${escapedTarget}'))`;
+    } else if (position && !targetSheet) {
+      // position specified without targetSheet: use first or last sheet
+      if (position === 'before') {
+        positionScript = `$workbook.Sheets('${escapedSource}').Copy([ref]$workbook.Sheets(1))`;
+      } else {
+        positionScript = `$workbook.Sheets('${escapedSource}').Copy($null, [ref]$workbook.Sheets($workbook.Sheets.Count))`;
+      }
+    } else {
+      // Default: copy after the source sheet
+      positionScript = `$workbook.Sheets('${escapedSource}').Copy($null, [ref]$workbook.Sheets('${escapedSource}'))`;
+    }
+
+    return this.executePowerShell(`
+try {
+  $excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+  $workbook = $excel.ActiveWorkbook
+  if (-not $workbook.Sheets('${escapedSource}')) {
+    throw "Source sheet '${escapedSource}' not found"
+  }
+  ${positionScript}
+  $newSheet = $workbook.ActiveSheet
+  ${escapedNew ? `$newSheet.Name = '${escapedNew}'` : ''}
+  @{ success = $true; message = "Sheet copied"; new_sheet_name = $newSheet.Name } | ConvertTo-Json -Compress
+} catch {
+  @{ success = $false; error = $_.Exception.Message } | ConvertTo-Json -Compress
+}
+`);
+  }
+
   async excelGetSheets(): Promise<OfficeResponse> {
     return this.executePowerShell(`
 $excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
@@ -644,10 +727,23 @@ $img.Dispose()
     const width = options?.width ?? 400;
     const height = options?.height ?? 300;
 
+    // TEXT FIRST, FONT AFTER pattern (Microsoft recommended for Korean)
     const titleScript = escapedTitle ? `
 $chart.HasTitle = $true
-${hasKorean ? "$chart.ChartTitle.Font.Name = 'Malgun Gothic'" : ''}
-$chart.ChartTitle.Text = '${escapedTitle}'` : '';
+$chart.ChartTitle.Text = '${escapedTitle}'
+${hasKorean ? "$chart.ChartTitle.Font.Name = 'Malgun Gothic'" : ''}` : '';
+
+    // Korean font for legend and axis labels (apply when title has Korean or data may contain Korean)
+    const koreanFontScript = hasKorean ? `
+# Apply Malgun Gothic to legend
+if ($chart.HasLegend) {
+  $chart.Legend.Font.Name = 'Malgun Gothic'
+}
+# Apply to axis labels (Category and Value axes)
+try {
+  $chart.Axes(1).TickLabels.Font.Name = 'Malgun Gothic'  # xlCategory
+  $chart.Axes(2).TickLabels.Font.Name = 'Malgun Gothic'  # xlValue
+} catch { }` : '';
 
     return this.executePowerShell(`
 $excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
@@ -658,6 +754,7 @@ $chart = $chartObj.Chart
 $chart.SetSourceData($range)
 $chart.ChartType = ${xlChartType}
 ${titleScript}
+${koreanFontScript}
 @{ success = $true; message = "Chart added"; chart_name = $chartObj.Name } | ConvertTo-Json -Compress
 `);
   }
@@ -669,14 +766,15 @@ ${titleScript}
       `$sheet = $excel.ActiveWorkbook.Worksheets('${sheet.replace(/'/g, "''")}')` :
       '$sheet = $excel.ActiveWorkbook.ActiveSheet';
 
+    // TEXT FIRST, FONT AFTER pattern (Microsoft recommended for Korean)
     return this.executePowerShell(`
 $excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
 ${sheetScript}
 $chartObj = $sheet.ChartObjects(${chartIndex})
 $chart = $chartObj.Chart
 $chart.HasTitle = $true
-${hasKorean ? "$chart.ChartTitle.Font.Name = 'Malgun Gothic'" : ''}
 $chart.ChartTitle.Text = '${escapedTitle}'
+${hasKorean ? "$chart.ChartTitle.Font.Name = 'Malgun Gothic'" : ''}
 @{ success = $true; message = "Chart title set" } | ConvertTo-Json -Compress
 `);
   }
@@ -1105,6 +1203,90 @@ $sheet.Hyperlinks.Add($range, '${escapedUrl}', '', '', '${escapedText}')
 `);
   }
 
+  async excelGetHyperlinks(sheet?: string): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $workbook.ActiveSheet';
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${sheetScript}
+$links = @()
+foreach ($hl in $sheet.Hyperlinks) {
+  $links += @{
+    cell = $hl.Range.Address($false, $false)
+    address = $hl.Address
+    subAddress = $hl.SubAddress
+    textToDisplay = $hl.TextToDisplay
+    screenTip = $hl.ScreenTip
+  }
+}
+@{ success = $true; hyperlinks = $links; count = $links.Count } | ConvertTo-Json -Compress -Depth 5
+`);
+  }
+
+  async excelDeleteHyperlink(cell: string, sheet?: string): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $workbook.ActiveSheet';
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${sheetScript}
+$range = $sheet.Range('${cell}')
+$found = $false
+foreach ($hl in $sheet.Hyperlinks) {
+  if ($hl.Range.Address -eq $range.Address) {
+    $hl.Delete()
+    $found = $true
+    break
+  }
+}
+if ($found) {
+  @{ success = $true; message = "Hyperlink deleted from ${cell}" } | ConvertTo-Json -Compress
+} else {
+  @{ success = $false; error = "No hyperlink found in ${cell}" } | ConvertTo-Json -Compress
+}
+`);
+  }
+
+  async excelEditHyperlink(
+    cell: string,
+    newUrl?: string,
+    newDisplayText?: string,
+    sheet?: string
+  ): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $workbook.ActiveSheet';
+
+    const urlUpdate = newUrl ? `$hl.Address = '${newUrl.replace(/'/g, "''")}'` : '';
+    const textUpdate = newDisplayText ? `$hl.TextToDisplay = '${newDisplayText.replace(/'/g, "''")}'` : '';
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${sheetScript}
+$range = $sheet.Range('${cell}')
+$found = $false
+foreach ($hl in $sheet.Hyperlinks) {
+  if ($hl.Range.Address -eq $range.Address) {
+    ${urlUpdate}
+    ${textUpdate}
+    $found = $true
+    break
+  }
+}
+if ($found) {
+  @{ success = $true; message = "Hyperlink updated in ${cell}" } | ConvertTo-Json -Compress
+} else {
+  @{ success = $false; error = "No hyperlink found in ${cell}" } | ConvertTo-Json -Compress
+}
+`);
+  }
+
   // -------------------------------------------------------------------------
   // Excel Export & Print
   // -------------------------------------------------------------------------
@@ -1317,6 +1499,1401 @@ $excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
 ${sheetScript}
 $sheet.Rows("${startRow}:${endRow}").Ungroup()
 @{ success = $true; message = "Rows ${startRow}-${endRow} ungrouped" } | ConvertTo-Json -Compress
+`);
+  }
+
+  // -------------------------------------------------------------------------
+  // Excel Pivot Table
+  // -------------------------------------------------------------------------
+
+  async excelCreatePivotTable(
+    sourceRange: string,
+    destCell: string,
+    tableName?: string,
+    sheet?: string
+  ): Promise<OfficeResponse> {
+    const escapedName = tableName?.replace(/'/g, "''") || `PivotTable${Date.now()}`;
+    const sheetScript = sheet ?
+      `$sheet = $excel.ActiveWorkbook.Worksheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $excel.ActiveWorkbook.ActiveSheet';
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${sheetScript}
+$sourceRange = $sheet.Range('${sourceRange}')
+$destRange = $sheet.Range('${destCell}')
+
+$pivotCache = $workbook.PivotCaches().Create(1, $sourceRange)  # xlDatabase = 1
+$pivotTable = $pivotCache.CreatePivotTable($destRange, '${escapedName}')
+
+@{ success = $true; message = "Pivot table created"; table_name = '${escapedName}' } | ConvertTo-Json -Compress
+`);
+  }
+
+  async excelAddPivotField(
+    tableName: string,
+    fieldName: string,
+    orientation: 'row' | 'column' | 'data' | 'page',
+    aggregateFunction?: 'sum' | 'count' | 'average' | 'max' | 'min'
+  ): Promise<OfficeResponse> {
+    const escapedTableName = tableName.replace(/'/g, "''");
+    const escapedFieldName = fieldName.replace(/'/g, "''");
+
+    // xlRowField=1, xlColumnField=2, xlDataField=4, xlPageField=3
+    const orientationMap: Record<string, number> = {
+      row: 1,
+      column: 2,
+      data: 4,
+      page: 3,
+    };
+    const xlOrientation = orientationMap[orientation];
+
+    // xlSum=-4157, xlCount=-4112, xlAverage=-4106, xlMax=-4136, xlMin=-4139
+    const functionMap: Record<string, number> = {
+      sum: -4157,
+      count: -4112,
+      average: -4106,
+      max: -4136,
+      min: -4139,
+    };
+    const xlFunction = aggregateFunction ? functionMap[aggregateFunction] : -4157;
+
+    const functionScript = orientation === 'data' ? `$field.Function = ${xlFunction}` : '';
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+$pivotTable = $null
+foreach ($ws in $workbook.Worksheets) {
+  foreach ($pt in $ws.PivotTables()) {
+    if ($pt.Name -eq '${escapedTableName}') {
+      $pivotTable = $pt
+      break
+    }
+  }
+  if ($pivotTable -ne $null) { break }
+}
+
+if ($pivotTable -eq $null) {
+  @{ success = $false; error = "Pivot table '${escapedTableName}' not found" } | ConvertTo-Json -Compress
+} else {
+  $field = $pivotTable.PivotFields('${escapedFieldName}')
+  $field.Orientation = ${xlOrientation}
+  ${functionScript}
+  @{ success = $true; message = "Field '${escapedFieldName}' added as ${orientation}" } | ConvertTo-Json -Compress
+}
+`);
+  }
+
+  async excelRefreshPivotTable(tableName: string): Promise<OfficeResponse> {
+    const escapedTableName = tableName.replace(/'/g, "''");
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+$pivotTable = $null
+foreach ($ws in $workbook.Worksheets) {
+  foreach ($pt in $ws.PivotTables()) {
+    if ($pt.Name -eq '${escapedTableName}') {
+      $pivotTable = $pt
+      break
+    }
+  }
+  if ($pivotTable -ne $null) { break }
+}
+
+if ($pivotTable -eq $null) {
+  @{ success = $false; error = "Pivot table '${escapedTableName}' not found" } | ConvertTo-Json -Compress
+} else {
+  $pivotTable.RefreshTable()
+  @{ success = $true; message = "Pivot table '${escapedTableName}' refreshed" } | ConvertTo-Json -Compress
+}
+`);
+  }
+
+  // -------------------------------------------------------------------------
+  // Excel Formula Helpers
+  // -------------------------------------------------------------------------
+
+  async excelInsertVlookup(
+    cell: string,
+    lookupValue: string,
+    tableRange: string,
+    colIndex: number,
+    exactMatch: boolean = true,
+    sheet?: string
+  ): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $workbook.ActiveSheet';
+    const matchType = exactMatch ? 'FALSE' : 'TRUE';
+    const formula = `=VLOOKUP(${lookupValue},${tableRange},${colIndex},${matchType})`;
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${sheetScript}
+$sheet.Range('${cell}').Formula = '${formula.replace(/'/g, "''")}'
+@{ success = $true; message = "VLOOKUP formula inserted in ${cell}" } | ConvertTo-Json -Compress
+`);
+  }
+
+  async excelInsertSumif(
+    cell: string,
+    range: string,
+    criteria: string,
+    sumRange?: string,
+    sheet?: string
+  ): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $workbook.ActiveSheet';
+    const formattedCriteria = formatFormulaCriteria(criteria);
+    const formula = sumRange
+      ? `=SUMIF(${range},${formattedCriteria},${sumRange})`
+      : `=SUMIF(${range},${formattedCriteria})`;
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${sheetScript}
+$sheet.Range('${cell}').Formula = '${formula.replace(/'/g, "''")}'
+@{ success = $true; message = "SUMIF formula inserted in ${cell}" } | ConvertTo-Json -Compress
+`);
+  }
+
+  async excelInsertCountif(
+    cell: string,
+    range: string,
+    criteria: string,
+    sheet?: string
+  ): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $workbook.ActiveSheet';
+    const formattedCriteria = formatFormulaCriteria(criteria);
+    const formula = `=COUNTIF(${range},${formattedCriteria})`;
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${sheetScript}
+$sheet.Range('${cell}').Formula = '${formula.replace(/'/g, "''")}'
+@{ success = $true; message = "COUNTIF formula inserted in ${cell}" } | ConvertTo-Json -Compress
+`);
+  }
+
+  async excelInsertIndexMatch(
+    cell: string,
+    returnRange: string,
+    lookupRange: string,
+    lookupValue: string,
+    sheet?: string
+  ): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $workbook.ActiveSheet';
+    const formula = `=INDEX(${returnRange},MATCH(${lookupValue},${lookupRange},0))`;
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${sheetScript}
+$sheet.Range('${cell}').Formula = '${formula.replace(/'/g, "''")}'
+@{ success = $true; message = "INDEX-MATCH formula inserted in ${cell}" } | ConvertTo-Json -Compress
+`);
+  }
+
+  async excelInsertAverageif(
+    cell: string,
+    range: string,
+    criteria: string,
+    avgRange?: string,
+    sheet?: string
+  ): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $workbook.ActiveSheet';
+    const formattedCriteria = formatFormulaCriteria(criteria);
+    const formula = avgRange
+      ? `=AVERAGEIF(${range},${formattedCriteria},${avgRange})`
+      : `=AVERAGEIF(${range},${formattedCriteria})`;
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${sheetScript}
+$sheet.Range('${cell}').Formula = '${formula.replace(/'/g, "''")}'
+@{ success = $true; message = "AVERAGEIF formula inserted in ${cell}" } | ConvertTo-Json -Compress
+`);
+  }
+
+  async excelInsertSumifs(
+    cell: string,
+    sumRange: string,
+    criteriaRanges: string[],
+    criteria: string[],
+    sheet?: string
+  ): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $workbook.ActiveSheet';
+
+    // Build criteria pairs using formatFormulaCriteria helper
+    const criteriaPairs = criteriaRanges.map((range, i) => {
+      const formattedCriteria = formatFormulaCriteria(criteria[i] || '');
+      return `${range},${formattedCriteria}`;
+    }).join(',');
+
+    const formula = `=SUMIFS(${sumRange},${criteriaPairs})`;
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${sheetScript}
+$sheet.Range('${cell}').Formula = '${formula.replace(/'/g, "''")}'
+@{ success = $true; message = "SUMIFS formula inserted in ${cell}" } | ConvertTo-Json -Compress
+`);
+  }
+
+  async excelInsertCountifs(
+    cell: string,
+    criteriaRanges: string[],
+    criteria: string[],
+    sheet?: string
+  ): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $workbook.ActiveSheet';
+
+    // Build criteria pairs using formatFormulaCriteria helper
+    const criteriaPairs = criteriaRanges.map((range, i) => {
+      const formattedCriteria = formatFormulaCriteria(criteria[i] || '');
+      return `${range},${formattedCriteria}`;
+    }).join(',');
+
+    const formula = `=COUNTIFS(${criteriaPairs})`;
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${sheetScript}
+$sheet.Range('${cell}').Formula = '${formula.replace(/'/g, "''")}'
+@{ success = $true; message = "COUNTIFS formula inserted in ${cell}" } | ConvertTo-Json -Compress
+`);
+  }
+
+  async excelInsertXlookup(
+    cell: string,
+    lookupValue: string,
+    lookupRange: string,
+    returnRange: string,
+    notFoundValue?: string,
+    matchMode?: 'exact' | 'exactOrNext' | 'exactOrPrev' | 'wildcard',
+    sheet?: string
+  ): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $workbook.ActiveSheet';
+
+    // Match mode: 0=exact, 1=exact or next, -1=exact or prev, 2=wildcard
+    const matchModeMap: Record<string, number> = {
+      exact: 0,
+      exactOrNext: 1,
+      exactOrPrev: -1,
+      wildcard: 2,
+    };
+    const matchModeValue = matchMode ? matchModeMap[matchMode] : 0;
+
+    // Build XLOOKUP formula: =XLOOKUP(lookup_value, lookup_array, return_array, [if_not_found], [match_mode])
+    let formula = `=XLOOKUP(${lookupValue},${lookupRange},${returnRange}`;
+    if (notFoundValue !== undefined || matchMode) {
+      // If either optional param is needed, we must include if_not_found slot
+      if (notFoundValue !== undefined) {
+        formula += `,"${notFoundValue.replace(/"/g, '""')}"`;
+      } else {
+        formula += ','; // Empty slot for if_not_found
+      }
+      // Add match_mode if specified (or default 0 if notFoundValue was provided)
+      if (matchMode || notFoundValue !== undefined) {
+        formula += `,${matchModeValue}`;
+      }
+    }
+    formula += ')';
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${sheetScript}
+$sheet.Range('${cell}').Formula = '${formula.replace(/'/g, "''")}'
+@{ success = $true; message = "XLOOKUP formula inserted in ${cell}" } | ConvertTo-Json -Compress
+`);
+  }
+
+  // -------------------------------------------------------------------------
+  // Excel Unmerge and Fill
+  // -------------------------------------------------------------------------
+
+  async excelUnmergeAndFill(range: string, sheet?: string): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $excel.ActiveWorkbook.Worksheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $excel.ActiveWorkbook.ActiveSheet';
+
+    // Optimized: Find merge areas first, then process each unique merge area once
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+${sheetScript}
+$range = $sheet.Range('${range}')
+$filledCount = 0
+$processedAreas = @{}
+
+# Find all merge areas in the range (check first cell of each row for efficiency)
+foreach ($cell in $range) {
+  if ($cell.MergeCells) {
+    $mergeArea = $cell.MergeArea
+    $areaAddress = $mergeArea.Address
+
+    # Skip if already processed
+    if (-not $processedAreas.ContainsKey($areaAddress)) {
+      $processedAreas[$areaAddress] = $true
+      $originalValue = $mergeArea.Cells(1, 1).Value2
+      $cellCount = $mergeArea.Cells.Count
+      $mergeArea.UnMerge()
+
+      # Fill all cells at once using Value assignment
+      $mergeArea.Value2 = $originalValue
+      $filledCount += $cellCount
+    }
+  }
+}
+
+@{ success = $true; message = "Unmerged and filled ${range} ($($processedAreas.Count) merge areas)"; cells_filled = $filledCount; merge_areas = $processedAreas.Count } | ConvertTo-Json -Compress
+`);
+  }
+
+  // -------------------------------------------------------------------------
+  // Excel Chart Series
+  // -------------------------------------------------------------------------
+
+  async excelAddChartSeries(
+    chartIndex: number,
+    valuesRange: string,
+    nameRange?: string,
+    sheet?: string
+  ): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $excel.ActiveWorkbook.Worksheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $excel.ActiveWorkbook.ActiveSheet';
+
+    const nameScript = nameRange ? `$series.Name = $sheet.Range('${nameRange}').Value2` : '';
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+${sheetScript}
+$chartObj = $sheet.ChartObjects(${chartIndex})
+$chart = $chartObj.Chart
+$series = $chart.SeriesCollection().NewSeries()
+$series.Values = $sheet.Range('${valuesRange}')
+${nameScript}
+@{ success = $true; message = "Series added to chart"; series_index = $chart.SeriesCollection().Count } | ConvertTo-Json -Compress
+`);
+  }
+
+  async excelEditChartSeries(
+    chartIndex: number,
+    seriesIndex: number,
+    options: {
+      valuesRange?: string;
+      nameRange?: string;
+      name?: string;
+    },
+    sheet?: string
+  ): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $excel.ActiveWorkbook.Worksheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $excel.ActiveWorkbook.ActiveSheet';
+
+    const commands: string[] = [];
+    if (options.valuesRange) {
+      commands.push(`$series.Values = $sheet.Range('${options.valuesRange}')`);
+    }
+    if (options.nameRange) {
+      commands.push(`$series.Name = $sheet.Range('${options.nameRange}').Value2`);
+    }
+    if (options.name) {
+      commands.push(`$series.Name = '${options.name.replace(/'/g, "''")}'`);
+    }
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+${sheetScript}
+$chartObj = $sheet.ChartObjects(${chartIndex})
+$chart = $chartObj.Chart
+$series = $chart.SeriesCollection(${seriesIndex})
+${commands.join('\n')}
+@{ success = $true; message = "Series ${seriesIndex} updated" } | ConvertTo-Json -Compress
+`);
+  }
+
+  async excelDeleteChartSeries(chartIndex: number, seriesIndex: number, sheet?: string): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $excel.ActiveWorkbook.Worksheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $excel.ActiveWorkbook.ActiveSheet';
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+${sheetScript}
+$chartObj = $sheet.ChartObjects(${chartIndex})
+$chart = $chartObj.Chart
+$chart.SeriesCollection(${seriesIndex}).Delete()
+@{ success = $true; message = "Series ${seriesIndex} deleted from chart" } | ConvertTo-Json -Compress
+`);
+  }
+
+  async excelSetChartLegend(
+    chartIndex: number,
+    options: { show?: boolean; position?: 'bottom' | 'top' | 'left' | 'right' | 'corner' },
+    sheet?: string
+  ): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $excel.ActiveWorkbook.Worksheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $excel.ActiveWorkbook.ActiveSheet';
+
+    const positionMap: Record<string, number> = {
+      bottom: -4107,
+      top: -4160,
+      left: -4131,
+      right: -4152,
+      corner: 2,
+    };
+
+    let legendScript = '';
+    if (options.show === false) {
+      legendScript = '$chart.HasLegend = $false';
+    } else {
+      legendScript = '$chart.HasLegend = $true';
+      if (options.position) {
+        legendScript += `; $chart.Legend.Position = ${positionMap[options.position]}`;
+      }
+    }
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+${sheetScript}
+$chartObj = $sheet.ChartObjects(${chartIndex})
+$chart = $chartObj.Chart
+${legendScript}
+@{ success = $true; message = "Chart legend updated" } | ConvertTo-Json -Compress
+`);
+  }
+
+  async excelSetChartDataLabels(
+    chartIndex: number,
+    options: { show?: boolean; showValue?: boolean; showCategory?: boolean; showPercent?: boolean },
+    sheet?: string
+  ): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $excel.ActiveWorkbook.Worksheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $excel.ActiveWorkbook.ActiveSheet';
+
+    const labelScript = options.show === false
+      ? 'foreach ($s in $chart.SeriesCollection()) { $s.HasDataLabels = $false }'
+      : `foreach ($s in $chart.SeriesCollection()) {
+  $s.HasDataLabels = $true
+  $s.DataLabels.ShowValue = ${options.showValue !== false ? '$true' : '$false'}
+  $s.DataLabels.ShowCategoryName = ${options.showCategory ? '$true' : '$false'}
+  $s.DataLabels.ShowPercentage = ${options.showPercent ? '$true' : '$false'}
+}`;
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+${sheetScript}
+$chartObj = $sheet.ChartObjects(${chartIndex})
+$chart = $chartObj.Chart
+${labelScript}
+@{ success = $true; message = "Chart data labels updated" } | ConvertTo-Json -Compress
+`);
+  }
+
+  async excelSetChartAxis(
+    chartIndex: number,
+    axisType: 'x' | 'y',
+    options: { title?: string; min?: number; max?: number; majorUnit?: number },
+    sheet?: string
+  ): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $excel.ActiveWorkbook.Worksheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $excel.ActiveWorkbook.ActiveSheet';
+
+    const axisNum = axisType === 'x' ? 1 : 2;
+
+    let axisScript = `$axis = $chart.Axes(${axisNum})`;
+    if (options.title !== undefined) {
+      axisScript += `
+$axis.HasTitle = $true
+$axis.AxisTitle.Text = '${options.title.replace(/'/g, "''")}'`;
+    }
+    if (options.min !== undefined) {
+      axisScript += `
+$axis.MinimumScale = ${options.min}`;
+    }
+    if (options.max !== undefined) {
+      axisScript += `
+$axis.MaximumScale = ${options.max}`;
+    }
+    if (options.majorUnit !== undefined) {
+      axisScript += `
+$axis.MajorUnit = ${options.majorUnit}`;
+    }
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+${sheetScript}
+$chartObj = $sheet.ChartObjects(${chartIndex})
+$chart = $chartObj.Chart
+${axisScript}
+@{ success = $true; message = "Chart ${axisType}-axis updated" } | ConvertTo-Json -Compress
+`);
+  }
+
+  // -------------------------------------------------------------------------
+  // Excel Cell Lock
+  // -------------------------------------------------------------------------
+
+  async excelLockCells(range: string, lock: boolean = true, sheet?: string): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $excel.ActiveWorkbook.Worksheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $excel.ActiveWorkbook.ActiveSheet';
+    const lockValue = lock ? '$true' : '$false';
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+${sheetScript}
+$sheet.Range('${range}').Locked = ${lockValue}
+@{ success = $true; message = "Cells ${range} ${lock ? 'locked' : 'unlocked'}" } | ConvertTo-Json -Compress
+`);
+  }
+
+  // -------------------------------------------------------------------------
+  // Excel Get Used Range
+  // -------------------------------------------------------------------------
+
+  async excelGetUsedRange(sheet?: string): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $excel.ActiveWorkbook.Worksheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $excel.ActiveWorkbook.ActiveSheet';
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+${sheetScript}
+$usedRange = $sheet.UsedRange
+$address = $usedRange.Address
+$rows = $usedRange.Rows.Count
+$cols = $usedRange.Columns.Count
+$firstRow = $usedRange.Row
+$firstCol = $usedRange.Column
+@{
+  success = $true
+  range = $address
+  rows = $rows
+  columns = $cols
+  first_row = $firstRow
+  first_column = $firstCol
+} | ConvertTo-Json -Compress
+`);
+  }
+
+  // -------------------------------------------------------------------------
+  // Excel Autofit Range
+  // -------------------------------------------------------------------------
+
+  async excelAutofitRange(range: string, fitColumns: boolean = true, fitRows: boolean = false, sheet?: string): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $excel.ActiveWorkbook.Worksheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $excel.ActiveWorkbook.ActiveSheet';
+
+    const fitScript: string[] = [];
+    if (fitColumns) fitScript.push('$range.Columns.AutoFit() | Out-Null');
+    if (fitRows) fitScript.push('$range.Rows.AutoFit() | Out-Null');
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+${sheetScript}
+$range = $sheet.Range('${range}')
+${fitScript.join('\n')}
+@{ success = $true; message = "Autofit applied to ${range}" } | ConvertTo-Json -Compress
+`);
+  }
+
+  // -------------------------------------------------------------------------
+  // Excel Remove Duplicates
+  // -------------------------------------------------------------------------
+
+  async excelRemoveDuplicates(range: string, columns?: number[], hasHeader: boolean = true, sheet?: string): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $excel.ActiveWorkbook.Worksheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $excel.ActiveWorkbook.ActiveSheet';
+    const header = hasHeader ? 1 : 2; // xlYes = 1, xlNo = 2
+
+    // If columns not specified, use all columns
+    const columnsScript = columns && columns.length > 0
+      ? `$columns = @(${columns.join(',')})`
+      : `$columns = @(1..$range.Columns.Count)`;
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+${sheetScript}
+$range = $sheet.Range('${range}')
+$beforeCount = $range.Rows.Count
+${columnsScript}
+$range.RemoveDuplicates($columns, ${header})
+$afterCount = $sheet.Range('${range}').Rows.Count
+$removed = $beforeCount - $afterCount
+@{ success = $true; message = "$removed duplicate rows removed"; rows_removed = $removed } | ConvertTo-Json -Compress
+`);
+  }
+
+  // -------------------------------------------------------------------------
+  // Excel Get Charts
+  // -------------------------------------------------------------------------
+
+  async excelGetCharts(sheet?: string): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $excel.ActiveWorkbook.Worksheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $excel.ActiveWorkbook.ActiveSheet';
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+${sheetScript}
+$charts = @()
+$index = 1
+foreach ($chartObj in $sheet.ChartObjects()) {
+  $chart = $chartObj.Chart
+  $charts += @{
+    index = $index
+    name = $chartObj.Name
+    chart_type = $chart.ChartType
+    has_title = $chart.HasTitle
+    title = if ($chart.HasTitle) { $chart.ChartTitle.Text } else { $null }
+    left = $chartObj.Left
+    top = $chartObj.Top
+    width = $chartObj.Width
+    height = $chartObj.Height
+    series_count = $chart.SeriesCollection().Count
+  }
+  $index++
+}
+@{ success = $true; charts = $charts; count = $charts.Count } | ConvertTo-Json -Compress -Depth 5
+`);
+  }
+
+  // ===========================================================================
+  // Excel Table (ListObject) Operations
+  // ===========================================================================
+
+  async excelCreateTable(
+    range: string,
+    tableName: string,
+    hasHeaders: boolean = true,
+    sheet?: string
+  ): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $workbook.ActiveSheet';
+    const xlSrcRange = 1; // xlSrcRange
+    const xlYes = 1; // xlYes
+    const xlNo = 2; // xlNo
+    const headerOption = hasHeaders ? xlYes : xlNo;
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${sheetScript}
+$range = $sheet.Range('${range}')
+$table = $sheet.ListObjects.Add(${xlSrcRange}, $range, $null, ${headerOption})
+$table.Name = '${tableName.replace(/'/g, "''")}'
+$table.TableStyle = 'TableStyleMedium2'
+@{ success = $true; message = "Table '${tableName}' created"; table_name = $table.Name; range = '${range}' } | ConvertTo-Json -Compress
+`);
+  }
+
+  async excelDeleteTable(tableName: string, sheet?: string): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $workbook.ActiveSheet';
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${sheetScript}
+$table = $sheet.ListObjects('${tableName.replace(/'/g, "''")}')
+$table.Delete()
+@{ success = $true; message = "Table '${tableName}' deleted" } | ConvertTo-Json -Compress
+`);
+  }
+
+  async excelGetTables(sheet?: string): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $workbook.ActiveSheet';
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${sheetScript}
+$tables = @()
+foreach ($table in $sheet.ListObjects) {
+  $tables += @{
+    name = $table.Name
+    range = $table.Range.Address()
+    row_count = $table.ListRows.Count
+    column_count = $table.ListColumns.Count
+    has_headers = $table.ShowHeaders
+    style = $table.TableStyle.Name
+  }
+}
+@{ success = $true; tables = $tables; count = $tables.Count } | ConvertTo-Json -Compress -Depth 5
+`);
+  }
+
+  async excelAddTableColumn(
+    tableName: string,
+    columnName: string,
+    formula?: string,
+    sheet?: string
+  ): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $workbook.ActiveSheet';
+
+    const formulaScript = formula
+      ? `$newCol.DataBodyRange.Formula = '${formula.replace(/'/g, "''")}'`
+      : '';
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${sheetScript}
+$table = $sheet.ListObjects('${tableName.replace(/'/g, "''")}')
+$newCol = $table.ListColumns.Add()
+$newCol.Name = '${columnName.replace(/'/g, "''")}'
+${formulaScript}
+@{ success = $true; message = "Column '${columnName}' added to table '${tableName}'"; column_index = $newCol.Index } | ConvertTo-Json -Compress
+`);
+  }
+
+  // ===========================================================================
+  // Excel Page Setup & Print Operations
+  // ===========================================================================
+
+  async excelSetPageSetup(
+    options: {
+      orientation?: 'portrait' | 'landscape';
+      paperSize?: 'letter' | 'legal' | 'a4' | 'a3';
+      margins?: { top?: number; bottom?: number; left?: number; right?: number };
+      fitToPage?: boolean;
+      fitToWidth?: number;
+      fitToHeight?: number;
+    },
+    sheet?: string
+  ): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $workbook.ActiveSheet';
+
+    const orientationMap: Record<string, number> = {
+      portrait: 1,   // xlPortrait
+      landscape: 2,  // xlLandscape
+    };
+    const paperSizeMap: Record<string, number> = {
+      letter: 1,  // xlPaperLetter
+      legal: 5,   // xlPaperLegal
+      a4: 9,      // xlPaperA4
+      a3: 8,      // xlPaperA3
+    };
+
+    const commands: string[] = [];
+    if (options.orientation) {
+      commands.push(`$ps.Orientation = ${orientationMap[options.orientation]}`);
+    }
+    if (options.paperSize) {
+      commands.push(`$ps.PaperSize = ${paperSizeMap[options.paperSize]}`);
+    }
+    if (options.margins) {
+      if (options.margins.top !== undefined) commands.push(`$ps.TopMargin = $excel.InchesToPoints(${options.margins.top})`);
+      if (options.margins.bottom !== undefined) commands.push(`$ps.BottomMargin = $excel.InchesToPoints(${options.margins.bottom})`);
+      if (options.margins.left !== undefined) commands.push(`$ps.LeftMargin = $excel.InchesToPoints(${options.margins.left})`);
+      if (options.margins.right !== undefined) commands.push(`$ps.RightMargin = $excel.InchesToPoints(${options.margins.right})`);
+    }
+    if (options.fitToPage) {
+      commands.push('$ps.Zoom = $false');
+      commands.push(`$ps.FitToPagesWide = ${options.fitToWidth ?? 1}`);
+      commands.push(`$ps.FitToPagesTall = ${options.fitToHeight ?? 1}`);
+    }
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${sheetScript}
+$ps = $sheet.PageSetup
+${commands.join('\n')}
+@{ success = $true; message = "Page setup configured" } | ConvertTo-Json -Compress
+`);
+  }
+
+  async excelSetPrintArea(range: string, sheet?: string): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $workbook.ActiveSheet';
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${sheetScript}
+$sheet.PageSetup.PrintArea = '${range}'
+@{ success = $true; message = "Print area set to '${range}'" } | ConvertTo-Json -Compress
+`);
+  }
+
+  async excelSetPrintTitles(
+    rowsToRepeat?: string,
+    columnsToRepeat?: string,
+    sheet?: string
+  ): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $workbook.ActiveSheet';
+
+    const commands: string[] = [];
+    if (rowsToRepeat) {
+      commands.push(`$sheet.PageSetup.PrintTitleRows = '${rowsToRepeat}'`);
+    }
+    if (columnsToRepeat) {
+      commands.push(`$sheet.PageSetup.PrintTitleColumns = '${columnsToRepeat}'`);
+    }
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${sheetScript}
+${commands.join('\n')}
+@{ success = $true; message = "Print titles configured"; rows = '${rowsToRepeat || ''}'; columns = '${columnsToRepeat || ''}' } | ConvertTo-Json -Compress
+`);
+  }
+
+  // ===========================================================================
+  // Excel Array Formula & Advanced Operations
+  // ===========================================================================
+
+  async excelInsertArrayFormula(
+    range: string,
+    formula: string,
+    sheet?: string
+  ): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $workbook.ActiveSheet';
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${sheetScript}
+$range = $sheet.Range('${range}')
+$range.FormulaArray = '${formula.replace(/'/g, "''")}'
+@{ success = $true; message = "Array formula inserted in '${range}'" } | ConvertTo-Json -Compress
+`);
+  }
+
+  async excelTranspose(sourceRange: string, destCell: string, sheet?: string): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $workbook.ActiveSheet';
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${sheetScript}
+$srcRange = $sheet.Range('${sourceRange}')
+$values = $srcRange.Value2
+$transposed = $excel.WorksheetFunction.Transpose($values)
+$rows = $srcRange.Columns.Count
+$cols = $srcRange.Rows.Count
+$destStart = $sheet.Range('${destCell}')
+$destEnd = $sheet.Cells($destStart.Row + $rows - 1, $destStart.Column + $cols - 1)
+$destRange = $sheet.Range($destStart, $destEnd)
+$destRange.Value = $transposed
+@{ success = $true; message = "Transposed '${sourceRange}' to '${destCell}'"; new_size = "$rows x $cols" } | ConvertTo-Json -Compress
+`);
+  }
+
+  async excelTextToColumns(
+    range: string,
+    delimiter: 'comma' | 'tab' | 'semicolon' | 'space' | string,
+    destCell?: string,
+    sheet?: string
+  ): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $workbook.ActiveSheet';
+
+    // Delimiter constants
+    const delimiterMap: Record<string, string> = {
+      comma: '$true, $false, $false, $false, $false',     // Comma=true
+      tab: '$false, $false, $false, $true, $false',       // Tab=true
+      semicolon: '$false, $true, $false, $false, $false', // Semicolon=true
+      space: '$false, $false, $false, $false, $true',     // Space=true
+    };
+
+    const delimiterArgs = delimiterMap[delimiter] || '$false, $false, $false, $false, $false';
+    const otherDelim = delimiterMap[delimiter] ? '' : `, $false, '${delimiter}'`;
+    const destScript = destCell ? `$sheet.Range('${destCell}')` : '$srcRange';
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${sheetScript}
+$srcRange = $sheet.Range('${range}')
+$srcRange.TextToColumns(${destScript}, 1, 1, $false, ${delimiterArgs}${otherDelim})
+@{ success = $true; message = "Text to columns applied to '${range}'" } | ConvertTo-Json -Compress
+`);
+  }
+
+  async excelHideSheet(sheetName: string): Promise<OfficeResponse> {
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+$sheet = $workbook.Sheets('${sheetName.replace(/'/g, "''")}')
+$sheet.Visible = 0  # xlSheetHidden
+@{ success = $true; message = "Sheet '${sheetName}' hidden" } | ConvertTo-Json -Compress
+`);
+  }
+
+  async excelShowSheet(sheetName: string): Promise<OfficeResponse> {
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+$sheet = $workbook.Sheets('${sheetName.replace(/'/g, "''")}')
+$sheet.Visible = -1  # xlSheetVisible
+@{ success = $true; message = "Sheet '${sheetName}' shown" } | ConvertTo-Json -Compress
+`);
+  }
+
+  async excelSetTabColor(sheetName: string, color: string): Promise<OfficeResponse> {
+    // Convert hex color to RGB values
+    const hexToRgb = (hex: string): { r: number; g: number; b: number } | null => {
+      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      if (!result || !result[1] || !result[2] || !result[3]) return null;
+      return {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16)
+      };
+    };
+
+    const rgb = hexToRgb(color);
+    if (!rgb) {
+      return { success: false, error: `Invalid hex color: ${color}` };
+    }
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+$sheet = $workbook.Sheets('${sheetName.replace(/'/g, "''")}')
+$sheet.Tab.Color = [System.Drawing.ColorTranslator]::ToOle([System.Drawing.Color]::FromArgb(${rgb.r}, ${rgb.g}, ${rgb.b}))
+@{ success = $true; message = "Tab color set for '${sheetName}'" } | ConvertTo-Json -Compress
+`);
+  }
+
+  async excelSetZoom(zoomLevel: number, sheet?: string): Promise<OfficeResponse> {
+    if (zoomLevel < 10 || zoomLevel > 400) {
+      return { success: false, error: `Invalid zoom level: ${zoomLevel}. Must be between 10 and 400.` };
+    }
+
+    const sheetScript = sheet ?
+      `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}'); $sheet.Activate()` :
+      '';
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${sheetScript}
+$excel.ActiveWindow.Zoom = ${zoomLevel}
+@{ success = $true; message = "Zoom set to ${zoomLevel}%" } | ConvertTo-Json -Compress
+`);
+  }
+
+  async excelSetGridlines(show: boolean, sheet?: string): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}'); $sheet.Activate()` :
+      '';
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${sheetScript}
+$excel.ActiveWindow.DisplayGridlines = ${show ? '$true' : '$false'}
+@{ success = $true; message = "Gridlines ${show ? 'shown' : 'hidden'}" } | ConvertTo-Json -Compress
+`);
+  }
+
+  async excelSetViewMode(mode: 'normal' | 'pageBreak' | 'pageLayout', sheet?: string): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}'); $sheet.Activate()` :
+      '';
+
+    // xlNormalView = 1, xlPageBreakPreview = 2, xlPageLayoutView = 3
+    const modeMap: Record<string, number> = {
+      normal: 1,
+      pageBreak: 2,
+      pageLayout: 3,
+    };
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${sheetScript}
+$excel.ActiveWindow.View = ${modeMap[mode]}
+@{ success = $true; message = "View mode set to '${mode}'" } | ConvertTo-Json -Compress
+`);
+  }
+
+  // ===========================================================================
+  // Excel Import/Export Operations
+  // ===========================================================================
+
+  async excelExportCsv(filePath: string, sheet?: string): Promise<OfficeResponse> {
+    const windowsPath = this.toWindowsPath(filePath).replace(/'/g, "''");
+    const sheetScript = sheet ?
+      `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $workbook.ActiveSheet';
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${sheetScript}
+$tempWorkbook = $excel.Workbooks.Add()
+$sheet.Copy($tempWorkbook.Sheets(1))
+$tempWorkbook.Sheets(1).Delete()
+$tempWorkbook.SaveAs('${windowsPath}', 6)  # xlCSV = 6
+$tempWorkbook.Close($false)
+@{ success = $true; message = "Exported to CSV"; path = '${windowsPath}' } | ConvertTo-Json -Compress
+`);
+  }
+
+  async excelExportJson(range: string, filePath: string, sheet?: string): Promise<OfficeResponse> {
+    const windowsPath = this.toWindowsPath(filePath).replace(/'/g, "''");
+    const sheetScript = sheet ?
+      `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $workbook.ActiveSheet';
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${sheetScript}
+$range = $sheet.Range('${range}')
+$values = $range.Value2
+$rows = $range.Rows.Count
+$cols = $range.Columns.Count
+
+# Get headers from first row
+$headers = @()
+for ($c = 1; $c -le $cols; $c++) {
+  $headers += $values[1, $c]
+}
+
+# Build JSON array
+$jsonArray = @()
+for ($r = 2; $r -le $rows; $r++) {
+  $obj = @{}
+  for ($c = 1; $c -le $cols; $c++) {
+    $obj[$headers[$c-1]] = $values[$r, $c]
+  }
+  $jsonArray += $obj
+}
+
+$json = $jsonArray | ConvertTo-Json -Depth 10
+[System.IO.File]::WriteAllText('${windowsPath}', $json, [System.Text.Encoding]::UTF8)
+@{ success = $true; message = "Exported to JSON"; path = '${windowsPath}'; rows = ($rows - 1) } | ConvertTo-Json -Compress
+`);
+  }
+
+  async excelImportCsv(
+    filePath: string,
+    destCell: string,
+    delimiter: string = ',',
+    sheet?: string
+  ): Promise<OfficeResponse> {
+    const windowsPath = this.toWindowsPath(filePath).replace(/'/g, "''");
+    const sheetScript = sheet ?
+      `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $workbook.ActiveSheet';
+
+    const textQualifier = 1; // xlTextQualifierDoubleQuote
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${sheetScript}
+$destRange = $sheet.Range('${destCell}')
+$qt = $sheet.QueryTables.Add("TEXT;${windowsPath}", $destRange)
+$qt.TextFileParseType = 1  # xlDelimited
+$qt.TextFileCommaDelimiter = ${delimiter === ',' ? '$true' : '$false'}
+$qt.TextFileTabDelimiter = ${delimiter === '\t' ? '$true' : '$false'}
+$qt.TextFileSemicolonDelimiter = ${delimiter === ';' ? '$true' : '$false'}
+$qt.TextFileSpaceDelimiter = ${delimiter === ' ' ? '$true' : '$false'}
+$qt.TextFileTextQualifier = ${textQualifier}
+$qt.Refresh($false)
+$qt.Delete()
+@{ success = $true; message = "CSV imported to ${destCell}"; source = '${windowsPath}' } | ConvertTo-Json -Compress
+`);
+  }
+
+  // ===========================================================================
+  // Excel Image & Comment Operations
+  // ===========================================================================
+
+  async excelRemoveImage(imageName: string, sheet?: string): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $workbook.ActiveSheet';
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${sheetScript}
+$shape = $sheet.Shapes('${imageName.replace(/'/g, "''")}')
+$shape.Delete()
+@{ success = $true; message = "Image '${imageName}' removed" } | ConvertTo-Json -Compress
+`);
+  }
+
+  async excelGetImages(sheet?: string): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $workbook.ActiveSheet';
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${sheetScript}
+$images = @()
+foreach ($shape in $sheet.Shapes) {
+  if ($shape.Type -eq 13) {  # msoPicture
+    $images += @{
+      name = $shape.Name
+      left = $shape.Left
+      top = $shape.Top
+      width = $shape.Width
+      height = $shape.Height
+    }
+  }
+}
+@{ success = $true; images = $images; count = $images.Count } | ConvertTo-Json -Compress -Depth 5
+`);
+  }
+
+  async excelEditComment(cell: string, newText: string, sheet?: string): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $workbook.ActiveSheet';
+    const hasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(newText);
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${sheetScript}
+$cell = $sheet.Range('${cell}')
+if ($cell.Comment -eq $null) {
+  @{ success = $false; error = "No comment exists in cell ${cell}" } | ConvertTo-Json -Compress
+} else {
+  $cell.Comment.Text('${newText.replace(/'/g, "''")}')
+  ${hasKorean ? "$cell.Comment.Shape.TextFrame.Characters().Font.Name = 'Malgun Gothic'" : ''}
+  @{ success = $true; message = "Comment updated in ${cell}" } | ConvertTo-Json -Compress
+}
+`);
+  }
+
+  // ===========================================================================
+  // Excel Pivot & Calculation Operations
+  // ===========================================================================
+
+  async excelDeletePivotField(tableName: string, fieldName: string, sheet?: string): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $workbook.ActiveSheet';
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${sheetScript}
+$pivotTable = $sheet.PivotTables('${tableName.replace(/'/g, "''")}')
+$field = $pivotTable.PivotFields('${fieldName.replace(/'/g, "''")}')
+$field.Orientation = 0  # xlHidden
+@{ success = $true; message = "Field '${fieldName}' removed from pivot table '${tableName}'" } | ConvertTo-Json -Compress
+`);
+  }
+
+  async excelSetCalculationMode(mode: 'automatic' | 'manual' | 'semiautomatic'): Promise<OfficeResponse> {
+    const modeMap: Record<string, number> = {
+      automatic: -4105,      // xlCalculationAutomatic
+      manual: -4135,         // xlCalculationManual
+      semiautomatic: 2,      // xlCalculationSemiautomatic
+    };
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$excel.Calculation = ${modeMap[mode]}
+@{ success = $true; message = "Calculation mode set to '${mode}'" } | ConvertTo-Json -Compress
+`);
+  }
+
+  async excelRecalculate(scope: 'workbook' | 'sheet' | 'range', range?: string, sheet?: string): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $workbook.ActiveSheet';
+
+    let calcScript = '';
+    switch (scope) {
+      case 'workbook':
+        calcScript = '$excel.CalculateFull()';
+        break;
+      case 'sheet':
+        calcScript = `${sheetScript}\n$sheet.Calculate()`;
+        break;
+      case 'range':
+        calcScript = `${sheetScript}\n$sheet.Range('${range}').Calculate()`;
+        break;
+    }
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${calcScript}
+@{ success = $true; message = "Recalculated ${scope}" } | ConvertTo-Json -Compress
+`);
+  }
+
+  async excelTracePrecedents(cell: string, sheet?: string): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $workbook.ActiveSheet';
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${sheetScript}
+$cell = $sheet.Range('${cell}')
+$cell.ShowPrecedents()
+@{ success = $true; message = "Showing precedents for ${cell}" } | ConvertTo-Json -Compress
+`);
+  }
+
+  async excelTraceDependents(cell: string, sheet?: string): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $workbook.ActiveSheet';
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${sheetScript}
+$cell = $sheet.Range('${cell}')
+$cell.ShowDependents()
+@{ success = $true; message = "Showing dependents for ${cell}" } | ConvertTo-Json -Compress
+`);
+  }
+
+  async excelClearArrows(): Promise<OfficeResponse> {
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+$workbook.ActiveSheet.ClearArrows()
+@{ success = $true; message = "Cleared all arrows" } | ConvertTo-Json -Compress
+`);
+  }
+
+  // ===========================================================================
+  // Column Grouping Operations
+  // ===========================================================================
+
+  async excelGroupColumns(startCol: string, endCol: string, sheet?: string): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $workbook.ActiveSheet';
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${sheetScript}
+$range = $sheet.Columns("${startCol}:${endCol}")
+$range.Group()
+@{ success = $true; message = "Grouped columns ${startCol} to ${endCol}" } | ConvertTo-Json -Compress
+`);
+  }
+
+  async excelUngroupColumns(startCol: string, endCol: string, sheet?: string): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $workbook.ActiveSheet';
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${sheetScript}
+$range = $sheet.Columns("${startCol}:${endCol}")
+$range.Ungroup()
+@{ success = $true; message = "Ungrouped columns ${startCol} to ${endCol}" } | ConvertTo-Json -Compress
+`);
+  }
+
+  // ===========================================================================
+  // Page Break Operations
+  // ===========================================================================
+
+  async excelInsertPageBreak(cell: string, type: 'row' | 'column', sheet?: string): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $workbook.ActiveSheet';
+
+    // xlPageBreakManual = -4135
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${sheetScript}
+$cell = $sheet.Range("${cell}")
+$cell.PageBreak = -4135
+@{ success = $true; message = "Inserted ${type} page break at ${cell}" } | ConvertTo-Json -Compress
+`);
+  }
+
+  async excelDeletePageBreak(cell: string, type: 'row' | 'column', sheet?: string): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $workbook.ActiveSheet';
+
+    // xlPageBreakNone = -4142
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${sheetScript}
+$cell = $sheet.Range("${cell}")
+$cell.PageBreak = -4142
+@{ success = $true; message = "Deleted ${type} page break at ${cell}" } | ConvertTo-Json -Compress
+`);
+  }
+
+  async excelResetAllPageBreaks(sheet?: string): Promise<OfficeResponse> {
+    const sheetScript = sheet ?
+      `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}')` :
+      '$sheet = $workbook.ActiveSheet';
+
+    return this.executePowerShell(`
+$excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
+$workbook = $excel.ActiveWorkbook
+${sheetScript}
+$sheet.ResetAllPageBreaks()
+@{ success = $true; message = "Reset all page breaks" } | ConvertTo-Json -Compress
 `);
   }
 

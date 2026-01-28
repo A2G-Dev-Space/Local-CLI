@@ -47,7 +47,7 @@ const DOCS_SEARCH_AGENT_TOOL_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'call_docs_search_agent',
-    description: `Search local documentation in the docs directory.
+    description: `Search local documentation in ~/.hanseol/docs directory.
 
 Use this tool when:
 - You need to find information in local documentation

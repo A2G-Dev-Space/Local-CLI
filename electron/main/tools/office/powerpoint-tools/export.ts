@@ -122,7 +122,7 @@ async function executePowerPointStartSlideshow(args: Record<string, unknown>): P
   const startTime = Date.now();
   logger.toolStart('powerpoint_start_slideshow', args);
   try {
-    const fromSlide = args['from_slide'] as number ?? 1;
+    const fromSlide = args['from_slide'] != null ? Number(args['from_slide']) : 1;
     const response = await powerpointClient.powerpointStartSlideshow(fromSlide);
     if (response.success) {
       logger.toolSuccess('powerpoint_start_slideshow', args, { fromSlide }, Date.now() - startTime);
@@ -144,6 +144,60 @@ export const powerpointStartSlideshowTool: LLMSimpleTool = {
 };
 
 // =============================================================================
+// PowerPoint Export Slide as Image
+// =============================================================================
+
+const POWERPOINT_EXPORT_SLIDE_AS_IMAGE_DEFINITION: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'powerpoint_export_slide_as_image',
+    description: `Export a specific slide as PNG or JPG image. Useful for creating thumbnails or sharing individual slides. WSL paths are auto-converted.`,
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: { type: 'string', description: 'Why you are exporting slide as image' },
+        slide_number: { type: 'number', description: 'Slide number to export' },
+        path: { type: 'string', description: 'Output image file path (include .png or .jpg extension)' },
+        format: { type: 'string', enum: ['png', 'jpg'], description: 'Image format (default: png)' },
+        width: { type: 'number', description: 'Image width in pixels (optional, maintains aspect ratio if only width provided)' },
+        height: { type: 'number', description: 'Image height in pixels (optional)' },
+      },
+      required: ['reason', 'slide_number', 'path'],
+    },
+  },
+};
+
+async function executePowerPointExportSlideAsImage(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_export_slide_as_image', args);
+  try {
+    const slideNum = Number(args['slide_number']);
+    const path = args['path'] as string;
+    const format = (args['format'] as 'png' | 'jpg') || 'png';
+    const width = args['width'] != null ? Number(args['width']) : undefined;
+    const height = args['height'] != null ? Number(args['height']) : undefined;
+
+    const response = await powerpointClient.powerpointExportSlideAsImage(slideNum, path, format, width, height);
+    if (response.success) {
+      logger.toolSuccess('powerpoint_export_slide_as_image', args, { slideNum, path: response['path'] || path }, Date.now() - startTime);
+      return { success: true, result: `Slide ${slideNum} exported as ${format}: ${response['path'] || path}` };
+    }
+    logger.toolError('powerpoint_export_slide_as_image', args, new Error(response.error || 'Failed to export slide as image'), Date.now() - startTime);
+    return { success: false, error: response.error || 'Failed to export slide as image' };
+  } catch (error) {
+    logger.toolError('powerpoint_export_slide_as_image', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
+    return { success: false, error: `Failed to export slide as image: ${error instanceof Error ? error.message : String(error)}` };
+  }
+}
+
+export const powerpointExportSlideAsImageTool: LLMSimpleTool = {
+  definition: POWERPOINT_EXPORT_SLIDE_AS_IMAGE_DEFINITION,
+  execute: executePowerPointExportSlideAsImage,
+  categories: OFFICE_CATEGORIES,
+  description: 'Export slide as PNG/JPG image',
+};
+
+// =============================================================================
 // Export
 // =============================================================================
 
@@ -151,4 +205,5 @@ export const exportTools: LLMSimpleTool[] = [
   powerpointSaveTool,
   powerpointExportPDFTool,
   powerpointStartSlideshowTool,
+  powerpointExportSlideAsImageTool,
 ];

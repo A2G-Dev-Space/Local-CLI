@@ -16,6 +16,7 @@ export const AVAILABLE_TOOLS = `
 - **edit_file**: Edit an EXISTING file by replacing specific text
 - **list_files**: List directory contents
 - **find_files**: Search for files by pattern
+- **search_content**: Search for text patterns in files (grep-like)
 - **powershell**: Execute PowerShell commands (git, npm, etc.)
 `.trim();
 
@@ -30,6 +31,7 @@ export const AVAILABLE_TOOLS_WITH_TODO = `
 - **edit_file**: Edit an EXISTING file by replacing specific text
 - **list_files**: List directory contents
 - **find_files**: Search for files by pattern
+- **search_content**: Search for text patterns in files (grep-like)
 - **powershell**: Execute PowerShell commands (git, npm, etc.)
 - **tell_to_user**: Send status updates to the user
 - **ask_to_user**: Ask user a question with multiple choice options

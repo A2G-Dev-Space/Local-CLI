@@ -27,30 +27,31 @@ const POWERPOINT_ADD_IMAGE_DEFINITION: ToolDefinition = {
       type: 'object',
       properties: {
         reason: { type: 'string', description: 'Why you are adding an image' },
-        slide: { type: 'number', description: 'Slide number' },
+        slide_number: { type: 'number', description: 'Slide number' },
         path: { type: 'string', description: 'Image file path' },
         left: { type: 'number', description: 'Left position in points (default: 100)' },
         top: { type: 'number', description: 'Top position in points (default: 100)' },
         width: { type: 'number', description: 'Width in points (optional)' },
         height: { type: 'number', description: 'Height in points (optional)' },
       },
-      required: ['reason', 'slide', 'path'],
+      required: ['reason', 'slide_number', 'path'],
     },
   },
 };
 
 async function executePowerPointAddImage(args: Record<string, unknown>): Promise<ToolResult> {
   try {
+    const slideNum = Number(args['slide_number']);
     const response = await powerpointClient.powerpointAddImage(
-      args['slide'] as number,
+      slideNum,
       args['path'] as string,
-      args['left'] as number ?? 100,
-      args['top'] as number ?? 100,
-      args['width'] as number | undefined,
-      args['height'] as number | undefined
+      args['left'] != null ? Number(args['left']) : 100,
+      args['top'] != null ? Number(args['top']) : 100,
+      args['width'] != null ? Number(args['width']) : undefined,
+      args['height'] != null ? Number(args['height']) : undefined
     );
     if (response.success) {
-      return { success: true, result: `Image added to slide ${args['slide']}` };
+      return { success: true, result: `Image added to slide ${slideNum}` };
     }
     return { success: false, error: response.error || 'Failed to add image' };
   } catch (error) {
@@ -73,10 +74,11 @@ const POWERPOINT_ADD_VIDEO_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'powerpoint_add_video',
-    description: `Add a video to a slide.`,
+    description: `Add a video to a slide. WSL paths are automatically converted to Windows paths.`,
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are adding a video' },
         slide_number: { type: 'number', description: 'Slide number' },
         video_path: { type: 'string', description: 'Path to video file' },
         left: { type: 'number', description: 'Left position (default: 100)' },
@@ -84,20 +86,21 @@ const POWERPOINT_ADD_VIDEO_DEFINITION: ToolDefinition = {
         width: { type: 'number', description: 'Width (default: 400)' },
         height: { type: 'number', description: 'Height (default: 300)' },
       },
-      required: ['slide_number', 'video_path'],
+      required: ['reason', 'slide_number', 'video_path'],
     },
   },
 };
 
 async function executePowerPointAddVideo(args: Record<string, unknown>): Promise<ToolResult> {
   try {
+    const slideNum = Number(args['slide_number']);
     const response = await powerpointClient.powerpointAddVideo(
-      args['slide_number'] as number,
+      slideNum,
       args['video_path'] as string,
-      args['left'] as number | undefined,
-      args['top'] as number | undefined,
-      args['width'] as number | undefined,
-      args['height'] as number | undefined
+      args['left'] != null ? Number(args['left']) : undefined,
+      args['top'] != null ? Number(args['top']) : undefined,
+      args['width'] != null ? Number(args['width']) : undefined,
+      args['height'] != null ? Number(args['height']) : undefined
     );
     if (response.success) {
       return { success: true, result: `Video added. Shape index: ${response['shape_index']}` };
@@ -123,29 +126,31 @@ const POWERPOINT_ADD_AUDIO_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'powerpoint_add_audio',
-    description: `Add an audio file to a slide.`,
+    description: `Add an audio file to a slide. WSL paths are automatically converted to Windows paths.`,
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are adding audio' },
         slide_number: { type: 'number', description: 'Slide number' },
         audio_path: { type: 'string', description: 'Path to audio file' },
         left: { type: 'number', description: 'Left position (default: 100)' },
         top: { type: 'number', description: 'Top position (default: 100)' },
         play_in_background: { type: 'boolean', description: 'Play audio in background (default: false)' },
       },
-      required: ['slide_number', 'audio_path'],
+      required: ['reason', 'slide_number', 'audio_path'],
     },
   },
 };
 
 async function executePowerPointAddAudio(args: Record<string, unknown>): Promise<ToolResult> {
   try {
+    const slideNum = Number(args['slide_number']);
     const response = await powerpointClient.powerpointAddAudio(
-      args['slide_number'] as number,
+      slideNum,
       args['audio_path'] as string,
-      args['left'] as number | undefined,
-      args['top'] as number | undefined,
-      args['play_in_background'] as boolean | undefined
+      args['left'] != null ? Number(args['left']) : undefined,
+      args['top'] != null ? Number(args['top']) : undefined,
+      args['play_in_background'] != null ? Boolean(args['play_in_background']) : undefined
     );
     if (response.success) {
       return { success: true, result: `Audio added. Shape index: ${response['shape_index']}` };
@@ -175,21 +180,24 @@ const POWERPOINT_ADD_HYPERLINK_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are adding a hyperlink' },
         slide_number: { type: 'number', description: 'Slide number' },
         shape_index: { type: 'number', description: 'Shape index' },
         url: { type: 'string', description: 'Hyperlink URL' },
         screen_tip: { type: 'string', description: 'Tooltip text when hovering' },
       },
-      required: ['slide_number', 'shape_index', 'url'],
+      required: ['reason', 'slide_number', 'shape_index', 'url'],
     },
   },
 };
 
 async function executePowerPointAddHyperlink(args: Record<string, unknown>): Promise<ToolResult> {
   try {
+    const slideNum = Number(args['slide_number']);
+    const shapeIndex = Number(args['shape_index']);
     const response = await powerpointClient.powerpointAddHyperlink(
-      args['slide_number'] as number,
-      args['shape_index'] as number,
+      slideNum,
+      shapeIndex,
       args['url'] as string,
       args['screen_tip'] as string | undefined
     );
@@ -217,10 +225,11 @@ const POWERPOINT_ADD_CHART_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'powerpoint_add_chart',
-    description: `Add a chart to a slide.`,
+    description: `Add a chart to a slide. Example data: {categories: ["Q1","Q2","Q3"], series: [{name: "Sales", values: [100,200,150]}]}`,
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are adding a chart' },
         slide_number: { type: 'number', description: 'Slide number' },
         chart_type: { type: 'string', enum: ['column', 'bar', 'line', 'pie', 'area', 'scatter'], description: 'Chart type' },
         left: { type: 'number', description: 'Left position (default: 100)' },
@@ -246,20 +255,21 @@ const POWERPOINT_ADD_CHART_DEFINITION: ToolDefinition = {
           },
         },
       },
-      required: ['slide_number', 'chart_type'],
+      required: ['reason', 'slide_number', 'chart_type'],
     },
   },
 };
 
 async function executePowerPointAddChart(args: Record<string, unknown>): Promise<ToolResult> {
   try {
+    const slideNum = Number(args['slide_number']);
     const response = await powerpointClient.powerpointAddChart(
-      args['slide_number'] as number,
+      slideNum,
       args['chart_type'] as 'column' | 'bar' | 'line' | 'pie' | 'area' | 'scatter',
-      args['left'] as number | undefined,
-      args['top'] as number | undefined,
-      args['width'] as number | undefined,
-      args['height'] as number | undefined,
+      args['left'] != null ? Number(args['left']) : undefined,
+      args['top'] != null ? Number(args['top']) : undefined,
+      args['width'] != null ? Number(args['width']) : undefined,
+      args['height'] != null ? Number(args['height']) : undefined,
       args['data'] as { categories: string[]; series: { name: string; values: number[] }[] } | undefined
     );
     if (response.success) {

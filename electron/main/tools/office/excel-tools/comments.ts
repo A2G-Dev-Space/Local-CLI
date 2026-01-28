@@ -162,6 +162,56 @@ export const excelDeleteCommentTool: LLMSimpleTool = {
 };
 
 // =============================================================================
+// Excel Edit Comment
+// =============================================================================
+
+const EXCEL_EDIT_COMMENT_DEFINITION: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'excel_edit_comment',
+    description: `Edit an existing comment in a cell. Returns error if cell has no comment.`,
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: { type: 'string', description: 'Why you are editing comment' },
+        cell: { type: 'string', description: 'Cell address (e.g., "A1")' },
+        text: { type: 'string', description: 'New comment text' },
+        sheet: { type: 'string', description: 'Sheet name (optional)' },
+      },
+      required: ['reason', 'cell', 'text'],
+    },
+  },
+};
+
+async function executeExcelEditComment(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_edit_comment', args);
+  try {
+    const response = await excelClient.excelEditComment(
+      args['cell'] as string,
+      args['text'] as string,
+      args['sheet'] as string | undefined
+    );
+    if (response.success) {
+      logger.toolSuccess('excel_edit_comment', args, { cell: args['cell'] }, Date.now() - startTime);
+      return { success: true, result: `Comment updated in ${args['cell']}` };
+    }
+    logger.toolError('excel_edit_comment', args, new Error(response.error || 'Failed'), Date.now() - startTime);
+    return { success: false, error: response.error || 'Failed to edit comment' };
+  } catch (error) {
+    logger.toolError('excel_edit_comment', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
+    return { success: false, error: `Failed to edit comment: ${error instanceof Error ? error.message : String(error)}` };
+  }
+}
+
+export const excelEditCommentTool: LLMSimpleTool = {
+  definition: EXCEL_EDIT_COMMENT_DEFINITION,
+  execute: executeExcelEditComment,
+  categories: OFFICE_CATEGORIES,
+  description: 'Edit Excel comment',
+};
+
+// =============================================================================
 // Export all comment tools
 // =============================================================================
 
@@ -169,4 +219,5 @@ export const commentsTools: LLMSimpleTool[] = [
   excelAddCommentTool,
   excelGetCommentTool,
   excelDeleteCommentTool,
+  excelEditCommentTool,
 ];

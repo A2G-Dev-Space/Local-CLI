@@ -263,10 +263,12 @@ export async function runAgent(
     }
 
     try {
-      // Create PlanningLLM with proper arguments (llmClient and getToolSummary function)
+      // Create PlanningLLM with proper arguments (llmClient and tool summary functions)
+      // Includes optional tools info (browser, office, etc.) for planning
       const planningLLM = new PlanningLLM(
         llmClient,
-        () => toolRegistry.getToolSummaryForPlanning()
+        () => toolRegistry.getToolSummaryForPlanning(),
+        () => toolRegistry.getEnabledOptionalToolsInfo()
       );
       const planningResult = await planningLLM.generateTODOListWithDocsDecision(
         userMessage,

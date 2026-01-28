@@ -28,7 +28,7 @@ const POWERPOINT_ADD_SHAPE_DEFINITION: ToolDefinition = {
       type: 'object',
       properties: {
         reason: { type: 'string', description: 'Why you are adding a shape' },
-        slide: { type: 'number', description: 'Slide number' },
+        slide_number: { type: 'number', description: 'Slide number' },
         shape_type: { type: 'string', enum: ['rectangle', 'oval', 'triangle', 'arrow', 'star'], description: 'Type of shape' },
         left: { type: 'number', description: 'Left position in points' },
         top: { type: 'number', description: 'Top position in points' },
@@ -36,7 +36,7 @@ const POWERPOINT_ADD_SHAPE_DEFINITION: ToolDefinition = {
         height: { type: 'number', description: 'Height in points' },
         fill_color: { type: 'string', description: 'Fill color as hex (optional)' },
       },
-      required: ['reason', 'slide', 'shape_type', 'left', 'top', 'width', 'height'],
+      required: ['reason', 'slide_number', 'shape_type', 'left', 'top', 'width', 'height'],
     },
   },
 };
@@ -45,18 +45,19 @@ async function executePowerPointAddShape(args: Record<string, unknown>): Promise
   const startTime = Date.now();
   logger.toolStart('powerpoint_add_shape', args);
   try {
+    const slideNum = Number(args['slide_number']);
     const response = await powerpointClient.powerpointAddShape(
-      args['slide'] as number,
+      slideNum,
       args['shape_type'] as 'rectangle' | 'oval' | 'triangle' | 'arrow' | 'star',
-      args['left'] as number,
-      args['top'] as number,
-      args['width'] as number,
-      args['height'] as number,
+      Number(args['left']),
+      Number(args['top']),
+      Number(args['width']),
+      Number(args['height']),
       args['fill_color'] as string | undefined
     );
     if (response.success) {
-      logger.toolSuccess('powerpoint_add_shape', args, { slide: args['slide'], shapeType: args['shape_type'] }, Date.now() - startTime);
-      return { success: true, result: `${args['shape_type']} shape added to slide ${args['slide']}` };
+      logger.toolSuccess('powerpoint_add_shape', args, { slideNumber: slideNum, shapeType: args['shape_type'] }, Date.now() - startTime);
+      return { success: true, result: `${args['shape_type']} shape added to slide ${slideNum}` };
     }
     logger.toolError('powerpoint_add_shape', args, new Error(response.error || 'Failed to add shape'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to add shape' };
@@ -81,14 +82,15 @@ const POWERPOINT_DELETE_SHAPE_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'powerpoint_delete_shape',
-    description: `Delete a shape from a slide.`,
+    description: `Delete a shape from a slide. IMPORTANT: Shape indices shift after deletion. When deleting multiple shapes, delete from highest index to lowest to avoid index shift issues.`,
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are deleting this shape' },
         slide_number: { type: 'number', description: 'Slide number' },
         shape_index: { type: 'number', description: 'Shape index to delete' },
       },
-      required: ['slide_number', 'shape_index'],
+      required: ['reason', 'slide_number', 'shape_index'],
     },
   },
 };
@@ -98,8 +100,8 @@ async function executePowerPointDeleteShape(args: Record<string, unknown>): Prom
   logger.toolStart('powerpoint_delete_shape', args);
   try {
     const response = await powerpointClient.powerpointDeleteShape(
-      args['slide_number'] as number,
-      args['shape_index'] as number
+      Number(args['slide_number']),
+      Number(args['shape_index'])
     );
     if (response.success) {
       logger.toolSuccess('powerpoint_delete_shape', args, { slideNumber: args['slide_number'], shapeIndex: args['shape_index'] }, Date.now() - startTime);
@@ -132,10 +134,11 @@ const POWERPOINT_DUPLICATE_SHAPE_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are duplicating this shape' },
         slide_number: { type: 'number', description: 'Slide number' },
         shape_index: { type: 'number', description: 'Shape index to duplicate' },
       },
-      required: ['slide_number', 'shape_index'],
+      required: ['reason', 'slide_number', 'shape_index'],
     },
   },
 };
@@ -145,8 +148,8 @@ async function executePowerPointDuplicateShape(args: Record<string, unknown>): P
   logger.toolStart('powerpoint_duplicate_shape', args);
   try {
     const response = await powerpointClient.powerpointDuplicateShape(
-      args['slide_number'] as number,
-      args['shape_index'] as number
+      Number(args['slide_number']),
+      Number(args['shape_index'])
     );
     if (response.success) {
       logger.toolSuccess('powerpoint_duplicate_shape', args, { slideNumber: args['slide_number'], newShapeIndex: response['new_shape_index'] }, Date.now() - startTime);
@@ -179,11 +182,12 @@ const POWERPOINT_ROTATE_SHAPE_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are rotating this shape' },
         slide_number: { type: 'number', description: 'Slide number' },
         shape_index: { type: 'number', description: 'Shape index' },
         angle: { type: 'number', description: 'Rotation angle in degrees (0-360)' },
       },
-      required: ['slide_number', 'shape_index', 'angle'],
+      required: ['reason', 'slide_number', 'shape_index', 'angle'],
     },
   },
 };
@@ -193,9 +197,9 @@ async function executePowerPointRotateShape(args: Record<string, unknown>): Prom
   logger.toolStart('powerpoint_rotate_shape', args);
   try {
     const response = await powerpointClient.powerpointRotateShape(
-      args['slide_number'] as number,
-      args['shape_index'] as number,
-      args['angle'] as number
+      Number(args['slide_number']),
+      Number(args['shape_index']),
+      Number(args['angle'])
     );
     if (response.success) {
       logger.toolSuccess('powerpoint_rotate_shape', args, { slideNumber: args['slide_number'], shapeIndex: args['shape_index'], angle: args['angle'] }, Date.now() - startTime);
@@ -228,10 +232,11 @@ const POWERPOINT_GET_SHAPE_INFO_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you need shape information' },
         slide_number: { type: 'number', description: 'Slide number' },
         shape_index: { type: 'number', description: 'Shape index' },
       },
-      required: ['slide_number', 'shape_index'],
+      required: ['reason', 'slide_number', 'shape_index'],
     },
   },
 };
@@ -241,8 +246,8 @@ async function executePowerPointGetShapeInfo(args: Record<string, unknown>): Pro
   logger.toolStart('powerpoint_get_shape_info', args);
   try {
     const response = await powerpointClient.powerpointGetShapeInfo(
-      args['slide_number'] as number,
-      args['shape_index'] as number
+      Number(args['slide_number']),
+      Number(args['shape_index'])
     );
     if (response.success) {
       logger.toolSuccess('powerpoint_get_shape_info', args, { slideNumber: args['slide_number'], shapeIndex: args['shape_index'] }, Date.now() - startTime);
@@ -275,11 +280,12 @@ const POWERPOINT_SET_SHAPE_NAME_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are setting the shape name' },
         slide_number: { type: 'number', description: 'Slide number' },
         shape_index: { type: 'number', description: 'Shape index' },
         name: { type: 'string', description: 'Shape name' },
       },
-      required: ['slide_number', 'shape_index', 'name'],
+      required: ['reason', 'slide_number', 'shape_index', 'name'],
     },
   },
 };
@@ -289,8 +295,8 @@ async function executePowerPointSetShapeName(args: Record<string, unknown>): Pro
   logger.toolStart('powerpoint_set_shape_name', args);
   try {
     const response = await powerpointClient.powerpointSetShapeName(
-      args['slide_number'] as number,
-      args['shape_index'] as number,
+      Number(args['slide_number']),
+      Number(args['shape_index']),
       args['name'] as string
     );
     if (response.success) {
@@ -324,9 +330,10 @@ const POWERPOINT_GET_SHAPE_LIST_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are getting the shape list' },
         slide_number: { type: 'number', description: 'Slide number' },
       },
-      required: ['slide_number'],
+      required: ['reason', 'slide_number'],
     },
   },
 };
@@ -335,7 +342,7 @@ async function executePowerPointGetShapeList(args: Record<string, unknown>): Pro
   const startTime = Date.now();
   logger.toolStart('powerpoint_get_shape_list', args);
   try {
-    const response = await powerpointClient.powerpointGetShapeList(args['slide_number'] as number);
+    const response = await powerpointClient.powerpointGetShapeList(Number(args['slide_number']));
     if (response.success) {
       logger.toolSuccess('powerpoint_get_shape_list', args, { slideNumber: args['slide_number'] }, Date.now() - startTime);
       return { success: true, result: JSON.stringify(response, null, 2) };
@@ -367,12 +374,13 @@ const POWERPOINT_SET_SHAPE_POSITION_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are setting the shape position' },
         slide_number: { type: 'number', description: 'Slide number' },
         shape_index: { type: 'number', description: 'Shape index' },
         left: { type: 'number', description: 'Left position in points' },
         top: { type: 'number', description: 'Top position in points' },
       },
-      required: ['slide_number', 'shape_index', 'left', 'top'],
+      required: ['reason', 'slide_number', 'shape_index', 'left', 'top'],
     },
   },
 };
@@ -382,10 +390,10 @@ async function executePowerPointSetShapePosition(args: Record<string, unknown>):
   logger.toolStart('powerpoint_set_shape_position', args);
   try {
     const response = await powerpointClient.powerpointSetShapePosition(
-      args['slide_number'] as number,
-      args['shape_index'] as number,
-      args['left'] as number,
-      args['top'] as number
+      Number(args['slide_number']),
+      Number(args['shape_index']),
+      Number(args['left']),
+      Number(args['top'])
     );
     if (response.success) {
       logger.toolSuccess('powerpoint_set_shape_position', args, { slideNumber: args['slide_number'], shapeIndex: args['shape_index'] }, Date.now() - startTime);
@@ -418,13 +426,14 @@ const POWERPOINT_SET_SHAPE_SIZE_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are setting the shape size' },
         slide_number: { type: 'number', description: 'Slide number' },
         shape_index: { type: 'number', description: 'Shape index' },
         width: { type: 'number', description: 'Width in points' },
         height: { type: 'number', description: 'Height in points' },
         lock_aspect_ratio: { type: 'boolean', description: 'Lock aspect ratio (default: false)' },
       },
-      required: ['slide_number', 'shape_index', 'width', 'height'],
+      required: ['reason', 'slide_number', 'shape_index', 'width', 'height'],
     },
   },
 };
@@ -434,11 +443,11 @@ async function executePowerPointSetShapeSize(args: Record<string, unknown>): Pro
   logger.toolStart('powerpoint_set_shape_size', args);
   try {
     const response = await powerpointClient.powerpointSetShapeSize(
-      args['slide_number'] as number,
-      args['shape_index'] as number,
-      args['width'] as number,
-      args['height'] as number,
-      args['lock_aspect_ratio'] as boolean | undefined
+      Number(args['slide_number']),
+      Number(args['shape_index']),
+      Number(args['width']),
+      Number(args['height']),
+      args['lock_aspect_ratio'] != null ? Boolean(args['lock_aspect_ratio']) : undefined
     );
     if (response.success) {
       logger.toolSuccess('powerpoint_set_shape_size', args, { slideNumber: args['slide_number'], shapeIndex: args['shape_index'] }, Date.now() - startTime);
@@ -471,6 +480,7 @@ const POWERPOINT_SET_SHAPE_STYLE_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are setting the shape style' },
         slide_number: { type: 'number', description: 'Slide number' },
         shape_index: { type: 'number', description: 'Shape index' },
         fill_color: { type: 'string', description: 'Fill color (hex: #RRGGBB)' },
@@ -481,7 +491,7 @@ const POWERPOINT_SET_SHAPE_STYLE_DEFINITION: ToolDefinition = {
         no_fill: { type: 'boolean', description: 'Remove fill' },
         no_line: { type: 'boolean', description: 'Remove line/border' },
       },
-      required: ['slide_number', 'shape_index'],
+      required: ['reason', 'slide_number', 'shape_index'],
     },
   },
 };
@@ -491,16 +501,16 @@ async function executePowerPointSetShapeStyle(args: Record<string, unknown>): Pr
   logger.toolStart('powerpoint_set_shape_style', args);
   try {
     const response = await powerpointClient.powerpointSetShapeStyle(
-      args['slide_number'] as number,
-      args['shape_index'] as number,
+      Number(args['slide_number']),
+      Number(args['shape_index']),
       {
         fillColor: args['fill_color'] as string | undefined,
-        fillTransparency: args['fill_transparency'] as number | undefined,
+        fillTransparency: args['fill_transparency'] != null ? Number(args['fill_transparency']) : undefined,
         lineColor: args['line_color'] as string | undefined,
-        lineWeight: args['line_weight'] as number | undefined,
+        lineWeight: args['line_weight'] != null ? Number(args['line_weight']) : undefined,
         lineStyle: args['line_style'] as 'solid' | 'dash' | 'dot' | 'dashDot' | undefined,
-        noFill: args['no_fill'] as boolean | undefined,
-        noLine: args['no_line'] as boolean | undefined,
+        noFill: args['no_fill'] != null ? Boolean(args['no_fill']) : undefined,
+        noLine: args['no_line'] != null ? Boolean(args['no_line']) : undefined,
       }
     );
     if (response.success) {
@@ -534,11 +544,12 @@ const POWERPOINT_SET_SHAPE_OPACITY_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are setting the shape opacity' },
         slide_number: { type: 'number', description: 'Slide number' },
         shape_index: { type: 'number', description: 'Shape index' },
         opacity: { type: 'number', description: 'Opacity percentage (0-100, where 0 is fully transparent)' },
       },
-      required: ['slide_number', 'shape_index', 'opacity'],
+      required: ['reason', 'slide_number', 'shape_index', 'opacity'],
     },
   },
 };
@@ -548,9 +559,9 @@ async function executePowerPointSetShapeOpacity(args: Record<string, unknown>): 
   logger.toolStart('powerpoint_set_shape_opacity', args);
   try {
     const response = await powerpointClient.powerpointSetShapeOpacity(
-      args['slide_number'] as number,
-      args['shape_index'] as number,
-      args['opacity'] as number
+      Number(args['slide_number']),
+      Number(args['shape_index']),
+      Number(args['opacity'])
     );
     if (response.success) {
       logger.toolSuccess('powerpoint_set_shape_opacity', args, { slideNumber: args['slide_number'], shapeIndex: args['shape_index'], opacity: args['opacity'] }, Date.now() - startTime);
@@ -583,10 +594,11 @@ const POWERPOINT_BRING_TO_FRONT_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are bringing the shape to front' },
         slide_number: { type: 'number', description: 'Slide number' },
         shape_index: { type: 'number', description: 'Shape index' },
       },
-      required: ['slide_number', 'shape_index'],
+      required: ['reason', 'slide_number', 'shape_index'],
     },
   },
 };
@@ -596,8 +608,8 @@ async function executePowerPointBringToFront(args: Record<string, unknown>): Pro
   logger.toolStart('powerpoint_bring_to_front', args);
   try {
     const response = await powerpointClient.powerpointBringToFront(
-      args['slide_number'] as number,
-      args['shape_index'] as number
+      Number(args['slide_number']),
+      Number(args['shape_index'])
     );
     if (response.success) {
       logger.toolSuccess('powerpoint_bring_to_front', args, { slideNumber: args['slide_number'], shapeIndex: args['shape_index'] }, Date.now() - startTime);
@@ -626,10 +638,11 @@ const POWERPOINT_SEND_TO_BACK_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are sending the shape to back' },
         slide_number: { type: 'number', description: 'Slide number' },
         shape_index: { type: 'number', description: 'Shape index' },
       },
-      required: ['slide_number', 'shape_index'],
+      required: ['reason', 'slide_number', 'shape_index'],
     },
   },
 };
@@ -639,8 +652,8 @@ async function executePowerPointSendToBack(args: Record<string, unknown>): Promi
   logger.toolStart('powerpoint_send_to_back', args);
   try {
     const response = await powerpointClient.powerpointSendToBack(
-      args['slide_number'] as number,
-      args['shape_index'] as number
+      Number(args['slide_number']),
+      Number(args['shape_index'])
     );
     if (response.success) {
       logger.toolSuccess('powerpoint_send_to_back', args, { slideNumber: args['slide_number'], shapeIndex: args['shape_index'] }, Date.now() - startTime);
@@ -669,10 +682,11 @@ const POWERPOINT_BRING_FORWARD_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are bringing the shape forward' },
         slide_number: { type: 'number', description: 'Slide number' },
         shape_index: { type: 'number', description: 'Shape index' },
       },
-      required: ['slide_number', 'shape_index'],
+      required: ['reason', 'slide_number', 'shape_index'],
     },
   },
 };
@@ -682,8 +696,8 @@ async function executePowerPointBringForward(args: Record<string, unknown>): Pro
   logger.toolStart('powerpoint_bring_forward', args);
   try {
     const response = await powerpointClient.powerpointBringForward(
-      args['slide_number'] as number,
-      args['shape_index'] as number
+      Number(args['slide_number']),
+      Number(args['shape_index'])
     );
     if (response.success) {
       logger.toolSuccess('powerpoint_bring_forward', args, { slideNumber: args['slide_number'], shapeIndex: args['shape_index'] }, Date.now() - startTime);
@@ -712,10 +726,11 @@ const POWERPOINT_SEND_BACKWARD_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are sending the shape backward' },
         slide_number: { type: 'number', description: 'Slide number' },
         shape_index: { type: 'number', description: 'Shape index' },
       },
-      required: ['slide_number', 'shape_index'],
+      required: ['reason', 'slide_number', 'shape_index'],
     },
   },
 };
@@ -725,8 +740,8 @@ async function executePowerPointSendBackward(args: Record<string, unknown>): Pro
   logger.toolStart('powerpoint_send_backward', args);
   try {
     const response = await powerpointClient.powerpointSendBackward(
-      args['slide_number'] as number,
-      args['shape_index'] as number
+      Number(args['slide_number']),
+      Number(args['shape_index'])
     );
     if (response.success) {
       logger.toolSuccess('powerpoint_send_backward', args, { slideNumber: args['slide_number'], shapeIndex: args['shape_index'] }, Date.now() - startTime);
@@ -759,11 +774,12 @@ const POWERPOINT_ALIGN_SHAPES_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are aligning the shapes' },
         slide_number: { type: 'number', description: 'Slide number' },
         shape_indices: { type: 'array', items: { type: 'number' }, description: 'Array of shape indices to align' },
         alignment: { type: 'string', enum: ['left', 'center', 'right', 'top', 'middle', 'bottom'], description: 'Alignment type' },
       },
-      required: ['slide_number', 'shape_indices', 'alignment'],
+      required: ['reason', 'slide_number', 'shape_indices', 'alignment'],
     },
   },
 };
@@ -773,8 +789,8 @@ async function executePowerPointAlignShapes(args: Record<string, unknown>): Prom
   logger.toolStart('powerpoint_align_shapes', args);
   try {
     const response = await powerpointClient.powerpointAlignShapes(
-      args['slide_number'] as number,
-      args['shape_indices'] as number[],
+      Number(args['slide_number']),
+      (args['shape_indices'] as unknown[]).map(Number),
       args['alignment'] as 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom'
     );
     if (response.success) {
@@ -808,11 +824,12 @@ const POWERPOINT_DISTRIBUTE_SHAPES_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are distributing the shapes' },
         slide_number: { type: 'number', description: 'Slide number' },
         shape_indices: { type: 'array', items: { type: 'number' }, description: 'Array of shape indices' },
         direction: { type: 'string', enum: ['horizontal', 'vertical'], description: 'Distribution direction' },
       },
-      required: ['slide_number', 'shape_indices', 'direction'],
+      required: ['reason', 'slide_number', 'shape_indices', 'direction'],
     },
   },
 };
@@ -822,8 +839,8 @@ async function executePowerPointDistributeShapes(args: Record<string, unknown>):
   logger.toolStart('powerpoint_distribute_shapes', args);
   try {
     const response = await powerpointClient.powerpointDistributeShapes(
-      args['slide_number'] as number,
-      args['shape_indices'] as number[],
+      Number(args['slide_number']),
+      (args['shape_indices'] as unknown[]).map(Number),
       args['direction'] as 'horizontal' | 'vertical'
     );
     if (response.success) {
@@ -857,10 +874,11 @@ const POWERPOINT_GROUP_SHAPES_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are grouping the shapes' },
         slide_number: { type: 'number', description: 'Slide number' },
         shape_indices: { type: 'array', items: { type: 'number' }, description: 'Array of shape indices to group' },
       },
-      required: ['slide_number', 'shape_indices'],
+      required: ['reason', 'slide_number', 'shape_indices'],
     },
   },
 };
@@ -870,8 +888,8 @@ async function executePowerPointGroupShapes(args: Record<string, unknown>): Prom
   logger.toolStart('powerpoint_group_shapes', args);
   try {
     const response = await powerpointClient.powerpointGroupShapes(
-      args['slide_number'] as number,
-      args['shape_indices'] as number[]
+      Number(args['slide_number']),
+      (args['shape_indices'] as unknown[]).map(Number)
     );
     if (response.success) {
       logger.toolSuccess('powerpoint_group_shapes', args, { slideNumber: args['slide_number'], groupIndex: response['group_index'] }, Date.now() - startTime);
@@ -904,10 +922,11 @@ const POWERPOINT_UNGROUP_SHAPES_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are ungrouping the shapes' },
         slide_number: { type: 'number', description: 'Slide number' },
         group_index: { type: 'number', description: 'Group shape index' },
       },
-      required: ['slide_number', 'group_index'],
+      required: ['reason', 'slide_number', 'group_index'],
     },
   },
 };
@@ -917,8 +936,8 @@ async function executePowerPointUngroupShapes(args: Record<string, unknown>): Pr
   logger.toolStart('powerpoint_ungroup_shapes', args);
   try {
     const response = await powerpointClient.powerpointUngroupShapes(
-      args['slide_number'] as number,
-      args['group_index'] as number
+      Number(args['slide_number']),
+      Number(args['group_index'])
     );
     if (response.success) {
       logger.toolSuccess('powerpoint_ungroup_shapes', args, { slideNumber: args['slide_number'], shapeCount: response['shape_count'] }, Date.now() - startTime);
@@ -937,6 +956,106 @@ export const powerpointUngroupShapesTool: LLMSimpleTool = {
   execute: executePowerPointUngroupShapes,
   categories: OFFICE_CATEGORIES,
   description: 'Ungroup shapes',
+};
+
+// =============================================================================
+// PowerPoint Flip Shape
+// =============================================================================
+
+const POWERPOINT_FLIP_SHAPE_DEFINITION: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'powerpoint_flip_shape',
+    description: `Flip a shape horizontally or vertically.`,
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: { type: 'string', description: 'Why you are flipping this shape' },
+        slide_number: { type: 'number', description: 'Slide number' },
+        shape_index: { type: 'number', description: 'Shape index' },
+        direction: { type: 'string', enum: ['horizontal', 'vertical'], description: 'Flip direction' },
+      },
+      required: ['reason', 'slide_number', 'shape_index', 'direction'],
+    },
+  },
+};
+
+async function executePowerPointFlipShape(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_flip_shape', args);
+  try {
+    const response = await powerpointClient.powerpointFlipShape(
+      Number(args['slide_number']),
+      Number(args['shape_index']),
+      args['direction'] as 'horizontal' | 'vertical'
+    );
+    if (response.success) {
+      logger.toolSuccess('powerpoint_flip_shape', args, { direction: args['direction'] }, Date.now() - startTime);
+      return { success: true, result: response.message || 'Shape flipped' };
+    }
+    logger.toolError('powerpoint_flip_shape', args, new Error(response.error || 'Failed to flip shape'), Date.now() - startTime);
+    return { success: false, error: response.error || 'Failed to flip shape' };
+  } catch (error) {
+    logger.toolError('powerpoint_flip_shape', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
+    return { success: false, error: `Failed to flip shape: ${error instanceof Error ? error.message : String(error)}` };
+  }
+}
+
+export const powerpointFlipShapeTool: LLMSimpleTool = {
+  definition: POWERPOINT_FLIP_SHAPE_DEFINITION,
+  execute: executePowerPointFlipShape,
+  categories: OFFICE_CATEGORIES,
+  description: 'Flip shape horizontally or vertically',
+};
+
+// =============================================================================
+// PowerPoint Copy Shape
+// =============================================================================
+
+const POWERPOINT_COPY_SHAPE_DEFINITION: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'powerpoint_copy_shape',
+    description: `Copy a shape to the same slide or a different slide.`,
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: { type: 'string', description: 'Why you are copying this shape' },
+        source_slide: { type: 'number', description: 'Source slide number' },
+        shape_index: { type: 'number', description: 'Shape index to copy' },
+        target_slide: { type: 'number', description: 'Target slide number (default: same slide)' },
+      },
+      required: ['reason', 'source_slide', 'shape_index'],
+    },
+  },
+};
+
+async function executePowerPointCopyShape(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_copy_shape', args);
+  try {
+    const response = await powerpointClient.powerpointCopyShape(
+      Number(args['source_slide']),
+      Number(args['shape_index']),
+      args['target_slide'] != null ? Number(args['target_slide']) : undefined
+    );
+    if (response.success) {
+      logger.toolSuccess('powerpoint_copy_shape', args, { newShapeIndex: response['new_shape_index'] }, Date.now() - startTime);
+      return { success: true, result: `${response.message}. New shape index: ${response['new_shape_index']}` };
+    }
+    logger.toolError('powerpoint_copy_shape', args, new Error(response.error || 'Failed to copy shape'), Date.now() - startTime);
+    return { success: false, error: response.error || 'Failed to copy shape' };
+  } catch (error) {
+    logger.toolError('powerpoint_copy_shape', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
+    return { success: false, error: `Failed to copy shape: ${error instanceof Error ? error.message : String(error)}` };
+  }
+}
+
+export const powerpointCopyShapeTool: LLMSimpleTool = {
+  definition: POWERPOINT_COPY_SHAPE_DEFINITION,
+  execute: executePowerPointCopyShape,
+  categories: OFFICE_CATEGORIES,
+  description: 'Copy shape to same or different slide',
 };
 
 // =============================================================================
@@ -963,4 +1082,6 @@ export const shapesTools: LLMSimpleTool[] = [
   powerpointDistributeShapesTool,
   powerpointGroupShapesTool,
   powerpointUngroupShapesTool,
+  powerpointFlipShapeTool,
+  powerpointCopyShapeTool,
 ];

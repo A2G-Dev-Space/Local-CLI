@@ -23,8 +23,11 @@ const BROWSER_LAUNCH_DEFINITION: ToolDefinition = {
   function: {
     name: 'browser_launch',
     description: `Launch Chrome/Edge browser for web testing and automation.
-Use this tool to start a browser session before navigating to pages.
-The browser runs on Windows via CDP (Chrome DevTools Protocol).`,
+Uses Chrome DevTools Protocol (CDP) for browser control.
+If browser is already running, returns existing session.
+
+IMPORTANT: For visual testing or when user needs to see the browser, use headless: false (default).
+Only use headless: true when explicitly requested by the user.`,
     parameters: {
       type: 'object',
       properties: {
@@ -32,14 +35,14 @@ The browser runs on Windows via CDP (Chrome DevTools Protocol).`,
           type: 'string',
           description: 'Explanation of why you are launching the browser',
         },
-        headless: {
-          type: 'boolean',
-          description: 'Run browser in headless mode (default: false). Set to true to hide the browser window.',
-        },
         browser: {
           type: 'string',
           enum: ['chrome', 'edge'],
           description: 'Browser to use (default: chrome). Falls back to edge if chrome is not available.',
+        },
+        headless: {
+          type: 'boolean',
+          description: 'Run browser in headless mode (default: false). Set to true to hide the browser window.',
         },
       },
       required: ['reason'],
@@ -105,7 +108,8 @@ const BROWSER_NAVIGATE_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'browser_navigate',
-    description: `Navigate browser to a URL. Use this to open web pages for testing.
+    description: `Navigate browser to a URL. Waits for page load to complete.
+
 Common URLs:
 - http://localhost:3000 - Local development server
 - http://localhost:8080 - Alternative local server
@@ -419,27 +423,27 @@ const BROWSER_GET_TEXT_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'browser_get_text',
-    description: `Get the text content of an element.
+    description: `Get text content from an element or the entire page.
 Use this to read content from the page, like error messages or confirmation text.`,
     parameters: {
       type: 'object',
       properties: {
         reason: {
           type: 'string',
-          description: 'Explanation of why you are reading this element',
+          description: 'Explanation of why you need the text',
         },
         selector: {
           type: 'string',
-          description: 'CSS selector of the element to read',
+          description: 'CSS selector of element (optional, gets full page text if not provided)',
         },
       },
-      required: ['reason', 'selector'],
+      required: ['reason'],
     },
   },
 };
 
 async function executeBrowserGetText(args: Record<string, unknown>): Promise<ToolResult> {
-  const selector = args['selector'] as string;
+  const selector = args['selector'] as string | undefined;
   const startTime = Date.now();
 
   logger.toolStart('browser_get_text', { selector });
@@ -456,18 +460,20 @@ async function executeBrowserGetText(args: Record<string, unknown>): Promise<Too
     const response = await browserClient.getText(selector);
 
     if (!response.success) {
-      logger.toolError('browser_get_text', args, new Error(response.error || `Failed to get text: ${selector}`), Date.now() - startTime);
+      logger.toolError('browser_get_text', args, new Error(response.error || 'Failed to get text'), Date.now() - startTime);
       return {
         success: false,
-        error: response.error || `Failed to get text: ${selector}`,
+        error: response.error || 'Failed to get text',
       };
     }
 
     const text = (response['text'] as string) || '(empty)';
+    // Truncate if too long
+    const truncated = text.length > 5000 ? text.slice(0, 5000) + '\n... (truncated)' : text;
     logger.toolSuccess('browser_get_text', args, { selector, textLength: text.length }, Date.now() - startTime);
     return {
       success: true,
-      result: text,
+      result: truncated,
     };
   } catch (error) {
     logger.toolError('browser_get_text', args, error as Error, Date.now() - startTime);
@@ -537,26 +543,23 @@ export const browserCloseTool: LLMSimpleTool = {
 };
 
 /**
- * browser_get_content Tool Definition
+ * browser_get_html Tool Definition
  */
-const BROWSER_GET_CONTENT_DEFINITION: ToolDefinition = {
+const BROWSER_GET_HTML_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
-    name: 'browser_get_content',
-    description: `Get the HTML content of the current page.
-Returns page URL, title, and HTML source.
-
-Use this tool when you need to:
-- Find elements and their selectors
-- Understand the page structure
-- Check form fields
-- Debug page issues`,
+    name: 'browser_get_html',
+    description: `Get the HTML content of the current page or a specific element.`,
     parameters: {
       type: 'object',
       properties: {
         reason: {
           type: 'string',
-          description: 'Explanation of why you need the page content',
+          description: 'Explanation of why you need the HTML',
+        },
+        selector: {
+          type: 'string',
+          description: 'CSS selector to get HTML of specific element (optional, gets full page if not provided)',
         },
       },
       required: ['reason'],
@@ -564,14 +567,14 @@ Use this tool when you need to:
   },
 };
 
-async function executeBrowserGetContent(args: Record<string, unknown>): Promise<ToolResult> {
+async function executeBrowserGetHtml(args: Record<string, unknown>): Promise<ToolResult> {
   const startTime = Date.now();
 
-  logger.toolStart('browser_get_content', {});
+  logger.toolStart('browser_get_html', args);
 
   try {
     if (!(await browserClient.isBrowserActive())) {
-      logger.toolError('browser_get_content', args, new Error('Browser not running'), Date.now() - startTime);
+      logger.toolError('browser_get_html', args, new Error('Browser not running'), Date.now() - startTime);
       return {
         success: false,
         error: 'Browser is not running. Use browser_launch first.',
@@ -581,10 +584,10 @@ async function executeBrowserGetContent(args: Record<string, unknown>): Promise<
     const response = await browserClient.getHtml();
 
     if (!response.success) {
-      logger.toolError('browser_get_content', args, new Error(response.error || 'Failed to get page content'), Date.now() - startTime);
+      logger.toolError('browser_get_html', args, new Error(response.error || 'Failed to get HTML'), Date.now() - startTime);
       return {
         success: false,
-        error: response.error || 'Failed to get page content',
+        error: response.error || 'Failed to get HTML',
       };
     }
 
@@ -595,25 +598,25 @@ async function executeBrowserGetContent(args: Record<string, unknown>): Promise<
       ? html.substring(0, maxLen) + `\n...(truncated, ${html.length} total chars)`
       : html;
 
-    logger.toolSuccess('browser_get_content', args, { url: response.url, title: response.title, htmlLength: html.length }, Date.now() - startTime);
+    logger.toolSuccess('browser_get_html', args, { url: response.url, title: response.title, htmlLength: html.length }, Date.now() - startTime);
     return {
       success: true,
-      result: `Page: ${response.title} (${response.url})\n\nHTML:\n${truncatedHtml}`,
+      result: truncatedHtml,
     };
   } catch (error) {
-    logger.toolError('browser_get_content', args, error as Error, Date.now() - startTime);
+    logger.toolError('browser_get_html', args, error as Error, Date.now() - startTime);
     return {
       success: false,
-      error: `Failed to get page content: ${error instanceof Error ? error.message : String(error)}`,
+      error: `Failed to get HTML: ${error instanceof Error ? error.message : String(error)}`,
     };
   }
 }
 
-export const browserGetContentTool: LLMSimpleTool = {
-  definition: BROWSER_GET_CONTENT_DEFINITION,
-  execute: executeBrowserGetContent,
+export const browserGetHtmlTool: LLMSimpleTool = {
+  definition: BROWSER_GET_HTML_DEFINITION,
+  execute: executeBrowserGetHtml,
   categories: BROWSER_CATEGORIES,
-  description: 'Get page HTML content',
+  description: 'Get page HTML',
 };
 
 /**
@@ -797,12 +800,12 @@ export const browserGetNetworkTool: LLMSimpleTool = {
 };
 
 /**
- * browser_focus Tool Definition
+ * browser_bring_to_front Tool Definition (Window focus)
  */
-const BROWSER_FOCUS_DEFINITION: ToolDefinition = {
+const BROWSER_BRING_TO_FRONT_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
-    name: 'browser_focus',
+    name: 'browser_bring_to_front',
     description: `Bring the browser window to the foreground.
 Use this to make the browser window visible and focused when needed.`,
     parameters: {
@@ -810,7 +813,7 @@ Use this to make the browser window visible and focused when needed.`,
       properties: {
         reason: {
           type: 'string',
-          description: 'Explanation of why you need to focus the browser window',
+          description: 'Explanation of why you need to bring the browser window to front',
         },
       },
       required: ['reason'],
@@ -818,14 +821,14 @@ Use this to make the browser window visible and focused when needed.`,
   },
 };
 
-async function executeBrowserFocus(args: Record<string, unknown>): Promise<ToolResult> {
+async function executeBrowserBringToFront(args: Record<string, unknown>): Promise<ToolResult> {
   const startTime = Date.now();
 
-  logger.toolStart('browser_focus', {});
+  logger.toolStart('browser_bring_to_front', {});
 
   try {
     if (!(await browserClient.isBrowserActive())) {
-      logger.toolError('browser_focus', args, new Error('Browser not running'), Date.now() - startTime);
+      logger.toolError('browser_bring_to_front', args, new Error('Browser not running'), Date.now() - startTime);
       return {
         success: false,
         error: 'Browser is not running. Use browser_launch first.',
@@ -835,30 +838,30 @@ async function executeBrowserFocus(args: Record<string, unknown>): Promise<ToolR
     const response = await browserClient.focus();
 
     if (!response.success) {
-      logger.toolError('browser_focus', args, new Error(response.error || 'Failed to focus browser window'), Date.now() - startTime);
+      logger.toolError('browser_bring_to_front', args, new Error(response.error || 'Failed to bring browser to front'), Date.now() - startTime);
       return {
         success: false,
-        error: response.error || 'Failed to focus browser window',
+        error: response.error || 'Failed to bring browser to front',
       };
     }
 
-    logger.toolSuccess('browser_focus', args, { focused: true }, Date.now() - startTime);
+    logger.toolSuccess('browser_bring_to_front', args, { focused: true }, Date.now() - startTime);
     return {
       success: true,
       result: 'Browser window brought to foreground.',
     };
   } catch (error) {
-    logger.toolError('browser_focus', args, error as Error, Date.now() - startTime);
+    logger.toolError('browser_bring_to_front', args, error as Error, Date.now() - startTime);
     return {
       success: false,
-      error: `Failed to focus browser: ${error instanceof Error ? error.message : String(error)}`,
+      error: `Failed to bring browser to front: ${error instanceof Error ? error.message : String(error)}`,
     };
   }
 }
 
-export const browserFocusTool: LLMSimpleTool = {
-  definition: BROWSER_FOCUS_DEFINITION,
-  execute: executeBrowserFocus,
+export const browserBringToFrontTool: LLMSimpleTool = {
+  definition: BROWSER_BRING_TO_FRONT_DEFINITION,
+  execute: executeBrowserBringToFront,
   categories: BROWSER_CATEGORIES,
   description: 'Bring browser window to foreground',
 };
@@ -1119,6 +1122,431 @@ export const browserExecuteScriptTool: LLMSimpleTool = {
 };
 
 /**
+ * browser_wait Tool Definition
+ */
+const BROWSER_WAIT_DEFINITION: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'browser_wait',
+    description: `Wait for an element to appear or for a specified time.`,
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: {
+          type: 'string',
+          description: 'Explanation of why you are waiting',
+        },
+        selector: {
+          type: 'string',
+          description: 'CSS selector to wait for (optional)',
+        },
+        timeout: {
+          type: 'number',
+          description: 'Timeout in seconds (default: 10)',
+        },
+      },
+      required: ['reason'],
+    },
+  },
+};
+
+async function executeBrowserWait(args: Record<string, unknown>): Promise<ToolResult> {
+  const selector = args['selector'] as string | undefined;
+  const timeout = (args['timeout'] as number) || 10;
+  const startTime = Date.now();
+
+  logger.toolStart('browser_wait', { selector, timeout });
+
+  try {
+    if (!(await browserClient.isBrowserActive())) {
+      logger.toolError('browser_wait', args, new Error('Browser not running'), Date.now() - startTime);
+      return {
+        success: false,
+        error: 'Browser is not running. Use browser_launch first.',
+      };
+    }
+
+    const response = await browserClient.waitFor(selector || '', timeout);
+
+    if (!response.success) {
+      logger.toolError('browser_wait', args, new Error(response.error || 'Wait failed'), Date.now() - startTime);
+      return {
+        success: false,
+        error: response.error || 'Wait failed',
+      };
+    }
+
+    logger.toolSuccess('browser_wait', args, { selector, timeout }, Date.now() - startTime);
+    return {
+      success: true,
+      result: response.message || 'Wait completed',
+    };
+  } catch (error) {
+    logger.toolError('browser_wait', args, error as Error, Date.now() - startTime);
+    return {
+      success: false,
+      error: `Wait failed: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+export const browserWaitTool: LLMSimpleTool = {
+  definition: BROWSER_WAIT_DEFINITION,
+  execute: executeBrowserWait,
+  categories: BROWSER_CATEGORIES,
+  description: 'Wait for element or time',
+};
+
+/**
+ * browser_connect Tool Definition
+ */
+const BROWSER_CONNECT_DEFINITION: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'browser_connect',
+    description: `Connect to an existing browser that has remote debugging enabled.`,
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: {
+          type: 'string',
+          description: 'Explanation of why you are connecting',
+        },
+        port: {
+          type: 'number',
+          description: 'CDP port to connect to (default: 9222)',
+        },
+      },
+      required: ['reason'],
+    },
+  },
+};
+
+async function executeBrowserConnect(args: Record<string, unknown>): Promise<ToolResult> {
+  const port = args['port'] as number | undefined;
+  const startTime = Date.now();
+
+  logger.toolStart('browser_connect', { port });
+
+  try {
+    const response = await browserClient.connect(port);
+
+    if (!response.success) {
+      logger.toolError('browser_connect', args, new Error(response.error || 'Failed to connect'), Date.now() - startTime);
+      return {
+        success: false,
+        error: response.error || 'Failed to connect',
+      };
+    }
+
+    logger.toolSuccess('browser_connect', args, { url: response['url'] }, Date.now() - startTime);
+    return {
+      success: true,
+      result: `Connected to browser at ${response['url']}`,
+    };
+  } catch (error) {
+    logger.toolError('browser_connect', args, error as Error, Date.now() - startTime);
+    return {
+      success: false,
+      error: `Failed to connect: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+export const browserConnectTool: LLMSimpleTool = {
+  definition: BROWSER_CONNECT_DEFINITION,
+  execute: executeBrowserConnect,
+  categories: BROWSER_CATEGORIES,
+  description: 'Connect to existing browser',
+};
+
+/**
+ * browser_get_health Tool Definition
+ */
+const BROWSER_GET_HEALTH_DEFINITION: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'browser_get_health',
+    description: `Check browser connection health and status.`,
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: {
+          type: 'string',
+          description: 'Explanation of why you are checking health',
+        },
+      },
+      required: ['reason'],
+    },
+  },
+};
+
+async function executeBrowserGetHealth(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+
+  logger.toolStart('browser_get_health', args);
+
+  try {
+    const response = await browserClient.getHealth();
+
+    if (!response) {
+      logger.toolError('browser_get_health', args, new Error('Failed to get health'), Date.now() - startTime);
+      return {
+        success: false,
+        error: 'Failed to get browser health',
+      };
+    }
+
+    logger.toolSuccess('browser_get_health', args, { status: response.status }, Date.now() - startTime);
+    return {
+      success: true,
+      result: JSON.stringify({
+        status: response.status,
+        version: response.version,
+        browser: response.browser,
+      }, null, 2),
+    };
+  } catch (error) {
+    logger.toolError('browser_get_health', args, error as Error, Date.now() - startTime);
+    return {
+      success: false,
+      error: `Failed to get health: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+export const browserGetHealthTool: LLMSimpleTool = {
+  definition: BROWSER_GET_HEALTH_DEFINITION,
+  execute: executeBrowserGetHealth,
+  categories: BROWSER_CATEGORIES,
+  description: 'Check browser health',
+};
+
+/**
+ * browser_get_page_info Tool Definition
+ */
+const BROWSER_GET_PAGE_INFO_DEFINITION: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'browser_get_page_info',
+    description: `Get information about the current page (URL, title, element counts, etc.).`,
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: {
+          type: 'string',
+          description: 'Explanation of why you need page info',
+        },
+      },
+      required: ['reason'],
+    },
+  },
+};
+
+async function executeBrowserGetPageInfo(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+
+  logger.toolStart('browser_get_page_info', args);
+
+  try {
+    if (!(await browserClient.isBrowserActive())) {
+      logger.toolError('browser_get_page_info', args, new Error('Browser not running'), Date.now() - startTime);
+      return {
+        success: false,
+        error: 'Browser is not running. Use browser_launch first.',
+      };
+    }
+
+    const response = await browserClient.getPageInfo();
+
+    if (!response.success) {
+      logger.toolError('browser_get_page_info', args, new Error(response.error || 'Failed to get page info'), Date.now() - startTime);
+      return {
+        success: false,
+        error: response.error || 'Failed to get page info',
+      };
+    }
+
+    logger.toolSuccess('browser_get_page_info', args, { url: response['url'] }, Date.now() - startTime);
+    return {
+      success: true,
+      result: JSON.stringify({
+        url: response['url'],
+        title: response['title'],
+        domain: response['domain'],
+        readyState: response['readyState'],
+        linkCount: response['linkCount'],
+        imageCount: response['imageCount'],
+        formCount: response['formCount'],
+        inputCount: response['inputCount'],
+      }, null, 2),
+    };
+  } catch (error) {
+    logger.toolError('browser_get_page_info', args, error as Error, Date.now() - startTime);
+    return {
+      success: false,
+      error: `Failed to get page info: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+export const browserGetPageInfoTool: LLMSimpleTool = {
+  definition: BROWSER_GET_PAGE_INFO_DEFINITION,
+  execute: executeBrowserGetPageInfo,
+  categories: BROWSER_CATEGORIES,
+  description: 'Get page information',
+};
+
+/**
+ * browser_send Tool Definition
+ */
+const BROWSER_SEND_DEFINITION: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'browser_send',
+    description: `Send a low-level CDP (Chrome DevTools Protocol) command.
+Use this for advanced operations not covered by other tools.`,
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: {
+          type: 'string',
+          description: 'Explanation of why you are sending this command',
+        },
+        method: {
+          type: 'string',
+          description: 'CDP method name (e.g., "Page.navigate", "DOM.getDocument")',
+        },
+        params: {
+          type: 'object',
+          description: 'Parameters for the CDP method',
+        },
+      },
+      required: ['reason', 'method'],
+    },
+  },
+};
+
+async function executeBrowserSend(args: Record<string, unknown>): Promise<ToolResult> {
+  const method = args['method'] as string;
+  const params = args['params'] as Record<string, unknown> | undefined;
+  const startTime = Date.now();
+
+  logger.toolStart('browser_send', { method });
+
+  try {
+    if (!(await browserClient.isBrowserActive())) {
+      logger.toolError('browser_send', args, new Error('Browser not running'), Date.now() - startTime);
+      return {
+        success: false,
+        error: 'Browser is not running. Use browser_launch first.',
+      };
+    }
+
+    const response = await browserClient.send(method, params);
+
+    if (!response.success) {
+      logger.toolError('browser_send', args, new Error(response.error || 'Failed to send CDP command'), Date.now() - startTime);
+      return {
+        success: false,
+        error: response.error || 'Failed to send CDP command',
+      };
+    }
+
+    logger.toolSuccess('browser_send', args, { method }, Date.now() - startTime);
+    return {
+      success: true,
+      result: JSON.stringify(response['result'], null, 2),
+    };
+  } catch (error) {
+    logger.toolError('browser_send', args, error as Error, Date.now() - startTime);
+    return {
+      success: false,
+      error: `Failed to send CDP command: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+export const browserSendTool: LLMSimpleTool = {
+  definition: BROWSER_SEND_DEFINITION,
+  execute: executeBrowserSend,
+  categories: BROWSER_CATEGORIES,
+  description: 'Send CDP command',
+};
+
+/**
+ * browser_focus Tool Definition (Element focus)
+ */
+const BROWSER_FOCUS_DEFINITION: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'browser_focus',
+    description: `Focus on a DOM element by CSS selector.
+Use this to focus input fields or other focusable elements.`,
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: {
+          type: 'string',
+          description: 'Explanation of why you are focusing this element',
+        },
+        selector: {
+          type: 'string',
+          description: 'CSS selector of element to focus',
+        },
+      },
+      required: ['reason', 'selector'],
+    },
+  },
+};
+
+async function executeBrowserFocus(args: Record<string, unknown>): Promise<ToolResult> {
+  const selector = args['selector'] as string;
+  const startTime = Date.now();
+
+  logger.toolStart('browser_focus', { selector });
+
+  try {
+    if (!(await browserClient.isBrowserActive())) {
+      logger.toolError('browser_focus', args, new Error('Browser not running'), Date.now() - startTime);
+      return {
+        success: false,
+        error: 'Browser is not running. Use browser_launch first.',
+      };
+    }
+
+    const response = await browserClient.focusElement(selector);
+
+    if (!response.success) {
+      logger.toolError('browser_focus', args, new Error(response.error || 'Failed to focus element'), Date.now() - startTime);
+      return {
+        success: false,
+        error: response.error || 'Failed to focus element',
+      };
+    }
+
+    logger.toolSuccess('browser_focus', args, { selector }, Date.now() - startTime);
+    return {
+      success: true,
+      result: `Element focused: ${selector}`,
+    };
+  } catch (error) {
+    logger.toolError('browser_focus', args, error as Error, Date.now() - startTime);
+    return {
+      success: false,
+      error: `Failed to focus element: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+export const browserFocusTool: LLMSimpleTool = {
+  definition: BROWSER_FOCUS_DEFINITION,
+  execute: executeBrowserFocus,
+  categories: BROWSER_CATEGORIES,
+  description: 'Focus element',
+};
+
+/**
  * All browser tools
  */
 export const BROWSER_TOOLS: LLMSimpleTool[] = [
@@ -1128,12 +1556,19 @@ export const BROWSER_TOOLS: LLMSimpleTool[] = [
   browserClickTool,
   browserFillTool,
   browserGetTextTool,
-  browserGetContentTool,
+  browserGetHtmlTool,
   browserGetConsoleTool,
   browserGetNetworkTool,
+  browserBringToFrontTool,
   browserFocusTool,
   browserPressKeyTool,
   browserTypeTool,
   browserExecuteScriptTool,
   browserCloseTool,
+  // New tools (synced from Electron)
+  browserWaitTool,
+  browserConnectTool,
+  browserGetHealthTool,
+  browserGetPageInfoTool,
+  browserSendTool,
 ];

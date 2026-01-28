@@ -102,7 +102,8 @@ $presentation = $ppt.ActivePresentation
 $slide = $presentation.Slides(${slideNumber})
 $shape = $slide.Shapes(${shapeIndex})
 $textRange = $shape.TextFrame.TextRange
-$textRange.Text = '${escapedText}'
+$textContent = '${escapedText}' -replace '\\\\n', [char]10 -replace '\\n', [char]10
+$textRange.Text = $textContent
 ${formatCommands.join('\n')}
 @{ success = $true; message = "Text written to slide ${slideNumber}, shape ${shapeIndex}" } | ConvertTo-Json -Compress
 `);
@@ -153,7 +154,8 @@ $presentation = $ppt.ActivePresentation
 $slide = $presentation.Slides(${slideNumber})
 # msoTextOrientationHorizontal = 1
 $textbox = $slide.Shapes.AddTextbox(1, ${left}, ${top}, ${width}, ${height})
-$textbox.TextFrame.TextRange.Text = '${escapedText}'
+$textContent = '${escapedText}' -replace '\\\\n', [char]10 -replace '\\n', [char]10
+$textbox.TextFrame.TextRange.Text = $textContent
 ${fontScript}
 @{ success = $true; message = "Textbox added to slide ${slideNumber}"; shape_index = $textbox.Index } | ConvertTo-Json -Compress
 `);
@@ -456,7 +458,7 @@ Remove-Item $tempPath -Force
           const cellHasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(cellValue);
           const val = cellValue.replace(/'/g, "''");
           // IMPORTANT: Set text FIRST, then apply font to prevent garbled Korean
-          dataLines.push(`$table.Cell(${i + 1}, ${j + 1}).Shape.TextFrame.TextRange.Text = '${val}'`);
+          dataLines.push(`$table.Cell(${i + 1}, ${j + 1}).Shape.TextFrame.TextRange.Text = ('${val}' -replace '\\\\n', [char]10 -replace '\\n', [char]10)`);
           if (cellHasKorean) {
             dataLines.push(`$table.Cell(${i + 1}, ${j + 1}).Shape.TextFrame.TextRange.Font.Name = 'Malgun Gothic'`);
           }
@@ -503,7 +505,8 @@ $presentation = $ppt.ActivePresentation
 $slide = $presentation.Slides(${slideNumber})
 $table = $slide.Shapes(${shapeIndex}).Table
 $cell = $table.Cell(${row}, ${col})
-$cell.Shape.TextFrame.TextRange.Text = '${escapedText}'
+$textContent = '${escapedText}' -replace '\\\\n', [char]10 -replace '\\n', [char]10
+$cell.Shape.TextFrame.TextRange.Text = $textContent
 ${formatCommands.join('\n')}
 @{ success = $true; message = "Table cell (${row}, ${col}) updated" } | ConvertTo-Json -Compress
 `);
@@ -958,7 +961,8 @@ $ppt = [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Applicatio
 $presentation = $ppt.ActivePresentation
 $slide = $presentation.Slides(${slideNumber})
 $noteRange = $slide.NotesPage.Shapes.Placeholders(2).TextFrame.TextRange
-$noteRange.Text = '${escapedText}'
+$textContent = '${escapedText}' -replace '\\\\n', [char]10 -replace '\\n', [char]10
+$noteRange.Text = $textContent
 ${hasKorean ? "$noteRange.Font.Name = 'Malgun Gothic'" : ''}
 @{ success = $true; message = "Note added to slide ${slideNumber}" } | ConvertTo-Json -Compress
 `);
@@ -1429,7 +1433,8 @@ foreach ($shape in $slide.Shapes) {
   }
 }
 if ($placeholder) {
-  $placeholder.TextFrame.TextRange.Text = '${escapedText}'
+  $textContent = '${escapedText}' -replace '\\\\n', [char]10 -replace '\\n', [char]10
+  $placeholder.TextFrame.TextRange.Text = $textContent
   ${hasKorean ? "$placeholder.TextFrame.TextRange.Font.Name = 'Malgun Gothic'" : ''}
   @{ success = $true; message = "${placeholderType} placeholder text set" } | ConvertTo-Json -Compress
 } else {
@@ -1473,6 +1478,327 @@ for ($i = 1; $i -le $master.CustomLayouts.Count; $i++) {
   }
 }
 @{ success = $true; layouts = $layouts } | ConvertTo-Json -Compress -Depth 5
+`);
+  }
+
+  // ===========================================================================
+  // Table Advanced Operations
+  // ===========================================================================
+
+  async powerpointMergeTableCells(
+    slideNumber: number,
+    shapeIndex: number,
+    startRow: number,
+    startCol: number,
+    endRow: number,
+    endCol: number
+  ): Promise<OfficeResponse> {
+    return this.executePowerShell(`
+$ppt = [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application")
+$slide = $ppt.ActivePresentation.Slides(${slideNumber})
+$table = $slide.Shapes(${shapeIndex}).Table
+$cell1 = $table.Cell(${startRow}, ${startCol})
+$cell2 = $table.Cell(${endRow}, ${endCol})
+$cell1.Merge($cell2)
+@{ success = $true; message = "Cells merged from (${startRow},${startCol}) to (${endRow},${endCol})" } | ConvertTo-Json -Compress
+`);
+  }
+
+  async powerpointAddTableRow(
+    slideNumber: number,
+    shapeIndex: number,
+    position?: number
+  ): Promise<OfficeResponse> {
+    const posScript = position ? `${position}` : '$table.Rows.Count + 1';
+    return this.executePowerShell(`
+$ppt = [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application")
+$slide = $ppt.ActivePresentation.Slides(${slideNumber})
+$table = $slide.Shapes(${shapeIndex}).Table
+$pos = ${posScript}
+$table.Rows.Add($pos)
+@{ success = $true; message = "Row added at position $pos"; row_count = $table.Rows.Count } | ConvertTo-Json -Compress
+`);
+  }
+
+  async powerpointAddTableColumn(
+    slideNumber: number,
+    shapeIndex: number,
+    position?: number
+  ): Promise<OfficeResponse> {
+    const posScript = position ? `${position}` : '$table.Columns.Count + 1';
+    return this.executePowerShell(`
+$ppt = [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application")
+$slide = $ppt.ActivePresentation.Slides(${slideNumber})
+$table = $slide.Shapes(${shapeIndex}).Table
+$pos = ${posScript}
+$table.Columns.Add($pos)
+@{ success = $true; message = "Column added at position $pos"; column_count = $table.Columns.Count } | ConvertTo-Json -Compress
+`);
+  }
+
+  async powerpointDeleteTableRow(
+    slideNumber: number,
+    shapeIndex: number,
+    rowIndex: number
+  ): Promise<OfficeResponse> {
+    return this.executePowerShell(`
+$ppt = [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application")
+$slide = $ppt.ActivePresentation.Slides(${slideNumber})
+$table = $slide.Shapes(${shapeIndex}).Table
+$table.Rows(${rowIndex}).Delete()
+@{ success = $true; message = "Row ${rowIndex} deleted"; row_count = $table.Rows.Count } | ConvertTo-Json -Compress
+`);
+  }
+
+  async powerpointDeleteTableColumn(
+    slideNumber: number,
+    shapeIndex: number,
+    colIndex: number
+  ): Promise<OfficeResponse> {
+    return this.executePowerShell(`
+$ppt = [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application")
+$slide = $ppt.ActivePresentation.Slides(${slideNumber})
+$table = $slide.Shapes(${shapeIndex}).Table
+$table.Columns(${colIndex}).Delete()
+@{ success = $true; message = "Column ${colIndex} deleted"; column_count = $table.Columns.Count } | ConvertTo-Json -Compress
+`);
+  }
+
+  async powerpointGetTableInfo(
+    slideNumber: number,
+    shapeIndex: number
+  ): Promise<OfficeResponse> {
+    return this.executePowerShell(`
+$ppt = [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application")
+$slide = $ppt.ActivePresentation.Slides(${slideNumber})
+$table = $slide.Shapes(${shapeIndex}).Table
+$cells = @()
+for ($r = 1; $r -le $table.Rows.Count; $r++) {
+  for ($c = 1; $c -le $table.Columns.Count; $c++) {
+    try {
+      $cell = $table.Cell($r, $c)
+      $cells += @{
+        row = $r
+        col = $c
+        text = $cell.Shape.TextFrame.TextRange.Text
+      }
+    } catch {}
+  }
+}
+@{
+  success = $true
+  rows = $table.Rows.Count
+  columns = $table.Columns.Count
+  cells = $cells
+} | ConvertTo-Json -Compress -Depth 5
+`);
+  }
+
+  // ===========================================================================
+  // Text Find/Replace
+  // ===========================================================================
+
+  async powerpointFindReplaceText(
+    findText: string,
+    replaceText: string,
+    options?: { slideNumber?: number; matchCase?: boolean }
+  ): Promise<OfficeResponse> {
+    const escapedFind = findText.replace(/'/g, "''");
+    const escapedReplace = replaceText.replace(/'/g, "''");
+    const slideFilter = options?.slideNumber ? `Where-Object { $_.SlideIndex -eq ${options.slideNumber} }` : '';
+    const matchCase = options?.matchCase ? '$true' : '$false';
+
+    return this.executePowerShell(`
+$ppt = [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application")
+$presentation = $ppt.ActivePresentation
+$count = 0
+$slides = $presentation.Slides | ${slideFilter || 'ForEach-Object { $_ }'}
+foreach ($slide in $slides) {
+  foreach ($shape in $slide.Shapes) {
+    if ($shape.HasTextFrame -eq -1) {
+      $text = $shape.TextFrame.TextRange.Text
+      if ($text -match [regex]::Escape('${escapedFind}')) {
+        if (${matchCase}) {
+          $newText = $text -creplace [regex]::Escape('${escapedFind}'), '${escapedReplace}'
+        } else {
+          $newText = $text -ireplace [regex]::Escape('${escapedFind}'), '${escapedReplace}'
+        }
+        $shape.TextFrame.TextRange.Text = $newText
+        $count++
+      }
+    }
+  }
+}
+@{ success = $true; message = "Replaced $count occurrence(s)"; replacements = $count } | ConvertTo-Json -Compress
+`);
+  }
+
+  // ===========================================================================
+  // Shape Flip
+  // ===========================================================================
+
+  async powerpointFlipShape(
+    slideNumber: number,
+    shapeIndex: number,
+    direction: 'horizontal' | 'vertical'
+  ): Promise<OfficeResponse> {
+    // msoFlipHorizontal = 0, msoFlipVertical = 1
+    const flipType = direction === 'horizontal' ? 0 : 1;
+    return this.executePowerShell(`
+$ppt = [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application")
+$slide = $ppt.ActivePresentation.Slides(${slideNumber})
+$shape = $slide.Shapes(${shapeIndex})
+$shape.Flip(${flipType})
+@{ success = $true; message = "Shape flipped ${direction}" } | ConvertTo-Json -Compress
+`);
+  }
+
+  // ===========================================================================
+  // Slideshow Control
+  // ===========================================================================
+
+  async powerpointStopSlideshow(): Promise<OfficeResponse> {
+    return this.executePowerShell(`
+$ppt = [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application")
+if ($ppt.SlideShowWindows.Count -gt 0) {
+  $ppt.SlideShowWindows(1).View.Exit()
+  @{ success = $true; message = "Slideshow stopped" } | ConvertTo-Json -Compress
+} else {
+  @{ success = $false; error = "No slideshow is running" } | ConvertTo-Json -Compress
+}
+`);
+  }
+
+  async powerpointGotoSlide(slideNumber: number): Promise<OfficeResponse> {
+    return this.executePowerShell(`
+$ppt = [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application")
+if ($ppt.SlideShowWindows.Count -gt 0) {
+  $ppt.SlideShowWindows(1).View.GotoSlide(${slideNumber})
+  @{ success = $true; message = "Navigated to slide ${slideNumber}" } | ConvertTo-Json -Compress
+} else {
+  # Not in slideshow mode, just select the slide
+  $ppt.ActivePresentation.Slides(${slideNumber}).Select()
+  @{ success = $true; message = "Selected slide ${slideNumber}" } | ConvertTo-Json -Compress
+}
+`);
+  }
+
+  // ===========================================================================
+  // Presentation Info
+  // ===========================================================================
+
+  async powerpointGetPresentationInfo(): Promise<OfficeResponse> {
+    return this.executePowerShell(`
+$ppt = [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application")
+$p = $ppt.ActivePresentation
+@{
+  success = $true
+  name = $p.Name
+  path = $p.FullName
+  slide_count = $p.Slides.Count
+  slide_width = $p.PageSetup.SlideWidth
+  slide_height = $p.PageSetup.SlideHeight
+  saved = $p.Saved
+  readonly = $p.ReadOnly
+  has_title_master = $p.HasTitleMaster
+} | ConvertTo-Json -Compress
+`);
+  }
+
+  // ===========================================================================
+  // Copy Shape (to same or different slide)
+  // ===========================================================================
+
+  async powerpointCopyShape(
+    sourceSlide: number,
+    shapeIndex: number,
+    targetSlide?: number
+  ): Promise<OfficeResponse> {
+    const target = targetSlide || sourceSlide;
+    return this.executePowerShell(`
+$ppt = [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application")
+$presentation = $ppt.ActivePresentation
+$srcSlide = $presentation.Slides(${sourceSlide})
+$shape = $srcSlide.Shapes(${shapeIndex})
+$shape.Copy()
+$dstSlide = $presentation.Slides(${target})
+$newShape = $dstSlide.Shapes.Paste()
+@{
+  success = $true
+  message = "Shape copied to slide ${target}"
+  new_shape_index = $newShape.ZOrderPosition
+} | ConvertTo-Json -Compress
+`);
+  }
+
+  // ===========================================================================
+  // Export Slide as Image
+  // ===========================================================================
+
+  async powerpointExportSlideAsImage(
+    slideNumber: number,
+    outputPath: string,
+    format: 'png' | 'jpg' = 'png',
+    width?: number,
+    height?: number
+  ): Promise<OfficeResponse> {
+    const windowsPath = this.toWindowsPath(outputPath).replace(/'/g, "''");
+    const formatUpper = format.toUpperCase();
+    const sizeParams = width && height ? `, ${width}, ${height}` : '';
+
+    return this.executePowerShell(`
+$ppt = [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application")
+$presentation = $ppt.ActivePresentation
+$slide = $presentation.Slides(${slideNumber})
+$slide.Export('${windowsPath}', '${formatUpper}'${sizeParams})
+@{ success = $true; message = "Slide ${slideNumber} exported as ${format}"; path = '${windowsPath}' } | ConvertTo-Json -Compress
+`);
+  }
+
+  // ===========================================================================
+  // Import Slides from Another Presentation
+  // ===========================================================================
+
+  async powerpointImportSlides(
+    sourcePath: string,
+    slideRange?: { start?: number; end?: number },
+    insertPosition?: number
+  ): Promise<OfficeResponse> {
+    const windowsPath = this.toWindowsPath(sourcePath).replace(/'/g, "''");
+    const insertAt = insertPosition || -1; // -1 means append at end
+
+    let rangeScript = '';
+    if (slideRange?.start && slideRange?.end) {
+      rangeScript = `
+$startSlide = ${slideRange.start}
+$endSlide = ${slideRange.end}`;
+    } else {
+      rangeScript = `
+$startSlide = 1
+$endSlide = $sourcePresentation.Slides.Count`;
+    }
+
+    return this.executePowerShell(`
+$ppt = [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application")
+$presentation = $ppt.ActivePresentation
+$sourcePresentation = $ppt.Presentations.Open('${windowsPath}', $true, $false, $false)
+${rangeScript}
+$insertPos = ${insertAt}
+if ($insertPos -eq -1) { $insertPos = $presentation.Slides.Count + 1 }
+$importedCount = 0
+for ($i = $startSlide; $i -le $endSlide; $i++) {
+  $sourceSlide = $sourcePresentation.Slides($i)
+  $sourceSlide.Copy()
+  $presentation.Slides.Paste($insertPos + $importedCount)
+  $importedCount++
+}
+$sourcePresentation.Close()
+@{
+  success = $true
+  message = "Imported $importedCount slide(s) from source presentation"
+  imported_count = $importedCount
+  insert_position = $insertPos
+} | ConvertTo-Json -Compress
 `);
   }
 

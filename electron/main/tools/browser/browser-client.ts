@@ -157,12 +157,32 @@ class CDPConnection {
 // Browser Client
 // =============================================================================
 
+interface ConsoleLogEntry {
+  level: string;
+  message: string;
+  timestamp: number;
+}
+
+interface NetworkLogEntry {
+  type: 'request' | 'response';
+  url: string;
+  method?: string;
+  status?: number;
+  statusText?: string;
+  mimeType?: string;
+  timestamp: number;
+}
+
 class BrowserClient {
   private cdp: CDPConnection | null = null;
   private browserProcess: ChildProcess | null = null;
   private cdpPort = 9222;
   private browserType: 'chrome' | 'edge' = 'chrome';
   private screenshotDir: string;
+
+  // Console/Network log collection
+  private consoleLogs: ConsoleLogEntry[] = [];
+  private networkLogs: NetworkLogEntry[] = [];
 
   constructor() {
     // Create screenshot directory
@@ -171,6 +191,58 @@ class BrowserClient {
     if (!fs.existsSync(this.screenshotDir)) {
       fs.mkdirSync(this.screenshotDir, { recursive: true });
     }
+  }
+
+  /**
+   * Setup console and network logging
+   */
+  private setupLogging(): void {
+    if (!this.cdp) return;
+
+    // Console.messageAdded
+    this.cdp.on('Console.messageAdded', (params: unknown) => {
+      const p = params as { message: { level: string; text: string } };
+      this.consoleLogs.push({
+        level: p.message.level.toUpperCase(),
+        message: p.message.text,
+        timestamp: Date.now(),
+      });
+    });
+
+    // Runtime.consoleAPICalled (captures console.log, etc.)
+    this.cdp.on('Runtime.consoleAPICalled', (params: unknown) => {
+      const p = params as { type: string; args: { value?: string; description?: string }[] };
+      const message = p.args.map(a => a.value || a.description || '').join(' ');
+      this.consoleLogs.push({
+        level: p.type.toUpperCase(),
+        message,
+        timestamp: Date.now(),
+      });
+    });
+
+    // Network.requestWillBeSent
+    this.cdp.on('Network.requestWillBeSent', (params: unknown) => {
+      const p = params as { request: { url: string; method: string } };
+      this.networkLogs.push({
+        type: 'request',
+        url: p.request.url,
+        method: p.request.method,
+        timestamp: Date.now(),
+      });
+    });
+
+    // Network.responseReceived
+    this.cdp.on('Network.responseReceived', (params: unknown) => {
+      const p = params as { response: { url: string; status: number; statusText: string; mimeType: string } };
+      this.networkLogs.push({
+        type: 'response',
+        url: p.response.url,
+        status: p.response.status,
+        statusText: p.response.statusText,
+        mimeType: p.response.mimeType,
+        timestamp: Date.now(),
+      });
+    });
   }
 
   // ===========================================================================
@@ -361,6 +433,14 @@ class BrowserClient {
       await this.cdp.connect(pageTarget.webSocketDebuggerUrl);
       await this.cdp.send('Page.enable');
 
+      // Setup logging
+      this.consoleLogs = [];
+      this.networkLogs = [];
+      this.setupLogging();
+      await this.cdp.send('Console.enable');
+      await this.cdp.send('Runtime.enable');
+      await this.cdp.send('Network.enable');
+
       return {
         success: true,
         message: `${this.browserType} launched successfully`,
@@ -495,35 +575,45 @@ class BrowserClient {
   }
 
   /**
-   * Type text into element
+   * Type text character by character (triggers key events)
+   * Unlike fill() which sets value directly, this simulates actual typing.
+   * Useful for inputs that have keystroke handlers or autocomplete.
    */
-  async type(selector: string, text: string, clear = true): Promise<BrowserResponse> {
+  async type(text: string, selector?: string): Promise<BrowserResponse> {
     try {
       if (!this.cdp || !this.cdp.isConnected()) {
         return { success: false, error: 'Browser not running. Use launch first.' };
       }
 
-      const result = await this.cdp.send('Runtime.evaluate', {
-        expression: `
-          (function() {
-            const el = document.querySelector(${JSON.stringify(selector)});
-            if (!el) return { success: false, error: 'Element not found' };
-            el.focus();
-            ${clear ? 'el.value = "";' : ''}
-            el.value = ${JSON.stringify(text)};
-            el.dispatchEvent(new Event('input', { bubbles: true }));
-            el.dispatchEvent(new Event('change', { bubbles: true }));
-            return { success: true };
-          })()
-        `,
-        returnByValue: true,
-      }) as { result: { value: { success: boolean; error?: string } } };
+      // Focus element if selector provided
+      if (selector) {
+        const focusResult = await this.cdp.send('Runtime.evaluate', {
+          expression: `
+            (function() {
+              const el = document.querySelector(${JSON.stringify(selector)});
+              if (!el) return { success: false, error: 'Element not found: ${selector}' };
+              el.focus();
+              return { success: true };
+            })()
+          `,
+          returnByValue: true,
+        }) as { result: { value: { success: boolean; error?: string } } };
 
-      if (!result.result.value.success) {
-        return { success: false, error: result.result.value.error || 'Type failed' };
+        if (!focusResult.result.value.success) {
+          return { success: false, error: focusResult.result.value.error || 'Failed to focus element' };
+        }
       }
 
-      return { success: true, message: 'Text typed', selector, length: text.length };
+      // Type character by character
+      for (const char of text) {
+        await this.cdp.send('Input.dispatchKeyEvent', {
+          type: 'char',
+          text: char,
+        });
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+
+      return { success: true, message: `Typed ${text.length} characters`, selector, length: text.length };
     } catch (error) {
       return {
         success: false,
@@ -687,6 +777,14 @@ class BrowserClient {
       await this.cdp.connect(pageTarget.webSocketDebuggerUrl);
       await this.cdp.send('Page.enable');
 
+      // Setup logging
+      this.consoleLogs = [];
+      this.networkLogs = [];
+      this.setupLogging();
+      await this.cdp.send('Console.enable');
+      await this.cdp.send('Runtime.enable');
+      await this.cdp.send('Network.enable');
+
       return {
         success: true,
         message: 'Connected to existing browser',
@@ -737,10 +835,42 @@ class BrowserClient {
   }
 
   /**
-   * Fill form field (alias for type)
+   * Fill form field - clears existing content and sets value directly
    */
   async fill(selector: string, value: string): Promise<BrowserResponse> {
-    return this.type(selector, value, true);
+    try {
+      if (!this.cdp || !this.cdp.isConnected()) {
+        return { success: false, error: 'Browser not running. Use launch first.' };
+      }
+
+      // JavaScript로 요소에 값 입력 (CLI와 동일)
+      const result = await this.cdp.send('Runtime.evaluate', {
+        expression: `
+          (function() {
+            const el = document.querySelector(${JSON.stringify(selector)});
+            if (!el) return { success: false, error: 'Element not found' };
+            el.focus();
+            el.value = ${JSON.stringify(value)};
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+            return { success: true };
+          })()
+        `,
+        returnByValue: true,
+      }) as { result: { value: { success: boolean; error?: string } } };
+
+      if (!result.result.value.success) {
+        return { success: false, error: result.result.value.error || 'Fill failed' };
+      }
+
+      return { success: true, message: 'Field filled', selector, length: value.length };
+    } catch (error) {
+      return {
+        success: false,
+        error: 'Failed to fill field',
+        details: error instanceof Error ? error.message : String(error),
+      };
+    }
   }
 
   /**
@@ -782,27 +912,16 @@ class BrowserClient {
    * Get console logs
    */
   async getConsole(): Promise<BrowserResponse> {
-    try {
-      if (!this.cdp || !this.cdp.isConnected()) {
-        return { success: false, error: 'Browser not running. Use launch first.' };
-      }
-
-      // Enable console logging if not already enabled
-      await this.cdp.send('Log.enable');
-      await this.cdp.send('Runtime.enable');
-
-      return {
-        success: true,
-        message: 'Console logging enabled. Use executeScript to check console.log output.',
-        logs: [],
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: 'Failed to get console logs',
-        details: error instanceof Error ? error.message : String(error),
-      };
+    if (!this.cdp || !this.cdp.isConnected()) {
+      return { success: false, error: 'Browser not running. Use launch first.' };
     }
+
+    return {
+      success: true,
+      message: 'Console logs retrieved',
+      logs: [...this.consoleLogs],
+      count: this.consoleLogs.length,
+    };
   }
 
   /**
@@ -830,42 +949,19 @@ class BrowserClient {
   }
 
   /**
-   * Get network requests (basic info)
+   * Get network request logs
    */
   async getNetwork(): Promise<BrowserResponse> {
-    try {
-      if (!this.cdp || !this.cdp.isConnected()) {
-        return { success: false, error: 'Browser not running. Use launch first.' };
-      }
-
-      // Enable network if not already
-      await this.cdp.send('Network.enable');
-
-      const result = await this.cdp.send('Runtime.evaluate', {
-        expression: `JSON.stringify(performance.getEntriesByType('resource').map(r => ({
-          name: r.name,
-          type: r.initiatorType,
-          duration: r.duration,
-          size: r.transferSize
-        })))`,
-        returnByValue: true,
-      }) as { result: { value: string } };
-
-      const resources = JSON.parse(result.result.value);
-
-      return {
-        success: true,
-        message: 'Network resources retrieved',
-        resources,
-        count: resources.length,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: 'Failed to get network info',
-        details: error instanceof Error ? error.message : String(error),
-      };
+    if (!this.cdp || !this.cdp.isConnected()) {
+      return { success: false, error: 'Browser not running. Use launch first.' };
     }
+
+    return {
+      success: true,
+      message: 'Network logs retrieved',
+      logs: [...this.networkLogs],
+      count: this.networkLogs.length,
+    };
   }
 
   /**
@@ -967,55 +1063,129 @@ class BrowserClient {
   }
 
   /**
-   * Press keyboard key
+   * Press a keyboard key
+   * Supports: Enter, Tab, Escape, ArrowUp, ArrowDown, ArrowLeft, ArrowRight,
+   *           Backspace, Delete, Home, End, PageUp, PageDown, F1-F12,
+   *           Control, Alt, Shift, Meta, and combinations like Control+A
    */
-  async pressKey(key: string): Promise<BrowserResponse> {
+  async pressKey(key: string, selector?: string): Promise<BrowserResponse> {
     try {
       if (!this.cdp || !this.cdp.isConnected()) {
         return { success: false, error: 'Browser not running. Use launch first.' };
       }
 
-      // Key code mapping for common keys
-      const keyCodeMap: Record<string, { keyCode: number; code: string; key: string }> = {
-        'Enter': { keyCode: 13, code: 'Enter', key: 'Enter' },
-        'Tab': { keyCode: 9, code: 'Tab', key: 'Tab' },
-        'Escape': { keyCode: 27, code: 'Escape', key: 'Escape' },
-        'Backspace': { keyCode: 8, code: 'Backspace', key: 'Backspace' },
-        'Delete': { keyCode: 46, code: 'Delete', key: 'Delete' },
-        'ArrowUp': { keyCode: 38, code: 'ArrowUp', key: 'ArrowUp' },
-        'ArrowDown': { keyCode: 40, code: 'ArrowDown', key: 'ArrowDown' },
-        'ArrowLeft': { keyCode: 37, code: 'ArrowLeft', key: 'ArrowLeft' },
-        'ArrowRight': { keyCode: 39, code: 'ArrowRight', key: 'ArrowRight' },
-        'Space': { keyCode: 32, code: 'Space', key: ' ' },
-        'Home': { keyCode: 36, code: 'Home', key: 'Home' },
-        'End': { keyCode: 35, code: 'End', key: 'End' },
-        'PageUp': { keyCode: 33, code: 'PageUp', key: 'PageUp' },
-        'PageDown': { keyCode: 34, code: 'PageDown', key: 'PageDown' },
+      // 특수 키 매핑 (CLI와 동일)
+      const keyMap: Record<string, { key: string; code: string; keyCode: number }> = {
+        // 네비게이션 키
+        'Enter': { key: 'Enter', code: 'Enter', keyCode: 13 },
+        'Tab': { key: 'Tab', code: 'Tab', keyCode: 9 },
+        'Escape': { key: 'Escape', code: 'Escape', keyCode: 27 },
+        'Backspace': { key: 'Backspace', code: 'Backspace', keyCode: 8 },
+        'Delete': { key: 'Delete', code: 'Delete', keyCode: 46 },
+        'Space': { key: ' ', code: 'Space', keyCode: 32 },
+        // 화살표 키
+        'ArrowUp': { key: 'ArrowUp', code: 'ArrowUp', keyCode: 38 },
+        'ArrowDown': { key: 'ArrowDown', code: 'ArrowDown', keyCode: 40 },
+        'ArrowLeft': { key: 'ArrowLeft', code: 'ArrowLeft', keyCode: 37 },
+        'ArrowRight': { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39 },
+        // 페이지 네비게이션
+        'Home': { key: 'Home', code: 'Home', keyCode: 36 },
+        'End': { key: 'End', code: 'End', keyCode: 35 },
+        'PageUp': { key: 'PageUp', code: 'PageUp', keyCode: 33 },
+        'PageDown': { key: 'PageDown', code: 'PageDown', keyCode: 34 },
+        'Insert': { key: 'Insert', code: 'Insert', keyCode: 45 },
+        // 수정 키
+        'Control': { key: 'Control', code: 'ControlLeft', keyCode: 17 },
+        'Alt': { key: 'Alt', code: 'AltLeft', keyCode: 18 },
+        'Shift': { key: 'Shift', code: 'ShiftLeft', keyCode: 16 },
+        'Meta': { key: 'Meta', code: 'MetaLeft', keyCode: 91 },
+        // Function 키
+        'F1': { key: 'F1', code: 'F1', keyCode: 112 },
+        'F2': { key: 'F2', code: 'F2', keyCode: 113 },
+        'F3': { key: 'F3', code: 'F3', keyCode: 114 },
+        'F4': { key: 'F4', code: 'F4', keyCode: 115 },
+        'F5': { key: 'F5', code: 'F5', keyCode: 116 },
+        'F6': { key: 'F6', code: 'F6', keyCode: 117 },
+        'F7': { key: 'F7', code: 'F7', keyCode: 118 },
+        'F8': { key: 'F8', code: 'F8', keyCode: 119 },
+        'F9': { key: 'F9', code: 'F9', keyCode: 120 },
+        'F10': { key: 'F10', code: 'F10', keyCode: 121 },
+        'F11': { key: 'F11', code: 'F11', keyCode: 122 },
+        'F12': { key: 'F12', code: 'F12', keyCode: 123 },
       };
 
-      const keyInfo = keyCodeMap[key] || {
-        keyCode: key.charCodeAt(0),
-        code: `Key${key.toUpperCase()}`,
-        key: key,
-      };
+      // Focus element if selector provided
+      if (selector) {
+        await this.cdp.send('Runtime.evaluate', {
+          expression: `document.querySelector(${JSON.stringify(selector)})?.focus()`,
+        });
+      }
 
-      // Key down
+      // 조합 키 처리 (예: Control+A, Shift+Tab)
+      const parts = key.split('+');
+      const modifiers: { ctrl?: boolean; alt?: boolean; shift?: boolean; meta?: boolean } = {};
+      let mainKey = key;
+
+      if (parts.length > 1) {
+        for (let i = 0; i < parts.length - 1; i++) {
+          const mod = parts[i]?.toLowerCase();
+          if (mod === 'control' || mod === 'ctrl') modifiers.ctrl = true;
+          else if (mod === 'alt') modifiers.alt = true;
+          else if (mod === 'shift') modifiers.shift = true;
+          else if (mod === 'meta' || mod === 'cmd') modifiers.meta = true;
+        }
+        mainKey = parts[parts.length - 1] || key;
+      }
+
+      // 단일 문자의 경우 대문자/소문자 처리
+      let keyInfo = keyMap[mainKey];
+      if (!keyInfo) {
+        if (mainKey.length === 1) {
+          const charCode = mainKey.charCodeAt(0);
+          const isUpper = mainKey >= 'A' && mainKey <= 'Z';
+          keyInfo = {
+            key: mainKey,
+            code: `Key${mainKey.toUpperCase()}`,
+            keyCode: isUpper ? charCode : charCode - 32,
+          };
+        } else {
+          keyInfo = { key: mainKey, code: mainKey, keyCode: 0 };
+        }
+      }
+
+      // 수정자 플래그 계산 (CDP용)
+      let modifierFlags = 0;
+      if (modifiers.alt) modifierFlags |= 1;
+      if (modifiers.ctrl) modifierFlags |= 2;
+      if (modifiers.meta) modifierFlags |= 4;
+      if (modifiers.shift) modifierFlags |= 8;
+
+      // keyDown
       await this.cdp.send('Input.dispatchKeyEvent', {
         type: 'keyDown',
-        windowsVirtualKeyCode: keyInfo.keyCode,
-        code: keyInfo.code,
         key: keyInfo.key,
+        code: keyInfo.code,
+        windowsVirtualKeyCode: keyInfo.keyCode,
+        nativeVirtualKeyCode: keyInfo.keyCode,
+        modifiers: modifierFlags,
       });
 
-      // Key up
+      // keyUp
       await this.cdp.send('Input.dispatchKeyEvent', {
         type: 'keyUp',
-        windowsVirtualKeyCode: keyInfo.keyCode,
-        code: keyInfo.code,
         key: keyInfo.key,
+        code: keyInfo.code,
+        windowsVirtualKeyCode: keyInfo.keyCode,
+        nativeVirtualKeyCode: keyInfo.keyCode,
+        modifiers: modifierFlags,
       });
 
-      return { success: true, message: 'Key pressed', key };
+      return {
+        success: true,
+        message: `Key "${key}" pressed successfully`,
+        key,
+        selector: selector || '(focused element)',
+      };
     } catch (error) {
       return {
         success: false,

@@ -91,8 +91,8 @@ async function executeExcelSortRange(args: Record<string, unknown>): Promise<Too
     const response = await excelClient.excelSortRange(
       args['range'] as string,
       args['sort_column'] as string,
-      args['ascending'] as boolean ?? true,
-      args['has_header'] as boolean ?? true,
+      (args['ascending'] ?? true) as boolean,
+      (args['has_header'] ?? true) as boolean,
       args['sheet'] as string | undefined
     );
     if (response.success) {
@@ -371,6 +371,210 @@ export const excelUngroupRowsTool: LLMSimpleTool = {
 };
 
 // =============================================================================
+// Excel Get Used Range
+// =============================================================================
+
+const EXCEL_GET_USED_RANGE_DEFINITION: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'excel_get_used_range',
+    description: `Get the used range (area with data) of the worksheet.
+Returns the range address, row/column count, and starting position.`,
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: { type: 'string', description: 'Why you need to know the used range' },
+        sheet: { type: 'string', description: 'Sheet name (optional)' },
+      },
+      required: ['reason'],
+    },
+  },
+};
+
+async function executeExcelGetUsedRange(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_get_used_range', args);
+  try {
+    const response = await excelClient.excelGetUsedRange(args['sheet'] as string | undefined);
+    if (response.success) {
+      logger.toolSuccess('excel_get_used_range', args, { range: response['range'] }, Date.now() - startTime);
+      return {
+        success: true,
+        result: `Used range: ${response['range']} (${response['rows']} rows × ${response['columns']} columns)`,
+      };
+    }
+    logger.toolError('excel_get_used_range', args, new Error(response.error || 'Failed to get used range'), Date.now() - startTime);
+    return { success: false, error: response.error || 'Failed to get used range' };
+  } catch (error) {
+    logger.toolError('excel_get_used_range', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
+    return { success: false, error: `Failed to get used range: ${error instanceof Error ? error.message : String(error)}` };
+  }
+}
+
+export const excelGetUsedRangeTool: LLMSimpleTool = {
+  definition: EXCEL_GET_USED_RANGE_DEFINITION,
+  execute: executeExcelGetUsedRange,
+  categories: OFFICE_CATEGORIES,
+  description: 'Get Excel used range',
+};
+
+// =============================================================================
+// Excel Autofit Range
+// =============================================================================
+
+const EXCEL_AUTOFIT_RANGE_DEFINITION: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'excel_autofit_range',
+    description: `Auto-fit column widths and/or row heights for a range to fit content.`,
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: { type: 'string', description: 'Why you are auto-fitting' },
+        range: { type: 'string', description: 'Range to auto-fit (e.g., "A:D" or "A1:D10")' },
+        fit_columns: { type: 'boolean', description: 'Auto-fit column widths (default: true)' },
+        fit_rows: { type: 'boolean', description: 'Auto-fit row heights (default: false)' },
+        sheet: { type: 'string', description: 'Sheet name (optional)' },
+      },
+      required: ['reason', 'range'],
+    },
+  },
+};
+
+async function executeExcelAutofitRange(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_autofit_range', args);
+  try {
+    const response = await excelClient.excelAutofitRange(
+      args['range'] as string,
+      args['fit_columns'] !== false,
+      args['fit_rows'] === true,
+      args['sheet'] as string | undefined
+    );
+    if (response.success) {
+      logger.toolSuccess('excel_autofit_range', args, { range: args['range'] }, Date.now() - startTime);
+      return { success: true, result: `Auto-fit applied to ${args['range']}` };
+    }
+    logger.toolError('excel_autofit_range', args, new Error(response.error || 'Failed to auto-fit range'), Date.now() - startTime);
+    return { success: false, error: response.error || 'Failed to auto-fit range' };
+  } catch (error) {
+    logger.toolError('excel_autofit_range', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
+    return { success: false, error: `Failed to auto-fit range: ${error instanceof Error ? error.message : String(error)}` };
+  }
+}
+
+export const excelAutofitRangeTool: LLMSimpleTool = {
+  definition: EXCEL_AUTOFIT_RANGE_DEFINITION,
+  execute: executeExcelAutofitRange,
+  categories: OFFICE_CATEGORIES,
+  description: 'Auto-fit Excel range',
+};
+
+// =============================================================================
+// Excel Remove Duplicates
+// =============================================================================
+
+const EXCEL_REMOVE_DUPLICATES_DEFINITION: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'excel_remove_duplicates',
+    description: `Remove duplicate rows from a range based on specified columns.
+If no columns specified, all columns are used to detect duplicates.`,
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: { type: 'string', description: 'Why you are removing duplicates' },
+        range: { type: 'string', description: 'Range to check for duplicates (e.g., "A1:D100")' },
+        columns: { type: 'array', items: { type: 'number' }, description: 'Column numbers to check (1-based, e.g., [1,3] for columns A and C). If not specified, uses all columns.' },
+        has_header: { type: 'boolean', description: 'First row is header (default: true)' },
+        sheet: { type: 'string', description: 'Sheet name (optional)' },
+      },
+      required: ['reason', 'range'],
+    },
+  },
+};
+
+async function executeExcelRemoveDuplicates(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_remove_duplicates', args);
+  try {
+    const response = await excelClient.excelRemoveDuplicates(
+      args['range'] as string,
+      args['columns'] as number[] | undefined,
+      args['has_header'] !== false,
+      args['sheet'] as string | undefined
+    );
+    if (response.success) {
+      logger.toolSuccess('excel_remove_duplicates', args, { range: args['range'], rowsRemoved: response['rows_removed'] }, Date.now() - startTime);
+      return { success: true, result: response.message || `Duplicates removed from ${args['range']}` };
+    }
+    logger.toolError('excel_remove_duplicates', args, new Error(response.error || 'Failed to remove duplicates'), Date.now() - startTime);
+    return { success: false, error: response.error || 'Failed to remove duplicates' };
+  } catch (error) {
+    logger.toolError('excel_remove_duplicates', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
+    return { success: false, error: `Failed to remove duplicates: ${error instanceof Error ? error.message : String(error)}` };
+  }
+}
+
+export const excelRemoveDuplicatesTool: LLMSimpleTool = {
+  definition: EXCEL_REMOVE_DUPLICATES_DEFINITION,
+  execute: executeExcelRemoveDuplicates,
+  categories: OFFICE_CATEGORIES,
+  description: 'Remove duplicate rows in Excel',
+};
+
+// =============================================================================
+// Excel Get Charts
+// =============================================================================
+
+const EXCEL_GET_CHARTS_DEFINITION: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'excel_get_charts',
+    description: `Get a list of all charts in the worksheet with their properties.
+Returns chart index, name, type, title, position, size, and series count.`,
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: { type: 'string', description: 'Why you need the chart list' },
+        sheet: { type: 'string', description: 'Sheet name (optional)' },
+      },
+      required: ['reason'],
+    },
+  },
+};
+
+async function executeExcelGetCharts(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_get_charts', args);
+  try {
+    const response = await excelClient.excelGetCharts(args['sheet'] as string | undefined);
+    if (response.success) {
+      const count = response['count'] as number;
+      logger.toolSuccess('excel_get_charts', args, { count }, Date.now() - startTime);
+      if (count === 0) {
+        return { success: true, result: 'No charts found in the worksheet' };
+      }
+      const charts = response['charts'] as Array<{ index: number; name: string; title: string | null }>;
+      const summary = charts.map(c => `${c.index}. ${c.name}${c.title ? ` ("${c.title}")` : ''}`).join(', ');
+      return { success: true, result: `Found ${count} chart(s): ${summary}` };
+    }
+    logger.toolError('excel_get_charts', args, new Error(response.error || 'Failed to get charts'), Date.now() - startTime);
+    return { success: false, error: response.error || 'Failed to get charts' };
+  } catch (error) {
+    logger.toolError('excel_get_charts', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
+    return { success: false, error: `Failed to get charts: ${error instanceof Error ? error.message : String(error)}` };
+  }
+}
+
+export const excelGetChartsTool: LLMSimpleTool = {
+  definition: EXCEL_GET_CHARTS_DEFINITION,
+  execute: executeExcelGetCharts,
+  categories: OFFICE_CATEGORIES,
+  description: 'Get list of Excel charts',
+};
+
+// =============================================================================
 // Export All Data Operations Tools
 // =============================================================================
 
@@ -382,4 +586,8 @@ export const dataOpsTools: LLMSimpleTool[] = [
   excelFindReplaceTool,
   excelGroupRowsTool,
   excelUngroupRowsTool,
+  excelGetUsedRangeTool,
+  excelAutofitRangeTool,
+  excelRemoveDuplicatesTool,
+  excelGetChartsTool,
 ];

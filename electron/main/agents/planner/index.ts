@@ -1,7 +1,10 @@
 /**
- * Planning LLM for Electron Agent
- * Converts user requests into executable TODO lists
- * Supports direct response detection for questions/greetings
+ * Planning Agent
+ *
+ * System Planning Agent with full PowerShell access.
+ * - Clarify requirements with ask_to_user
+ * - Create comprehensive TODO lists for Execution LLM
+ * - Supports parallel docs search decision
  *
  * NOTE: This is Windows/PowerShell based (NOT bash/WSL)
  */
@@ -16,6 +19,12 @@ import {
   parseDocsSearchDecision,
   DOCS_SEARCH_DECISION_RETRY_PROMPT,
 } from '../../prompts/agents/docs-search-decision';
+import { buildPlanningSystemPrompt } from '../../prompts/agents/planning';
+import { PLANNING_TOOLS } from '../../tools/llm/simple/planning-tools';
+import {
+  AskUserResponse,
+  AskUserCallback,
+} from '../../tools/llm/simple/user-interaction-tools';
 
 // =============================================================================
 // Types
@@ -38,92 +47,6 @@ export interface PlanningWithDocsResult extends PlanningResult {
 }
 
 // =============================================================================
-// Planning Tool Definitions
-// =============================================================================
-
-/**
- * create_todos - Used by Planning LLM to create TODO list
- */
-const CREATE_TODOS_TOOL: ToolDefinition = {
-  type: 'function',
-  function: {
-    name: 'create_todos',
-    description: `Create a TODO list for the user's request.
-Use this when the user wants you to perform actions, implement features, fix bugs, etc.
-
-GUIDELINES:
-- Break down complex tasks into smaller, actionable items
-- Each TODO should be specific and achievable
-- Order items logically (setup before implementation, etc.)
-- Keep titles concise but descriptive`,
-    parameters: {
-      type: 'object',
-      properties: {
-        todos: {
-          type: 'array',
-          description: 'List of TODO items to execute',
-          items: {
-            type: 'object',
-            properties: {
-              id: {
-                type: 'string',
-                description: 'Unique ID for the TODO (e.g., "todo-1")',
-              },
-              title: {
-                type: 'string',
-                description: 'Short, actionable title describing the task',
-              },
-            },
-            required: ['id', 'title'],
-          },
-        },
-        complexity: {
-          type: 'string',
-          enum: ['simple', 'moderate', 'complex'],
-          description: 'Overall complexity of the request',
-        },
-      },
-      required: ['todos', 'complexity'],
-    },
-  },
-};
-
-/**
- * respond_to_user - Used for direct responses (questions, greetings)
- */
-const RESPOND_TO_USER_TOOL: ToolDefinition = {
-  type: 'function',
-  function: {
-    name: 'respond_to_user',
-    description: `Respond directly to the user without creating TODOs.
-Use this ONLY when the user:
-- Asks a question that doesn't require file/code changes
-- Sends a greeting (hi, hello, etc.)
-- Asks for clarification or explanation
-- Makes a simple statement that doesn't require action
-
-Do NOT use this when the user wants you to:
-- Create, modify, or delete files
-- Run commands
-- Implement features
-- Fix bugs
-- Make any changes to the codebase`,
-    parameters: {
-      type: 'object',
-      properties: {
-        response: {
-          type: 'string',
-          description: 'Your response to the user (in their language)',
-        },
-      },
-      required: ['response'],
-    },
-  },
-};
-
-const PLANNING_TOOLS: ToolDefinition[] = [CREATE_TODOS_TOOL, RESPOND_TO_USER_TOOL];
-
-// =============================================================================
 // Planning LLM Class
 // =============================================================================
 
@@ -132,101 +55,85 @@ export class PlanningLLM {
     chatCompletion: (options: {
       messages: Message[];
       tools?: ToolDefinition[];
+      tool_choice?: string;
       temperature?: number;
+      max_tokens?: number;
     }) => Promise<{
       choices: Array<{
         message: Message & { tool_calls?: Array<{ function: { name: string; arguments: string } }> };
+        finish_reason?: string;
       }>;
     }>;
   };
   private getToolSummary: () => string;
+  private getOptionalToolsInfo: () => string;
+  private askUserCallback: AskUserCallback | null = null;
 
   constructor(
     llmClient: {
       chatCompletion: (options: {
         messages: Message[];
         tools?: ToolDefinition[];
+        tool_choice?: string;
         temperature?: number;
+        max_tokens?: number;
       }) => Promise<{
         choices: Array<{
           message: Message & { tool_calls?: Array<{ function: { name: string; arguments: string } }> };
+          finish_reason?: string;
         }>;
       }>;
     },
-    getToolSummary: () => string
+    getToolSummary: () => string,
+    getOptionalToolsInfo: () => string = () => ''
   ) {
     this.llmClient = llmClient;
     this.getToolSummary = getToolSummary;
+    this.getOptionalToolsInfo = getOptionalToolsInfo;
   }
 
   /**
-   * Build planning system prompt
+   * Set the ask-user callback for Planning LLM
+   * This enables the ask_to_user tool during planning
    */
-  private buildPlanningSystemPrompt(): string {
+  setAskUserCallback(callback: AskUserCallback): void {
+    logger.flow('Setting ask-user callback for Planning LLM');
+    this.askUserCallback = callback;
+  }
+
+  /**
+   * Clear ask-user callback
+   */
+  clearAskUserCallback(): void {
+    logger.flow('Clearing ask-user callback for Planning LLM');
+    this.askUserCallback = null;
+  }
+
+  /**
+   * Build planning system prompt using shared prompt from planning.ts
+   * Includes both core tools and enabled optional tools (browser, office, etc.)
+   */
+  private buildSystemPrompt(): string {
     const toolSummary = this.getToolSummary();
-
-    return `You are the PLANNING LLM. Your job is to convert user requests into actionable TODO lists.
-
-## CRITICAL: Language Priority
-ALWAYS respond in the SAME LANGUAGE as the user's input.
-- Korean input → Korean response
-- English input → English response
-
-## Your Role
-1. Analyze the user's request
-2. Decide if it requires action (create_todos) or just a response (respond_to_user)
-3. For actions: Break down into specific, achievable TODOs
-4. For questions/greetings: Respond directly
-
-## Available Tools for Execution (Reference Only)
-These tools will be available to the Execution LLM:
-
-${toolSummary}
-
-## YOUR Tools (only 2)
-1. **create_todos** - For any request that requires action
-2. **respond_to_user** - ONLY for questions/greetings that don't need action
-
-## Decision Guide
-
-**Use create_todos when user wants to:**
-- Create, modify, or delete files
-- Run commands (npm, git, etc.)
-- Implement features or fix bugs
-- Make any changes to the project
-- Search for code and understand it (for later action)
-
-**Use respond_to_user when user:**
-- Says hi/hello or greets you
-- Asks a general question (not about doing something)
-- Asks for clarification about a previous response
-- Makes a statement that doesn't require action
-
-## TODO Guidelines
-
-When creating TODOs:
-1. Keep titles concise and actionable
-2. Order logically (understand before modify, setup before implement)
-3. Include verification steps if needed (test, verify)
-4. Consider dependencies between tasks
-
-## IMPORTANT
-- You are NOT the Execution LLM
-- Do NOT use tools like read_file, write_todos, powershell, etc.
-- You ONLY have create_todos and respond_to_user
-- ALWAYS call one of your tools - never respond with plain text`;
+    const optionalToolsInfo = this.getOptionalToolsInfo();
+    return buildPlanningSystemPrompt(toolSummary, optionalToolsInfo);
   }
 
   /**
    * Generate TODO list from user request
+   * Supports ask_to_user for requirement clarification (loops until final decision)
+   * @param userRequest The user's request
+   * @param contextMessages Optional context messages (e.g., docs search results)
+   * @param onMessagesUpdate Optional callback to update external message history
    */
   async generateTODOList(
     userRequest: string,
-    contextMessages?: Message[]
+    contextMessages?: Message[],
+    onMessagesUpdate?: (messages: Message[]) => void
   ): Promise<PlanningResult> {
     logger.enter('PlanningLLM.generateTODOList', { requestLength: userRequest.length });
 
-    const systemPrompt = this.buildPlanningSystemPrompt();
+    const systemPrompt = this.buildSystemPrompt();
 
     // Build messages
     const messages: Message[] = [{ role: 'system', content: systemPrompt }];
@@ -250,128 +157,235 @@ When creating TODOs:
     const MAX_RETRIES = 3;
     let lastError: Error | null = null;
 
-    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-      try {
-        // Add retry prompt if needed
-        if (attempt > 1) {
-          messages.push({
-            role: 'user',
-            content: `[RETRY ${attempt}/${MAX_RETRIES}] ⚠️ CRITICAL: You are the PLANNING LLM.
+    // Main planning loop - continues until create_todos or respond_to_user is called
+    // No limit on ask_to_user iterations - user can clarify as many times as needed
+    while (true) {
+      let shouldContinueMainLoop = false; // Track if we should continue after ask_to_user
 
-You have ONLY 2 tools:
-1. 'create_todos' - For action requests
-2. 'respond_to_user' - For questions/greetings only
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          // Add retry prompt if needed
+          if (attempt > 1) {
+            messages.push({
+              role: 'user',
+              content: `[RETRY ${attempt}/${MAX_RETRIES}] ⚠️ CRITICAL: You are the PLANNING LLM, not the Execution LLM.
+
+You have ONLY 3 tools available:
+1. 'ask_to_user' - To clarify ambiguous requirements (use FIRST if unclear)
+2. 'create_todos' - For ANY action/implementation request
+3. 'respond_to_user' - For pure knowledge questions/greetings only
+
+❌ DO NOT use tools like 'write_todos', 'read_file', 'powershell', etc. Those are for Execution LLM, NOT you.
+❌ You saw those tools in conversation history, but they are NOT available to you.
 
 Previous error: ${lastError?.message || 'Invalid response'}
 
-Choose either 'create_todos' or 'respond_to_user' now.`,
-          });
-          logger.warn(`Planning LLM retry attempt ${attempt}/${MAX_RETRIES}`, {
-            lastError: lastError?.message,
-          });
-        }
-
-        // Call LLM
-        const response = await this.llmClient.chatCompletion({
-          messages,
-          tools: PLANNING_TOOLS,
-          temperature: 0.7,
-        });
-
-        const message = response.choices?.[0]?.message;
-        const toolCalls = message?.tool_calls;
-
-        logger.debug('Planning LLM response', {
-          hasToolCalls: !!(toolCalls && toolCalls.length > 0),
-          toolCallsCount: toolCalls?.length ?? 0,
-        });
-
-        // Handle tool call
-        if (toolCalls && toolCalls.length > 0) {
-          const toolCall = toolCalls[0]!;
-          const toolName = toolCall.function?.name;
-
-          let toolArgs;
-          try {
-            toolArgs = JSON.parse(toolCall.function?.arguments || '{}');
-          } catch (error) {
-            logger.warn('Failed to parse tool arguments', { args: toolCall.function?.arguments });
-            lastError = error as Error;
-            continue;
+Choose one of your 3 tools now.`,
+            });
+            logger.warn(`Planning LLM retry attempt ${attempt}/${MAX_RETRIES}`, {
+              lastError: lastError?.message,
+            });
           }
 
-          // Handle create_todos
-          if (toolName === 'create_todos') {
-            logger.flow('TODO list created via create_todos tool');
+          // Call LLM with Planning tools definitions
+          const planningToolDefs = PLANNING_TOOLS.map(t => t.definition);
+          const response = await this.llmClient.chatCompletion({
+            messages,
+            tools: planningToolDefs,
+            tool_choice: 'required',
+            temperature: 0.7,
+            max_tokens: 2000,
+          });
 
-            let rawTodos = toolArgs.todos;
+          const message = response.choices?.[0]?.message;
+          const toolCalls = message?.tool_calls;
+          const finishReason = response.choices?.[0]?.finish_reason;
 
-            // Handle string-wrapped JSON
-            if (typeof rawTodos === 'string') {
+          logger.debug('Planning LLM response', {
+            hasMessage: !!message,
+            hasToolCalls: !!(toolCalls && toolCalls.length > 0),
+            finishReason,
+            toolCallsCount: toolCalls?.length ?? 0,
+          });
+
+          // Handle tool call
+          if (toolCalls && toolCalls.length > 0) {
+            const toolCall = toolCalls[0]!;
+            const toolName = toolCall.function?.name;
+
+            let toolArgs;
+            try {
+              toolArgs = JSON.parse(toolCall.function?.arguments || '{}');
+            } catch (error) {
+              logger.warn('Failed to parse tool arguments', { args: toolCall.function?.arguments, error });
+              lastError = error as Error;
+              continue; // Retry
+            }
+
+            // Handle ask_to_user - clarify requirements before planning
+            if (toolName === 'ask_to_user') {
+              logger.flow('Planning LLM asking user for clarification');
+
+              const question = toolArgs.question as string;
+              const options = toolArgs.options as string[];
+
+              if (!question || !Array.isArray(options) || options.length < 2) {
+                logger.warn('ask_to_user called with invalid parameters', { toolArgs });
+                lastError = new Error('ask_to_user requires a question and 2-4 options');
+                continue; // Retry
+              }
+
+              // Check if callback is available
+              if (!this.askUserCallback) {
+                logger.warn('ask_to_user called but no callback is set, skipping to create_todos');
+                // Add message indicating we couldn't ask, continue without user input
+                messages.push({
+                  role: 'assistant',
+                  content: `[Planning LLM attempted to ask: "${question}" but user interaction is not available. Proceeding with best judgment.]`,
+                });
+                shouldContinueMainLoop = true;
+                break; // Exit retry loop, continue main loop
+              }
+
               try {
-                rawTodos = JSON.parse(rawTodos);
-              } catch {
-                logger.warn('Failed to parse string todos as JSON');
+                // Record the assistant's question in history
+                messages.push({
+                  role: 'assistant',
+                  content: `[Clarification needed] ${question}\nOptions: ${options.join(', ')}`,
+                });
+
+                // Call the UI callback to ask user
+                const userResponse: AskUserResponse = await this.askUserCallback({ question, options });
+
+                // Build user response text
+                const userAnswerText = userResponse.isOther && userResponse.customText
+                  ? userResponse.customText
+                  : userResponse.selectedOption;
+
+                // Record user's response in history
+                messages.push({
+                  role: 'user',
+                  content: `[User's answer] ${userAnswerText}`,
+                });
+
+                logger.flow('User responded to clarification question', {
+                  question,
+                  answer: userAnswerText,
+                  isCustom: userResponse.isOther,
+                });
+
+                // Notify external callback about message updates (for history sync)
+                if (onMessagesUpdate) {
+                  // Filter out system messages for external history
+                  const historyMessages = messages.filter(m => m.role !== 'system');
+                  onMessagesUpdate(historyMessages);
+                }
+
+                // Continue main loop - LLM will process the answer and decide next step
+                shouldContinueMainLoop = true;
+                break; // Exit retry loop, continue main loop
+
+              } catch (error) {
+                logger.error('Error during ask_to_user', error as Error);
+                lastError = error as Error;
+                // Continue retry loop
+                continue;
               }
             }
 
-            if (!Array.isArray(rawTodos)) {
-              lastError = new Error('Planning LLM returned invalid todos format');
-              continue;
+            // Handle create_todos - final planning decision
+            if (toolName === 'create_todos') {
+              logger.flow('TODO list created via create_todos tool');
+
+              // Validate todos is an array (handle string-wrapped JSON from LLM)
+              let rawTodos = toolArgs.todos;
+
+              // If todos is a string, try to parse it as JSON
+              if (typeof rawTodos === 'string') {
+                try {
+                  rawTodos = JSON.parse(rawTodos);
+                  logger.debug('Parsed string-wrapped todos array');
+                } catch {
+                  logger.warn('Failed to parse string todos as JSON', { todos: rawTodos });
+                }
+              }
+
+              if (!Array.isArray(rawTodos)) {
+                logger.warn('create_todos called with non-array todos', { toolArgs });
+                lastError = new Error('Planning LLM returned invalid todos format (expected array).');
+                continue; // Retry
+              }
+
+              const todos: TodoItem[] = rawTodos.map((todo: any, index: number) => ({
+                id: todo.id || `todo-${Date.now()}-${index}`,
+                title: todo.title || 'Untitled task',
+                // First TODO starts as in_progress, rest are pending
+                status: (index === 0 ? 'in_progress' : 'pending') as TodoItem['status'],
+              }));
+
+              logger.exit('PlanningLLM.generateTODOList', { todoCount: todos.length });
+
+              return {
+                todos,
+                complexity: toolArgs.complexity || 'moderate',
+              };
             }
 
-            const todos: TodoItem[] = rawTodos.map((todo: any, index: number) => ({
-              id: todo.id || `todo-${Date.now()}-${index}`,
-              title: todo.title || 'Untitled task',
-              status: (index === 0 ? 'in_progress' : 'pending') as TodoItem['status'],
-            }));
+            // Handle respond_to_user - direct response without TODOs
+            if (toolName === 'respond_to_user') {
+              logger.flow('Direct response via respond_to_user tool');
+              const responseText = toolArgs.response || '';
 
-            logger.exit('PlanningLLM.generateTODOList', { todoCount: todos.length });
+              if (!responseText) {
+                logger.warn('respond_to_user called with empty response');
+                lastError = new Error('Planning LLM returned empty response.');
+                continue; // Retry
+              }
 
-            return {
-              todos,
-              complexity: toolArgs.complexity || 'moderate',
-            };
-          }
+              logger.exit('PlanningLLM.generateTODOList', { directResponse: true });
 
-          // Handle respond_to_user
-          if (toolName === 'respond_to_user') {
-            logger.flow('Direct response via respond_to_user tool');
-            const directResponse = toolArgs.response || '';
-
-            if (!directResponse) {
-              lastError = new Error('Planning LLM returned empty response');
-              continue;
+              return {
+                todos: [],
+                complexity: 'simple',
+                directResponse: responseText,
+              };
             }
 
-            logger.exit('PlanningLLM.generateTODOList', { directResponse: true });
-
-            return {
-              todos: [],
-              complexity: 'simple',
-              directResponse,
-            };
+            // Unknown tool - retry
+            logger.warn(`Unknown tool called: ${toolName}`);
+            lastError = new Error(`Invalid tool "${toolName}". You only have 3 tools: ask_to_user, create_todos, or respond_to_user. Tools like write_todos are for Execution LLM, not Planning LLM.`);
+            continue; // Retry
           }
 
-          // Unknown tool
-          logger.warn(`Unknown tool called: ${toolName}`);
-          lastError = new Error(`Invalid tool "${toolName}". Only create_todos or respond_to_user allowed.`);
-          continue;
+          // No tool call - this should not happen with tool_choice: "required"
+          const contentOnly = message?.content;
+          if (contentOnly) {
+            logger.warn(`Planning LLM returned content without tool call (attempt ${attempt}/${MAX_RETRIES})`, {
+              contentPreview: contentOnly.substring(0, 100),
+            });
+            lastError = new Error(
+              'You MUST call one of your tools: ask_to_user, create_todos, or respond_to_user. Do NOT respond with plain text.'
+            );
+          } else {
+            logger.warn(`Planning LLM returned no tool call and no content (attempt ${attempt}/${MAX_RETRIES})`);
+            lastError = new Error('Planning LLM must use one of: ask_to_user, create_todos, or respond_to_user');
+          }
+          // Continue to next retry
+        } catch (error) {
+          // Network or API error - will retry
+          logger.warn(`Planning LLM error (attempt ${attempt}/${MAX_RETRIES}):`, error as Error);
+          lastError = error as Error;
+          // Continue to next retry
         }
-
-        // No tool call - should not happen with tool_choice
-        const contentOnly = message?.content;
-        if (contentOnly) {
-          logger.warn(`Planning LLM returned content without tool call (attempt ${attempt})`);
-          lastError = new Error('You MUST call either create_todos or respond_to_user tool.');
-        } else {
-          logger.warn(`Planning LLM returned no tool call and no content (attempt ${attempt})`);
-          lastError = new Error('Planning LLM must use either create_todos or respond_to_user tool');
-        }
-      } catch (error) {
-        logger.warn(`Planning LLM error (attempt ${attempt}):`, error as Error);
-        lastError = error as Error;
       }
+
+      // If ask_to_user was successful, continue main loop for next LLM call
+      if (shouldContinueMainLoop) {
+        continue;
+      }
+
+      // All retries exhausted without successful ask_to_user - break to fallback
+      break;
     }
 
     // All retries exhausted - use fallback

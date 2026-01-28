@@ -2,7 +2,7 @@
  * Browser Tool Definitions for Electron (Windows Native)
  *
  * CDP-based browser automation tools
- * Total: 18 tools
+ * Total: 20 tools
  */
 
 import { ToolDefinition } from '../../core';
@@ -18,8 +18,8 @@ const BROWSER_LAUNCH_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'browser_launch',
-    description: `Launch Chrome or Edge browser for web automation.
-Uses Chrome DevTools Protocol (CDP) for control.
+    description: `Launch Chrome/Edge browser for web testing and automation.
+Uses Chrome DevTools Protocol (CDP) for browser control.
 If browser is already running, returns existing session.
 
 IMPORTANT: For visual testing or when user needs to see the browser, use headless: false (default).
@@ -27,13 +27,19 @@ Only use headless: true when explicitly requested by the user.`,
     parameters: {
       type: 'object',
       properties: {
-        reason: { type: 'string', description: 'Explanation of why you are launching browser' },
+        reason: {
+          type: 'string',
+          description: 'Explanation of why you are launching the browser',
+        },
         browser: {
           type: 'string',
           enum: ['chrome', 'edge'],
-          description: 'Browser to launch (default: chrome, falls back to edge if not available)',
+          description: 'Browser to use (default: chrome). Falls back to edge if chrome is not available.',
         },
-        headless: { type: 'boolean', description: 'Run in headless mode WITHOUT visible window (default: false). Set to false to see the browser window.' },
+        headless: {
+          type: 'boolean',
+          description: 'Run browser in headless mode (default: false). Set to true to hide the browser window.',
+        },
       },
       required: ['reason'],
     },
@@ -75,11 +81,15 @@ const BROWSER_CLOSE_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'browser_close',
-    description: `Close the browser and end the automation session.`,
+    description: `Close the browser and end the automation session.
+Use this when you are done testing.`,
     parameters: {
       type: 'object',
       properties: {
-        reason: { type: 'string', description: 'Explanation of why you are closing browser' },
+        reason: {
+          type: 'string',
+          description: 'Explanation of why you are closing the browser',
+        },
       },
       required: ['reason'],
     },
@@ -118,12 +128,23 @@ const BROWSER_NAVIGATE_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'browser_navigate',
-    description: `Navigate to a URL in the browser. Waits for page load to complete.`,
+    description: `Navigate browser to a URL. Waits for page load to complete.
+
+Common URLs:
+- http://localhost:3000 - Local development server
+- http://localhost:8080 - Alternative local server
+- https://example.com - External website`,
     parameters: {
       type: 'object',
       properties: {
-        reason: { type: 'string', description: 'Explanation of why you are navigating' },
-        url: { type: 'string', description: 'URL to navigate to (must include http:// or https://)' },
+        reason: {
+          type: 'string',
+          description: 'Explanation of why you are navigating to this URL',
+        },
+        url: {
+          type: 'string',
+          description: 'The URL to navigate to (e.g., http://localhost:3000)',
+        },
       },
       required: ['reason', 'url'],
     },
@@ -162,12 +183,24 @@ const BROWSER_CLICK_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'browser_click',
-    description: `Click an element on the page using CSS selector.`,
+    description: `Click an element on the page by CSS selector.
+
+Examples:
+- button[type="submit"] - Submit button
+- #login-btn - Element with id "login-btn"
+- .nav-link - Element with class "nav-link"
+- a[href="/about"] - Link to /about`,
     parameters: {
       type: 'object',
       properties: {
-        reason: { type: 'string', description: 'Explanation of why you are clicking' },
-        selector: { type: 'string', description: 'CSS selector of element to click (e.g., "#submit-btn", ".login-button")' },
+        reason: {
+          type: 'string',
+          description: 'Explanation of why you are clicking this element',
+        },
+        selector: {
+          type: 'string',
+          description: 'CSS selector of the element to click',
+        },
       },
       required: ['reason', 'selector'],
     },
@@ -206,32 +239,41 @@ const BROWSER_TYPE_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'browser_type',
-    description: `Type text into an input field or textarea.`,
+    description: `Type text character by character (triggers key events).
+Unlike browser_fill which sets value directly, this simulates actual typing.
+Useful for inputs that have keystroke handlers or autocomplete.`,
     parameters: {
       type: 'object',
       properties: {
-        reason: { type: 'string', description: 'Explanation of why you are typing' },
-        selector: { type: 'string', description: 'CSS selector of input element' },
-        text: { type: 'string', description: 'Text to type into the element' },
-        clear: { type: 'boolean', description: 'Clear existing text before typing (default: true)' },
+        reason: {
+          type: 'string',
+          description: 'Explanation of why you are typing this text',
+        },
+        text: {
+          type: 'string',
+          description: 'Text to type',
+        },
+        selector: {
+          type: 'string',
+          description: 'Optional CSS selector of element to type into',
+        },
       },
-      required: ['reason', 'selector', 'text'],
+      required: ['reason', 'text'],
     },
   },
 };
 
 async function executeBrowserType(args: Record<string, unknown>): Promise<ToolResult> {
+  const text = args['text'] as string;
+  const selector = args['selector'] as string | undefined;
   const startTime = Date.now();
-  logger.toolStart('browser_type', { selector: args['selector'], textLength: (args['text'] as string)?.length });
+
+  logger.toolStart('browser_type', { textLength: text?.length, selector });
   try {
-    const response = await browserClient.type(
-      args['selector'] as string,
-      args['text'] as string,
-      args['clear'] !== false
-    );
+    const response = await browserClient.type(text, selector);
     if (response.success) {
-      logger.toolSuccess('browser_type', { selector: args['selector'] }, { typed: true }, Date.now() - startTime);
-      return { success: true, result: `Typed text into: ${args['selector']}` };
+      logger.toolSuccess('browser_type', { textLength: text.length, selector }, { typed: true }, Date.now() - startTime);
+      return { success: true, result: `Typed ${text.length} characters${selector ? ` into ${selector}` : ''}` };
     }
     logger.toolError('browser_type', args, new Error(response.error || 'Failed to type text'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to type text' };
@@ -245,7 +287,7 @@ export const browserTypeTool: LLMSimpleTool = {
   definition: BROWSER_TYPE_DEFINITION,
   execute: executeBrowserType,
   categories: BROWSER_CATEGORIES,
-  description: 'Type text into element',
+  description: 'Type text character by character',
 };
 
 // =============================================================================
@@ -256,13 +298,21 @@ const BROWSER_SCREENSHOT_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'browser_screenshot',
-    description: `Take a screenshot of the current page.
-Returns base64 encoded PNG image and saves to file.`,
+    description: `Take a screenshot of the current browser page.
+Returns a base64-encoded PNG image that you can analyze to understand the page state.
+Screenshots are saved to the screenshots directory.
+Use this to verify that pages loaded correctly or to check UI elements.`,
     parameters: {
       type: 'object',
       properties: {
-        reason: { type: 'string', description: 'Explanation of why you are taking screenshot' },
-        full_page: { type: 'boolean', description: 'Capture full scrollable page (default: false)' },
+        reason: {
+          type: 'string',
+          description: 'Explanation of why you are taking a screenshot',
+        },
+        full_page: {
+          type: 'boolean',
+          description: 'Capture the full scrollable page (default: false, captures viewport only)',
+        },
       },
       required: ['reason'],
     },
@@ -445,16 +495,23 @@ const BROWSER_EXECUTE_SCRIPT_DEFINITION: ToolDefinition = {
     name: 'browser_execute_script',
     description: `Execute JavaScript code in the browser context.
 The script is automatically wrapped in an async function, so you can use 'return' statements and 'await'.
+Use this only when other browser tools don't cover your use case.
+
 Examples:
 - "return document.title;" - returns page title
-- "return 1 + 1;" - returns 2
-- "document.body.style.background = 'red';" - changes background (returns undefined)
-- "return await fetch('/api').then(r => r.json());" - async fetch`,
+- "return document.querySelectorAll('a').length;" - count all links
+- "return await fetch('/api/data').then(r => r.json());" - async fetch`,
     parameters: {
       type: 'object',
       properties: {
-        reason: { type: 'string', description: 'Explanation of why you are executing script' },
-        script: { type: 'string', description: 'JavaScript code to execute (can use return and await)' },
+        reason: {
+          type: 'string',
+          description: 'Explanation of why you need to execute this script',
+        },
+        script: {
+          type: 'string',
+          description: 'JavaScript code to execute (can use return and await)',
+        },
       },
       required: ['reason', 'script'],
     },
@@ -493,13 +550,27 @@ const BROWSER_FILL_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'browser_fill',
-    description: `Fill a form field with text (clears existing content first).`,
+    description: `Fill an input field with text. The existing content will be cleared before typing.
+
+Examples:
+- input[name="email"] - Email input field
+- #password - Password field by id
+- textarea.comment - Comment textarea`,
     parameters: {
       type: 'object',
       properties: {
-        reason: { type: 'string', description: 'Explanation of why you are filling the field' },
-        selector: { type: 'string', description: 'CSS selector of input element' },
-        value: { type: 'string', description: 'Value to fill in the field' },
+        reason: {
+          type: 'string',
+          description: 'Explanation of why you are filling this field',
+        },
+        selector: {
+          type: 'string',
+          description: 'CSS selector of the input field',
+        },
+        value: {
+          type: 'string',
+          description: 'Text to type into the field',
+        },
       },
       required: ['reason', 'selector', 'value'],
     },
@@ -538,12 +609,19 @@ const BROWSER_FOCUS_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'browser_focus',
-    description: `Focus on an element.`,
+    description: `Focus on a DOM element by CSS selector.
+Use this to focus input fields or other focusable elements.`,
     parameters: {
       type: 'object',
       properties: {
-        reason: { type: 'string', description: 'Explanation of why you are focusing' },
-        selector: { type: 'string', description: 'CSS selector of element to focus' },
+        reason: {
+          type: 'string',
+          description: 'Explanation of why you are focusing this element',
+        },
+        selector: {
+          type: 'string',
+          description: 'CSS selector of element to focus',
+        },
       },
       required: ['reason', 'selector'],
     },
@@ -575,6 +653,56 @@ export const browserFocusTool: LLMSimpleTool = {
 };
 
 // =============================================================================
+// Browser Bring To Front (Window focus)
+// =============================================================================
+
+const BROWSER_BRING_TO_FRONT_DEFINITION: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'browser_bring_to_front',
+    description: `Bring the browser window to the foreground.
+Use this to make the browser window visible and focused when needed.`,
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: { type: 'string', description: 'Explanation of why you need to bring the browser window to front' },
+      },
+      required: ['reason'],
+    },
+  },
+};
+
+async function executeBrowserBringToFront(_args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('browser_bring_to_front', _args);
+  try {
+    if (!(await browserClient.isBrowserActive())) {
+      logger.toolError('browser_bring_to_front', _args, new Error('Browser not running'), Date.now() - startTime);
+      return { success: false, error: 'Browser is not running. Use browser_launch first.' };
+    }
+
+    const response = await browserClient.send('Page.bringToFront', {});
+    if (!response.success) {
+      logger.toolError('browser_bring_to_front', _args, new Error(response.error || 'Failed to bring to front'), Date.now() - startTime);
+      return { success: false, error: response.error || 'Failed to bring browser to front' };
+    }
+
+    logger.toolSuccess('browser_bring_to_front', _args, { focused: true }, Date.now() - startTime);
+    return { success: true, result: 'Browser window brought to foreground.' };
+  } catch (error) {
+    logger.toolError('browser_bring_to_front', _args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
+    return { success: false, error: `Failed to bring browser to front: ${error instanceof Error ? error.message : String(error)}` };
+  }
+}
+
+export const browserBringToFrontTool: LLMSimpleTool = {
+  definition: BROWSER_BRING_TO_FRONT_DEFINITION,
+  execute: executeBrowserBringToFront,
+  categories: BROWSER_CATEGORIES,
+  description: 'Bring browser window to foreground',
+};
+
+// =============================================================================
 // Browser Get Console
 // =============================================================================
 
@@ -582,11 +710,21 @@ const BROWSER_GET_CONSOLE_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'browser_get_console',
-    description: `Enable console logging. Use executeScript to check console output.`,
+    description: `Get console logs from the browser.
+Returns console.log, console.error, console.warn messages.
+
+Use this tool to:
+- Debug JavaScript errors on the page
+- Check API response logs
+- Verify application behavior
+- Find error messages that might explain UI issues`,
     parameters: {
       type: 'object',
       properties: {
-        reason: { type: 'string', description: 'Explanation of why you need console logs' },
+        reason: {
+          type: 'string',
+          description: 'Explanation of why you need the console logs',
+        },
       },
       required: ['reason'],
     },
@@ -599,14 +737,26 @@ async function executeBrowserGetConsole(_args: Record<string, unknown>): Promise
   try {
     const response = await browserClient.getConsole();
     if (response.success) {
-      logger.toolSuccess('browser_get_console', _args, { message: response.message }, Date.now() - startTime);
-      return { success: true, result: response.message || 'Console logging enabled' };
+      const logs = (response['logs'] as Array<{ level: string; message: string; timestamp: number }>) || [];
+      if (logs.length === 0) {
+        logger.toolSuccess('browser_get_console', _args, { logCount: 0 }, Date.now() - startTime);
+        return { success: true, result: 'No console messages captured.' };
+      }
+
+      const formatted = logs.map(log => {
+        const timestamp = new Date(log.timestamp).toLocaleTimeString('en-GB');
+        const icon = log.level === 'ERROR' ? '❌' : log.level === 'WARNING' ? '⚠️' : '📝';
+        return `[${timestamp}] ${icon} ${log.level}: ${log.message}`;
+      }).join('\n');
+
+      logger.toolSuccess('browser_get_console', _args, { logCount: logs.length }, Date.now() - startTime);
+      return { success: true, result: `Console logs (${logs.length} messages):\n\n${formatted}` };
     }
-    logger.toolError('browser_get_console', _args, new Error(response.error || 'Failed to enable console'), Date.now() - startTime);
-    return { success: false, error: response.error || 'Failed to enable console' };
+    logger.toolError('browser_get_console', _args, new Error(response.error || 'Failed to get console logs'), Date.now() - startTime);
+    return { success: false, error: response.error || 'Failed to get console logs' };
   } catch (error) {
     logger.toolError('browser_get_console', _args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
-    return { success: false, error: `Failed: ${error instanceof Error ? error.message : String(error)}` };
+    return { success: false, error: `Failed to get console logs: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
 
@@ -614,7 +764,7 @@ export const browserGetConsoleTool: LLMSimpleTool = {
   definition: BROWSER_GET_CONSOLE_DEFINITION,
   execute: executeBrowserGetConsole,
   categories: BROWSER_CATEGORIES,
-  description: 'Enable console logging',
+  description: 'Get browser console logs',
 };
 
 // =============================================================================
@@ -672,11 +822,22 @@ const BROWSER_GET_NETWORK_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'browser_get_network',
-    description: `Get network resource requests from the current page.`,
+    description: `Get network request logs from the browser.
+Returns HTTP requests and responses captured during page interactions.
+
+Use this tool to:
+- Debug API calls and responses
+- Check request/response status codes
+- Verify network requests are being made correctly
+- Analyze API endpoints being called
+- Check for failed network requests`,
     parameters: {
       type: 'object',
       properties: {
-        reason: { type: 'string', description: 'Explanation of why you need network info' },
+        reason: {
+          type: 'string',
+          description: 'Explanation of why you need the network logs',
+        },
       },
       required: ['reason'],
     },
@@ -689,18 +850,29 @@ async function executeBrowserGetNetwork(_args: Record<string, unknown>): Promise
   try {
     const response = await browserClient.getNetwork();
     if (response.success) {
-      const resources = response['resources'] as Array<unknown>;
-      logger.toolSuccess('browser_get_network', _args, { resourceCount: response['count'] }, Date.now() - startTime);
-      return {
-        success: true,
-        result: `Found ${response['count']} network resources:\n${JSON.stringify(resources.slice(0, 20), null, 2)}${resources.length > 20 ? '\n... (truncated)' : ''}`,
-      };
+      const logs = (response['logs'] as Array<{ type: string; url: string; method?: string; status?: number; statusText?: string; mimeType?: string }>) || [];
+      if (logs.length === 0) {
+        logger.toolSuccess('browser_get_network', _args, { logCount: 0 }, Date.now() - startTime);
+        return { success: true, result: 'No network requests captured.' };
+      }
+
+      const formatted = logs.map(log => {
+        if (log.type === 'request') {
+          return `➡️ ${log.method} ${log.url}`;
+        } else {
+          const statusIcon = log.status && log.status >= 400 ? '❌' : '✅';
+          return `${statusIcon} ${log.status} ${log.statusText} - ${log.url} (${log.mimeType || 'unknown'})`;
+        }
+      }).join('\n');
+
+      logger.toolSuccess('browser_get_network', _args, { logCount: logs.length }, Date.now() - startTime);
+      return { success: true, result: `Network logs (${logs.length} entries):\n\n${formatted}` };
     }
-    logger.toolError('browser_get_network', _args, new Error(response.error || 'Failed to get network info'), Date.now() - startTime);
-    return { success: false, error: response.error || 'Failed to get network info' };
+    logger.toolError('browser_get_network', _args, new Error(response.error || 'Failed to get network logs'), Date.now() - startTime);
+    return { success: false, error: response.error || 'Failed to get network logs' };
   } catch (error) {
     logger.toolError('browser_get_network', _args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
-    return { success: false, error: `Failed: ${error instanceof Error ? error.message : String(error)}` };
+    return { success: false, error: `Failed to get network logs: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
 
@@ -708,7 +880,7 @@ export const browserGetNetworkTool: LLMSimpleTool = {
   definition: BROWSER_GET_NETWORK_DEFINITION,
   execute: executeBrowserGetNetwork,
   categories: BROWSER_CATEGORIES,
-  description: 'Get network requests',
+  description: 'Get browser network logs',
 };
 
 // =============================================================================
@@ -774,12 +946,19 @@ const BROWSER_GET_TEXT_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'browser_get_text',
-    description: `Get text content from an element or the entire page.`,
+    description: `Get text content from an element or the entire page.
+Use this to read content from the page, like error messages or confirmation text.`,
     parameters: {
       type: 'object',
       properties: {
-        reason: { type: 'string', description: 'Explanation of why you need the text' },
-        selector: { type: 'string', description: 'CSS selector of element (optional, gets full page if not provided)' },
+        reason: {
+          type: 'string',
+          description: 'Explanation of why you need the text',
+        },
+        selector: {
+          type: 'string',
+          description: 'CSS selector of element (optional, gets full page text if not provided)',
+        },
       },
       required: ['reason'],
     },
@@ -820,13 +999,37 @@ const BROWSER_PRESS_KEY_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'browser_press_key',
-    description: `Press a keyboard key.
-Supports special keys: Enter, Tab, Escape, Backspace, Delete, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Space, Home, End, PageUp, PageDown.`,
+    description: `Press a keyboard key in the browser.
+
+Supports special keys:
+- Enter, Tab, Escape, Space
+- ArrowUp, ArrowDown, ArrowLeft, ArrowRight
+- Backspace, Delete, Home, End, PageUp, PageDown
+- F1-F12
+- Control, Alt, Shift, Meta
+
+Key combinations (use + to combine):
+- Control+A (select all)
+- Control+C (copy)
+- Control+V (paste)
+- Shift+Tab (reverse tab)
+
+Use this for form submission (Enter), navigation, or keyboard shortcuts.`,
     parameters: {
       type: 'object',
       properties: {
-        reason: { type: 'string', description: 'Explanation of why you are pressing the key' },
-        key: { type: 'string', description: 'Key to press (e.g., "Enter", "Tab", "a", "1")' },
+        reason: {
+          type: 'string',
+          description: 'Explanation of why you are pressing this key',
+        },
+        key: {
+          type: 'string',
+          description: 'Key to press (e.g., "Enter", "Tab", "Escape", "Control+A")',
+        },
+        selector: {
+          type: 'string',
+          description: 'Optional CSS selector of element to focus before pressing key',
+        },
       },
       required: ['reason', 'key'],
     },
@@ -834,13 +1037,16 @@ Supports special keys: Enter, Tab, Escape, Backspace, Delete, ArrowUp, ArrowDown
 };
 
 async function executeBrowserPressKey(args: Record<string, unknown>): Promise<ToolResult> {
+  const key = args['key'] as string;
+  const selector = args['selector'] as string | undefined;
   const startTime = Date.now();
-  logger.toolStart('browser_press_key', args);
+
+  logger.toolStart('browser_press_key', { key, selector });
   try {
-    const response = await browserClient.pressKey(args['key'] as string);
+    const response = await browserClient.pressKey(key, selector);
     if (response.success) {
-      logger.toolSuccess('browser_press_key', args, { key: args['key'] }, Date.now() - startTime);
-      return { success: true, result: `Pressed key: ${args['key']}` };
+      logger.toolSuccess('browser_press_key', { key, selector }, { key }, Date.now() - startTime);
+      return { success: true, result: `Key "${key}" pressed${selector ? ` on ${selector}` : ''}` };
     }
     logger.toolError('browser_press_key', args, new Error(response.error || 'Failed to press key'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to press key' };
@@ -923,6 +1129,7 @@ export const BROWSER_TOOLS: LLMSimpleTool[] = [
   browserExecuteScriptTool,
   browserFillTool,
   browserFocusTool,
+  browserBringToFrontTool,
   browserGetConsoleTool,
   browserGetHealthTool,
   browserGetNetworkTool,

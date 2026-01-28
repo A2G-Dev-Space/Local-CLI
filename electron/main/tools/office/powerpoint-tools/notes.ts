@@ -22,10 +22,11 @@ const POWERPOINT_ADD_NOTE_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are adding this note' },
         slide_number: { type: 'number', description: 'Slide number' },
         note_text: { type: 'string', description: 'Note text' },
       },
-      required: ['slide_number', 'note_text'],
+      required: ['reason', 'slide_number', 'note_text'],
     },
   },
 };
@@ -35,7 +36,7 @@ async function executePowerPointAddNote(args: Record<string, unknown>): Promise<
   logger.toolStart('powerpoint_add_note', args);
   try {
     const response = await powerpointClient.powerpointAddNote(
-      args['slide_number'] as number,
+      Number(args['slide_number']),
       args['note_text'] as string
     );
     if (response.success) {
@@ -69,9 +70,10 @@ const POWERPOINT_GET_NOTE_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are getting this note' },
         slide_number: { type: 'number', description: 'Slide number' },
       },
-      required: ['slide_number'],
+      required: ['reason', 'slide_number'],
     },
   },
 };
@@ -80,7 +82,7 @@ async function executePowerPointGetNote(args: Record<string, unknown>): Promise<
   const startTime = Date.now();
   logger.toolStart('powerpoint_get_note', args);
   try {
-    const response = await powerpointClient.powerpointGetNote(args['slide_number'] as number);
+    const response = await powerpointClient.powerpointGetNote(Number(args['slide_number']));
     if (response.success) {
       logger.toolSuccess('powerpoint_get_note', args, { slideNumber: args['slide_number'] }, Date.now() - startTime);
       return { success: true, result: `Note: ${response['note']}` };
@@ -112,11 +114,12 @@ const POWERPOINT_SET_PLACEHOLDER_TEXT_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are setting placeholder text' },
         slide_number: { type: 'number', description: 'Slide number' },
         placeholder_type: { type: 'string', enum: ['title', 'subtitle', 'body', 'footer', 'slideNumber', 'date'], description: 'Placeholder type' },
         text: { type: 'string', description: 'Text to set' },
       },
-      required: ['slide_number', 'placeholder_type', 'text'],
+      required: ['reason', 'slide_number', 'placeholder_type', 'text'],
     },
   },
 };
@@ -126,7 +129,7 @@ async function executePowerPointSetPlaceholderText(args: Record<string, unknown>
   logger.toolStart('powerpoint_set_placeholder_text', args);
   try {
     const response = await powerpointClient.powerpointSetPlaceholderText(
-      args['slide_number'] as number,
+      Number(args['slide_number']),
       args['placeholder_type'] as 'title' | 'subtitle' | 'body' | 'footer' | 'slideNumber' | 'date',
       args['text'] as string
     );
@@ -161,9 +164,10 @@ const POWERPOINT_GET_PLACEHOLDERS_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you need to get placeholders' },
         slide_number: { type: 'number', description: 'Slide number' },
       },
-      required: ['slide_number'],
+      required: ['reason', 'slide_number'],
     },
   },
 };
@@ -172,7 +176,7 @@ async function executePowerPointGetPlaceholders(args: Record<string, unknown>): 
   const startTime = Date.now();
   logger.toolStart('powerpoint_get_placeholders', args);
   try {
-    const response = await powerpointClient.powerpointGetPlaceholders(args['slide_number'] as number);
+    const response = await powerpointClient.powerpointGetPlaceholders(Number(args['slide_number']));
     if (response.success) {
       logger.toolSuccess('powerpoint_get_placeholders', args, { slideNumber: args['slide_number'] }, Date.now() - startTime);
       return { success: true, result: JSON.stringify(response, null, 2) };
@@ -203,8 +207,10 @@ const POWERPOINT_GET_SLIDE_LAYOUTS_DEFINITION: ToolDefinition = {
     description: `Get available slide layouts.`,
     parameters: {
       type: 'object',
-      properties: {},
-      required: [],
+      properties: {
+        reason: { type: 'string', description: 'Why you need to get slide layouts' },
+      },
+      required: ['reason'],
     },
   },
 };

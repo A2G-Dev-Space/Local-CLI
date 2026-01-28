@@ -82,7 +82,8 @@ IMPORTANT:
 - Do NOT use for file reading/writing - use read_file, create_file, edit_file instead
 - Commands have a 30 second timeout by default
 - Dangerous commands are blocked for safety
-- Output is truncated if too long`,
+- Output is truncated if too long
+- PowerShell 7 (pwsh) is used if available, otherwise PowerShell 5.1`,
     parameters: {
       type: 'object',
       properties: {

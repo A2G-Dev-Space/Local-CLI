@@ -25,14 +25,14 @@ Shape index 1 is usually the title placeholder, index 2 is the content placehold
       type: 'object',
       properties: {
         reason: { type: 'string', description: 'Why you are writing text' },
-        slide: { type: 'number', description: 'Slide number' },
-        shape: { type: 'number', description: 'Shape index (1=title, 2=content)' },
+        slide_number: { type: 'number', description: 'Slide number' },
+        shape_index: { type: 'number', description: 'Shape index (1=title, 2=content)' },
         text: { type: 'string', description: 'Text to write' },
         font_name: { type: 'string', description: 'Font name (optional)' },
         font_size: { type: 'number', description: 'Font size (optional)' },
         bold: { type: 'boolean', description: 'Bold text (optional)' },
       },
-      required: ['reason', 'slide', 'shape', 'text'],
+      required: ['reason', 'slide_number', 'shape_index', 'text'],
     },
   },
 };
@@ -41,19 +41,21 @@ async function executePowerPointWriteText(args: Record<string, unknown>): Promis
   const startTime = Date.now();
   logger.toolStart('powerpoint_write_text', args);
   try {
+    const slideNum = Number(args['slide_number']);
+    const shapeIndex = Number(args['shape_index']);
     const response = await powerpointClient.powerpointWriteText(
-      args['slide'] as number,
-      args['shape'] as number,
+      slideNum,
+      shapeIndex,
       args['text'] as string,
       {
         fontName: args['font_name'] as string | undefined,
-        fontSize: args['font_size'] as number | undefined,
-        bold: args['bold'] as boolean | undefined,
+        fontSize: args['font_size'] != null ? Number(args['font_size']) : undefined,
+        bold: args['bold'] != null ? Boolean(args['bold']) : undefined,
       }
     );
     if (response.success) {
-      logger.toolSuccess('powerpoint_write_text', args, { slide: args['slide'], shape: args['shape'] }, Date.now() - startTime);
-      return { success: true, result: `Text written to slide ${args['slide']}, shape ${args['shape']}` };
+      logger.toolSuccess('powerpoint_write_text', args, { slideNumber: slideNum, shapeIndex }, Date.now() - startTime);
+      return { success: true, result: `Text written to slide ${slideNum}, shape ${shapeIndex}` };
     }
     logger.toolError('powerpoint_write_text', args, new Error(response.error || 'Failed to write text'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to write text' };
@@ -83,9 +85,9 @@ const POWERPOINT_READ_SLIDE_DEFINITION: ToolDefinition = {
       type: 'object',
       properties: {
         reason: { type: 'string', description: 'Why you are reading this slide' },
-        slide: { type: 'number', description: 'Slide number' },
+        slide_number: { type: 'number', description: 'Slide number' },
       },
-      required: ['reason', 'slide'],
+      required: ['reason', 'slide_number'],
     },
   },
 };
@@ -94,14 +96,15 @@ async function executePowerPointReadSlide(args: Record<string, unknown>): Promis
   const startTime = Date.now();
   logger.toolStart('powerpoint_read_slide', args);
   try {
-    const response = await powerpointClient.powerpointReadSlide(args['slide'] as number);
+    const slideNum = Number(args['slide_number']);
+    const response = await powerpointClient.powerpointReadSlide(slideNum);
     if (response.success) {
       const texts = response['texts'] as Array<{ shape_index: number; shape_name: string; text: string }> || [];
       const textContent = texts.map(t => `[Shape ${t.shape_index}] ${t.text}`).join('\n');
-      logger.toolSuccess('powerpoint_read_slide', args, { slide: args['slide'], shapeCount: response['shape_count'] }, Date.now() - startTime);
+      logger.toolSuccess('powerpoint_read_slide', args, { slideNumber: slideNum, shapeCount: response['shape_count'] }, Date.now() - startTime);
       return {
         success: true,
-        result: `Slide ${args['slide']} (${response['shape_count']} shapes):\n${textContent || '(no text content)'}`,
+        result: `Slide ${slideNum} (${response['shape_count']} shapes):\n${textContent || '(no text content)'}`,
       };
     }
     logger.toolError('powerpoint_read_slide', args, new Error(response.error || 'Failed to read slide'), Date.now() - startTime);
@@ -132,14 +135,14 @@ const POWERPOINT_ADD_TEXTBOX_DEFINITION: ToolDefinition = {
       type: 'object',
       properties: {
         reason: { type: 'string', description: 'Why you are adding a textbox' },
-        slide: { type: 'number', description: 'Slide number' },
+        slide_number: { type: 'number', description: 'Slide number' },
         text: { type: 'string', description: 'Text content' },
         left: { type: 'number', description: 'Left position in points (default: 100)' },
         top: { type: 'number', description: 'Top position in points (default: 100)' },
         width: { type: 'number', description: 'Width in points (default: 300)' },
         height: { type: 'number', description: 'Height in points (default: 50)' },
       },
-      required: ['reason', 'slide', 'text'],
+      required: ['reason', 'slide_number', 'text'],
     },
   },
 };
@@ -148,17 +151,18 @@ async function executePowerPointAddTextbox(args: Record<string, unknown>): Promi
   const startTime = Date.now();
   logger.toolStart('powerpoint_add_textbox', args);
   try {
+    const slideNum = Number(args['slide_number']);
     const response = await powerpointClient.powerpointAddTextbox(
-      args['slide'] as number,
+      slideNum,
       args['text'] as string,
-      args['left'] as number ?? 100,
-      args['top'] as number ?? 100,
-      args['width'] as number ?? 300,
-      args['height'] as number ?? 50
+      args['left'] != null ? Number(args['left']) : 100,
+      args['top'] != null ? Number(args['top']) : 100,
+      args['width'] != null ? Number(args['width']) : 300,
+      args['height'] != null ? Number(args['height']) : 50
     );
     if (response.success) {
-      logger.toolSuccess('powerpoint_add_textbox', args, { slide: args['slide'], shapeIndex: response['shape_index'] }, Date.now() - startTime);
-      return { success: true, result: `Textbox added to slide ${args['slide']} (shape index: ${response['shape_index']})` };
+      logger.toolSuccess('powerpoint_add_textbox', args, { slideNumber: slideNum, shapeIndex: response['shape_index'] }, Date.now() - startTime);
+      return { success: true, result: `Textbox added to slide ${slideNum} (shape index: ${response['shape_index']})` };
     }
     logger.toolError('powerpoint_add_textbox', args, new Error(response.error || 'Failed to add textbox'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to add textbox' };
@@ -188,15 +192,15 @@ const POWERPOINT_SET_FONT_DEFINITION: ToolDefinition = {
       type: 'object',
       properties: {
         reason: { type: 'string', description: 'Why you are setting font' },
-        slide: { type: 'number', description: 'Slide number' },
-        shape: { type: 'number', description: 'Shape index' },
+        slide_number: { type: 'number', description: 'Slide number' },
+        shape_index: { type: 'number', description: 'Shape index' },
         font_name: { type: 'string', description: 'Font name' },
         font_size: { type: 'number', description: 'Font size' },
         bold: { type: 'boolean', description: 'Bold text' },
         italic: { type: 'boolean', description: 'Italic text' },
         color: { type: 'string', description: 'Font color as hex' },
       },
-      required: ['reason', 'slide', 'shape'],
+      required: ['reason', 'slide_number', 'shape_index'],
     },
   },
 };
@@ -205,19 +209,21 @@ async function executePowerPointSetFont(args: Record<string, unknown>): Promise<
   const startTime = Date.now();
   logger.toolStart('powerpoint_set_font', args);
   try {
+    const slideNum = Number(args['slide_number']);
+    const shapeIndex = Number(args['shape_index']);
     const response = await powerpointClient.powerpointSetFont(
-      args['slide'] as number,
-      args['shape'] as number,
+      slideNum,
+      shapeIndex,
       {
         fontName: args['font_name'] as string | undefined,
-        fontSize: args['font_size'] as number | undefined,
-        bold: args['bold'] as boolean | undefined,
-        italic: args['italic'] as boolean | undefined,
+        fontSize: args['font_size'] != null ? Number(args['font_size']) : undefined,
+        bold: args['bold'] != null ? Boolean(args['bold']) : undefined,
+        italic: args['italic'] != null ? Boolean(args['italic']) : undefined,
         color: args['color'] as string | undefined,
       }
     );
     if (response.success) {
-      logger.toolSuccess('powerpoint_set_font', args, { slide: args['slide'], shape: args['shape'] }, Date.now() - startTime);
+      logger.toolSuccess('powerpoint_set_font', args, { slideNumber: slideNum, shapeIndex }, Date.now() - startTime);
       return { success: true, result: 'Font properties set' };
     }
     logger.toolError('powerpoint_set_font', args, new Error(response.error || 'Failed to set font'), Date.now() - startTime);
@@ -247,12 +253,13 @@ const POWERPOINT_SET_TEXT_ALIGNMENT_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are setting text alignment' },
         slide_number: { type: 'number', description: 'Slide number' },
         shape_index: { type: 'number', description: 'Shape index' },
         horizontal: { type: 'string', enum: ['left', 'center', 'right', 'justify'], description: 'Horizontal alignment' },
         vertical: { type: 'string', enum: ['top', 'middle', 'bottom'], description: 'Vertical alignment' },
       },
-      required: ['slide_number', 'shape_index', 'horizontal'],
+      required: ['reason', 'slide_number', 'shape_index', 'horizontal'],
     },
   },
 };
@@ -262,8 +269,8 @@ async function executePowerPointSetTextAlignment(args: Record<string, unknown>):
   logger.toolStart('powerpoint_set_text_alignment', args);
   try {
     const response = await powerpointClient.powerpointSetTextAlignment(
-      args['slide_number'] as number,
-      args['shape_index'] as number,
+      Number(args['slide_number']),
+      Number(args['shape_index']),
       args['horizontal'] as 'left' | 'center' | 'right' | 'justify',
       args['vertical'] as 'top' | 'middle' | 'bottom' | undefined
     );
@@ -298,12 +305,13 @@ const POWERPOINT_SET_BULLET_LIST_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are setting bullet list style' },
         slide_number: { type: 'number', description: 'Slide number' },
         shape_index: { type: 'number', description: 'Shape index' },
         bullet_type: { type: 'string', enum: ['none', 'bullet', 'numbered'], description: 'Bullet type' },
         bullet_char: { type: 'string', description: 'Custom bullet character (e.g., "•", "→")' },
       },
-      required: ['slide_number', 'shape_index', 'bullet_type'],
+      required: ['reason', 'slide_number', 'shape_index', 'bullet_type'],
     },
   },
 };
@@ -313,8 +321,8 @@ async function executePowerPointSetBulletList(args: Record<string, unknown>): Pr
   logger.toolStart('powerpoint_set_bullet_list', args);
   try {
     const response = await powerpointClient.powerpointSetBulletList(
-      args['slide_number'] as number,
-      args['shape_index'] as number,
+      Number(args['slide_number']),
+      Number(args['shape_index']),
       args['bullet_type'] as 'none' | 'bullet' | 'numbered',
       args['bullet_char'] as string | undefined
     );
@@ -349,13 +357,14 @@ const POWERPOINT_SET_LINE_SPACING_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are setting line spacing' },
         slide_number: { type: 'number', description: 'Slide number' },
         shape_index: { type: 'number', description: 'Shape index' },
         line_spacing: { type: 'number', description: 'Line spacing multiplier (e.g., 1.5 for 1.5x)' },
         space_after: { type: 'number', description: 'Space after paragraph in points' },
         space_before: { type: 'number', description: 'Space before paragraph in points' },
       },
-      required: ['slide_number', 'shape_index', 'line_spacing'],
+      required: ['reason', 'slide_number', 'shape_index', 'line_spacing'],
     },
   },
 };
@@ -365,11 +374,11 @@ async function executePowerPointSetLineSpacing(args: Record<string, unknown>): P
   logger.toolStart('powerpoint_set_line_spacing', args);
   try {
     const response = await powerpointClient.powerpointSetLineSpacing(
-      args['slide_number'] as number,
-      args['shape_index'] as number,
-      args['line_spacing'] as number,
-      args['space_after'] as number | undefined,
-      args['space_before'] as number | undefined
+      Number(args['slide_number']),
+      Number(args['shape_index']),
+      Number(args['line_spacing']),
+      args['space_after'] != null ? Number(args['space_after']) : undefined,
+      args['space_before'] != null ? Number(args['space_before']) : undefined
     );
     if (response.success) {
       logger.toolSuccess('powerpoint_set_line_spacing', args, { slideNumber: args['slide_number'], shapeIndex: args['shape_index'], lineSpacing: args['line_spacing'] }, Date.now() - startTime);
@@ -402,6 +411,7 @@ const POWERPOINT_SET_TEXTBOX_BORDER_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are setting textbox border' },
         slide_number: { type: 'number', description: 'Slide number' },
         shape_index: { type: 'number', description: 'Shape index' },
         color: { type: 'string', description: 'Border color (hex: #RRGGBB)' },
@@ -409,7 +419,7 @@ const POWERPOINT_SET_TEXTBOX_BORDER_DEFINITION: ToolDefinition = {
         style: { type: 'string', enum: ['solid', 'dash', 'dot'], description: 'Border style' },
         visible: { type: 'boolean', description: 'Border visibility (false to remove)' },
       },
-      required: ['slide_number', 'shape_index'],
+      required: ['reason', 'slide_number', 'shape_index'],
     },
   },
 };
@@ -419,13 +429,13 @@ async function executePowerPointSetTextboxBorder(args: Record<string, unknown>):
   logger.toolStart('powerpoint_set_textbox_border', args);
   try {
     const response = await powerpointClient.powerpointSetTextboxBorder(
-      args['slide_number'] as number,
-      args['shape_index'] as number,
+      Number(args['slide_number']),
+      Number(args['shape_index']),
       {
         color: args['color'] as string | undefined,
-        weight: args['weight'] as number | undefined,
+        weight: args['weight'] != null ? Number(args['weight']) : undefined,
         style: args['style'] as 'solid' | 'dash' | 'dot' | undefined,
-        visible: args['visible'] as boolean | undefined,
+        visible: args['visible'] != null ? Boolean(args['visible']) : undefined,
       }
     );
     if (response.success) {
@@ -459,13 +469,14 @@ const POWERPOINT_SET_TEXTBOX_FILL_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are setting textbox fill' },
         slide_number: { type: 'number', description: 'Slide number' },
         shape_index: { type: 'number', description: 'Shape index' },
         color: { type: 'string', description: 'Fill color (hex: #RRGGBB)' },
         transparency: { type: 'number', description: 'Transparency (0-100)' },
         visible: { type: 'boolean', description: 'Fill visibility (false to remove)' },
       },
-      required: ['slide_number', 'shape_index'],
+      required: ['reason', 'slide_number', 'shape_index'],
     },
   },
 };
@@ -475,12 +486,12 @@ async function executePowerPointSetTextboxFill(args: Record<string, unknown>): P
   logger.toolStart('powerpoint_set_textbox_fill', args);
   try {
     const response = await powerpointClient.powerpointSetTextboxFill(
-      args['slide_number'] as number,
-      args['shape_index'] as number,
+      Number(args['slide_number']),
+      Number(args['shape_index']),
       {
         color: args['color'] as string | undefined,
-        transparency: args['transparency'] as number | undefined,
-        visible: args['visible'] as boolean | undefined,
+        transparency: args['transparency'] != null ? Number(args['transparency']) : undefined,
+        visible: args['visible'] != null ? Boolean(args['visible']) : undefined,
       }
     );
     if (response.success) {
@@ -503,6 +514,60 @@ export const powerpointSetTextboxFillTool: LLMSimpleTool = {
 };
 
 // =============================================================================
+// PowerPoint Find Replace Text
+// =============================================================================
+
+const POWERPOINT_FIND_REPLACE_TEXT_DEFINITION: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'powerpoint_find_replace_text',
+    description: `Find and replace text in the presentation.`,
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: { type: 'string', description: 'Why you are finding and replacing text' },
+        find_text: { type: 'string', description: 'Text to find' },
+        replace_text: { type: 'string', description: 'Text to replace with' },
+        slide_number: { type: 'number', description: 'Specific slide (optional, default: all slides)' },
+        match_case: { type: 'boolean', description: 'Case-sensitive match (default: false)' },
+      },
+      required: ['reason', 'find_text', 'replace_text'],
+    },
+  },
+};
+
+async function executePowerPointFindReplaceText(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('powerpoint_find_replace_text', args);
+  try {
+    const response = await powerpointClient.powerpointFindReplaceText(
+      args['find_text'] as string,
+      args['replace_text'] as string,
+      {
+        slideNumber: args['slide_number'] != null ? Number(args['slide_number']) : undefined,
+        matchCase: args['match_case'] != null ? Boolean(args['match_case']) : undefined,
+      }
+    );
+    if (response.success) {
+      logger.toolSuccess('powerpoint_find_replace_text', args, { replacements: response['replacements'] }, Date.now() - startTime);
+      return { success: true, result: response.message || `Replaced ${response['replacements']} occurrence(s)` };
+    }
+    logger.toolError('powerpoint_find_replace_text', args, new Error(response.error || 'Failed to find/replace text'), Date.now() - startTime);
+    return { success: false, error: response.error || 'Failed to find/replace text' };
+  } catch (error) {
+    logger.toolError('powerpoint_find_replace_text', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
+    return { success: false, error: `Failed to find/replace text: ${error instanceof Error ? error.message : String(error)}` };
+  }
+}
+
+export const powerpointFindReplaceTextTool: LLMSimpleTool = {
+  definition: POWERPOINT_FIND_REPLACE_TEXT_DEFINITION,
+  execute: executePowerPointFindReplaceText,
+  categories: OFFICE_CATEGORIES,
+  description: 'Find and replace text',
+};
+
+// =============================================================================
 // Export
 // =============================================================================
 
@@ -516,4 +581,5 @@ export const textTools: LLMSimpleTool[] = [
   powerpointSetLineSpacingTool,
   powerpointSetTextboxBorderTool,
   powerpointSetTextboxFillTool,
+  powerpointFindReplaceTextTool,
 ];

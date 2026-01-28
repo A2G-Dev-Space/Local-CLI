@@ -19,17 +19,17 @@ const POWERPOINT_ADD_ANIMATION_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'powerpoint_add_animation',
-    description: `Add animation effect to a shape. Effects: fade, fly_in, zoom, wipe, appear.`,
+    description: `Add animation effect to a shape.`,
     parameters: {
       type: 'object',
       properties: {
         reason: { type: 'string', description: 'Why you are adding animation' },
-        slide: { type: 'number', description: 'Slide number' },
-        shape: { type: 'number', description: 'Shape index' },
-        effect: { type: 'string', description: 'Animation effect (fade, fly_in, zoom, wipe, appear)' },
-        trigger: { type: 'string', enum: ['on_click', 'with_previous', 'after_previous'], description: 'Animation trigger' },
+        slide_number: { type: 'number', description: 'Slide number' },
+        shape_index: { type: 'number', description: 'Shape index' },
+        effect: { type: 'string', enum: ['fade', 'fly_in', 'zoom', 'wipe', 'appear'], description: 'Animation effect (default: fade)' },
+        trigger: { type: 'string', enum: ['on_click', 'with_previous', 'after_previous'], description: 'Animation trigger (default: on_click)' },
       },
-      required: ['reason', 'slide', 'shape'],
+      required: ['reason', 'slide_number', 'shape_index'],
     },
   },
 };
@@ -38,14 +38,16 @@ async function executePowerPointAddAnimation(args: Record<string, unknown>): Pro
   const startTime = Date.now();
   logger.toolStart('powerpoint_add_animation', args);
   try {
+    const slideNum = Number(args['slide_number']);
+    const shapeIndex = Number(args['shape_index']);
     const response = await powerpointClient.powerpointAddAnimation(
-      args['slide'] as number,
-      args['shape'] as number,
-      args['effect'] as string ?? 'fade',
-      args['trigger'] as string ?? 'on_click'
+      slideNum,
+      shapeIndex,
+      (args['effect'] as string) ?? 'fade',
+      (args['trigger'] as string) ?? 'on_click'
     );
     if (response.success) {
-      logger.toolSuccess('powerpoint_add_animation', args, { slide: args['slide'], shape: args['shape'], effect: args['effect'] }, Date.now() - startTime);
+      logger.toolSuccess('powerpoint_add_animation', args, { slideNumber: slideNum, shapeIndex, effect: args['effect'] }, Date.now() - startTime);
       return { success: true, result: 'Animation added' };
     }
     logger.toolError('powerpoint_add_animation', args, new Error(response.error || 'Failed to add animation'), Date.now() - startTime);
@@ -76,11 +78,11 @@ const POWERPOINT_SET_TRANSITION_DEFINITION: ToolDefinition = {
       type: 'object',
       properties: {
         reason: { type: 'string', description: 'Why you are setting transition' },
-        slide: { type: 'number', description: 'Slide number' },
+        slide_number: { type: 'number', description: 'Slide number' },
         transition: { type: 'string', enum: ['fade', 'push', 'wipe', 'split', 'reveal', 'random'], description: 'Transition type' },
         duration: { type: 'number', description: 'Transition duration in seconds (default: 1)' },
       },
-      required: ['reason', 'slide'],
+      required: ['reason', 'slide_number'],
     },
   },
 };
@@ -89,14 +91,15 @@ async function executePowerPointSetTransition(args: Record<string, unknown>): Pr
   const startTime = Date.now();
   logger.toolStart('powerpoint_set_transition', args);
   try {
+    const slideNum = Number(args['slide_number']);
     const response = await powerpointClient.powerpointSetTransition(
-      args['slide'] as number,
-      args['transition'] as 'fade' | 'push' | 'wipe' | 'split' | 'reveal' | 'random' ?? 'fade',
-      args['duration'] as number ?? 1
+      slideNum,
+      (args['transition'] as 'fade' | 'push' | 'wipe' | 'split' | 'reveal' | 'random') ?? 'fade',
+      args['duration'] != null ? Number(args['duration']) : 1
     );
     if (response.success) {
-      logger.toolSuccess('powerpoint_set_transition', args, { slide: args['slide'], transition: args['transition'] }, Date.now() - startTime);
-      return { success: true, result: `Transition set for slide ${args['slide']}` };
+      logger.toolSuccess('powerpoint_set_transition', args, { slideNumber: slideNum, transition: args['transition'] }, Date.now() - startTime);
+      return { success: true, result: `Transition set for slide ${slideNum}` };
     }
     logger.toolError('powerpoint_set_transition', args, new Error(response.error || 'Failed to set transition'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to set transition' };
@@ -121,16 +124,16 @@ const POWERPOINT_SET_BACKGROUND_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'powerpoint_set_background',
-    description: `Set slide background color or image.`,
+    description: `Set slide background. Use either color OR image, not both. If both provided, color takes priority.`,
     parameters: {
       type: 'object',
       properties: {
         reason: { type: 'string', description: 'Why you are setting background' },
-        slide: { type: 'number', description: 'Slide number' },
-        color: { type: 'string', description: 'Background color as hex (e.g., "#FFFFFF")' },
-        image: { type: 'string', description: 'Background image file path' },
+        slide_number: { type: 'number', description: 'Slide number' },
+        color: { type: 'string', description: 'Solid background color as hex (e.g., "#FFFFFF"). Takes priority over image.' },
+        image: { type: 'string', description: 'Background image file path. WSL paths are auto-converted.' },
       },
-      required: ['reason', 'slide'],
+      required: ['reason', 'slide_number'],
     },
   },
 };
@@ -139,16 +142,17 @@ async function executePowerPointSetBackground(args: Record<string, unknown>): Pr
   const startTime = Date.now();
   logger.toolStart('powerpoint_set_background', args);
   try {
+    const slideNum = Number(args['slide_number']);
     const response = await powerpointClient.powerpointSetBackground(
-      args['slide'] as number,
+      slideNum,
       {
         color: args['color'] as string | undefined,
         imagePath: args['image'] as string | undefined,
       }
     );
     if (response.success) {
-      logger.toolSuccess('powerpoint_set_background', args, { slide: args['slide'] }, Date.now() - startTime);
-      return { success: true, result: `Background set for slide ${args['slide']}` };
+      logger.toolSuccess('powerpoint_set_background', args, { slideNumber: slideNum }, Date.now() - startTime);
+      return { success: true, result: `Background set for slide ${slideNum}` };
     }
     logger.toolError('powerpoint_set_background', args, new Error(response.error || 'Failed to set background'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to set background' };
@@ -177,6 +181,7 @@ const POWERPOINT_SET_SHADOW_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are setting shadow effect' },
         slide_number: { type: 'number', description: 'Slide number' },
         shape_index: { type: 'number', description: 'Shape index' },
         visible: { type: 'boolean', description: 'Shadow visibility' },
@@ -187,7 +192,7 @@ const POWERPOINT_SET_SHADOW_DEFINITION: ToolDefinition = {
         offset_y: { type: 'number', description: 'Vertical offset' },
         transparency: { type: 'number', description: 'Transparency (0-100)' },
       },
-      required: ['slide_number', 'shape_index'],
+      required: ['reason', 'slide_number', 'shape_index'],
     },
   },
 };
@@ -197,16 +202,16 @@ async function executePowerPointSetShadow(args: Record<string, unknown>): Promis
   logger.toolStart('powerpoint_set_shadow', args);
   try {
     const response = await powerpointClient.powerpointSetShadow(
-      args['slide_number'] as number,
-      args['shape_index'] as number,
+      Number(args['slide_number']),
+      Number(args['shape_index']),
       {
-        visible: args['visible'] as boolean | undefined,
+        visible: args['visible'] != null ? Boolean(args['visible']) : undefined,
         type: args['type'] as 'outer' | 'inner' | undefined,
         color: args['color'] as string | undefined,
-        blur: args['blur'] as number | undefined,
-        offsetX: args['offset_x'] as number | undefined,
-        offsetY: args['offset_y'] as number | undefined,
-        transparency: args['transparency'] as number | undefined,
+        blur: args['blur'] != null ? Number(args['blur']) : undefined,
+        offsetX: args['offset_x'] != null ? Number(args['offset_x']) : undefined,
+        offsetY: args['offset_y'] != null ? Number(args['offset_y']) : undefined,
+        transparency: args['transparency'] != null ? Number(args['transparency']) : undefined,
       }
     );
     if (response.success) {
@@ -236,20 +241,21 @@ const POWERPOINT_SET_REFLECTION_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'powerpoint_set_reflection',
-    description: `Set reflection effect on a shape.`,
+    description: `Set reflection effect on a shape. Reflection creates a mirror image below the shape.`,
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are setting reflection effect' },
         slide_number: { type: 'number', description: 'Slide number' },
         shape_index: { type: 'number', description: 'Shape index' },
-        visible: { type: 'boolean', description: 'Reflection visibility' },
-        type: { type: 'number', description: 'Reflection type (1-9)' },
-        blur: { type: 'number', description: 'Blur amount' },
-        offset: { type: 'number', description: 'Offset from shape' },
-        size: { type: 'number', description: 'Reflection size percentage' },
-        transparency: { type: 'number', description: 'Transparency (0-100)' },
+        visible: { type: 'boolean', description: 'Reflection visibility (true to show, false to hide)' },
+        type: { type: 'number', description: 'Reflection preset (1=Tight, 2=Half, 3=Full, 4-6=Tight/Half/Full Touching, 7-9=Tight/Half/Full Offset)' },
+        blur: { type: 'number', description: 'Blur amount in points' },
+        offset: { type: 'number', description: 'Offset distance from shape in points' },
+        size: { type: 'number', description: 'Reflection size as percentage (0-100)' },
+        transparency: { type: 'number', description: 'Transparency percentage (0=opaque, 100=invisible)' },
       },
-      required: ['slide_number', 'shape_index'],
+      required: ['reason', 'slide_number', 'shape_index'],
     },
   },
 };
@@ -259,15 +265,15 @@ async function executePowerPointSetReflection(args: Record<string, unknown>): Pr
   logger.toolStart('powerpoint_set_reflection', args);
   try {
     const response = await powerpointClient.powerpointSetReflection(
-      args['slide_number'] as number,
-      args['shape_index'] as number,
+      Number(args['slide_number']),
+      Number(args['shape_index']),
       {
-        visible: args['visible'] as boolean | undefined,
-        type: args['type'] as number | undefined,
-        blur: args['blur'] as number | undefined,
-        offset: args['offset'] as number | undefined,
-        size: args['size'] as number | undefined,
-        transparency: args['transparency'] as number | undefined,
+        visible: args['visible'] != null ? Boolean(args['visible']) : undefined,
+        type: args['type'] != null ? Number(args['type']) : undefined,
+        blur: args['blur'] != null ? Number(args['blur']) : undefined,
+        offset: args['offset'] != null ? Number(args['offset']) : undefined,
+        size: args['size'] != null ? Number(args['size']) : undefined,
+        transparency: args['transparency'] != null ? Number(args['transparency']) : undefined,
       }
     );
     if (response.success) {
@@ -297,13 +303,14 @@ const POWERPOINT_APPLY_THEME_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'powerpoint_apply_theme',
-    description: `Apply a theme to the presentation.`,
+    description: `Apply a theme file (.thmx) to the presentation. Note: Built-in themes are not supported; you must provide a .thmx file path. WSL paths are auto-converted.`,
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are applying a theme' },
         theme_path: { type: 'string', description: 'Path to theme file (.thmx)' },
       },
-      required: ['theme_path'],
+      required: ['reason', 'theme_path'],
     },
   },
 };

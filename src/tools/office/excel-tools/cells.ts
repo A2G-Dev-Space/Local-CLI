@@ -325,7 +325,7 @@ async function executeExcelClearRange(args: Record<string, unknown>): Promise<To
   try {
     const response = await excelClient.excelClearRange(
       args['range'] as string,
-      args['clear_type'] as 'all' | 'contents' | 'formats' | 'comments' ?? 'all',
+      (args['clear_type'] ?? 'all') as 'all' | 'contents' | 'formats' | 'comments',
       args['sheet'] as string | undefined
     );
     if (response.success) {

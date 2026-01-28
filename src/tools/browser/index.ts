@@ -26,11 +26,20 @@ export {
   browserClickTool,
   browserFillTool,
   browserGetTextTool,
-  browserGetContentTool,
+  browserGetHtmlTool,
   browserGetConsoleTool,
   browserGetNetworkTool,
+  browserBringToFrontTool,
   browserFocusTool,
+  browserPressKeyTool,
+  browserTypeTool,
+  browserExecuteScriptTool,
   browserCloseTool,
+  browserWaitTool,
+  browserConnectTool,
+  browserGetHealthTool,
+  browserGetPageInfoTool,
+  browserSendTool,
 } from './browser-tools.js';
 
 /**

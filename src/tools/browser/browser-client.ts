@@ -59,6 +59,15 @@ interface PageInfoResponse extends BrowserResponse {
   url?: string;
   title?: string;
   html?: string;
+  domain?: string;
+  protocol?: string;
+  pathname?: string;
+  readyState?: string;
+  bodyLength?: number;
+  linkCount?: number;
+  imageCount?: number;
+  formCount?: number;
+  inputCount?: number;
 }
 
 interface ConsoleLogEntry {
@@ -918,22 +927,26 @@ class BrowserClient {
   }
 
   /**
-   * Get element text
+   * Get element or page text
    */
-  async getText(selector: string): Promise<BrowserResponse> {
+  async getText(selector?: string): Promise<BrowserResponse> {
     try {
       if (!this.cdp || !this.cdp.isConnected()) {
         return { success: false, error: 'Browser not running. Use launch first.' };
       }
 
-      const result = await this.cdp.send('Runtime.evaluate', {
-        expression: `
+      const expression = selector
+        ? `
           (function() {
             const el = document.querySelector(${JSON.stringify(selector)});
-            if (!el) return { success: false, error: 'Element not found' };
+            if (!el) return { success: false, error: 'Element not found: ${selector}' };
             return { success: true, text: el.textContent || '' };
           })()
-        `,
+        `
+        : `({ success: true, text: document.body.innerText || '' })`;
+
+      const result = await this.cdp.send('Runtime.evaluate', {
+        expression,
         returnByValue: true,
       }) as { result: { value: { success: boolean; text?: string; error?: string } } };
 
@@ -968,13 +981,29 @@ class BrowserClient {
         return { success: false, error: 'Browser not running. Use launch first.' };
       }
 
-      const pageInfo = await this.getCurrentPageInfo();
+      const result = await this.cdp.send('Runtime.evaluate', {
+        expression: `JSON.stringify({
+          url: window.location.href,
+          title: document.title,
+          domain: window.location.hostname,
+          protocol: window.location.protocol,
+          pathname: window.location.pathname,
+          readyState: document.readyState,
+          bodyLength: document.body?.innerHTML.length || 0,
+          linkCount: document.querySelectorAll('a').length,
+          imageCount: document.querySelectorAll('img').length,
+          formCount: document.querySelectorAll('form').length,
+          inputCount: document.querySelectorAll('input').length,
+        })`,
+        returnByValue: true,
+      }) as { result: { value: string } };
+
+      const pageInfo = JSON.parse(result.result.value);
 
       return {
         success: true,
         message: 'Page info retrieved',
-        url: pageInfo.url,
-        title: pageInfo.title,
+        ...pageInfo,
       };
     } catch (error) {
       return {
@@ -1355,6 +1384,107 @@ class BrowserClient {
    */
   getServerUrl(): string {
     return this.getCDPUrl();
+  }
+
+  /**
+   * Connect to an existing browser with CDP port
+   */
+  async connect(port?: number): Promise<BrowserResponse> {
+    try {
+      if (port) this.cdpPort = port;
+
+      if (!(await this.isCDPAvailable())) {
+        return { success: false, error: `No browser found on port ${this.cdpPort}` };
+      }
+
+      const targets = await this.getTargets();
+      const pageTarget = targets.find(t => t.type === 'page');
+
+      if (!pageTarget) {
+        return { success: false, error: 'No page target found' };
+      }
+
+      if (this.cdp) {
+        this.cdp.close();
+      }
+
+      this.cdp = new CDPConnection();
+      await this.cdp.connect(pageTarget.webSocketDebuggerUrl);
+      await this.cdp.send('Page.enable');
+
+      // Setup logging
+      this.consoleLogs = [];
+      this.networkLogs = [];
+      this.setupLogging();
+
+      return {
+        success: true,
+        message: 'Connected to existing browser',
+        url: pageTarget.url,
+        title: pageTarget.title,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: 'Failed to connect to browser',
+        details: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  /**
+   * Send raw CDP command
+   */
+  async send(method: string, params?: Record<string, unknown>): Promise<BrowserResponse> {
+    try {
+      if (!this.cdp || !this.cdp.isConnected()) {
+        return { success: false, error: 'Browser not running. Use launch first.' };
+      }
+
+      const result = await this.cdp.send(method, params);
+      return { success: true, message: 'Command sent', result };
+    } catch (error) {
+      return {
+        success: false,
+        error: 'Failed to send CDP command',
+        details: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  /**
+   * Focus element by selector (DOM element focus)
+   */
+  async focusElement(selector: string): Promise<BrowserResponse> {
+    try {
+      if (!this.cdp || !this.cdp.isConnected()) {
+        return { success: false, error: 'Browser not running. Use launch first.' };
+      }
+
+      const result = await this.cdp.send('Runtime.evaluate', {
+        expression: `
+          (function() {
+            const el = document.querySelector(${JSON.stringify(selector)});
+            if (!el) return { success: false, error: 'Element not found' };
+            el.focus();
+            return { success: true };
+          })()
+        `,
+        returnByValue: true,
+      }) as { result: { value: { success: boolean; error?: string } } };
+
+      if (!result.result.value.success) {
+        return { success: false, error: result.result.value.error || 'Focus failed' };
+      }
+
+      return { success: true, message: 'Element focused', selector };
+    } catch (error) {
+      return {
+        success: false,
+        error: 'Failed to focus element',
+        details: error instanceof Error ? error.message : String(error),
+      };
+    }
   }
 }
 
