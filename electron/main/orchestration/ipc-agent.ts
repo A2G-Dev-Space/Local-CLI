@@ -268,6 +268,18 @@ export async function runAgent(
         llmClient,
         () => toolRegistry.getToolSummaryForPlanning()
       );
+
+      // Set ask-user callback for Planning LLM (enables ask_to_user during planning)
+      planningLLM.setAskUserCallback(async (request: AskUserRequest) => {
+        if (callbacks.onAskUser) {
+          return callbacks.onAskUser(request);
+        }
+        return {
+          selectedOption: request.options[0],
+          isOther: false,
+        };
+      });
+
       const planningResult = await planningLLM.generateTODOListWithDocsDecision(
         userMessage,
         existingMessages
@@ -341,8 +353,13 @@ export async function runAgent(
   // Chat 로그: 사용자 입력
   logger.info('[CHAT] User message', { content: userMessage.substring(0, 500) });
 
+  // Send user message to renderer and callbacks
+  const userMessageObj = { role: 'user' as const, content: userMessage };
   if (callbacks.onMessage) {
-    callbacks.onMessage({ role: 'user', content: userMessage });
+    callbacks.onMessage(userMessageObj);
+  }
+  if (state.mainWindow) {
+    state.mainWindow.webContents.send('agent:message', userMessageObj);
   }
 
   // Tool call history
