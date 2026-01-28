@@ -12,6 +12,10 @@ export default defineConfig({
         input: {
           index: resolve(__dirname, 'electron/main/index.ts'),
         },
+        output: {
+          format: 'cjs',
+          entryFileNames: 'index.cjs',
+        },
       },
     },
     resolve: {
