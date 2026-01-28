@@ -1499,9 +1499,33 @@ export function setupIpcHandlers(): void {
   });
 
   // 사용자 질문 응답 (ask_to_user 도구 응답)
-  ipcMain.handle('agent:respondToQuestion', (_event, response: AskUserResponse) => {
+  // NOTE: renderer sends selectedOption as { label, value } object but main expects string
+  ipcMain.handle('agent:respondToQuestion', (_event, response: unknown) => {
     if (pendingAskUserResolve) {
-      pendingAskUserResolve(response);
+      // Normalize response: convert object format to string format
+      const rawResponse = response as {
+        selectedOption: string | { label?: string; value?: string };
+        isOther: boolean;
+        customText?: string;
+      };
+
+      const normalizedResponse: AskUserResponse = {
+        selectedOption:
+          typeof rawResponse.selectedOption === 'string'
+            ? rawResponse.selectedOption
+            : rawResponse.selectedOption?.value ||
+              rawResponse.selectedOption?.label ||
+              '',
+        isOther: rawResponse.isOther,
+        customText: rawResponse.customText,
+      };
+
+      logger.debug('Ask user response normalized', {
+        original: rawResponse.selectedOption,
+        normalized: normalizedResponse.selectedOption,
+      });
+
+      pendingAskUserResolve(normalizedResponse);
       pendingAskUserResolve = null;
     }
     return { success: true };

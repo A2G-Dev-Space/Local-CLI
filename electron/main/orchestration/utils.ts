@@ -168,7 +168,48 @@ export function markTodoFailed(todos: TodoItem[], todoId: string, note?: string)
 // =============================================================================
 
 /**
+ * Sanitize reason field to remove XML artifacts from malformed LLM responses
+ * Some LLMs mix XML parameter syntax into JSON argument values
+ *
+ * Example malformed:
+ *   "reason": "목차 정렬합니다.\"\n<parameter name=\"alignment\">left"
+ * Should become:
+ *   "reason": "목차 정렬합니다."
+ */
+function sanitizeReason(reason: unknown): string {
+  if (typeof reason !== 'string') {
+    return String(reason || '');
+  }
+
+  let sanitized = reason;
+
+  // Remove XML parameter tags: <parameter name="...">...</parameter> or <parameter name="...">
+  sanitized = sanitized.replace(/<parameter\s+name\s*=\s*["'][^"']*["']>[^<]*/gi, '');
+  sanitized = sanitized.replace(/<\/parameter>/gi, '');
+
+  // Remove xAI function call tags
+  sanitized = sanitized.replace(/<xai:function_call[^>]*>[\s\S]*?<\/xai:function_call>/gi, '');
+  sanitized = sanitized.replace(/<xai:function_call[^>]*>/gi, '');
+  sanitized = sanitized.replace(/<\/xai:function_call>/gi, '');
+
+  // Remove other common XML tool call artifacts
+  sanitized = sanitized.replace(/<tool_call>[\s\S]*?<\/tool_call>/gi, '');
+  sanitized = sanitized.replace(/<arg_key>[^<]*<\/arg_key>/gi, '');
+  sanitized = sanitized.replace(/<arg_value>[^<]*<\/arg_value>/gi, '');
+
+  // Clean up trailing escaped quotes and newlines from truncated XML
+  sanitized = sanitized.replace(/\\"\s*$/, '');
+  sanitized = sanitized.replace(/\s*\\n\s*$/, '');
+
+  // Trim whitespace
+  sanitized = sanitized.trim();
+
+  return sanitized;
+}
+
+/**
  * Parse tool arguments from JSON string
+ * Also sanitizes the 'reason' field to remove XML artifacts
  */
 export function parseToolArguments(argsString: string): Record<string, unknown> {
   if (!argsString || argsString.trim() === '') {
@@ -180,6 +221,12 @@ export function parseToolArguments(argsString: string): Record<string, unknown> 
     if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
       throw new Error('Arguments must be an object');
     }
+
+    // Sanitize reason field if present (removes XML artifacts from malformed LLM responses)
+    if ('reason' in parsed && parsed.reason) {
+      parsed.reason = sanitizeReason(parsed.reason);
+    }
+
     return parsed;
   } catch (error) {
     throw new Error(

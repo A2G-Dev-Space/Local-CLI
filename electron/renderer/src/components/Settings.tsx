@@ -361,8 +361,8 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="settings-backdrop" onClick={onClose}>
-      <div className="settings-dialog" onClick={(e) => e.stopPropagation()}>
+    <div className="settings-backdrop">
+      <div className="settings-dialog">
         {/* Header */}
         <div className="settings-header">
           <div className="settings-title">

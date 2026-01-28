@@ -214,13 +214,38 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
+  // Track if we're programmatically updating messages (sending or clearing)
+  // This prevents session change effect from overwriting our messages
+  const skipSessionLoadRef = useRef(false);
+
+  // Refs for session/onSessionChange to avoid stale closures in async callbacks
+  // sendMessage is async and agent.run() can take a long time - session may change during execution
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
+  const onSessionChangeRef = useRef(onSessionChange);
+  onSessionChangeRef.current = onSessionChange;
+
   // Load session messages when session changes
+  // Skip if we're programmatically updating messages
   useEffect(() => {
+    // Don't reset messages during send/clear operations
+    if (skipSessionLoadRef.current) {
+      return;
+    }
+
     setIsBatchLoad(true); // Disable animation for batch load
     if (session && session.messages.length > 0) {
       setMessages(session.messages);
     } else {
-      setMessages([WELCOME_MESSAGE]);
+      // Only show welcome message if we don't have any messages yet
+      // This prevents overwriting "Chat cleared" message with welcome message
+      setMessages(prev => {
+        // Keep current messages if they exist (e.g., "Chat cleared" message)
+        if (prev.length > 0 && prev[0].id !== 'welcome') {
+          return prev;
+        }
+        return [WELCOME_MESSAGE];
+      });
     }
     // Reset windowing state when session changes
     setShowAllMessages(false);
@@ -346,6 +371,9 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
   const sendMessage = useCallback(async () => {
     if (!input.trim() || isLoading) return;
 
+    // Mark to skip session load effect (prevents user message from disappearing)
+    skipSessionLoadRef.current = true;
+
     const userMessage: ChatMessage = {
       id: `user-${Date.now()}`,
       role: 'user',
@@ -371,19 +399,21 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
     clearProgressMessages();
 
     // Auto-create session if none exists
-    if (!session && window.electronAPI?.session) {
+    if (!sessionRef.current && window.electronAPI?.session) {
       try {
         const result = await window.electronAPI.session.create('New Chat', currentDirectory);
-        if (result.success && result.session && onSessionChange) {
-          onSessionChange(result.session);
+        if (result.success && result.session && onSessionChangeRef.current) {
+          onSessionChangeRef.current(result.session);
         }
       } catch (error) {
         window.electronAPI?.log?.error('[ChatPanel] Failed to create session', { error: error instanceof Error ? error.message : String(error) });
       }
     }
 
-    // Save user message
+    // Save user message first, then allow session effect to run
     await saveMessageToSession(userMessage);
+    // Now safe to allow session loading
+    skipSessionLoadRef.current = false;
 
     // Check if agent API is available
     if (!window.electronAPI?.agent) {
@@ -421,6 +451,36 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
         conversationMessages,
         agentConfig
       );
+
+      // Save all messages (including tool messages) to session for proper compact support
+      // result.messages includes: user, assistant (with tool_calls), tool responses
+      // Works for both success AND abort - agent returns accumulated messages in both cases
+      // Use refs to avoid stale closure (agent.run can take a long time)
+      const currentSession = sessionRef.current;
+      const currentOnSessionChange = onSessionChangeRef.current;
+      if (result.messages && result.messages.length > 0 && currentSession && currentOnSessionChange) {
+        const updatedMessages: ChatMessage[] = result.messages.map((m, idx) => ({
+          id: `msg-${Date.now()}-${idx}`,
+          role: m.role as 'user' | 'assistant' | 'system' | 'tool',
+          content: m.content || '',
+          tool_calls: (m as any).tool_calls,
+          tool_call_id: (m as any).tool_call_id,
+          timestamp: Date.now(),
+        }));
+
+        const updatedSession: Session = {
+          ...currentSession,
+          messages: updatedMessages,
+          updatedAt: Date.now(),
+        };
+
+        // Save to backend AND update React state so compact can access them
+        if (window.electronAPI?.session) {
+          await window.electronAPI.session.save(updatedSession);
+        }
+        // Update session prop so compact handler can read session.messages
+        currentOnSessionChange(updatedSession);
+      }
 
       if (!result.success && result.error) {
         window.electronAPI?.log?.error('[ChatPanel] Agent error', { error: result.error });
@@ -506,9 +566,18 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
   const handleCompact = useCallback(async () => {
     if (!window.electronAPI?.compact || isCompacting || isLoading) return;
 
-    const checkResult = await window.electronAPI.compact.canCompact(
-      messages.map(m => ({ role: m.role, content: m.content }))
-    );
+    // Use session.messages which includes tool messages (not just UI messages)
+    // This ensures tool call history is considered for compaction
+    // Note: empty array is truthy, so use length check to fall back to UI messages
+    const sessionMessages = (session?.messages && session.messages.length > 0) ? session.messages : messages;
+    const messagesForCompact = sessionMessages.map(m => ({
+      role: m.role as 'user' | 'assistant' | 'system' | 'tool',
+      content: m.content,
+      tool_calls: (m as any).tool_calls,
+      tool_call_id: (m as any).tool_call_id,
+    }));
+
+    const checkResult = await window.electronAPI.compact.canCompact(messagesForCompact);
 
     if (!checkResult.canCompact) {
       const errorMessage: ChatMessage = {
@@ -525,7 +594,7 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
 
     try {
       const result = await window.electronAPI.compact.execute(
-        messages.map(m => ({ role: m.role as 'user' | 'assistant' | 'system' | 'tool', content: m.content })),
+        messagesForCompact,
         { workingDirectory: currentDirectory }
       );
 
@@ -589,6 +658,10 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
       await window.electronAPI.agent.abort();
     }
 
+    // Skip session load effect to prevent overwriting our cleared message
+    // Keep it true until all session changes settle (prevents flickering)
+    skipSessionLoadRef.current = true;
+
     setIsBatchLoad(true);
     setMessages([
       {
@@ -620,8 +693,16 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
       }
     }
 
-    onClearSession?.();
-  }, [session, onSessionChange, onClearSession, isExecuting, clearTodos, clearProgressMessages, clearToolExecutions, setIsExecuting]);
+    // DO NOT call onClearSession here - it creates a circular call loop:
+    // BottomPanel click → onClearSession → App.handleClearSession → chatPanelRef.clear()
+    // → handleClear → onClearSession() → handleClearSession → clear() → infinite loop
+    // The parent already knows about the clear since it initiated it via ref.
+
+    // Reset skipSessionLoadRef after a delay to allow session state changes to settle
+    setTimeout(() => {
+      skipSessionLoadRef.current = false;
+    }, 500);
+  }, [session, onSessionChange, isExecuting, clearTodos, clearProgressMessages, clearToolExecutions, setIsExecuting]);
 
   // Expose methods via ref
   useImperativeHandle(ref, () => ({

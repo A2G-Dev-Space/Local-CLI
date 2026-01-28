@@ -90,9 +90,22 @@
   animation: none !important;
 }
 
+/* User messages appear instantly without fade animation */
 .chat-message.user {
   flex-direction: row-reverse;
   justify-content: flex-start;
+  animation: userMessageIn 150ms ease-out;
+}
+
+@keyframes userMessageIn {
+  from {
+    transform: translateY(8px);
+    opacity: 0.8;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 .chat-message.system {
@@ -321,6 +334,14 @@
 }
 
 /* ============ Typing Indicator ============ */
+
+/* Loading message appears after user message with slight delay */
+.chat-message.loading {
+  animation: slideInUp var(--transition-smooth);
+  animation-delay: 100ms;
+  animation-fill-mode: backwards;
+}
+
 .typing-indicator {
   display: flex;
   gap: 4px;

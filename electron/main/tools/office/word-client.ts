@@ -57,31 +57,46 @@ $doc = $word.Documents.Add()
     // Default to true: add paragraph break after writing (prevents formatting bleed)
     const newParagraph = options?.newParagraph !== false;
 
+    // For Korean text, use Base64 encoding to prevent encoding issues
     // Split text by \n (both literal \n and actual newline) and generate TypeText + TypeParagraph
-    // This properly converts \n to actual line breaks in Word
     const lines = text.split(/\\n|\n/);
     const typeCommands = lines.map((line, index) => {
-      const escapedLine = line.replace(/'/g, "''").replace(/`/g, '``');
       const isLastLine = index === lines.length - 1;
-      // TypeText for the line, then TypeParagraph if not the last line
-      if (isLastLine) {
-        return `$selection.TypeText('${escapedLine}')`;
+      // Use Base64 encoding for safe Unicode/Korean transfer
+      const base64Line = this.encodeTextForPowerShell(line);
+      const decodeExpr = `[System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${base64Line}'))`;
+
+      if (isLastLine && !newParagraph) {
+        return `$selection.TypeText(${decodeExpr})`;
       } else {
-        return `$selection.TypeText('${escapedLine}')\n$selection.TypeParagraph()`;
+        return `$selection.TypeText(${decodeExpr})\n$selection.TypeParagraph()`;
       }
     }).join('\n');
 
+    // Set font BEFORE typing, then apply to typed range AFTER for reliable Korean rendering
     return this.executePowerShell(`
 $word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
+$doc = $word.ActiveDocument
 $selection = $word.Selection
 
-${fontName ? `$selection.Font.Name = '${fontName}'` : ''}
+# Remember start position
+$startPos = $selection.Range.Start
+
+# Set all formatting BEFORE typing (including East Asian font for Korean)
 ${fontSize ? `$selection.Font.Size = ${fontSize}` : ''}
 $selection.Font.Bold = ${bold}
 $selection.Font.Italic = ${italic}
+${fontName ? `$selection.Font.Name = '${fontName}'\n$selection.Font.NameFarEast = '${fontName}'` : ''}
 
+# Type text (decoded from Base64 for Unicode safety)
 ${typeCommands}
-${newParagraph ? '$selection.TypeParagraph()' : ''}
+
+# Apply font to the typed range to ensure Korean characters use correct font
+${fontName ? `$endPos = $selection.Range.End
+$typedRange = $doc.Range($startPos, $endPos)
+$typedRange.Font.Name = '${fontName}'
+$typedRange.Font.NameFarEast = '${fontName}'` : ''}
+
 @{ success = $true; message = "Text written successfully" } | ConvertTo-Json -Compress
 `);
   }
@@ -219,10 +234,11 @@ $doc.Hyperlinks.Add($range, '${escapedUrl}', '', '', '${escapedText}')
           if (cellValue === undefined) continue;
           // Check for Korean text in this specific cell
           const cellHasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(cellValue);
-          const val = cellValue.replace(/'/g, "''");
+          // Use Base64 encoding for safe Unicode/Korean transfer
+          const base64Val = this.encodeTextForPowerShell(cellValue);
+          const decodeExpr = `[System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${base64Val}'))`;
           // IMPORTANT: Set text FIRST, then apply font (Microsoft's recommended pattern)
-          // Reference: https://learn.microsoft.com/en-us/office/vba/api/PowerPoint.TextRange.Text
-          dataLines.push(`$table.Cell(${i + 1}, ${j + 1}).Range.Text = '${val}'`);
+          dataLines.push(`$table.Cell(${i + 1}, ${j + 1}).Range.Text = ${decodeExpr}`);
           if (cellHasKorean) {
             dataLines.push(`$table.Cell(${i + 1}, ${j + 1}).Range.Font.Name = 'Malgun Gothic'`);
           }
@@ -361,18 +377,22 @@ ${isBookmark
   }
 
   async wordInsertHeader(text: string, options?: { fontName?: string; fontSize?: number }): Promise<OfficeResponse> {
-    const escapedText = text.replace(/'/g, "''");
     // Auto-detect Korean and set font
     const hasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(text);
     const fontName = options?.fontName || (hasKorean ? 'Malgun Gothic' : '');
+
+    // Handle newlines
+    const processedText = text.replace(/\\n/g, '\n');
+    // Use Base64 encoding for safe Unicode/Korean transfer
+    const base64Text = this.encodeTextForPowerShell(processedText);
+    const decodeExpr = `[System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${base64Text}'))`;
 
     return this.executePowerShell(`
 $word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
 $doc = $word.ActiveDocument
 $section = $doc.Sections(1)
 $header = $section.Headers(1).Range
-$headerText = '${escapedText}' -replace '\\\\n', [char]10 -replace '\\n', [char]10
-$header.Text = $headerText
+$header.Text = ${decodeExpr}
 ${fontName ? `$header.Font.Name = '${fontName}'` : ''}
 ${options?.fontSize ? `$header.Font.Size = ${options.fontSize}` : ''}
 @{ success = $true; message = "Header added" } | ConvertTo-Json -Compress
@@ -380,19 +400,23 @@ ${options?.fontSize ? `$header.Font.Size = ${options.fontSize}` : ''}
   }
 
   async wordInsertFooter(text: string, options?: { fontName?: string; fontSize?: number }): Promise<OfficeResponse> {
-    const escapedText = text.replace(/'/g, "''");
     // Auto-detect Korean and set font
     const hasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(text);
     const fontName = options?.fontName || (hasKorean ? 'Malgun Gothic' : '');
+
+    // Handle newlines
+    const processedText = text.replace(/\\n/g, '\n');
+    // Use Base64 encoding for safe Unicode/Korean transfer
+    const base64Text = this.encodeTextForPowerShell(processedText);
+    const decodeExpr = `[System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${base64Text}'))`;
 
     return this.executePowerShell(`
 $word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
 $doc = $word.ActiveDocument
 $section = $doc.Sections(1)
 $footer = $section.Footers(1).Range
-$footerText = '${escapedText}' -replace '\\\\n', [char]10 -replace '\\n', [char]10
-$footer.Text = $footerText
-${fontName ? `$footer.Font.Name = '${fontName.replace(/'/g, "''")}'` : ''}
+$footer.Text = ${decodeExpr}
+${fontName ? `$footer.Font.Name = '${fontName}'` : ''}
 ${options?.fontSize ? `$footer.Font.Size = ${options.fontSize}` : ''}
 @{ success = $true; message = "Footer added" } | ConvertTo-Json -Compress
 `);
@@ -524,20 +548,24 @@ try {
     text: string,
     options?: { fontName?: string; fontSize?: number; bold?: boolean }
   ): Promise<OfficeResponse> {
-    const escapedText = text.replace(/'/g, "''");
     const hasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(text);
     let fontName = options?.fontName?.replace(/'/g, "''") || '';
     if (!fontName && hasKorean) {
       fontName = 'Malgun Gothic';
     }
 
+    // Handle newlines: convert \n to actual line breaks
+    const processedText = text.replace(/\\n/g, '\n');
+    // Use Base64 encoding for safe Unicode/Korean transfer
+    const base64Text = this.encodeTextForPowerShell(processedText);
+    const decodeExpr = `[System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${base64Text}'))`;
+
     return this.executePowerShell(`
 $word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
 $doc = $word.ActiveDocument
 $table = $doc.Tables(${tableIndex})
 $cell = $table.Cell(${row}, ${col})
-$cellText = '${escapedText}' -replace '\\\\n', [char]10 -replace '\\n', [char]10
-$cell.Range.Text = $cellText
+$cell.Range.Text = ${decodeExpr}
 ${fontName ? `$cell.Range.Font.Name = '${fontName}'` : ''}
 ${options?.fontSize ? `$cell.Range.Font.Size = ${options.fontSize}` : ''}
 ${options?.bold ? '$cell.Range.Font.Bold = -1' : ''}
@@ -787,12 +815,14 @@ while ($doc.Comments.Count -gt 0) {
   // -------------------------------------------------------------------------
 
   async wordCreateBulletList(items: string[]): Promise<OfficeResponse> {
+    // Use Base64 encoding for safe Unicode/Korean transfer
     const itemsScript = items.map(item => {
-      const escaped = item.replace(/'/g, "''");
       const hasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(item);
-      // Set font BEFORE TypeText to prevent garbled Korean
-      return `${hasKorean ? "$selection.Font.Name = 'Malgun Gothic'" : ''}
-$selection.TypeText('${escaped}')
+      const base64Item = this.encodeTextForPowerShell(item);
+      const decodeExpr = `[System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${base64Item}'))`;
+      // Text first, then font after
+      return `$selection.TypeText(${decodeExpr})
+${hasKorean ? "$selection.Font.Name = 'Malgun Gothic'" : ''}
 $selection.TypeParagraph()`;
     }).join('\n');
 
@@ -807,12 +837,14 @@ $selection.Range.ListFormat.RemoveNumbers()
   }
 
   async wordCreateNumberedList(items: string[]): Promise<OfficeResponse> {
+    // Use Base64 encoding for safe Unicode/Korean transfer
     const itemsScript = items.map(item => {
-      const escaped = item.replace(/'/g, "''");
       const hasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(item);
-      // Set font BEFORE TypeText to prevent garbled Korean
-      return `${hasKorean ? "$selection.Font.Name = 'Malgun Gothic'" : ''}
-$selection.TypeText('${escaped}')
+      const base64Item = this.encodeTextForPowerShell(item);
+      const decodeExpr = `[System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${base64Item}'))`;
+      // Text first, then font after
+      return `$selection.TypeText(${decodeExpr})
+${hasKorean ? "$selection.Font.Name = 'Malgun Gothic'" : ''}
 $selection.TypeParagraph()`;
     }).join('\n');
 
@@ -982,12 +1014,17 @@ foreach ($section in $doc.Sections) {
     height: number,
     options?: { fontName?: string; fontSize?: number; borderColor?: string; fillColor?: string }
   ): Promise<OfficeResponse> {
-    const escapedText = text.replace(/'/g, "''");
     const hasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(text);
     let fontName = options?.fontName?.replace(/'/g, "''") || '';
     if (!fontName && hasKorean) {
       fontName = 'Malgun Gothic';
     }
+
+    // Handle newlines
+    const processedText = text.replace(/\\n/g, '\n');
+    // Use Base64 encoding for safe Unicode/Korean transfer
+    const base64Text = this.encodeTextForPowerShell(processedText);
+    const decodeExpr = `[System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${base64Text}'))`;
 
     const commands: string[] = [];
     if (fontName) commands.push(`$shape.TextFrame.TextRange.Font.Name = '${fontName}'`);
@@ -1014,8 +1051,7 @@ $word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
 $doc = $word.ActiveDocument
 $shape = $doc.Shapes.AddTextbox(1, ${left}, ${top}, ${width}, ${height})
 ${fontName ? `$shape.TextFrame.TextRange.Font.Name = '${fontName}'` : ''}
-$textboxText = '${escapedText}' -replace '\\\\n', [char]10 -replace '\\n', [char]10
-$shape.TextFrame.TextRange.Text = $textboxText
+$shape.TextFrame.TextRange.Text = ${decodeExpr}
 ${commands.filter(c => !c.includes('Font.Name')).join('\n')}
 @{ success = $true; message = "Textbox added"; shape_name = $shape.Name } | ConvertTo-Json -Compress
 `);
@@ -1193,6 +1229,484 @@ $selection = $word.Selection
 `);
   }
 
+  /**
+   * Select a range of text by start and end positions
+   */
+  async wordSelectRange(start: number, end: number): Promise<OfficeResponse> {
+    return this.executePowerShell(`
+$word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
+$doc = $word.ActiveDocument
+$range = $doc.Range(${start}, ${end})
+$range.Select()
+@{ success = $true; message = "Selected range from ${start} to ${end}"; text = $range.Text } | ConvertTo-Json -Compress
+`);
+  }
+
+  /**
+   * Move cursor by character, word, line, or paragraph
+   */
+  async wordMoveCursor(
+    unit: 'character' | 'word' | 'line' | 'paragraph',
+    count: number,
+    extend: boolean = false
+  ): Promise<OfficeResponse> {
+    // wdCharacter=1, wdWord=2, wdLine=5, wdParagraph=4
+    const unitMap: Record<string, number> = { character: 1, word: 2, line: 5, paragraph: 4 };
+    const unitValue = unitMap[unit] ?? 1;
+    const direction = count >= 0 ? 'MoveRight' : 'MoveLeft';
+    const absCount = Math.abs(count);
+    const extendMode = extend ? '1' : '0'; // wdExtend=1, wdMove=0
+
+    return this.executePowerShell(`
+$word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
+$selection = $word.Selection
+$selection.${direction}(${unitValue}, ${absCount}, ${extendMode})
+@{
+  success = $true
+  message = "Cursor moved ${count} ${unit}(s)"
+  position = $selection.Start
+  end_position = $selection.End
+} | ConvertTo-Json -Compress
+`);
+  }
+
+  /**
+   * Move cursor to start or end of document
+   */
+  async wordMoveCursorTo(position: 'start' | 'end'): Promise<OfficeResponse> {
+    const method = position === 'start' ? 'HomeKey' : 'EndKey';
+    return this.executePowerShell(`
+$word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
+$selection = $word.Selection
+$selection.${method}(6)  # wdStory = 6
+@{ success = $true; message = "Cursor moved to ${position} of document"; position = $selection.Start } | ConvertTo-Json -Compress
+`);
+  }
+
+  // -------------------------------------------------------------------------
+  // Word Table Row/Column Operations
+  // -------------------------------------------------------------------------
+
+  /**
+   * Add a row to a table
+   */
+  async wordAddTableRow(tableIndex: number, position?: number): Promise<OfficeResponse> {
+    const positionScript = position !== undefined
+      ? `$row = $table.Rows(${position})\n$table.Rows.Add($row)`
+      : '$table.Rows.Add()';
+    return this.executePowerShell(`
+$word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
+$doc = $word.ActiveDocument
+$table = $doc.Tables(${tableIndex})
+${positionScript}
+@{ success = $true; message = "Row added to table ${tableIndex}"; total_rows = $table.Rows.Count } | ConvertTo-Json -Compress
+`);
+  }
+
+  /**
+   * Add a column to a table
+   */
+  async wordAddTableColumn(tableIndex: number, position?: number): Promise<OfficeResponse> {
+    const positionScript = position !== undefined
+      ? `$col = $table.Columns(${position})\n$table.Columns.Add($col)`
+      : '$table.Columns.Add()';
+    return this.executePowerShell(`
+$word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
+$doc = $word.ActiveDocument
+$table = $doc.Tables(${tableIndex})
+${positionScript}
+@{ success = $true; message = "Column added to table ${tableIndex}"; total_columns = $table.Columns.Count } | ConvertTo-Json -Compress
+`);
+  }
+
+  /**
+   * Delete a row from a table
+   */
+  async wordDeleteTableRow(tableIndex: number, rowIndex: number): Promise<OfficeResponse> {
+    return this.executePowerShell(`
+$word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
+$doc = $word.ActiveDocument
+$table = $doc.Tables(${tableIndex})
+if (${rowIndex} -le $table.Rows.Count) {
+  $table.Rows(${rowIndex}).Delete()
+  @{ success = $true; message = "Row ${rowIndex} deleted from table ${tableIndex}"; remaining_rows = $table.Rows.Count } | ConvertTo-Json -Compress
+} else {
+  @{ success = $false; error = "Row index ${rowIndex} out of range (table has $($table.Rows.Count) rows)" } | ConvertTo-Json -Compress
+}
+`);
+  }
+
+  /**
+   * Delete a column from a table
+   */
+  async wordDeleteTableColumn(tableIndex: number, colIndex: number): Promise<OfficeResponse> {
+    return this.executePowerShell(`
+$word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
+$doc = $word.ActiveDocument
+$table = $doc.Tables(${tableIndex})
+if (${colIndex} -le $table.Columns.Count) {
+  $table.Columns(${colIndex}).Delete()
+  @{ success = $true; message = "Column ${colIndex} deleted from table ${tableIndex}"; remaining_columns = $table.Columns.Count } | ConvertTo-Json -Compress
+} else {
+  @{ success = $false; error = "Column index ${colIndex} out of range (table has $($table.Columns.Count) columns)" } | ConvertTo-Json -Compress
+}
+`);
+  }
+
+  /**
+   * Get table information
+   */
+  async wordGetTableInfo(tableIndex: number): Promise<OfficeResponse> {
+    return this.executePowerShell(`
+$word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
+$doc = $word.ActiveDocument
+if (${tableIndex} -le $doc.Tables.Count) {
+  $table = $doc.Tables(${tableIndex})
+  @{
+    success = $true
+    table_index = ${tableIndex}
+    rows = $table.Rows.Count
+    columns = $table.Columns.Count
+    style = $table.Style
+  } | ConvertTo-Json -Compress
+} else {
+  @{ success = $false; error = "Table index ${tableIndex} out of range (document has $($doc.Tables.Count) tables)" } | ConvertTo-Json -Compress
+}
+`);
+  }
+
+  // -------------------------------------------------------------------------
+  // Word Track Changes
+  // -------------------------------------------------------------------------
+
+  /**
+   * Enable or disable track changes
+   */
+  async wordSetTrackChanges(enabled: boolean): Promise<OfficeResponse> {
+    return this.executePowerShell(`
+$word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
+$doc = $word.ActiveDocument
+$doc.TrackRevisions = ${enabled ? '$true' : '$false'}
+@{ success = $true; message = "Track changes ${enabled ? 'enabled' : 'disabled'}"; track_revisions = $doc.TrackRevisions } | ConvertTo-Json -Compress
+`);
+  }
+
+  /**
+   * Get track changes status
+   */
+  async wordGetTrackChanges(): Promise<OfficeResponse> {
+    return this.executePowerShell(`
+$word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
+$doc = $word.ActiveDocument
+$revisions = @()
+foreach ($rev in $doc.Revisions) {
+  $revisions += @{
+    index = $rev.Index
+    author = $rev.Author
+    type = $rev.Type
+    text = $rev.Range.Text
+    date = $rev.Date.ToString("yyyy-MM-dd HH:mm:ss")
+  }
+}
+@{
+  success = $true
+  track_revisions = $doc.TrackRevisions
+  revision_count = $doc.Revisions.Count
+  revisions = $revisions
+} | ConvertTo-Json -Compress -Depth 5
+`);
+  }
+
+  /**
+   * Accept all revisions
+   */
+  async wordAcceptAllRevisions(): Promise<OfficeResponse> {
+    return this.executePowerShell(`
+$word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
+$doc = $word.ActiveDocument
+$count = $doc.Revisions.Count
+$doc.AcceptAllRevisions()
+@{ success = $true; message = "Accepted $count revisions" } | ConvertTo-Json -Compress
+`);
+  }
+
+  /**
+   * Reject all revisions
+   */
+  async wordRejectAllRevisions(): Promise<OfficeResponse> {
+    return this.executePowerShell(`
+$word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
+$doc = $word.ActiveDocument
+$count = $doc.Revisions.Count
+$doc.RejectAllRevisions()
+@{ success = $true; message = "Rejected $count revisions" } | ConvertTo-Json -Compress
+`);
+  }
+
+  /**
+   * Accept or reject a specific revision
+   */
+  async wordHandleRevision(index: number, accept: boolean): Promise<OfficeResponse> {
+    const method = accept ? 'Accept' : 'Reject';
+    return this.executePowerShell(`
+$word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
+$doc = $word.ActiveDocument
+if (${index} -le $doc.Revisions.Count) {
+  $doc.Revisions(${index}).${method}()
+  @{ success = $true; message = "Revision ${index} ${accept ? 'accepted' : 'rejected'}" } | ConvertTo-Json -Compress
+} else {
+  @{ success = $false; error = "Revision index ${index} out of range" } | ConvertTo-Json -Compress
+}
+`);
+  }
+
+  // -------------------------------------------------------------------------
+  // Word Table of Contents
+  // -------------------------------------------------------------------------
+
+  /**
+   * Insert a table of contents
+   */
+  async wordInsertTOC(options?: {
+    useHeadingStyles?: boolean;
+    upperHeadingLevel?: number;
+    lowerHeadingLevel?: number;
+    useHyperlinks?: boolean;
+  }): Promise<OfficeResponse> {
+    const useHeadingStyles = options?.useHeadingStyles !== false ? '$true' : '$false';
+    const upperLevel = options?.upperHeadingLevel ?? 1;
+    const lowerLevel = options?.lowerHeadingLevel ?? 3;
+    const useHyperlinks = options?.useHyperlinks !== false ? '$true' : '$false';
+
+    return this.executePowerShell(`
+$word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
+$doc = $word.ActiveDocument
+$selection = $word.Selection
+$range = $selection.Range
+$toc = $doc.TablesOfContents.Add($range, ${useHeadingStyles}, ${upperLevel}, ${lowerLevel}, $false, "", $true, ${useHyperlinks})
+@{ success = $true; message = "Table of contents inserted (Heading ${upperLevel}-${lowerLevel})" } | ConvertTo-Json -Compress
+`);
+  }
+
+  /**
+   * Update all tables of contents
+   */
+  async wordUpdateTOC(): Promise<OfficeResponse> {
+    return this.executePowerShell(`
+$word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
+$doc = $word.ActiveDocument
+$count = $doc.TablesOfContents.Count
+foreach ($toc in $doc.TablesOfContents) {
+  $toc.Update()
+}
+@{ success = $true; message = "Updated $count table(s) of contents" } | ConvertTo-Json -Compress
+`);
+  }
+
+  /**
+   * Delete all tables of contents
+   */
+  async wordDeleteTOC(): Promise<OfficeResponse> {
+    return this.executePowerShell(`
+$word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
+$doc = $word.ActiveDocument
+$count = $doc.TablesOfContents.Count
+while ($doc.TablesOfContents.Count -gt 0) {
+  $doc.TablesOfContents(1).Delete()
+}
+@{ success = $true; message = "Deleted $count table(s) of contents" } | ConvertTo-Json -Compress
+`);
+  }
+
+  // -------------------------------------------------------------------------
+  // Word Footnotes & Endnotes
+  // -------------------------------------------------------------------------
+
+  /**
+   * Add a footnote at the current selection
+   */
+  async wordAddFootnote(text: string): Promise<OfficeResponse> {
+    const escapedText = text.replace(/'/g, "''");
+    const hasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(text);
+
+    return this.executePowerShell(`
+$word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
+$doc = $word.ActiveDocument
+$selection = $word.Selection
+$footnote = $doc.Footnotes.Add($selection.Range)
+$footnote.Range.Text = '${escapedText}'
+${hasKorean ? "$footnote.Range.Font.Name = 'Malgun Gothic'" : ''}
+@{ success = $true; message = "Footnote added"; index = $footnote.Index } | ConvertTo-Json -Compress
+`);
+  }
+
+  /**
+   * Add an endnote at the current selection
+   */
+  async wordAddEndnote(text: string): Promise<OfficeResponse> {
+    const escapedText = text.replace(/'/g, "''");
+    const hasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(text);
+
+    return this.executePowerShell(`
+$word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
+$doc = $word.ActiveDocument
+$selection = $word.Selection
+$endnote = $doc.Endnotes.Add($selection.Range)
+$endnote.Range.Text = '${escapedText}'
+${hasKorean ? "$endnote.Range.Font.Name = 'Malgun Gothic'" : ''}
+@{ success = $true; message = "Endnote added"; index = $endnote.Index } | ConvertTo-Json -Compress
+`);
+  }
+
+  /**
+   * Get all footnotes in the document
+   */
+  async wordGetFootnotes(): Promise<OfficeResponse> {
+    return this.executePowerShell(`
+$word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
+$doc = $word.ActiveDocument
+$footnotes = @()
+foreach ($fn in $doc.Footnotes) {
+  $footnotes += @{
+    index = $fn.Index
+    text = $fn.Range.Text
+    reference_text = $fn.Reference.Text
+  }
+}
+@{ success = $true; footnotes = $footnotes; count = $doc.Footnotes.Count } | ConvertTo-Json -Compress -Depth 5
+`);
+  }
+
+  /**
+   * Get all endnotes in the document
+   */
+  async wordGetEndnotes(): Promise<OfficeResponse> {
+    return this.executePowerShell(`
+$word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
+$doc = $word.ActiveDocument
+$endnotes = @()
+foreach ($en in $doc.Endnotes) {
+  $endnotes += @{
+    index = $en.Index
+    text = $en.Range.Text
+    reference_text = $en.Reference.Text
+  }
+}
+@{ success = $true; endnotes = $endnotes; count = $doc.Endnotes.Count } | ConvertTo-Json -Compress -Depth 5
+`);
+  }
+
+  /**
+   * Delete a footnote by index
+   */
+  async wordDeleteFootnote(index: number): Promise<OfficeResponse> {
+    return this.executePowerShell(`
+$word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
+$doc = $word.ActiveDocument
+if (${index} -le $doc.Footnotes.Count) {
+  $doc.Footnotes(${index}).Delete()
+  @{ success = $true; message = "Footnote ${index} deleted" } | ConvertTo-Json -Compress
+} else {
+  @{ success = $false; error = "Footnote index ${index} out of range" } | ConvertTo-Json -Compress
+}
+`);
+  }
+
+  /**
+   * Delete an endnote by index
+   */
+  async wordDeleteEndnote(index: number): Promise<OfficeResponse> {
+    return this.executePowerShell(`
+$word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
+$doc = $word.ActiveDocument
+if (${index} -le $doc.Endnotes.Count) {
+  $doc.Endnotes(${index}).Delete()
+  @{ success = $true; message = "Endnote ${index} deleted" } | ConvertTo-Json -Compress
+} else {
+  @{ success = $false; error = "Endnote index ${index} out of range" } | ConvertTo-Json -Compress
+}
+`);
+  }
+
+  // -------------------------------------------------------------------------
+  // Word Find (without replace)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Find text and optionally select it
+   */
+  async wordFind(text: string, options?: {
+    matchCase?: boolean;
+    matchWholeWord?: boolean;
+    selectFound?: boolean;
+  }): Promise<OfficeResponse> {
+    const escapedText = text.replace(/'/g, "''");
+    const matchCase = options?.matchCase ? '$true' : '$false';
+    const matchWholeWord = options?.matchWholeWord ? '$true' : '$false';
+
+    return this.executePowerShell(`
+$word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
+$doc = $word.ActiveDocument
+$selection = $word.Selection
+$selection.HomeKey(6)  # Move to start of document
+$find = $selection.Find
+$find.ClearFormatting()
+$find.Text = '${escapedText}'
+$find.MatchCase = ${matchCase}
+$find.MatchWholeWord = ${matchWholeWord}
+$find.Forward = $true
+$find.Wrap = 0  # wdFindStop
+
+$found = $find.Execute()
+if ($found) {
+  @{
+    success = $true
+    found = $true
+    start = $selection.Start
+    end = $selection.End
+    text = $selection.Text
+  } | ConvertTo-Json -Compress
+} else {
+  @{ success = $true; found = $false; message = "Text not found: '${escapedText}'" } | ConvertTo-Json -Compress
+}
+`);
+  }
+
+  /**
+   * Find all occurrences of text
+   */
+  async wordFindAll(text: string, options?: {
+    matchCase?: boolean;
+    matchWholeWord?: boolean;
+  }): Promise<OfficeResponse> {
+    const escapedText = text.replace(/'/g, "''");
+    const matchCase = options?.matchCase ? '$true' : '$false';
+    const matchWholeWord = options?.matchWholeWord ? '$true' : '$false';
+
+    return this.executePowerShell(`
+$word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
+$doc = $word.ActiveDocument
+$range = $doc.Content
+$find = $range.Find
+$find.ClearFormatting()
+$find.Text = '${escapedText}'
+$find.MatchCase = ${matchCase}
+$find.MatchWholeWord = ${matchWholeWord}
+$find.Forward = $true
+
+$matches = @()
+while ($find.Execute()) {
+  $matches += @{
+    start = $range.Start
+    end = $range.End
+    text = $range.Text
+  }
+  $range.Collapse(0)  # wdCollapseEnd
+}
+
+@{ success = $true; count = $matches.Count; matches = $matches } | ConvertTo-Json -Compress -Depth 5
+`);
+  }
 
 }
 
