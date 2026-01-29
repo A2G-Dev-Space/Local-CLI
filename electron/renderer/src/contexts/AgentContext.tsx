@@ -145,15 +145,18 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
 
   // Clear functions
   const clearToolExecutions = useCallback(() => {
+    window.electronAPI?.log?.debug?.('[AgentContext] clearToolExecutions');
     setToolExecutions([]);
     toolExecutionsRef.current = [];
   }, []);
 
   const clearProgressMessages = useCallback(() => {
+    window.electronAPI?.log?.debug?.('[AgentContext] clearProgressMessages');
     setProgressMessages([]);
   }, []);
 
   const clearTodos = useCallback(() => {
+    window.electronAPI?.log?.debug?.('[AgentContext] clearTodos');
     setTodos([]);
   }, []);
 
@@ -229,6 +232,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
         // Skip final_response - it will be handled as a chat message
         if (data.toolName === 'final_response') return;
 
+        window.electronAPI?.log?.debug?.('[AgentContext] Tool call', { toolName: data.toolName });
         const toolCategory = getToolCategory(data.toolName);
 
         // Sanitize the reason to remove any XML-like artifacts
@@ -251,6 +255,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     // Tool result event - update existing execution
     unsubscribes.push(
       window.electronAPI.agent.onToolResult((data) => {
+        window.electronAPI?.log?.debug?.('[AgentContext] Tool result', { toolName: data.toolName, success: data.success });
         // Handle final_response specially - display as chat message
         if (data.toolName === 'final_response' && data.success && data.result) {
           if (finalResponseCallbackRef.current) {
@@ -282,6 +287,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     // TODO update event
     unsubscribes.push(
       window.electronAPI.agent.onTodoUpdate((agentTodos) => {
+        window.electronAPI?.log?.debug?.('[AgentContext] Todo update', { count: agentTodos.length });
         const uiTodos: TodoItem[] = agentTodos.map(t => ({
           id: t.id,
           title: t.title,
@@ -294,6 +300,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     // Tell user event - display as tool execution for unified UI and proper time ordering
     unsubscribes.push(
       window.electronAPI.agent.onTellUser((message) => {
+        window.electronAPI?.log?.debug?.('[AgentContext] Tell user', { msgLength: message.length });
         const newExecution: ToolExecutionData = {
           id: `tell-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           toolName: 'tell_to_user',
@@ -310,6 +317,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     // Ask user event
     unsubscribes.push(
       window.electronAPI.agent.onAskUser((request) => {
+        window.electronAPI?.log?.info?.('[AgentContext] Ask user', { question: request.question, optionCount: request.options.length });
         const questionData: UserQuestionData = {
           id: `question-${Date.now()}`,
           question: request.question,
@@ -328,6 +336,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     if (window.electronAPI.agent.onApprovalRequest) {
       unsubscribes.push(
         window.electronAPI.agent.onApprovalRequest((request) => {
+          window.electronAPI?.log?.info?.('[AgentContext] Approval request', { toolName: request.toolName, reason: request.reason });
           setApprovalRequest(request);
           setIsApprovalOpen(true);
         })

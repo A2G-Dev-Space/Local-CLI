@@ -74,7 +74,15 @@ export function buildCompactUserPrompt(
     if (msg.role === 'system') return;
 
     messageIndex++;
-    const role = msg.role === 'user' ? 'USER' : 'ASSISTANT';
+    const role = msg.role === 'user' ? 'USER'
+      : msg.role === 'tool' ? 'TOOL_RESULT'
+      : 'ASSISTANT';
+
+    // For assistant messages with tool_calls, show what tools were called
+    const toolCallInfo = (msg as any).tool_calls?.length
+      ? `\n[Called tools: ${(msg as any).tool_calls.map((tc: any) => tc.function?.name).join(', ')}]`
+      : '';
+
     const content = typeof msg.content === 'string'
       ? msg.content
       : JSON.stringify(msg.content);
@@ -84,7 +92,11 @@ export function buildCompactUserPrompt(
       ? content.slice(0, 3000) + '\n... [truncated]'
       : content;
 
-    parts.push(`[${messageIndex}] ${role}:`);
+    if (msg.role === 'tool') {
+      parts.push(`[${messageIndex}] ${role} (call_id: ${(msg as any).tool_call_id || 'unknown'}):`);
+    } else {
+      parts.push(`[${messageIndex}] ${role}:${toolCallInfo}`);
+    }
     parts.push(truncated);
     parts.push('');
   });
