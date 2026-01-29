@@ -117,6 +117,7 @@ interface AgentState {
   abortController: AbortController | null;
   currentTodos: TodoItem[];
   mainWindow: BrowserWindow | null;
+  runId: number; // Unique ID per runAgent() call to detect stale runs
 }
 
 const state: AgentState = {
@@ -124,6 +125,7 @@ const state: AgentState = {
   abortController: null,
   currentTodos: [],
   mainWindow: null,
+  runId: 0,
 };
 
 // =============================================================================
@@ -182,7 +184,9 @@ export async function runAgent(
     resumeTodos,
   });
 
-  // Initialize state
+  // Initialize state - increment runId to invalidate any stale agent loops
+  state.runId++;
+  const currentRunId = state.runId;
   state.isRunning = true;
   state.abortController = new AbortController();
 
@@ -276,7 +280,7 @@ export async function runAgent(
   if (enablePlanning && !resumeTodos && state.currentTodos.length === 0) {
     logger.flow('Starting planning phase');
 
-    if (state.abortController?.signal.aborted) {
+    if (currentRunId !== state.runId || state.abortController?.signal.aborted) {
       throw new Error('Agent aborted');
     }
 
@@ -304,6 +308,11 @@ export async function runAgent(
         userMessage,
         existingMessages
       );
+
+      // Guard: a new run may have started while planning was in progress
+      if (currentRunId !== state.runId) {
+        throw new Error('Agent aborted');
+      }
 
       // Add clarification messages to history (ask_to_user Q&A from planning phase)
       if (planningResult.clarificationMessages?.length) {
@@ -436,7 +445,7 @@ export async function runAgent(
         });
       }
 
-      if (state.abortController?.signal.aborted) {
+      if (currentRunId !== state.runId || state.abortController?.signal.aborted) {
         throw new Error('Agent aborted');
       }
 
@@ -462,6 +471,11 @@ export async function runAgent(
           }
 
           const compactResult = await compactConversation(messages, { workingDirectory });
+
+          // Guard after async compact
+          if (currentRunId !== state.runId) {
+            throw new Error('Agent aborted');
+          }
 
           if (compactResult.success && compactResult.compactedMessages) {
             logger.info('Auto-compact successful', {
@@ -489,8 +503,8 @@ export async function runAgent(
       }
 
       // Check abort immediately after LLM response returns
-      // (abort may have been called while waiting for the response)
-      if (!state.isRunning || state.abortController?.signal.aborted) {
+      // (abort may have been called while waiting for the response, or a new run started)
+      if (currentRunId !== state.runId || !state.isRunning || state.abortController?.signal.aborted) {
         logger.info('Agent aborted after LLM response');
         throw new Error('Agent aborted');
       }
@@ -519,7 +533,7 @@ export async function runAgent(
       // Check for tool calls
       if (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
         for (const toolCall of assistantMessage.tool_calls) {
-          if (state.abortController?.signal.aborted) {
+          if (currentRunId !== state.runId || state.abortController?.signal.aborted) {
             throw new Error('Agent aborted');
           }
 
@@ -553,8 +567,8 @@ export async function runAgent(
           // Execute tool via simple tool executor (CLI parity: uses executeFileTool)
           const result = await executeSimpleTool(toolName, toolArgs);
 
-          // Check abort after tool execution completes
-          if (!state.isRunning || state.abortController?.signal.aborted) {
+          // Check abort after tool execution completes (or new run started)
+          if (currentRunId !== state.runId || !state.isRunning || state.abortController?.signal.aborted) {
             logger.info('Agent aborted after tool execution', { toolName });
             throw new Error('Agent aborted');
           }
@@ -771,6 +785,11 @@ export async function runAgent(
 
         const compactResult = await compactConversation(messages, { workingDirectory });
 
+        // Guard after async compact
+        if (currentRunId !== state.runId) {
+          throw new Error('Agent aborted');
+        }
+
         if (compactResult.success && compactResult.compactedMessages) {
           logger.info('Preventative auto-compact successful', {
             originalCount: compactResult.originalMessageCount,
@@ -858,14 +877,18 @@ export async function runAgent(
       error: isAbort ? undefined : errorMessage,
     };
   } finally {
-    state.isRunning = false;
-    state.abortController = null;
+    // Only clean up shared state if this is still the current run.
+    // A stale (old) run must NOT corrupt the new run's state/callbacks.
+    if (currentRunId === state.runId) {
+      state.isRunning = false;
+      state.abortController = null;
 
-    setTodoWriteCallback(null);
-    setTellToUserCallback(null);
-    setAskUserCallback(null);
-    setReasoningCallback(null);
-    clearFinalResponseCallbacks();
+      setTodoWriteCallback(null);
+      setTellToUserCallback(null);
+      setAskUserCallback(null);
+      setReasoningCallback(null);
+      clearFinalResponseCallbacks();
+    }
   }
 }
 
