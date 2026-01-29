@@ -51,6 +51,20 @@ export class OfficeClientBase {
   }
 
   /**
+   * Encode text to Base64 for safe PowerShell transfer (handles Korean characters)
+   */
+  protected encodeTextForPowerShell(text: string): string {
+    return Buffer.from(text, 'utf8').toString('base64');
+  }
+
+  /**
+   * Generate PowerShell code to decode Base64 text
+   */
+  protected getPowerShellDecodeExpr(base64Text: string): string {
+    return `[System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${base64Text}'))`;
+  }
+
+  /**
    * Resolve relative path to absolute path
    */
   protected resolvePath(inputPath: string): string {

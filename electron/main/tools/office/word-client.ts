@@ -1526,15 +1526,16 @@ while ($doc.TablesOfContents.Count -gt 0) {
    * Add a footnote at the current selection
    */
   async wordAddFootnote(text: string): Promise<OfficeResponse> {
-    const escapedText = text.replace(/'/g, "''");
     const hasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(text);
+    const base64Text = this.encodeTextForPowerShell(text);
+    const decodeExpr = this.getPowerShellDecodeExpr(base64Text);
 
     return this.executePowerShell(`
 $word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
 $doc = $word.ActiveDocument
 $selection = $word.Selection
 $footnote = $doc.Footnotes.Add($selection.Range)
-$footnote.Range.Text = '${escapedText}'
+$footnote.Range.Text = ${decodeExpr}
 ${hasKorean ? "$footnote.Range.Font.Name = 'Malgun Gothic'" : ''}
 @{ success = $true; message = "Footnote added"; index = $footnote.Index } | ConvertTo-Json -Compress
 `);
@@ -1544,15 +1545,16 @@ ${hasKorean ? "$footnote.Range.Font.Name = 'Malgun Gothic'" : ''}
    * Add an endnote at the current selection
    */
   async wordAddEndnote(text: string): Promise<OfficeResponse> {
-    const escapedText = text.replace(/'/g, "''");
     const hasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(text);
+    const base64Text = this.encodeTextForPowerShell(text);
+    const decodeExpr = this.getPowerShellDecodeExpr(base64Text);
 
     return this.executePowerShell(`
 $word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
 $doc = $word.ActiveDocument
 $selection = $word.Selection
 $endnote = $doc.Endnotes.Add($selection.Range)
-$endnote.Range.Text = '${escapedText}'
+$endnote.Range.Text = ${decodeExpr}
 ${hasKorean ? "$endnote.Range.Font.Name = 'Malgun Gothic'" : ''}
 @{ success = $true; message = "Endnote added"; index = $endnote.Index } | ConvertTo-Json -Compress
 `);
@@ -1640,7 +1642,8 @@ if (${index} -le $doc.Endnotes.Count) {
     matchWholeWord?: boolean;
     selectFound?: boolean;
   }): Promise<OfficeResponse> {
-    const escapedText = text.replace(/'/g, "''");
+    const base64Text = this.encodeTextForPowerShell(text);
+    const decodeExpr = this.getPowerShellDecodeExpr(base64Text);
     const matchCase = options?.matchCase ? '$true' : '$false';
     const matchWholeWord = options?.matchWholeWord ? '$true' : '$false';
 
@@ -1649,9 +1652,10 @@ $word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
 $doc = $word.ActiveDocument
 $selection = $word.Selection
 $selection.HomeKey(6)  # Move to start of document
+$searchText = ${decodeExpr}
 $find = $selection.Find
 $find.ClearFormatting()
-$find.Text = '${escapedText}'
+$find.Text = $searchText
 $find.MatchCase = ${matchCase}
 $find.MatchWholeWord = ${matchWholeWord}
 $find.Forward = $true
@@ -1667,7 +1671,7 @@ if ($found) {
     text = $selection.Text
   } | ConvertTo-Json -Compress
 } else {
-  @{ success = $true; found = $false; message = "Text not found: '${escapedText}'" } | ConvertTo-Json -Compress
+  @{ success = $true; found = $false; message = "Text not found" } | ConvertTo-Json -Compress
 }
 `);
   }
@@ -1679,7 +1683,8 @@ if ($found) {
     matchCase?: boolean;
     matchWholeWord?: boolean;
   }): Promise<OfficeResponse> {
-    const escapedText = text.replace(/'/g, "''");
+    const base64Text = this.encodeTextForPowerShell(text);
+    const decodeExpr = this.getPowerShellDecodeExpr(base64Text);
     const matchCase = options?.matchCase ? '$true' : '$false';
     const matchWholeWord = options?.matchWholeWord ? '$true' : '$false';
 
@@ -1687,9 +1692,10 @@ if ($found) {
 $word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
 $doc = $word.ActiveDocument
 $range = $doc.Content
+$searchText = ${decodeExpr}
 $find = $range.Find
 $find.ClearFormatting()
-$find.Text = '${escapedText}'
+$find.Text = $searchText
 $find.MatchCase = ${matchCase}
 $find.MatchWholeWord = ${matchWholeWord}
 $find.Forward = $true
