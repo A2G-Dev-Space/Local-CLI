@@ -75,15 +75,22 @@ const UserQuestion: React.FC<UserQuestionProps> = ({
     if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Skip number key shortcuts when custom input is focused
+      // This allows typing numbers in the custom input field
+      const isInputFocused = document.activeElement?.tagName === 'INPUT';
+
       if (e.key === 'Escape') {
-        onCancel?.();
+        // Don't close on Escape - user must explicitly cancel or submit
+        // onCancel?.();
+        return;
       } else if (e.key === 'Enter') {
         if (isCustomMode && customInput.trim()) {
           handleSubmit();
         } else if (selectedOption) {
           handleSubmit();
         }
-      } else if (e.key >= '1' && e.key <= '4' && question) {
+      } else if (e.key >= '1' && e.key <= '4' && question && !isInputFocused) {
+        // Only handle number keys when NOT typing in input field
         const index = parseInt(e.key) - 1;
         if (index < question.options.length) {
           handleOptionSelect(question.options[index].id);
@@ -105,8 +112,8 @@ const UserQuestion: React.FC<UserQuestionProps> = ({
   if (!isOpen || !question) return null;
 
   return (
-    <div className="user-question-backdrop" onClick={onCancel}>
-      <div className="user-question-dialog" onClick={(e) => e.stopPropagation()}>
+    <div className="user-question-backdrop">
+      <div className="user-question-dialog">
         {/* Header */}
         <div className="user-question-header">
           <div className="question-icon">

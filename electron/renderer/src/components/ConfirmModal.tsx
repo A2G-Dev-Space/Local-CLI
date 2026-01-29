@@ -85,10 +85,9 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
   };
 
   return (
-    <div className="confirm-modal-backdrop" onClick={onCancel}>
+    <div className="confirm-modal-backdrop">
       <div
         className={`confirm-modal confirm-modal-${type}`}
-        onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-labelledby="confirm-modal-title"

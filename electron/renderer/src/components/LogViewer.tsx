@@ -415,7 +415,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
     setCurrentLogLevel(level);
   }, []);
 
-  // 초기화
+  // 초기화 - isVisible이 true가 될 때마다 로그 자동 로드
   useEffect(() => {
     if (isVisible) {
       // Load session logs
@@ -427,8 +427,15 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
       if (logSource === 'session' && currentSessionId) {
         setSelectedSessionId(currentSessionId);
       }
+
+      // Auto-load logs when tab becomes visible
+      if (logSource === 'currentRun') {
+        loadCurrentRunLogEntries();
+      } else if (logSource === 'session' && currentSessionId) {
+        loadSessionLogEntries(currentSessionId);
+      }
     }
-  }, [isVisible, loadSessionLogFiles, loadCurrentRunId, logSource, currentSessionId]);
+  }, [isVisible, loadSessionLogFiles, loadCurrentRunId, logSource, currentSessionId, loadCurrentRunLogEntries, loadSessionLogEntries]);
 
   // 파일/세션 선택 시 로드
   useEffect(() => {

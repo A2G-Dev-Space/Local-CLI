@@ -49,6 +49,22 @@ export class OfficeClientBase {
   }
 
   /**
+   * Encode text to Base64 for safe PowerShell transfer (handles Korean characters)
+   * PowerShell will decode using: [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($base64))
+   */
+  protected encodeTextForPowerShell(text: string): string {
+    return Buffer.from(text, 'utf8').toString('base64');
+  }
+
+  /**
+   * Generate PowerShell code to decode Base64 text
+   * Use this to safely handle Korean/Unicode text in PowerShell scripts
+   */
+  protected getPowerShellDecodeExpr(base64Text: string): string {
+    return `[System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${base64Text}'))`;
+  }
+
+  /**
    * Execute PowerShell script and return JSON result
    * Windows native - direct execution without WSL bridge
    */
