@@ -164,6 +164,8 @@ export interface PlanningResult {
   complexity: 'simple' | 'moderate' | 'complex';
   /** Direct response when no planning is needed */
   directResponse?: string;
+  /** Clarification messages from ask_to_user during planning (Q&A pairs) */
+  clarificationMessages?: Message[];
 }
 
 /**

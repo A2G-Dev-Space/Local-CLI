@@ -16,13 +16,14 @@ import {
   StreamingError,
   ValidationError,
 } from '../../errors';
+import { emitReasoning } from '../../tools/llm/simple/simple-tool-executor';
 
 // =============================================================================
 // Types
 // =============================================================================
 
 export interface Message {
-  role: 'system' | 'user' | 'assistant' | 'tool';
+  role: 'system' | 'user' | 'assistant' | 'tool' | 'error'; // 'error' added for CLI parity
   content: string;
   tool_calls?: ToolCall[];
   tool_call_id?: string;
@@ -252,6 +253,72 @@ class LLMClient {
   }
 
   /**
+   * Enhanced error handler with detailed logging (CLI parity)
+   * Converts raw errors into typed error classes for proper upstream handling.
+   */
+  private handleError(error: unknown, requestContext?: { method?: string; url?: string; body?: unknown }): Error {
+    logger.error('LLM Client Error', { error: error instanceof Error ? error.message : error });
+
+    if (requestContext) {
+      logger.debug('Request Context', requestContext);
+    }
+
+    if (error instanceof Error) {
+      const message = error.message.toLowerCase();
+
+      // Already a typed error - rethrow
+      if (error instanceof ContextLengthError || error instanceof RateLimitError ||
+          error instanceof APIError || error instanceof TimeoutError ||
+          error instanceof ConnectionError || error instanceof StreamingError) {
+        return error;
+      }
+
+      // Context length exceeded
+      if (this.isContextLengthError(error)) {
+        return new ContextLengthError(0, undefined, {
+          details: { originalMessage: error.message },
+        });
+      }
+
+      // Timeout
+      if (message.includes('timeout') || message.includes('econnaborted')) {
+        return new TimeoutError(LLMClient.REQUEST_TIMEOUT, {
+          cause: error,
+          details: { endpoint: requestContext?.url },
+        });
+      }
+
+      // Connection errors
+      if (message.includes('econnrefused') || message.includes('enotfound') ||
+          message.includes('econnreset') || message.includes('ehostunreach')) {
+        return new ConnectionError(requestContext?.url, {
+          cause: error,
+        });
+      }
+
+      // Rate limit
+      if (message.includes('429') || message.includes('rate limit')) {
+        return new RateLimitError(undefined, {
+          cause: error,
+          details: { originalMessage: error.message },
+        });
+      }
+
+      // HTTP status errors
+      const statusMatch = message.match(/http\s+(\d{3})/i);
+      if (statusMatch) {
+        const status = parseInt(statusMatch[1]);
+        return new APIError(error.message, status, requestContext?.url, {
+          cause: error,
+        });
+      }
+    }
+
+    // Unknown error
+    return error instanceof Error ? error : new Error(String(error));
+  }
+
+  /**
    * Sleep for specified milliseconds (for retry backoff) (CLI parity)
    */
   private sleep(ms: number): Promise<void> {
@@ -374,6 +441,16 @@ class LLMClient {
         choices: data.choices.length,
         tokensUsed: data.usage?.total_tokens || 0,
       });
+
+      // Emit reasoning if present (CLI parity - extended thinking from o1/DeepSeek-V3 models)
+      const reasoningContent = data.choices[0]?.message?.reasoning;
+      const isInternalCall = options.max_tokens && options.max_tokens < 500;
+      if (reasoningContent && !isInternalCall) {
+        emitReasoning(reasoningContent, false);
+        logger.debug('Reasoning content emitted', { length: reasoningContent.length });
+      } else if (reasoningContent && isInternalCall) {
+        logger.debug('Reasoning skipped (internal call)', { maxTokens: options.max_tokens, length: reasoningContent.length });
+      }
 
       // Track usage (CLI parity - with context tracking)
       if (data.usage) {
@@ -522,6 +599,12 @@ class LLMClient {
             details: { originalMessage: errorMessage },
           });
         }
+        // Context length error detection in stream (CLI parity)
+        if (this.isContextLengthError(new Error(errorMessage))) {
+          throw new ContextLengthError(0, undefined, {
+            details: { originalMessage: errorMessage },
+          });
+        }
         throw new APIError(errorMessage, response.status, url);
       }
 
@@ -533,6 +616,7 @@ class LLMClient {
       const decoder = new TextDecoder();
       let fullContent = '';
       let buffer = '';
+      const isInternalCall = options.max_tokens && options.max_tokens < 500;
 
       while (true) {
         // Check for interrupt (CLI parity)
@@ -566,6 +650,12 @@ class LLMClient {
                 fullContent += content;
                 onChunk(content, false);
               }
+
+              // Emit reasoning delta if present (CLI parity - extended thinking)
+              const reasoningDelta = chunk.choices[0]?.delta?.reasoning;
+              if (reasoningDelta && !isInternalCall) {
+                emitReasoning(reasoningDelta, true);
+              }
             } catch {
               // Skip invalid JSON chunks
             }
@@ -591,6 +681,18 @@ class LLMClient {
         logger.flow('Stream 취소됨 (사용자 인터럽트)');
         logger.exit('chatCompletionStream', { success: false, aborted: true });
         throw new Error('INTERRUPTED');
+      }
+
+      // Context length error - wrap in ContextLengthError (CLI parity)
+      if (this.isContextLengthError(error)) {
+        logger.error('Stream context length exceeded', { error: (error as Error).message });
+        logger.exit('chatCompletionStream', { success: false, error: 'context_length_exceeded' });
+        if (error instanceof ContextLengthError) {
+          throw error;
+        }
+        throw new ContextLengthError(0, undefined, {
+          details: { originalMessage: (error as Error).message },
+        });
       }
 
       logger.error('Stream error', { error: (error as Error).message });
@@ -646,6 +748,283 @@ class LLMClient {
         content: assistantMessage?.content || '',
         message: assistantMessage || { role: 'assistant', content: '' },
       };
+    }
+  }
+
+  /**
+   * Chat Completion with Tools (CLI parity: chatCompletionWithTools)
+   * Full tool loop with ContextLengthError recovery, malformed tool call detection,
+   * final_response handling, no-tool-call retry, and max failures fallback.
+   *
+   * No iteration limit - continues until LLM stops calling tools.
+   *
+   * @param messages - Conversation history
+   * @param tools - Available tool definitions
+   * @param options - Additional options
+   * @param options.getPendingMessage - Callback to get pending user message
+   * @param options.clearPendingMessage - Callback to clear pending message after processing
+   */
+  async chatCompletionWithTools(
+    messages: Message[],
+    tools: ToolDefinition[],
+    options?: {
+      getPendingMessage?: () => string | null;
+      clearPendingMessage?: () => void;
+    }
+  ): Promise<{
+    message: Message;
+    toolCalls: Array<{ tool: string; args: unknown; result: string }>;
+    allMessages: Message[];
+  }> {
+    const { executeFileTool, requestToolApproval, emitAssistantResponse } = await import(
+      '../../tools/llm/simple/simple-tool-executor'
+    );
+
+    let workingMessages = [...messages];
+    const toolCallHistory: Array<{ tool: string; args: unknown; result: string }> = [];
+    let contextLengthRecoveryAttempted = false;
+    let noToolCallRetries = 0;
+    let finalResponseFailures = 0;
+    const MAX_NO_TOOL_CALL_RETRIES = 3;
+    const MAX_FINAL_RESPONSE_FAILURES = 3;
+
+    while (true) {
+      // Check for interrupt at start of each iteration
+      if (this.isInterrupted) {
+        logger.flow('Interrupt detected - stopping tool loop');
+        throw new Error('INTERRUPTED');
+      }
+
+      // Check for pending user message and inject it
+      if (options?.getPendingMessage && options?.clearPendingMessage) {
+        const pendingMsg = options.getPendingMessage();
+        if (pendingMsg) {
+          logger.flow('Injecting pending user message into conversation');
+          workingMessages.push({ role: 'user', content: pendingMsg });
+          options.clearPendingMessage();
+        }
+      }
+
+      // LLM call with ContextLengthError recovery
+      let response: LLMResponse;
+      try {
+        response = await this.chatCompletion({
+          messages: workingMessages,
+          tools,
+          tool_choice: 'required',
+        });
+      } catch (error) {
+        // ContextLengthError recovery: rollback last tool + compact + retry
+        if (error instanceof ContextLengthError && !contextLengthRecoveryAttempted) {
+          contextLengthRecoveryAttempted = true;
+          logger.flow('ContextLengthError detected - attempting recovery with compact');
+
+          // Rollback: remove last tool results and assistant message with tool_calls
+          let rollbackIdx = workingMessages.length - 1;
+          while (rollbackIdx >= 0 && workingMessages[rollbackIdx]?.role === 'tool') {
+            rollbackIdx--;
+          }
+          if (rollbackIdx >= 0 && workingMessages[rollbackIdx]?.tool_calls) {
+            workingMessages = workingMessages.slice(0, rollbackIdx);
+            logger.debug('Rolled back messages to before last tool execution', {
+              removedCount: messages.length - rollbackIdx,
+            });
+          }
+
+          // Execute compact
+          const { compactConversation } = await import('../../core/compact');
+          const compactResult = await compactConversation(workingMessages, {});
+
+          if (compactResult.success && compactResult.compactedMessages) {
+            workingMessages = [...compactResult.compactedMessages];
+            logger.flow('Compact completed, retrying with reduced context', {
+              originalCount: compactResult.originalMessageCount,
+              newCount: compactResult.newMessageCount,
+            });
+            continue;
+          } else {
+            logger.error('Compact failed during recovery', { error: compactResult.error });
+            throw error;
+          }
+        }
+        throw error;
+      }
+
+      // Check for interrupt after LLM call
+      if (this.isInterrupted) {
+        logger.flow('Interrupt detected after LLM call - stopping');
+        throw new Error('INTERRUPTED');
+      }
+
+      const choice = response.choices[0];
+      if (!choice) {
+        throw new Error('No choice in LLM response');
+      }
+
+      const assistantMessage = choice.message;
+      workingMessages.push(assistantMessage);
+
+      // Tool calls processing
+      if (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
+        // Multi-tool detection logging
+        if (assistantMessage.tool_calls.length > 1) {
+          const toolNames = assistantMessage.tool_calls.map(tc => tc.function.name).join(', ');
+          logger.warn(`[MULTI-TOOL DETECTED] LLM returned ${assistantMessage.tool_calls.length} tools: ${toolNames}`);
+        }
+
+        for (const toolCall of assistantMessage.tool_calls) {
+          const toolName = toolCall.function.name;
+          let toolArgs: Record<string, unknown>;
+
+          try {
+            toolArgs = JSON.parse(toolCall.function.arguments) as Record<string, unknown>;
+          } catch (parseError) {
+            const errorMsg = `Error: Failed to parse tool arguments - ${parseError instanceof Error ? parseError.message : 'Unknown error'}`;
+            logger.error('Tool argument parse error', { toolName, error: errorMsg });
+
+            workingMessages.push({
+              role: 'tool',
+              content: errorMsg,
+              tool_call_id: toolCall.id,
+            });
+            toolCallHistory.push({
+              tool: toolName,
+              args: { raw: toolCall.function.arguments },
+              result: errorMsg,
+            });
+            continue;
+          }
+
+          // Supervised Mode: Request user approval before tool execution
+          const approvalResult = await requestToolApproval(toolName, toolArgs);
+          if (approvalResult && typeof approvalResult === 'object' && approvalResult.reject) {
+            logger.flow(`Tool rejected by user: ${toolName}`);
+            const rejectMessage = approvalResult.comment
+              ? `Tool execution rejected by user. Reason: ${approvalResult.comment}`
+              : 'Tool execution rejected by user.';
+
+            workingMessages.push({
+              role: 'tool',
+              content: rejectMessage,
+              tool_call_id: toolCall.id,
+            });
+            toolCallHistory.push({ tool: toolName, args: toolArgs, result: rejectMessage });
+            continue;
+          }
+
+          logger.debug(`Executing tool: ${toolName}`, toolArgs);
+
+          let result: { success: boolean; result?: string; error?: string; metadata?: Record<string, unknown> };
+
+          try {
+            result = await executeFileTool(toolName, toolArgs);
+            logger.llmToolResult(toolName, result.result || '', result.success);
+
+            // Handle final_response tool
+            if (toolName === 'final_response') {
+              if (result.success && result.metadata?.['isFinalResponse']) {
+                logger.flow('final_response tool executed successfully - returning');
+                workingMessages.push({
+                  role: 'tool',
+                  content: result.result || '',
+                  tool_call_id: toolCall.id,
+                });
+                toolCallHistory.push({
+                  tool: toolName,
+                  args: toolArgs,
+                  result: result.result || '',
+                });
+
+                return {
+                  message: { role: 'assistant', content: result.result || '' },
+                  toolCalls: toolCallHistory,
+                  allMessages: workingMessages,
+                };
+              } else {
+                finalResponseFailures++;
+                logger.flow(`final_response failed (attempt ${finalResponseFailures}/${MAX_FINAL_RESPONSE_FAILURES}): ${result.error}`);
+
+                if (finalResponseFailures >= MAX_FINAL_RESPONSE_FAILURES) {
+                  logger.warn('Max final_response failures exceeded - forcing completion');
+                  const fallbackMessage = (toolArgs['message'] as string) || 'Task completed with incomplete TODOs.';
+                  emitAssistantResponse(fallbackMessage);
+
+                  return {
+                    message: { role: 'assistant', content: fallbackMessage },
+                    toolCalls: toolCallHistory,
+                    allMessages: workingMessages,
+                  };
+                }
+              }
+            }
+          } catch (toolError) {
+            logger.llmToolResult(toolName, `Error: ${toolError instanceof Error ? toolError.message : String(toolError)}`, false);
+            result = {
+              success: false,
+              error: toolError instanceof Error ? toolError.message : String(toolError),
+            };
+          }
+
+          // Add result to messages
+          workingMessages.push({
+            role: 'tool',
+            content: result.success ? result.result || '' : `Error: ${result.error}`,
+            tool_call_id: toolCall.id,
+          });
+          toolCallHistory.push({
+            tool: toolName,
+            args: toolArgs,
+            result: result.success ? result.result || '' : `Error: ${result.error}`,
+          });
+
+          // Check for interrupt after tool execution
+          if (this.isInterrupted) {
+            logger.flow('Interrupt detected after tool execution - stopping');
+            throw new Error('INTERRUPTED');
+          }
+        }
+        continue;
+      } else {
+        // No tool call - enforce tool usage
+        noToolCallRetries++;
+        logger.flow(`No tool call - enforcing tool usage (attempt ${noToolCallRetries}/${MAX_NO_TOOL_CALL_RETRIES})`);
+
+        if (noToolCallRetries > MAX_NO_TOOL_CALL_RETRIES) {
+          logger.warn('Max no-tool-call retries exceeded - returning content as final response');
+          const fallbackContent = assistantMessage.content || 'Task completed.';
+          emitAssistantResponse(fallbackContent);
+
+          return {
+            message: { role: 'assistant', content: fallbackContent },
+            toolCalls: toolCallHistory,
+            allMessages: workingMessages,
+          };
+        }
+
+        // Check for malformed tool call patterns
+        const hasMalformedToolCall = assistantMessage.content &&
+          (/<tool_call>/i.test(assistantMessage.content) ||
+           /<arg_key>/i.test(assistantMessage.content) ||
+           /<arg_value>/i.test(assistantMessage.content) ||
+           /<\/tool_call>/i.test(assistantMessage.content) ||
+           /bash<arg_key>/i.test(assistantMessage.content) ||
+           /<xai:function_call/i.test(assistantMessage.content) ||
+           /<\/xai:function_call>/i.test(assistantMessage.content) ||
+           /<parameter\s+name=/i.test(assistantMessage.content));
+
+        const retryMessage = hasMalformedToolCall
+          ? 'Your previous response contained a malformed tool call (XML tags in content). You MUST use the proper tool_calls API format. Use final_response tool to deliver your message to the user.'
+          : 'You must use tools for all actions. Use final_response tool to deliver your final message to the user after completing all tasks.';
+
+        if (hasMalformedToolCall) {
+          logger.warn('Malformed tool call detected in content', {
+            contentSnippet: assistantMessage.content?.substring(0, 200),
+          });
+        }
+
+        workingMessages.push({ role: 'user', content: retryMessage });
+        continue;
+      }
     }
   }
 

@@ -9,6 +9,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { logger } from '../utils/logger';
+import { contextTracker } from './compact/context-tracker';
 
 // Usage data directory (Windows: %APPDATA%\LOCAL-CLI-UI)
 function getDataDir(): string {
@@ -76,12 +77,13 @@ class UsageTracker {
   private data: UsageData;
   private saveTimeout: ReturnType<typeof setTimeout> | null = null;
 
-  // Current session usage
+  // Current session usage (CLI parity: includes lastPromptTokens)
   private currentSession = {
     inputTokens: 0,
     outputTokens: 0,
     totalTokens: 0,
     requestCount: 0,
+    lastPromptTokens: 0,
   };
 
   constructor() {
@@ -130,12 +132,15 @@ class UsageTracker {
 
   /**
    * Record token usage
+   * CLI parity: src/core/usage-tracker.ts recordUsage()
+   * @param promptTokens - Optional: last prompt_tokens for context tracking (auto-compact)
    */
   recordUsage(
     model: string,
     inputTokens: number,
     outputTokens: number,
-    sessionId?: string
+    sessionId?: string,
+    promptTokens?: number
   ): void {
     const totalTokens = inputTokens + outputTokens;
     const timestamp = new Date().toISOString();
@@ -186,6 +191,13 @@ class UsageTracker {
     this.currentSession.outputTokens += outputTokens;
     this.currentSession.totalTokens += totalTokens;
     this.currentSession.requestCount++;
+
+    // Update lastPromptTokens for context tracking (CLI parity)
+    if (promptTokens !== undefined) {
+      this.currentSession.lastPromptTokens = promptTokens;
+      // Also update contextTracker for auto-compact detection
+      contextTracker.updateUsage(promptTokens);
+    }
 
     this.saveData();
   }
@@ -241,6 +253,7 @@ class UsageTracker {
       outputTokens: 0,
       totalTokens: 0,
       requestCount: 0,
+      lastPromptTokens: 0,
     };
   }
 

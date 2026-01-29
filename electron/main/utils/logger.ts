@@ -9,22 +9,22 @@ import fs from 'fs';
 import path from 'path';
 import { app, shell } from 'electron';
 
-// 로그 레벨 정의
+// 로그 레벨 정의 (CLI parity: ERROR=0 가장 높은 우선순위, VERBOSE=4 가장 낮은 우선순위)
 export enum LogLevel {
-  DEBUG = 0,
-  INFO = 1,
-  WARN = 2,
-  ERROR = 3,
-  FATAL = 4,
+  ERROR = 0,
+  WARN = 1,
+  INFO = 2,
+  DEBUG = 3,
+  VERBOSE = 4,
 }
 
 // 로그 레벨 이름 매핑
 const LOG_LEVEL_NAMES: Record<LogLevel, string> = {
-  [LogLevel.DEBUG]: 'DEBUG',
-  [LogLevel.INFO]: 'INFO',
-  [LogLevel.WARN]: 'WARN',
   [LogLevel.ERROR]: 'ERROR',
-  [LogLevel.FATAL]: 'FATAL',
+  [LogLevel.WARN]: 'WARN',
+  [LogLevel.INFO]: 'INFO',
+  [LogLevel.DEBUG]: 'DEBUG',
+  [LogLevel.VERBOSE]: 'VERBOSE',
 };
 
 // 로그 엔트리 타입
@@ -46,7 +46,7 @@ export interface LoggerConfig {
 
 // 기본 설정
 const DEFAULT_CONFIG: LoggerConfig = {
-  logLevel: LogLevel.INFO,
+  logLevel: LogLevel.INFO, // CLI parity: INFO=2 shows ERROR(0), WARN(1), INFO(2)
   logDir: '',
   maxLogFiles: 7, // 7일치 보관
   maxLogSize: 10 * 1024 * 1024, // 10MB
@@ -237,8 +237,9 @@ class Logger {
    * 로그 기록
    */
   private log(level: LogLevel, message: string, data?: unknown): void {
-    // 로그 레벨 필터링
-    if (level < this.config.logLevel) return;
+    // 로그 레벨 필터링 (CLI parity: level <= config.logLevel만 출력)
+    // ERROR=0 항상 출력, VERBOSE=4는 config가 VERBOSE일 때만
+    if (level > this.config.logLevel) return;
 
     const timestamp = new Date().toISOString();
     const levelName = LOG_LEVEL_NAMES[level];
@@ -275,18 +276,18 @@ class Logger {
     if (this.config.consoleOutput) {
       const consoleMessage = `[${timestamp}] [${levelName}] ${message}`;
       switch (level) {
-        case LogLevel.DEBUG:
-          console.debug(consoleMessage, data !== undefined ? data : '');
-          break;
-        case LogLevel.INFO:
-          console.info(consoleMessage, data !== undefined ? data : '');
+        case LogLevel.ERROR:
+          console.error(consoleMessage, data !== undefined ? data : '');
           break;
         case LogLevel.WARN:
           console.warn(consoleMessage, data !== undefined ? data : '');
           break;
-        case LogLevel.ERROR:
-        case LogLevel.FATAL:
-          console.error(consoleMessage, data !== undefined ? data : '');
+        case LogLevel.INFO:
+          console.info(consoleMessage, data !== undefined ? data : '');
+          break;
+        case LogLevel.DEBUG:
+        case LogLevel.VERBOSE:
+          console.debug(consoleMessage, data !== undefined ? data : '');
           break;
       }
     }
@@ -311,8 +312,11 @@ class Logger {
     this.log(LogLevel.ERROR, message, data);
   }
 
+  /**
+   * Fatal level logging - maps to ERROR (CLI parity: no separate FATAL level)
+   */
   fatal(message: string, data?: unknown): void {
-    this.log(LogLevel.FATAL, message, data);
+    this.log(LogLevel.ERROR, `[FATAL] ${message}`, data);
   }
 
   // Flow control logging methods (for agent/planning) - CLI parity
@@ -1138,6 +1142,55 @@ class Logger {
   featureUsage(name: string, context: Record<string, unknown>): void {
     this.log(LogLevel.DEBUG, `[FEATURE USAGE] ${name}`, context);
   }
+
+  // ============================================================================
+  // LLM Methods (CLI parity)
+  // ============================================================================
+
+  /**
+   * Log LLM request (CLI parity)
+   */
+  llmRequest(messages: unknown[], model: string, tools?: unknown[]): void {
+    this.log(LogLevel.DEBUG, `[LLM REQUEST]`, {
+      model,
+      messagesCount: Array.isArray(messages) ? messages.length : 0,
+      toolsCount: Array.isArray(tools) ? tools.length : 0,
+    });
+  }
+
+  /**
+   * Log LLM response (CLI parity)
+   */
+  llmResponse(response: string, toolCalls?: unknown[]): void {
+    this.log(LogLevel.DEBUG, `[LLM RESPONSE]`, {
+      responseLength: response.length,
+      toolCallsCount: Array.isArray(toolCalls) ? toolCalls.length : 0,
+    });
+  }
+
+  /**
+   * Log LLM tool result (CLI parity)
+   */
+  llmToolResult(toolName: string, result: string, success: boolean): void {
+    this.log(LogLevel.DEBUG, `[LLM TOOL RESULT] ${toolName}`, {
+      success,
+      resultLength: result.length,
+    });
+  }
+
+  /**
+   * Log bash/powershell execution (CLI parity)
+   */
+  bashExecution(formattedDisplay: string): void {
+    this.log(LogLevel.DEBUG, `[BASH EXECUTION]`, { display: formattedDisplay });
+  }
+
+  /**
+   * Verbose level logging (CLI parity)
+   */
+  verbose(message: string, data?: unknown): void {
+    this.log(LogLevel.VERBOSE, message, data);
+  }
 }
 
 // 싱글톤 인스턴스
@@ -1149,3 +1202,4 @@ export const info = logger.info.bind(logger);
 export const warn = logger.warn.bind(logger);
 export const error = logger.error.bind(logger);
 export const fatal = logger.fatal.bind(logger);
+export const verbose = logger.verbose.bind(logger);

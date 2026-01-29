@@ -771,8 +771,171 @@ export const findFilesTool: LLMSimpleTool = {
   description: 'Search files by pattern',
 };
 
+// =============================================================================
+// search_content Tool
+// =============================================================================
+
+const SEARCH_CONTENT_DEFINITION: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'search_content',
+    description: 'Search for text pattern inside files.',
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: {
+          type: 'string',
+          description: `A natural, conversational explanation for the user about what you're doing.
+Write as if you're talking to the user directly. Use the same language as the user.
+Examples:
+- "Searching for usages of the function"
+- "Finding where the error message is defined"
+- "Looking for references to the API endpoint"`,
+        },
+        pattern: {
+          type: 'string',
+          description: 'Text or regex pattern to search for',
+        },
+        directory_path: {
+          type: 'string',
+          description: 'Directory path to search in (default: current directory)',
+        },
+        file_pattern: {
+          type: 'string',
+          description: 'File pattern to filter (e.g., *.ts)',
+        },
+        max_results: {
+          type: 'number',
+          description: 'Maximum number of results (default: 50)',
+        },
+      },
+      required: ['reason', 'pattern'],
+    },
+  },
+};
+
+const TEXT_EXTENSIONS = [
+  '.ts', '.tsx', '.js', '.jsx', '.json', '.md', '.txt', '.css', '.scss',
+  '.html', '.xml', '.yaml', '.yml', '.toml', '.ini', '.cfg', '.conf',
+  '.sh', '.bash', '.ps1', '.py', '.rb', '.go', '.rs', '.java', '.c',
+  '.cpp', '.h', '.hpp', '.cs', '.php', '.vue', '.svelte',
+];
+
+async function searchContentRecursively(
+  dirPath: string,
+  searchRegex: RegExp,
+  baseDir: string,
+  fileRegex: RegExp | null,
+  resultCount: { count: number },
+  maxResults: number,
+  depth: number = 0
+): Promise<Array<{ file: string; line: number; content: string }>> {
+  if (depth > MAX_DEPTH || resultCount.count >= maxResults) {
+    return [];
+  }
+
+  let entries;
+  try {
+    entries = await fs.readdir(dirPath, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+
+  const results: Array<{ file: string; line: number; content: string }> = [];
+
+  for (const entry of entries) {
+    if (resultCount.count >= maxResults) break;
+
+    if (entry.name.startsWith('.')) continue;
+
+    const fullPath = path.join(dirPath, entry.name);
+
+    if (entry.isDirectory()) {
+      if (EXCLUDED_DIRS.has(entry.name)) continue;
+
+      const subResults = await searchContentRecursively(
+        fullPath, searchRegex, baseDir, fileRegex, resultCount, maxResults, depth + 1
+      );
+      results.push(...subResults);
+    } else {
+      if (fileRegex && !fileRegex.test(entry.name)) continue;
+
+      const ext = path.extname(entry.name).toLowerCase();
+      if (!TEXT_EXTENSIONS.includes(ext)) continue;
+
+      try {
+        const content = await fs.readFile(fullPath, 'utf-8');
+        const lines = content.split('\n');
+        const relativePath = path.relative(baseDir, fullPath);
+
+        for (let i = 0; i < lines.length && resultCount.count < maxResults; i++) {
+          const line = lines[i] ?? '';
+          if (searchRegex.test(line)) {
+            results.push({
+              file: relativePath,
+              line: i + 1,
+              content: line.trim().substring(0, 200),
+            });
+            resultCount.count++;
+          }
+        }
+      } catch {
+        // Skip files that can't be read
+      }
+    }
+  }
+
+  return results;
+}
+
+async function executeSearchContent(args: Record<string, unknown>): Promise<ToolResult> {
+  const pattern = args['pattern'] as string;
+  const directoryPath = (args['directory_path'] as string) || '.';
+  const filePattern = args['file_pattern'] as string | undefined;
+  const maxResults = (args['max_results'] as number) || 50;
+
+  logger.toolStart('search_content', { pattern, directory_path: directoryPath, file_pattern: filePattern, maxResults });
+
+  try {
+    const resolvedPath = path.isAbsolute(directoryPath) ? directoryPath : path.resolve(process.cwd(), directoryPath);
+    const searchRegex = new RegExp(pattern, 'gi');
+
+    let fileRegex: RegExp | null = null;
+    if (filePattern) {
+      const regexPattern = filePattern
+        .replace(/\./g, '\\.')
+        .replace(/\*/g, '.*')
+        .replace(/\?/g, '.');
+      fileRegex = new RegExp(`^${regexPattern}$`, 'i');
+    }
+
+    const results = await searchContentRecursively(
+      resolvedPath, searchRegex, resolvedPath, fileRegex, { count: 0 }, maxResults
+    );
+
+    logger.toolSuccess('search_content', args, { matchedCount: results.length }, 0);
+
+    if (results.length === 0) {
+      return { success: true, result: `No matches found for pattern "${pattern}".` };
+    }
+
+    return { success: true, result: JSON.stringify(results, null, 2) };
+  } catch (error) {
+    const err = error as NodeJS.ErrnoException;
+    logger.toolError('search_content', args, err, 0);
+    return { success: false, error: `Content search failed: ${err.message}` };
+  }
+}
+
+export const searchContentTool: LLMSimpleTool = {
+  definition: SEARCH_CONTENT_DEFINITION,
+  execute: executeSearchContent,
+  categories: ['llm-simple'] as ToolCategory[],
+  description: 'Search content in files',
+};
+
 /**
- * File operation tools (read, create, edit, list, find)
+ * File operation tools (read, create, edit, list, find, search_content)
  */
 export const FILE_TOOLS: LLMSimpleTool[] = [
   readFileTool,
@@ -780,6 +943,7 @@ export const FILE_TOOLS: LLMSimpleTool[] = [
   editFileTool,
   listFilesTool,
   findFilesTool,
+  searchContentTool,
 ];
 
 /**

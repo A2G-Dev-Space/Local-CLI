@@ -12,9 +12,9 @@ import * as path from 'path';
 import * as os from 'os';
 import { ToolDefinition } from '../../../types/index.js';
 
-// Reuse tell_to_user callback from file-tools
+// Reuse tell_to_user callback from user-interaction-tools (Electron parity)
 // This will be set by PlanExecuteApp and shared across all tools
-export { setTellToUserCallback } from '../simple/file-tools.js';
+export { setTellToUserCallback } from '../simple/user-interaction-tools.js';
 
 /**
  * Base path for documentation

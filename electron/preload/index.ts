@@ -757,6 +757,18 @@ const electronAPI = {
       return () => ipcRenderer.removeListener('agent:askUser', handler);
     },
 
+    onContextUpdate: (callback: (data: { usagePercentage: number; currentTokens: number; maxTokens: number }) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, data: { usagePercentage: number; currentTokens: number; maxTokens: number }) => callback(data);
+      ipcRenderer.on('agent:contextUpdate', handler);
+      return () => ipcRenderer.removeListener('agent:contextUpdate', handler);
+    },
+
+    onReasoning: (callback: (data: { content: string; isStreaming: boolean }) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, data: { content: string; isStreaming: boolean }) => callback(data);
+      ipcRenderer.on('agent:reasoning', handler);
+      return () => ipcRenderer.removeListener('agent:reasoning', handler);
+    },
+
     onComplete: (callback: (data: { response: string }) => void): (() => void) => {
       const handler = (_event: IpcRendererEvent, data: { response: string }) => callback(data);
       ipcRenderer.on('agent:complete', handler);
