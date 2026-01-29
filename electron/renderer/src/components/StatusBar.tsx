@@ -75,6 +75,7 @@ const StatusBar: React.FC<StatusBarProps> = ({
       window.electronAPI.agent.onComplete(() => {
         setIsAgentRunning(false);
         setCurrentTool(null);
+        // Don't reset contextUsage - keep showing last known value until next session
       })
     );
 
@@ -104,14 +105,16 @@ const StatusBar: React.FC<StatusBarProps> = ({
     return () => clearInterval(interval);
   }, []);
 
-  // Get context usage (mock for now - could be wired to real tracking)
+  // Get real context usage from main process via IPC
   useEffect(() => {
-    // This could be connected to real context tracking
-    // For now, simulate some context usage when agent is running
-    if (isAgentRunning) {
-      setContextUsage(prev => Math.min(prev + 5, 100));
-    }
-  }, [isAgentRunning, currentTool]);
+    if (!window.electronAPI?.agent?.onContextUpdate) return;
+
+    const unsub = window.electronAPI.agent.onContextUpdate((data) => {
+      setContextUsage(data.usagePercentage);
+    });
+
+    return () => unsub();
+  }, []);
 
   // Memoize directory display format
   const displayDirectory = useMemo(() => {

@@ -25,10 +25,13 @@ import {
   setToolExecutionCallback,
   setToolResponseCallback,
 } from '../tools';
+import { setReasoningCallback } from '../tools/llm/simple/simple-tool-executor';
+import { ContextLengthError } from '../errors';
 import { PLAN_EXECUTE_SYSTEM_PROMPT, buildPlanExecutePrompt } from '../prompts';
 import { GIT_COMMIT_RULES } from '../prompts/shared/git-rules';
 import { PlanningLLM } from '../agents/planner';
-import { getContextTracker } from '../core/compact';
+import { contextTracker, getContextTracker } from '../core/compact';
+import { configManager } from '../core/config';
 import {
   validateToolMessages,
   truncateMessages,
@@ -81,6 +84,8 @@ export interface AgentCallbacks {
   onMessage?: (message: Message) => void;
   onToolCall?: (toolName: string, args: Record<string, unknown>) => void;
   onToolResult?: (toolName: string, result: string, success: boolean) => void;
+  onToolExecution?: (toolName: string, reason: string, args: Record<string, unknown>) => void;
+  onToolResponse?: (toolName: string, success: boolean, result: string) => void;
   onTodoUpdate?: (todos: TodoItem[]) => void;
   onTellUser?: (message: string) => void;
   onAskUser?: (request: AskUserRequest) => Promise<AskUserResponse>;
@@ -247,6 +252,13 @@ export async function runAgent(
     }
   });
 
+  // Reasoning callback - send reasoning content to renderer (CLI parity)
+  setReasoningCallback((content: string, isStreaming: boolean) => {
+    if (state.mainWindow) {
+      state.mainWindow.webContents.send('agent:reasoning', { content, isStreaming });
+    }
+  });
+
   // Get tools from registry
   const tools = toolRegistry.getLLMToolDefinitions();
   const actualEnabledToolGroups = toolRegistry.getEnabledToolGroupIds() as OptionalToolGroupId[];
@@ -269,10 +281,12 @@ export async function runAgent(
     }
 
     try {
-      // Create PlanningLLM with proper arguments (llmClient and getToolSummary function)
+      // Create PlanningLLM with proper arguments (llmClient and tool summary functions)
+      // Includes optional tools info (browser, office, etc.) for planning
       const planningLLM = new PlanningLLM(
         llmClient,
-        () => toolRegistry.getToolSummaryForPlanning()
+        () => toolRegistry.getToolSummaryForPlanning(),
+        () => toolRegistry.getEnabledOptionalToolsInfo()
       );
 
       // Set ask-user callback for Planning LLM (enables ask_to_user during planning)
@@ -290,6 +304,14 @@ export async function runAgent(
         userMessage,
         existingMessages
       );
+
+      // Add clarification messages to history (ask_to_user Q&A from planning phase)
+      if (planningResult.clarificationMessages?.length) {
+        existingMessages = [...existingMessages, ...planningResult.clarificationMessages];
+        logger.flow('Added planning clarification messages to history', {
+          count: planningResult.clarificationMessages.length,
+        });
+      }
 
       if (planningResult.directResponse) {
         logger.flow('Planning returned direct response, skipping execution');
@@ -310,10 +332,18 @@ export async function runAgent(
         state.isRunning = false;
         state.abortController = null;
 
+        // Include user message + direct response in history (CLI parity: plan-executor.ts)
+        // Without this, direct responses would be lost on session restore
+        const lastMsg = existingMessages[existingMessages.length - 1];
+        const needsUserMessage = !(lastMsg?.role === 'user' && lastMsg?.content === userMessage);
+        const updatedMessages = needsUserMessage
+          ? [...existingMessages, { role: 'user' as const, content: userMessage }, { role: 'assistant' as const, content: planningResult.directResponse }]
+          : [...existingMessages, { role: 'assistant' as const, content: planningResult.directResponse }];
+
         return {
           success: true,
           response: planningResult.directResponse,
-          messages: existingMessages,
+          messages: updatedMessages,
           toolCalls: [],
           iterations: 0,
         };
@@ -342,19 +372,22 @@ export async function runAgent(
 
   // ==========================================================================
   // Prepare Messages
+  // CLI parity: System prompt is injected per-LLM call, not stored in history
   // ==========================================================================
   let messages: Message[] = validateToolMessages([...existingMessages]);
   messages = truncateMessages(messages, 100);
 
-  const hasSystemMessage = messages.some((m) => m.role === 'system');
-  if (!hasSystemMessage) {
-    messages = [{ role: 'system', content: systemPrompt }, ...messages];
-  }
+  // Filter out any system messages from history
+  // System prompt will be injected at LLM call time only
+  messages = messages.filter((m) => m.role !== 'system');
 
+  // Prepend system prompt for LLM call
+  // Inject todoContext into system prompt (not user message) to prevent leak into next planning call
   const todoContext = buildTodoContext(state.currentTodos);
-  const userMessageWithContext = todoContext ? userMessage + todoContext : userMessage;
+  const systemWithTodos = todoContext ? systemPrompt + '\n' + todoContext : systemPrompt;
+  messages = [{ role: 'system', content: systemWithTodos }, ...messages];
 
-  messages.push({ role: 'user', content: userMessageWithContext });
+  messages.push({ role: 'user', content: userMessage });
 
   // Chat 로그: 사용자 입력
   logger.info('[CHAT] User message', { content: userMessage.substring(0, 500) });
@@ -417,7 +450,7 @@ export async function runAgent(
           temperature: 0.7,
         });
       } catch (llmError) {
-        if ((llmError as any).isContextLengthError && !contextCompactRetried) {
+        if (llmError instanceof ContextLengthError && !contextCompactRetried) {
           logger.warn('Context length exceeded - attempting auto-compact');
           contextCompactRetried = true;
 
@@ -705,6 +738,71 @@ export async function runAgent(
 
         continue;
       }
+
+      // ========================================================================
+      // Preventative auto-compact check (CLI parity: plan-executor.ts)
+      // Triggers at 70% context usage to prevent LLM context length errors
+      // ========================================================================
+      const model = configManager.getCurrentModel();
+      const maxTokens = model?.maxTokens || 128000;
+
+      // Send context usage to renderer for StatusBar display
+      const usage = contextTracker.getContextUsage(maxTokens);
+      if (state.mainWindow && usage.usagePercentage > 0) {
+        state.mainWindow.webContents.send('agent:contextUpdate', {
+          usagePercentage: usage.usagePercentage,
+          currentTokens: usage.currentTokens,
+          maxTokens: usage.maxTokens,
+        });
+      }
+
+      // Check if auto-compact should trigger (one-shot at threshold)
+      if (contextTracker.shouldTriggerAutoCompact(maxTokens)) {
+        logger.flow('Preventative auto-compact triggered at threshold', {
+          usagePercentage: usage.usagePercentage,
+        });
+
+        if (callbacks.onTellUser) {
+          callbacks.onTellUser(`컨텍스트 ${usage.usagePercentage}% 사용 - 자동 압축을 실행합니다...`);
+        }
+        if (state.mainWindow) {
+          state.mainWindow.webContents.send('agent:tellUser', `컨텍스트 ${usage.usagePercentage}% 사용 - 자동 압축을 실행합니다...`);
+        }
+
+        const compactResult = await compactConversation(messages, { workingDirectory });
+
+        if (compactResult.success && compactResult.compactedMessages) {
+          logger.info('Preventative auto-compact successful', {
+            originalCount: compactResult.originalMessageCount,
+            newCount: compactResult.newMessageCount,
+          });
+
+          // Preserve system prompt, replace rest with compacted messages
+          const systemMessage = messages.find(m => m.role === 'system');
+          messages = systemMessage
+            ? [systemMessage, ...compactResult.compactedMessages]
+            : compactResult.compactedMessages;
+
+          // Reset context tracker with estimated token count
+          const totalContent = messages
+            .map(m => typeof m.content === 'string' ? m.content : JSON.stringify(m.content))
+            .join('');
+          const estimatedTokens = contextTracker.estimateTokens(totalContent);
+          contextTracker.reset(estimatedTokens);
+
+          // Update renderer with new usage
+          const newUsage = contextTracker.getContextUsage(maxTokens);
+          if (state.mainWindow) {
+            state.mainWindow.webContents.send('agent:contextUpdate', {
+              usagePercentage: newUsage.usagePercentage,
+              currentTokens: newUsage.currentTokens,
+              maxTokens: newUsage.maxTokens,
+            });
+          }
+        } else {
+          logger.warn('Preventative auto-compact failed', { error: compactResult.error });
+        }
+      }
     }
 
     // CLI parity: no max iterations check - loop exits when LLM calls final_response or stops
@@ -716,10 +814,14 @@ export async function runAgent(
       state.mainWindow.webContents.send('agent:complete', { response: finalResponse });
     }
 
+    // Return messages without system prompt (CLI parity)
+    // System prompt should not be stored in history
+    const messagesWithoutSystem = messages.filter((m) => m.role !== 'system');
+
     return {
       success: true,
       response: finalResponse,
-      messages,
+      messages: messagesWithoutSystem,
       toolCalls: toolCallHistory,
       iterations,
     };
@@ -744,10 +846,13 @@ export async function runAgent(
       }
     }
 
+    // Return messages without system prompt (CLI parity)
+    const messagesWithoutSystem = messages.filter((m) => m.role !== 'system');
+
     return {
       success: isAbort, // Abort is not a failure - messages are still valid
       response: '',
-      messages,
+      messages: messagesWithoutSystem,
       toolCalls: toolCallHistory,
       iterations,
       error: isAbort ? undefined : errorMessage,
@@ -759,6 +864,7 @@ export async function runAgent(
     setTodoWriteCallback(null);
     setTellToUserCallback(null);
     setAskUserCallback(null);
+    setReasoningCallback(null);
     clearFinalResponseCallbacks();
   }
 }

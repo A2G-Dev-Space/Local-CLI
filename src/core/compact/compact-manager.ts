@@ -117,6 +117,7 @@ export class CompactManager {
         originalMessageCount: messages.length,
         newMessageCount: compactedMessages.length,
         compactedSummary: response,
+        compactedMessages,
       };
 
     } catch (error) {

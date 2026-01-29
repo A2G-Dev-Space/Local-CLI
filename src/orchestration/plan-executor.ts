@@ -125,6 +125,15 @@ export class PlanExecutor {
       const planningLLM = new PlanningLLM(llmClient);
       const planResult = await planningLLM.generateTODOListWithDocsDecision(userMessage, currentMessages);
 
+      // Add clarification messages to history (ask_to_user Q&A from planning phase)
+      if (planResult.clarificationMessages?.length) {
+        currentMessages = [...currentMessages, ...planResult.clarificationMessages];
+        callbacks.setMessages([...currentMessages]);
+        logger.flow('Added planning clarification messages to history', {
+          count: planResult.clarificationMessages.length,
+        });
+      }
+
       // Check for direct response (no planning needed)
       if (planResult.directResponse) {
         logger.flow('Direct response - no execution needed');

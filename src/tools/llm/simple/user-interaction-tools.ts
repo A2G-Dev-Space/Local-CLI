@@ -269,4 +269,9 @@ export const USER_INTERACTION_TOOLS: LLMSimpleTool[] = [
   askToUserTool,
 ];
 
+/**
+ * USER_TOOLS alias for backward compatibility (Electron parity)
+ */
+export const USER_TOOLS: LLMSimpleTool[] = USER_INTERACTION_TOOLS;
+
 export default USER_INTERACTION_TOOLS;

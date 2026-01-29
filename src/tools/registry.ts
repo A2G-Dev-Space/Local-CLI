@@ -202,6 +202,13 @@ class ToolRegistry {
   }
 
   /**
+   * Check if a tool is registered
+   */
+  has(name: string): boolean {
+    return this.tools.has(name);
+  }
+
+  /**
    * Get all tools in a category
    */
   getByCategory(category: ToolCategory): AnyTool[] {
@@ -375,14 +382,32 @@ class ToolRegistry {
   }
 
   /**
-   * Get tool count by category
+   * Get IDs of all enabled optional tool groups
    */
-  getStats(): Record<string, number> {
+  getEnabledToolGroupIds(): string[] {
+    return Array.from(this.optionalToolGroups.values())
+      .filter(g => g.enabled)
+      .map(g => g.id);
+  }
+
+  /**
+   * Get tool count statistics
+   */
+  getStats(): { total: number; core: number; optional: number; categories: Record<string, number> } {
     const stats: Record<string, number> = {};
     for (const [category, names] of this.categoryIndex) {
       stats[category] = names.size;
     }
-    return stats;
+
+    const coreCount = FILE_TOOLS.length + USER_INTERACTION_TOOLS.length + TODO_TOOLS.length + SYSTEM_TOOLS.length + 2; // +2 for final_response and docs_search
+    const optionalCount = this.enabledOptionalTools.size;
+
+    return {
+      total: this.tools.size,
+      core: coreCount,
+      optional: optionalCount,
+      categories: stats,
+    };
   }
 
   /**
