@@ -313,6 +313,14 @@ class LLMClient {
       tools: options.tools ? `${options.tools.length} tools` : 'none',
     });
 
+    // Check interrupt BEFORE creating new AbortController
+    // Prevents race condition: abort() sets isInterrupted, but new controller overwrites the aborted one
+    if (this.isInterrupted) {
+      logger.flow('LLM chatCompletion skipped - already interrupted');
+      this.isInterrupted = false;
+      throw new Error('INTERRUPTED');
+    }
+
     this.abortController = new AbortController();
 
     // Setup timeout
@@ -470,6 +478,13 @@ class LLMClient {
     });
 
     logger.httpStreamStart('POST', url);
+
+    // Check interrupt BEFORE creating new AbortController (same fix as chatCompletion)
+    if (this.isInterrupted) {
+      logger.flow('LLM streamCompletion skipped - already interrupted');
+      this.isInterrupted = false;
+      throw new Error('INTERRUPTED');
+    }
 
     this.abortController = new AbortController();
 

@@ -143,15 +143,26 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
   const [showAllMessages, setShowAllMessages] = useState(false);
 
   // Compute visible messages for rendering
-  const visibleMessages = useMemo(() => {
-    if (showAllMessages || messages.length <= MAX_VISIBLE_MESSAGES) {
-      return messages;
-    }
-    return messages.slice(-MAX_VISIBLE_MESSAGES);
-  }, [messages, showAllMessages]);
+  // Filter out tool messages and tool-call-only assistant messages for UI rendering
+  // These are shown as ToolExecution cards, not as chat bubbles
+  const renderableMessages = useMemo(() => {
+    return messages.filter(m => {
+      if (m.role === 'tool') return false;
+      // Hide assistant messages that only have tool_calls but no visible content
+      if (m.role === 'assistant' && m.tool_calls && m.tool_calls.length > 0 && !m.content?.trim()) return false;
+      return true;
+    });
+  }, [messages]);
 
-  const hasHiddenMessages = messages.length > MAX_VISIBLE_MESSAGES && !showAllMessages;
-  const hiddenMessageCount = hasHiddenMessages ? messages.length - MAX_VISIBLE_MESSAGES : 0;
+  const visibleMessages = useMemo(() => {
+    if (showAllMessages || renderableMessages.length <= MAX_VISIBLE_MESSAGES) {
+      return renderableMessages;
+    }
+    return renderableMessages.slice(-MAX_VISIBLE_MESSAGES);
+  }, [renderableMessages, showAllMessages]);
+
+  const hasHiddenMessages = renderableMessages.length > MAX_VISIBLE_MESSAGES && !showAllMessages;
+  const hiddenMessageCount = hasHiddenMessages ? renderableMessages.length - MAX_VISIBLE_MESSAGES : 0;
 
   // Use AgentContext for tool state (prevents re-renders)
   const {
@@ -177,6 +188,7 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
   } = useAgent();
 
   // Create unified timeline of messages and tool executions sorted by timestamp
+  // Tool executions are split into groups between messages so they appear in the correct position
   const timeline = useMemo<TimelineItem[]>(() => {
     const items: TimelineItem[] = [];
 
@@ -189,16 +201,41 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
       });
     });
 
-    // Group consecutive tool executions and add to timeline
-    // Use the first tool's timestamp for the group
+    // Split tool executions into groups separated by user messages
+    // Tools between message A and message B should appear between them in the timeline
     if (toolExecutions.length > 0) {
-      // Find insertion points by checking if tools should appear after each message
-      const firstToolTime = toolExecutions[0].timestamp;
-      items.push({
-        type: 'tools',
-        data: toolExecutions,
-        timestamp: firstToolTime,
-      });
+      const messageTimes = visibleMessages.map(m => m.timestamp).sort((a, b) => a - b);
+
+      let currentGroup: ToolExecutionData[] = [];
+      for (let i = 0; i < toolExecutions.length; i++) {
+        const tool = toolExecutions[i];
+        const prevTool = i > 0 ? toolExecutions[i - 1] : null;
+
+        // Check if a message was sent between this tool and the previous one
+        const hasMessageBetween = prevTool &&
+          messageTimes.some(t => t > prevTool.timestamp && t <= tool.timestamp);
+
+        if (hasMessageBetween && currentGroup.length > 0) {
+          // Flush current group and start a new one
+          items.push({
+            type: 'tools',
+            data: currentGroup,
+            timestamp: currentGroup[0].timestamp,
+          });
+          currentGroup = [tool];
+        } else {
+          currentGroup.push(tool);
+        }
+      }
+
+      // Flush remaining group
+      if (currentGroup.length > 0) {
+        items.push({
+          type: 'tools',
+          data: currentGroup,
+          timestamp: currentGroup[0].timestamp,
+        });
+      }
     }
 
     // Sort by timestamp
@@ -230,11 +267,22 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
   useEffect(() => {
     // Don't reset messages during send/clear operations
     if (skipSessionLoadRef.current) {
+      window.electronAPI?.log?.debug?.('[ChatPanel] Session load SKIPPED (skipSessionLoadRef=true)', {
+        sessionId: session?.id,
+        sessionMsgCount: session?.messages?.length ?? 0,
+      });
       return;
     }
+    window.electronAPI?.log?.info?.('[ChatPanel] Session load effect RUNNING', {
+      sessionId: session?.id,
+      sessionMsgCount: session?.messages?.length ?? 0,
+      currentMsgCount: messages.length,
+      firstMsgId: messages[0]?.id,
+    });
 
     setIsBatchLoad(true); // Disable animation for batch load
     if (session && session.messages.length > 0) {
+      window.electronAPI?.log?.debug?.('[ChatPanel] Restoring session messages', { count: session.messages.length });
       setMessages(session.messages);
     } else {
       // Only show welcome message if we don't have any messages yet
@@ -257,6 +305,7 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
 
   // Setup agent listeners once
   useEffect(() => {
+    window.electronAPI?.log?.debug?.('[ChatPanel] Setting up agent listeners');
     const cleanup = setupAgentListeners();
     return cleanup;
   }, [setupAgentListeners]);
@@ -275,6 +324,7 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
   // Setup final response callback - displays as chat message with markdown
   useEffect(() => {
     setOnFinalResponse((message: string) => {
+      window.electronAPI?.log?.info?.('[ChatPanel] Final response received', { length: message.length });
       // Normalize escaped characters (LLM sometimes sends literal \n instead of newlines)
       const normalizedMessage = message
         .replace(/\\n/g, '\n')
@@ -286,7 +336,10 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
         content: normalizedMessage,
         timestamp: Date.now(),
       };
-      setMessages(prev => [...prev, assistantMessage]);
+      setMessages(prev => {
+        window.electronAPI?.log?.debug?.('[ChatPanel] Adding final response to messages', { prevCount: prev.length });
+        return [...prev, assistantMessage];
+      });
       saveMessageToSession(assistantMessage);
     });
 
@@ -304,6 +357,7 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
     // Agent complete event
     unsubscribes.push(
       window.electronAPI.agent.onComplete((data) => {
+        window.electronAPI?.log?.info?.('[ChatPanel] Agent complete', { hasResponse: !!data.response, responseLength: data.response?.length ?? 0 });
         if (data.response) {
           const assistantMessage: ChatMessage = {
             id: `assistant-${Date.now()}`,
@@ -327,6 +381,7 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
     // Agent error event
     unsubscribes.push(
       window.electronAPI.agent.onError((data) => {
+        window.electronAPI?.log?.error?.('[ChatPanel] Agent error event', { error: data.error });
         const errorMessage: ChatMessage = {
           id: `error-${Date.now()}`,
           role: 'system',
@@ -371,6 +426,13 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
   const sendMessage = useCallback(async () => {
     if (!input.trim() || isLoading) return;
 
+    window.electronAPI?.log?.info?.('[ChatPanel] sendMessage START', {
+      inputLength: input.trim().length,
+      sessionId: sessionRef.current?.id,
+      hasSession: !!sessionRef.current,
+      currentMsgCount: messages.length,
+    });
+
     // Mark to skip session load effect (prevents user message from disappearing)
     skipSessionLoadRef.current = true;
 
@@ -381,7 +443,10 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
       timestamp: Date.now(),
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    setMessages(prev => {
+      window.electronAPI?.log?.debug?.('[ChatPanel] Adding user message', { prevCount: prev.length, msgId: userMessage.id });
+      return [...prev, userMessage];
+    });
 
     // Save to input history
     setInputHistory(prev => {
@@ -394,15 +459,17 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
     setIsLoading(true);
     setIsExecuting(true);
 
-    // Clear previous execution state
-    clearToolExecutions();
+    // Clear progress messages but keep tool executions visible
+    // Tool executions are cleared only on explicit "Clear Chat", not between messages
     clearProgressMessages();
 
     // Auto-create session if none exists
     if (!sessionRef.current && window.electronAPI?.session) {
+      window.electronAPI?.log?.info?.('[ChatPanel] Auto-creating session (no session exists)');
       try {
         const result = await window.electronAPI.session.create('New Chat', currentDirectory);
         if (result.success && result.session && onSessionChangeRef.current) {
+          window.electronAPI?.log?.info?.('[ChatPanel] Session auto-created', { newSessionId: result.session.id });
           onSessionChangeRef.current(result.session);
         }
       } catch (error) {
@@ -410,14 +477,15 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
       }
     }
 
-    // Save user message first, then allow session effect to run
+    // Save user message to session backend
+    // Keep skipSessionLoadRef=true until agent.run() completes to prevent
+    // session load effect from overwriting messages (auto-created session has empty messages)
     await saveMessageToSession(userMessage);
-    // Now safe to allow session loading
-    skipSessionLoadRef.current = false;
 
     // Check if agent API is available
     if (!window.electronAPI?.agent) {
       window.electronAPI?.log?.warn('[ChatPanel] electronAPI.agent not available, using fallback');
+      skipSessionLoadRef.current = false;
       setTimeout(async () => {
         const assistantMessage: ChatMessage = {
           id: `assistant-${Date.now()}`,
@@ -434,9 +502,21 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
     }
 
     // Build conversation history for agent
-    const conversationMessages = messages
-      .filter(m => m.role === 'user' || m.role === 'assistant')
-      .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+    // Use session.messages (full history with tool_calls) if available,
+    // otherwise fall back to UI messages (user/assistant text only)
+    const sessionMessages = sessionRef.current?.messages;
+    const conversationMessages = (sessionMessages && sessionMessages.length > 0)
+      ? sessionMessages
+          .filter(m => m.role !== 'system')
+          .map(m => ({
+            role: m.role as 'user' | 'assistant' | 'tool',
+            content: m.content || '',
+            ...(m.tool_calls ? { tool_calls: m.tool_calls } : {}),
+            ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
+          }))
+      : messages
+          .filter(m => m.role === 'user' || m.role === 'assistant')
+          .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
 
     // Agent config
     // CLI parity: no iteration limit - runs until LLM stops calling tools
@@ -446,11 +526,20 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
     };
 
     try {
+      window.electronAPI?.log?.info?.('[ChatPanel] agent.run() START', {
+        conversationMsgCount: conversationMessages.length,
+        autoMode: agentConfig.autoMode,
+      });
       const result = await window.electronAPI.agent.run(
         userMessage.content,
         conversationMessages,
         agentConfig
       );
+      window.electronAPI?.log?.info?.('[ChatPanel] agent.run() DONE', {
+        success: result.success,
+        resultMsgCount: result.messages?.length ?? 0,
+        error: result.error,
+      });
 
       // Save all messages (including tool messages) to session for proper compact support
       // result.messages includes: user, assistant (with tool_calls), tool responses
@@ -496,23 +585,30 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
       setMessages(prev => [...prev, errorMessage]);
       setIsLoading(false);
       setIsExecuting(false);
+    } finally {
+      // Allow session load effect to run again now that agent is done
+      window.electronAPI?.log?.debug?.('[ChatPanel] sendMessage FINALLY - resetting skipSessionLoadRef');
+      skipSessionLoadRef.current = false;
     }
-  }, [input, isLoading, messages, saveMessageToSession, currentDirectory, allowAllPermissions, clearToolExecutions, clearProgressMessages, setIsExecuting]);
+  }, [input, isLoading, messages, saveMessageToSession, currentDirectory, allowAllPermissions, clearProgressMessages, setIsExecuting]);
 
   // Abort message state
   const [abortMessage, setAbortMessage] = useState<string | null>(null);
 
   // Abort agent execution
   const handleAbort = useCallback(async () => {
+    window.electronAPI?.log?.info?.('[ChatPanel] handleAbort called', { isExecuting, isLoading });
     if (window.electronAPI?.agent) {
       await window.electronAPI.agent.abort();
+      window.electronAPI?.log?.info?.('[ChatPanel] Agent aborted, clearing state');
       setIsLoading(false);
       setIsExecuting(false);
+      clearTodos(); // Clear UI todos so next message triggers fresh planning
       setAbortMessage('Agent execution aborted.');
 
       setTimeout(() => setAbortMessage(null), 5000);
     }
-  }, [setIsExecuting]);
+  }, [setIsExecuting, clearTodos, isExecuting, isLoading]);
 
   // Handle keyboard events with input history (wrapped in useCallback to prevent re-renders)
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -565,6 +661,11 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
 
   const handleCompact = useCallback(async () => {
     if (!window.electronAPI?.compact || isCompacting || isLoading) return;
+
+    window.electronAPI?.log?.info?.('[ChatPanel] handleCompact START', {
+      uiMsgCount: messages.length,
+      sessionMsgCount: session?.messages?.length ?? 0,
+    });
 
     // Use session.messages which includes tool messages (not just UI messages)
     // This ensures tool call history is considered for compaction
@@ -654,7 +755,9 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
 
   // Clear chat
   const handleClear = useCallback(async () => {
+    window.electronAPI?.log?.info?.('[ChatPanel] handleClear called', { isExecuting, sessionId: session?.id, msgCount: messages.length });
     if (isExecuting && window.electronAPI?.agent) {
+      window.electronAPI?.log?.info?.('[ChatPanel] Aborting agent before clear');
       await window.electronAPI.agent.abort();
     }
 

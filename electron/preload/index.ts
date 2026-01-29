@@ -141,9 +141,15 @@ export interface AppConfig {
 // 채팅 메시지 타입
 export interface ChatMessage {
   id: string;
-  role: 'user' | 'assistant' | 'system';
+  role: 'user' | 'assistant' | 'system' | 'tool';
   content: string;
   timestamp: number;
+  tool_calls?: Array<{
+    id: string;
+    type: 'function';
+    function: { name: string; arguments: string };
+  }>;
+  tool_call_id?: string;
   metadata?: {
     model?: string;
     tokens?: number;
@@ -490,7 +496,12 @@ const electronAPI = {
   compact: {
     // 대화 압축 실행
     execute: (
-      messages: Array<{ role: 'system' | 'user' | 'assistant' | 'tool'; content: string }>,
+      messages: Array<{
+        role: 'system' | 'user' | 'assistant' | 'tool';
+        content: string;
+        tool_calls?: Array<{ id: string; type: 'function'; function: { name: string; arguments: string } }>;
+        tool_call_id?: string;
+      }>,
       context: { workingDirectory?: string; currentModel?: string }
     ): Promise<{
       success: boolean;
@@ -504,7 +515,12 @@ const electronAPI = {
     },
 
     // 압축 가능 여부 확인
-    canCompact: (messages: Array<{ role: string; content: string }>): Promise<{
+    canCompact: (messages: Array<{
+      role: string;
+      content: string;
+      tool_calls?: unknown[];
+      tool_call_id?: string;
+    }>): Promise<{
       canCompact: boolean;
       reason?: string;
     }> => {

@@ -139,6 +139,7 @@ export function abortAgent(): void {
     state.abortController = null;
   }
   state.isRunning = false;
+  state.currentTodos = []; // Clear todos so next run starts fresh with new planning
   llmClient.abort();
   logger.info('Agent aborted');
 }
@@ -179,6 +180,11 @@ export async function runAgent(
   // Initialize state
   state.isRunning = true;
   state.abortController = new AbortController();
+
+  // Clear old todos if not resuming - ensures fresh planning for new requests
+  if (!resumeTodos) {
+    state.currentTodos = [];
+  }
 
   // Set working directory for tool executor
   setWorkingDirectory(workingDirectory);
@@ -449,6 +455,13 @@ export async function runAgent(
         }
       }
 
+      // Check abort immediately after LLM response returns
+      // (abort may have been called while waiting for the response)
+      if (!state.isRunning || state.abortController?.signal.aborted) {
+        logger.info('Agent aborted after LLM response');
+        throw new Error('Agent aborted');
+      }
+
       const assistantMessage = response.choices[0]?.message;
       if (!assistantMessage) {
         throw new Error('No response from LLM');
@@ -506,6 +519,12 @@ export async function runAgent(
 
           // Execute tool via simple tool executor (CLI parity: uses executeFileTool)
           const result = await executeSimpleTool(toolName, toolArgs);
+
+          // Check abort after tool execution completes
+          if (!state.isRunning || state.abortController?.signal.aborted) {
+            logger.info('Agent aborted after tool execution', { toolName });
+            throw new Error('Agent aborted');
+          }
 
           const toolResultContent = result.success
             ? result.result || '(no output)'
@@ -706,22 +725,32 @@ export async function runAgent(
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.error('Agent error', { error: errorMessage });
 
-    if (callbacks.onError) {
-      callbacks.onError(error instanceof Error ? error : new Error(errorMessage));
+    // Treat abort/interrupt as graceful termination, not error
+    const isAbort = errorMessage === 'Agent aborted' || errorMessage === 'INTERRUPTED';
+    if (isAbort) {
+      logger.info('Agent terminated by user abort', { iterations });
+    } else {
+      logger.error('Agent error', { error: errorMessage });
     }
-    if (state.mainWindow) {
-      state.mainWindow.webContents.send('agent:error', { error: errorMessage });
+
+    // Don't send error event for user-initiated aborts
+    if (!isAbort) {
+      if (callbacks.onError) {
+        callbacks.onError(error instanceof Error ? error : new Error(errorMessage));
+      }
+      if (state.mainWindow) {
+        state.mainWindow.webContents.send('agent:error', { error: errorMessage });
+      }
     }
 
     return {
-      success: false,
+      success: isAbort, // Abort is not a failure - messages are still valid
       response: '',
       messages,
       toolCalls: toolCallHistory,
       iterations,
-      error: errorMessage,
+      error: isAbort ? undefined : errorMessage,
     };
   } finally {
     state.isRunning = false;
