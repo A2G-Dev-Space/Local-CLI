@@ -69,6 +69,9 @@ interface AgentContextValue {
   toolExecutions: ToolExecutionData[];
   clearToolExecutions: () => void;
 
+  // Session-aware state switching
+  switchSession: (newSessionId: string | null) => void;
+
   // Progress messages
   progressMessages: ProgressMessageData[];
   dismissProgressMessage: (id: string) => void;
@@ -115,11 +118,21 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     toolExecutionsRef.current = toolExecutions;
   }, [toolExecutions]);
 
+  // Per-session cache for tool executions, todos, progress
+  const toolCacheRef = useRef<Map<string, ToolExecutionData[]>>(new Map());
+  const todoCacheRef = useRef<Map<string, TodoItem[]>>(new Map());
+  const progressCacheRef = useRef<Map<string, ProgressMessageData[]>>(new Map());
+  const activeSessionRef = useRef<string | null>(null);
+
   // Progress messages
   const [progressMessages, setProgressMessages] = useState<ProgressMessageData[]>([]);
+  const progressMessagesRef = useRef<ProgressMessageData[]>([]);
+  useEffect(() => { progressMessagesRef.current = progressMessages; }, [progressMessages]);
 
   // TODOs
   const [todos, setTodos] = useState<TodoItem[]>([]);
+  const todosRef = useRef<TodoItem[]>([]);
+  useEffect(() => { todosRef.current = todos; }, [todos]);
 
   // Execution state
   const [isExecuting, setIsExecuting] = useState(false);
@@ -153,16 +166,51 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
   const clearProgressMessages = useCallback(() => {
     window.electronAPI?.log?.debug?.('[AgentContext] clearProgressMessages');
     setProgressMessages([]);
+    progressMessagesRef.current = [];
   }, []);
 
   const clearTodos = useCallback(() => {
     window.electronAPI?.log?.debug?.('[AgentContext] clearTodos');
     setTodos([]);
+    todosRef.current = [];
   }, []);
 
   const dismissProgressMessage = useCallback((id: string) => {
     setProgressMessages(prev => prev.filter(msg => msg.id !== id));
   }, []);
+
+  // Switch session: save current state to cache, restore new session's state from cache
+  // Uses refs to avoid stale closure issues (this callback must be stable)
+  const switchSession = useCallback((newSessionId: string | null) => {
+    const oldId = activeSessionRef.current;
+
+    // Save current state to old session cache (read from refs for latest values)
+    if (oldId) {
+      toolCacheRef.current.set(oldId, toolExecutionsRef.current);
+      todoCacheRef.current.set(oldId, todosRef.current);
+      progressCacheRef.current.set(oldId, progressMessagesRef.current);
+    }
+
+    // Restore from new session cache (or empty for new session)
+    const cachedTools = newSessionId ? toolCacheRef.current.get(newSessionId) || [] : [];
+    const cachedTodos = newSessionId ? todoCacheRef.current.get(newSessionId) || [] : [];
+    const cachedProgress = newSessionId ? progressCacheRef.current.get(newSessionId) || [] : [];
+
+    setToolExecutions(cachedTools);
+    toolExecutionsRef.current = cachedTools;
+    setTodos(cachedTodos);
+    todosRef.current = cachedTodos;
+    setProgressMessages(cachedProgress);
+    progressMessagesRef.current = cachedProgress;
+
+    activeSessionRef.current = newSessionId;
+
+    window.electronAPI?.log?.debug?.('[AgentContext] switchSession', {
+      from: oldId, to: newSessionId,
+      restoredTools: cachedTools.length,
+      restoredTodos: cachedTodos.length,
+    });
+  }, []); // No deps - all reads from refs
 
   // User question handlers
   const handleQuestionAnswer = useCallback(async (questionId: string, answer: string) => {
@@ -352,6 +400,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<AgentContextValue>(() => ({
     toolExecutions,
     clearToolExecutions,
+    switchSession,
     progressMessages,
     dismissProgressMessage,
     clearProgressMessages,
@@ -373,6 +422,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
   }), [
     toolExecutions,
     clearToolExecutions,
+    switchSession,
     progressMessages,
     dismissProgressMessage,
     clearProgressMessages,

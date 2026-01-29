@@ -146,11 +146,11 @@
   margin-left: var(--space-2);
 }
 
-/* Message tool (tell_to_user) - show actual message */
+/* Message tool (tell_to_user) - show actual message with newlines */
 .tool-name.tool-message {
-  white-space: normal;
+  white-space: pre-wrap;
   word-break: break-word;
-  line-height: 1.4;
+  line-height: 1.5;
   font-weight: var(--font-weight-normal);
 }
 

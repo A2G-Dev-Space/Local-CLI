@@ -4,7 +4,7 @@
  * Contains Terminal, Chat, and Logs panels with tab switching
  */
 
-import React, { memo, Suspense, lazy } from 'react';
+import React, { memo, Suspense, lazy, useState, useEffect } from 'react';
 import type { Session, EndpointConfig } from '../../../preload/index';
 import type { ChatPanelRef } from './ChatPanel';
 import ResizablePanel from './ResizablePanel';
@@ -80,6 +80,19 @@ const BottomPanel: React.FC<BottomPanelProps> = ({
   onModelDropdownToggle,
   onSelectModel,
 }) => {
+  // Context usage from agent IPC
+  const [contextUsage, setContextUsage] = useState<number>(0);
+
+  useEffect(() => {
+    if (!window.electronAPI?.agent?.onContextUpdate) return;
+
+    const unsub = window.electronAPI.agent.onContextUpdate((data) => {
+      setContextUsage(data.usagePercentage);
+    });
+
+    return () => unsub();
+  }, []);
+
   if (!isOpen) return null;
 
   const currentEndpoint = endpoints.find(e => e.id === currentEndpointId);
@@ -178,6 +191,24 @@ const BottomPanel: React.FC<BottomPanelProps> = ({
                       )}
                     </div>
                   )}
+                </div>
+
+                {/* Context Usage Indicator */}
+                <div
+                  className={`panel-context-usage ${contextUsage > 80 ? 'critical' : contextUsage > 60 ? 'warning' : ''}`}
+                  title={`Context: ${contextUsage}% used (auto-compact at 70%)`}
+                >
+                  <span className="panel-context-label">Context</span>
+                  <div className="panel-context-bar">
+                    <div
+                      className="panel-context-bar-fill"
+                      style={{
+                        width: `${Math.max(contextUsage, 2)}%`,
+                        background: contextUsage > 80 ? '#EF4444' : contextUsage > 60 ? '#F59E0B' : '#10B981'
+                      }}
+                    />
+                  </div>
+                  <span className="panel-context-percent">{contextUsage}%</span>
                 </div>
 
                 {/* Compact Conversation */}
