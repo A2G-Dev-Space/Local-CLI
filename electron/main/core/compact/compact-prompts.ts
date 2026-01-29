@@ -82,8 +82,8 @@ export function buildCompactUserPrompt(
       : 'ASSISTANT';
 
     // For assistant messages with tool_calls, show what tools were called
-    const toolCallInfo = (msg as any).tool_calls?.length
-      ? `\n[Called tools: ${(msg as any).tool_calls.map((tc: any) => tc.function?.name).join(', ')}]`
+    const toolCallInfo = msg.tool_calls?.length
+      ? `\n[Called tools: ${msg.tool_calls.map((tc) => tc.function?.name).join(', ')}]`
       : '';
 
     const content = typeof msg.content === 'string'
@@ -96,7 +96,7 @@ export function buildCompactUserPrompt(
       : content;
 
     if (msg.role === 'tool') {
-      parts.push(`[${messageIndex}] ${role} (call_id: ${(msg as any).tool_call_id || 'unknown'}):`);
+      parts.push(`[${messageIndex}] ${role} (call_id: ${msg.tool_call_id || 'unknown'}):`);
     } else {
       parts.push(`[${messageIndex}] ${role}:${toolCallInfo}`);
     }
