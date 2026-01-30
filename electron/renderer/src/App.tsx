@@ -227,6 +227,8 @@ const App: React.FC = () => {
       setUpdateInfo(info);
       setUpdateStatus('available');
       setUpdateModalOpen(true);
+      // Forced update: start download immediately
+      window.electronAPI.update.startDownload();
     });
 
     const unsubNotAvailable = window.electronAPI.update.onNotAvailable(() => {
@@ -745,19 +747,17 @@ const App: React.FC = () => {
   }, []);
 
   const handleUpdateLater = useCallback(() => {
+    // Forced update: block close during update flow
+    const isForced = updateStatus === 'available' || updateStatus === 'downloading' || updateStatus === 'downloaded';
+    if (isForced) return;
     setUpdateModalOpen(false);
-    // If available, start background download
-    if (updateStatus === 'available') {
-      window.electronAPI?.update?.startDownload();
-    }
   }, [updateStatus]);
 
   const handleUpdateClose = useCallback(() => {
+    // Forced update: block close during update flow
+    const isForced = updateStatus === 'available' || updateStatus === 'downloading' || updateStatus === 'downloaded';
+    if (isForced) return;
     setUpdateModalOpen(false);
-    // If available, start background download
-    if (updateStatus === 'available') {
-      window.electronAPI?.update?.startDownload();
-    }
   }, [updateStatus]);
 
 

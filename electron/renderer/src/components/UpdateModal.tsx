@@ -67,11 +67,13 @@ const UpdateModal: React.FC<UpdateModalProps> = ({
     }
   }, [isOpen, status]);
 
-  // ESC key to close (except during download)
+  // Forced update: only allow Enter to install when downloaded, block ESC
+  const isForced = status === 'available' || status === 'downloading' || status === 'downloaded';
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!isOpen) return;
-      if (e.key === 'Escape' && status !== 'downloading') {
+      if (e.key === 'Escape' && !isForced) {
         onClose();
       } else if (e.key === 'Enter' && status === 'downloaded') {
         onInstall();
@@ -80,7 +82,7 @@ const UpdateModal: React.FC<UpdateModalProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, status, onInstall, onClose]);
+  }, [isOpen, status, isForced, onInstall, onClose]);
 
   if (!isOpen) return null;
 
@@ -214,8 +216,9 @@ const UpdateModal: React.FC<UpdateModalProps> = ({
   const renderActions = () => {
     switch (status) {
       case 'checking':
+      case 'available':
       case 'downloading':
-        return null; // No actions during these states
+        return null; // Forced update: no actions until download completes
 
       case 'not-available':
       case 'error':
@@ -225,32 +228,15 @@ const UpdateModal: React.FC<UpdateModalProps> = ({
           </button>
         );
 
-      case 'available':
-        return (
-          <>
-            <button className="update-modal-btn update-modal-btn-secondary" onClick={onLater}>
-              나중에
-            </button>
-            <button className="update-modal-btn update-modal-btn-primary" onClick={onClose}>
-              백그라운드에서 다운로드
-            </button>
-          </>
-        );
-
       case 'downloaded':
         return (
-          <>
-            <button className="update-modal-btn update-modal-btn-secondary" onClick={onLater}>
-              나중에
-            </button>
-            <button
-              ref={installRef}
-              className="update-modal-btn update-modal-btn-primary update-modal-btn-install"
-              onClick={onInstall}
-            >
-              지금 설치
-            </button>
-          </>
+          <button
+            ref={installRef}
+            className="update-modal-btn update-modal-btn-primary update-modal-btn-install"
+            onClick={onInstall}
+          >
+            업데이트 설치
+          </button>
         );
 
       default:
@@ -258,7 +244,8 @@ const UpdateModal: React.FC<UpdateModalProps> = ({
     }
   };
 
-  const canClose = status !== 'downloading' && status !== 'checking';
+  // Forced update: block close during update flow
+  const canClose = !isForced;
 
   return (
     <div className="update-modal-backdrop" onClick={canClose ? onClose : undefined}>
