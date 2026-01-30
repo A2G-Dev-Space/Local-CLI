@@ -576,7 +576,7 @@ class BrowserClient {
       // Launch browser based on platform
       if (this.platform === 'native-windows') {
         // Native Windows - spawn directly with user data dir
-        const userDataDir = `${process.env['LOCALAPPDATA']}\\local-cli-browser-profile`;
+        const userDataDir = `${process.env['LOCALAPPDATA']}\\hanseol-browser-profile-${Date.now()}`;
         const args = [...baseArgs, `--user-data-dir=${userDataDir}`];
 
         logger.debug(`[BrowserClient] launch: spawning browser directly on Windows`);
@@ -589,7 +589,7 @@ class BrowserClient {
         // We need to use a PowerShell variable ($dir) for user-data-dir
         const argsForPowerShell = ['--user-data-dir=$dir', ...baseArgs];
         const argsString = argsForPowerShell.map(arg => `"${arg}"`).join(',');
-        const psCommand = `$dir = "$env:LOCALAPPDATA\\local-cli-browser-profile"; Start-Process -FilePath '${browserPath}' -ArgumentList ${argsString}`;
+        const psCommand = `$dir = "$env:LOCALAPPDATA\\hanseol-browser-profile-${Date.now()}"; Start-Process -FilePath '${browserPath}' -ArgumentList ${argsString}`;
 
         logger.debug(`[BrowserClient] launch: executing PowerShell command from WSL`);
 
@@ -600,7 +600,7 @@ class BrowserClient {
         });
       } else {
         // Native Linux - spawn directly
-        const userDataDir = `${process.env['HOME']}/.local-cli-browser-profile`;
+        const userDataDir = `${process.env['HOME']}/.hanseol-browser-profile-${Date.now()}`;
         const args = [...baseArgs, `--user-data-dir=${userDataDir}`];
 
         logger.debug(`[BrowserClient] launch: spawning browser directly on Linux`);

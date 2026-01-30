@@ -245,7 +245,8 @@ class BrowserClient {
    * Launch browser
    */
   async launch(options?: { headless?: boolean; browser?: 'chrome' | 'edge' }): Promise<BrowserResponse> {
-    const headless = options?.headless ?? false;
+    // Always run headless in Electron to avoid dual-window issues on corporate networks
+    const headless = true;
     const preferredBrowser = options?.browser ?? 'chrome';
 
     logger.info('[BrowserClient] Launching browser', { preferredBrowser, headless });
@@ -289,7 +290,7 @@ class BrowserClient {
       }
 
       // Browser arguments
-      const userDataDir = path.join(process.env.LOCALAPPDATA || '', 'LOCAL-CLI-UI', 'browser-profile');
+      const userDataDir = path.join(process.env.LOCALAPPDATA || '', 'LOCAL-CLI-UI', `browser-profile-${Date.now()}`);
       const args = [
         `--remote-debugging-port=${this.cdpPort}`,
         `--user-data-dir=${userDataDir}`,
