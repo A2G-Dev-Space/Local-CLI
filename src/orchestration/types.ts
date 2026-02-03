@@ -62,6 +62,8 @@ export interface StateCallbacks {
   setCurrentActivity: (activity: string) => void;
   setMessages: (messages: Message[] | ((prev: Message[]) => Message[])) => void;
   setAskUserRequest: (request: AskUserRequest | null) => void;
+  // Planning LLM ask-user callback (Promise-based for planning phase)
+  askUser?: (request: AskUserRequest) => Promise<AskUserResponse>;
   // Pending user message callbacks (for injecting messages during execution)
   getPendingMessage?: () => string | null;
   clearPendingMessage?: () => void;
