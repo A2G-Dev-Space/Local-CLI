@@ -104,9 +104,10 @@ export class PlanExecutor {
     this.currentLLMClient = llmClient;
     setDocsSearchLLMClientGetter(() => this.currentLLMClient);
 
-    // Reset state
+    // Reset state - clear previous TODOs when starting new planning
     isInterruptedRef.current = false;
     callbacks.setIsInterrupted(false);
+    callbacks.setTodos([]);  // Clear previous TODOs at start
     callbacks.setExecutionPhase('planning');
     callbacks.setCurrentActivity('Planning tasks');
 

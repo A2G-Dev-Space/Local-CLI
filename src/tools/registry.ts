@@ -33,8 +33,9 @@ import { USER_INTERACTION_TOOLS } from './llm/simple/user-interaction-tools.js';
 import { TODO_TOOLS } from './llm/simple/todo-tools.js';
 import { PLANNING_TOOLS } from './llm/simple/planning-tools.js';
 import { FinalResponseTool } from './llm/simple/final-response-tool.js';
-import { docsSearchAgentTool } from './llm/simple/docs-search-agent-tool.js';
-import { LLM_AGENT_TOOLS } from './llm/agents/index.js';
+// DISABLED: docs-search feature temporarily disabled
+// import { docsSearchAgentTool } from './llm/simple/docs-search-agent-tool.js';
+// import { LLM_AGENT_TOOLS } from './llm/agents/index.js';
 import { getShellTools } from './llm/simple/index.js';
 
 // Import optional tools
@@ -492,10 +493,12 @@ export function initializeToolRegistry(): void {
   toolRegistry.registerAll(PLANNING_TOOLS);
 
   // LLM Simple Tools - Docs Search Agent (callable by main LLM)
-  toolRegistry.register(docsSearchAgentTool);
+  // DISABLED: docs-search feature temporarily disabled
+  // toolRegistry.register(docsSearchAgentTool);
 
   // LLM Agent Tools (docs-search internal tools)
-  toolRegistry.registerAll(LLM_AGENT_TOOLS);
+  // DISABLED: docs-search feature temporarily disabled
+  // toolRegistry.registerAll(LLM_AGENT_TOOLS);
 
   // Note: Optional tools (Browser, Word, Excel, PowerPoint) are registered via /tool command
   // Office tools only available when hasWindowsAccess() is true
