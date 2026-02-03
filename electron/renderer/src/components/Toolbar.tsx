@@ -10,7 +10,7 @@ import {
   Settings,
   Wrench,
   BarChart2,
-  BookOpen,
+  // BookOpen removed - docs feature disabled
   FolderOpen,
   Command,
   Save,
@@ -39,7 +39,7 @@ interface ToolbarProps {
   onModel: () => void;
   onTool: () => void;
   onUsage: () => void;
-  onDocs: () => void;
+  // DISABLED: onDocs removed - docs feature disabled
   onLoad: () => void;
   onCompact: () => void;
   onCommandPalette: () => void;
@@ -61,7 +61,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
   onModel: _onModel,
   onTool,
   onUsage,
-  onDocs,
+  // DISABLED: onDocs removed - docs feature disabled
   onLoad: _onLoad,
   onCompact: _onCompact,
   onCommandPalette,
@@ -138,12 +138,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
       label: 'Token Usage',
       action: onUsage,
     },
-    {
-      id: 'docs',
-      icon: BookOpen,
-      label: 'Documentation',
-      action: onDocs,
-    },
+    // DISABLED: docs button removed - docs feature disabled
   ];
 
   const rightButtons: ToolbarButton[] = [

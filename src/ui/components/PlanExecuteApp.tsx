@@ -62,7 +62,8 @@ import { ModelSelector } from './ModelSelector.js';
 import { ToolSelector } from './ToolSelector.js';
 import { AskUserDialog } from './dialogs/AskUserDialog.js';
 import { ApprovalDialog } from './dialogs/ApprovalDialog.js';
-import { DocsBrowser } from './dialogs/DocsBrowser.js';
+// DISABLED: DocsBrowser removed - docs feature disabled
+// import { DocsBrowser } from './dialogs/DocsBrowser.js';
 import { CommandBrowser } from './CommandBrowser.js';
 // ChatView removed - using Static log instead
 import { Logo } from './Logo.js';
@@ -115,11 +116,6 @@ const TOOLS_REQUIRING_APPROVAL = new Set(['create_file', 'edit_file', 'bash']);
 
 // Startup tips - rotates one at a time based on total requests
 const STARTUP_TIPS = [
-  {
-    icon: '📚',
-    en: { prefix: 'Local RAG documents available. Use ', cmd: '/docs', suffix: ' to configure offline documentation.' },
-    ko: { prefix: '로컬 RAG 문서를 구성할 수 있습니다. ', cmd: '/docs', suffix: ' 명령어를 사용해보세요.' },
-  },
   {
     icon: '🔧',
     en: { prefix: 'Optional tools available! Use ', cmd: '/tool', suffix: ' to enable browser automation and more.' },
@@ -243,8 +239,9 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
   const [showModelSelector, setShowModelSelector] = useState(false);
   const [currentModelInfo, setCurrentModelInfo] = useState(modelInfo);
 
-  // Docs Browser state
-  const [showDocsBrowser, setShowDocsBrowser] = useState(false);
+  // DISABLED: Docs Browser state removed - docs feature disabled
+  // const [showDocsBrowser, setShowDocsBrowser] = useState(false);
+  const showDocsBrowser = false; // Always false - docs feature disabled
 
   // Tool Selector state
   const [showToolSelector, setShowToolSelector] = useState(false);
@@ -1185,7 +1182,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         onShowSessionBrowser: () => setShowSessionBrowser(true),
         onShowSettings: () => setShowSettings(true),
         onShowModelSelector: () => setShowModelSelector(true),
-        onShowDocsBrowser: () => setShowDocsBrowser(true),
+        // DISABLED: onShowDocsBrowser removed - docs feature disabled
         onShowToolSelector: () => setShowToolSelector(true),
         onCompact: llmClient
           ? () => planExecutionState.performCompact(llmClient, messages, setMessages)
@@ -2009,14 +2006,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         </Box>
       )}
 
-      {/* Docs Browser (shown when /docs command is submitted) */}
-      {showDocsBrowser && !isProcessing && (
-        <Box marginTop={0}>
-          <DocsBrowser
-            onClose={() => setShowDocsBrowser(false)}
-          />
-        </Box>
-      )}
+      {/* DISABLED: Docs Browser removed - docs feature disabled */}
 
       {/* Tool Selector (shown when /tool command is submitted) */}
       {showToolSelector && !isProcessing && (
