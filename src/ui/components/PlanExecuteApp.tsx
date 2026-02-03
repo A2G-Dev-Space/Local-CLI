@@ -1845,12 +1845,10 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         );
 
       case 'reasoning':
+        // Hide reasoning content - just show indicator
         return (
-          <Box key={entry.id} marginTop={1} flexDirection="column">
-            <Text color="gray">Thinking...</Text>
-            <Box marginLeft={2}>
-              <Text color="gray">{entry.content}</Text>
-            </Box>
+          <Box key={entry.id} marginTop={1}>
+            <Text color="gray">💭 Thinking...</Text>
           </Box>
         );
 
@@ -1878,8 +1876,8 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         </Box>
       )}
 
-      {/* Activity Indicator (shown when processing, but NOT when TODO panel is visible) */}
-      {isProcessing && planExecutionState.todos.length === 0 && !pendingToolApproval && !isDocsSearching && (
+      {/* Activity Indicator (shown when processing/planning, regardless of TODO count) */}
+      {isProcessing && (planExecutionState.executionPhase === 'planning' || planExecutionState.todos.length === 0) && !pendingToolApproval && !isDocsSearching && (
         <Box marginY={1}>
           <ActivityIndicator
             activity={getCurrentActivityType()}

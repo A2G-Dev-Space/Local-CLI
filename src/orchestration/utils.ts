@@ -40,10 +40,8 @@ export function formatErrorMessage(error: unknown): string {
   }
 
   if (error instanceof Error) {
-    let message = `❌ Error: ${error.message}\n`;
-    if (error.stack) {
-      message += `\n📚 Stack Trace:\n${error.stack}`;
-    }
+    // Only show error message, hide stack trace from user
+    const message = `❌ Error: ${error.message}`;
     logger.exit('formatErrorMessage', { isError: true });
     return message;
   }

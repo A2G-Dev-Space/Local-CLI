@@ -7,19 +7,21 @@
  * - Supports parallel docs search decision
  */
 
-import * as fs from 'fs/promises';
-import * as path from 'path';
-import * as os from 'os';
+// DISABLED: docs-search feature temporarily disabled (used by getDocsFolderStructure)
+// import * as fs from 'fs/promises';
+// import * as path from 'path';
+// import * as os from 'os';
 import { LLMClient } from '../../core/llm/llm-client.js';
 import { Message, TodoItem, PlanningResult, TodoStatus } from '../../types/index.js';
 import { logger } from '../../utils/logger.js';
 import { buildPlanningSystemPrompt } from '../../prompts/agents/planning.js';
 import { toolRegistry } from '../../tools/registry.js';
-import {
-  buildDocsSearchDecisionPrompt,
-  parseDocsSearchDecision,
-  DOCS_SEARCH_DECISION_RETRY_PROMPT,
-} from '../../prompts/agents/docs-search-decision.js';
+// DISABLED: docs-search feature temporarily disabled
+// import {
+//   buildDocsSearchDecisionPrompt,
+//   parseDocsSearchDecision,
+//   DOCS_SEARCH_DECISION_RETRY_PROMPT,
+// } from '../../prompts/agents/docs-search-decision.js';
 import {
   AskUserResponse,
   AskUserCallback,
@@ -364,6 +366,8 @@ Choose one of your 3 tools now.`,
   /**
    * Generate TODO list with parallel docs search decision
    * Runs planning and docs decision in parallel, then injects docs search TODO if needed
+   *
+   * NOTE: docs-search feature is currently DISABLED. Always returns docsSearchNeeded: false
    */
   async generateTODOListWithDocsDecision(
     userRequest: string,
@@ -372,6 +376,24 @@ Choose one of your 3 tools now.`,
     logger.enter('PlanningLLM.generateTODOListWithDocsDecision', { requestLength: userRequest.length });
     logger.startTimer('parallel-planning');
 
+    // DISABLED: docs-search feature temporarily disabled
+    // Only run planning, skip docs search decision
+    const planningResult = await this.generateTODOList(userRequest, contextMessages);
+
+    logger.vars(
+      { name: 'todoCount', value: planningResult.todos.length },
+      { name: 'docsSearchNeeded', value: false }
+    );
+
+    logger.endTimer('parallel-planning');
+    logger.exit('PlanningLLM.generateTODOListWithDocsDecision', { docsSearchNeeded: false });
+
+    return {
+      ...planningResult,
+      docsSearchNeeded: false,
+    };
+
+    /* DISABLED: Original docs-search logic preserved for future use
     // Run planning and docs decision in parallel
     const [planningResult, docsSearchNeeded] = await Promise.all([
       this.generateTODOList(userRequest, contextMessages),
@@ -409,12 +431,10 @@ Choose one of your 3 tools now.`,
       ...planningResult,
       docsSearchNeeded: false,
     };
+    */
   }
 
-  /**
-   * Check if docs search is needed for the given request
-   * Based on available documentation structure
-   */
+  /* DISABLED: docs-search feature temporarily disabled
   private async shouldSearchDocs(userMessage: string): Promise<boolean> {
     logger.enter('PlanningLLM.shouldSearchDocs', { messageLength: userMessage.length });
 
@@ -475,9 +495,6 @@ Choose one of your 3 tools now.`,
     return false;
   }
 
-  /**
-   * Get folder structure of docs directory (depth 1 only: root + immediate subdirs)
-   */
   private async getDocsFolderStructure(): Promise<string> {
     const docsBasePath = path.join(os.homedir(), '.hanseol', 'docs');
 
@@ -521,6 +538,7 @@ Choose one of your 3 tools now.`,
       return '(error reading docs directory)';
     }
   }
+  */
 }
 
 export default PlanningLLM;

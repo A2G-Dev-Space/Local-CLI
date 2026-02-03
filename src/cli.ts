@@ -55,6 +55,13 @@ program
       // Clear terminal on start
       process.stdout.write('\x1B[2J\x1B[0f');
 
+      // Show loading spinner immediately (before any async work)
+      const ora = (await import('ora')).default;
+      const spinner = ora({
+        text: chalk.cyan('한설 시작 중...'),
+        color: 'cyan',
+      }).start();
+
       // Setup logging (log level, JSON stream logger, exit handlers)
       const loggingSetup = await setupLogging({
         verbose: options.verbose,
@@ -75,6 +82,7 @@ program
       });
 
       // ConfigManager 초기화
+      spinner.text = chalk.cyan('설정 로드 중...');
       logger.flow('Initializing config manager');
       await configManager.initialize();
       logger.flow('Config manager initialized');
@@ -85,6 +93,7 @@ program
       logger.flow('Optional tools initialized');
 
       // LLMClient 생성 (엔드포인트가 없으면 null)
+      spinner.text = chalk.cyan('LLM 클라이언트 생성 중...');
       let llmClient = null;
       let modelInfo = { model: 'Not configured', endpoint: 'Not configured' };
 
@@ -101,6 +110,10 @@ program
       } else {
         logger.flow('No LLM endpoints configured');
       }
+
+      // Stop spinner before starting Ink UI
+      spinner.stop();
+      process.stdout.write('\x1B[2J\x1B[0f'); // Clear again for clean UI
 
       // Ink UI 시작 (verbose/debug/llm-log 모드에서만 시작 메시지 표시)
       if (options.verbose || options.debug) {
