@@ -47,14 +47,3 @@ export const PROJECTS_DIR = path.join(LOCAL_HOME_DIR, 'projects');
  * CLI parity: src/constants.ts
  */
 export const APP_VERSION = '4.1.5';
-
-/**
- * Dashboard URL (injected from package.json via inject-version.js)
- */
-export const DASHBOARD_URL = 'https://3.35.4.127.nip.io';
-
-/**
- * Credentials 파일 경로 (CLI와 공유)
- * ~/.hanseol/credentials.json
- */
-export const CREDENTIALS_FILE_PATH = path.join(LOCAL_HOME_DIR, 'credentials.json');

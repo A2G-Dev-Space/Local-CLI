@@ -45,9 +45,3 @@ export const PROJECTS_DIR = path.join(LOCAL_HOME_DIR, 'projects');
  * Application version (injected from package.json)
  */
 export const APP_VERSION = '4.1.5';
-
-/**
- * Dashboard URL (injected from package.json)
- * PROD: https://3.35.4.127.nip.io
- */
-export const DASHBOARD_URL = 'https://3.35.4.127.nip.io';
