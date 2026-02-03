@@ -9,11 +9,12 @@ import { Message, TodoItem } from '../types/index.js';
 import { sessionManager } from './session/session-manager.js';
 import { usageTracker } from './usage-tracker.js';
 import { logger } from '../utils/logger.js';
-import {
-  getDocsInfo,
-  downloadDocsFromSource,
-  getAvailableSources,
-} from './docs-manager.js';
+// DISABLED: docs feature removed
+// import {
+//   getDocsInfo,
+//   downloadDocsFromSource,
+//   getAvailableSources,
+// } from './docs-manager.js';
 
 // Planning mode is always 'auto' - other modes have been removed
 export type PlanningMode = 'auto';
@@ -38,7 +39,7 @@ export interface CommandHandlerContext {
   onShowSessionBrowser?: () => void;
   onShowSettings?: () => void;
   onShowModelSelector?: () => void;
-  onShowDocsBrowser?: () => void;
+  // DISABLED: onShowDocsBrowser removed - docs feature disabled
   onShowToolSelector?: () => void;
   onCompact?: () => Promise<CompactResult>;
 }
@@ -224,141 +225,8 @@ export async function executeSlashCommand(
     };
   }
 
-  // Docs command - manage documentation
-  if (trimmedCommand.startsWith('/docs')) {
-    const parts = trimmedCommand.split(' ');
-    const subCommand = parts[1];
-    const sourceId = parts[2];
-
-    // /docs - show DocsBrowser UI if available
-    if (!subCommand) {
-      // If UI callback is available (React UI), trigger DocsBrowser
-      if (context.onShowDocsBrowser) {
-        context.onShowDocsBrowser();
-        return {
-          handled: true,
-          shouldContinue: false,
-        };
-      }
-
-      // Fallback to text display (non-interactive mode)
-      const info = await getDocsInfo();
-      const sources = getAvailableSources();
-
-      let docsMessage = '📚 문서 관리\n\n';
-      docsMessage += `경로: ${info.path}\n`;
-      docsMessage += `상태: ${info.exists ? '✅ 존재' : '❌ 없음'}\n`;
-
-      if (info.exists) {
-        docsMessage += `파일 수: ${info.totalFiles}개\n`;
-        docsMessage += `크기: ${info.totalSize}\n`;
-
-        if (info.installedSources.length > 0) {
-          docsMessage += `\n설치된 문서: ${info.installedSources.join(', ')}\n`;
-        }
-      }
-
-      docsMessage += '\n📥 사용 가능한 문서 소스:\n';
-      for (const source of sources) {
-        const installed = info.installedSources.includes(source.id);
-        const status = installed ? '✅' : '⬜';
-        docsMessage += `  ${status} ${source.id} - ${source.description}\n`;
-      }
-
-      docsMessage += '\n사용법:\n';
-      docsMessage += '  /docs download <source>  - 문서 다운로드\n';
-      docsMessage += '  예: /docs download agno\n';
-
-      const updatedMessages = [
-        ...context.messages,
-        { role: 'assistant' as const, content: docsMessage },
-      ];
-      context.setMessages(updatedMessages);
-      return {
-        handled: true,
-        shouldContinue: false,
-        updatedContext: {
-          messages: updatedMessages,
-        },
-      };
-    }
-
-    // /docs download <source>
-    if (subCommand === 'download') {
-      if (!sourceId) {
-        const sources = getAvailableSources();
-        const availableIds = sources.map(s => s.id).join(', ');
-        const errorMessage = `소스를 지정해주세요.\n사용 가능한 소스: ${availableIds}\n\n예: /docs download agno`;
-        const updatedMessages = [
-          ...context.messages,
-          { role: 'assistant' as const, content: errorMessage },
-        ];
-        context.setMessages(updatedMessages);
-        return {
-          handled: true,
-          shouldContinue: false,
-          updatedContext: {
-            messages: updatedMessages,
-          },
-        };
-      }
-
-      // Show downloading message
-      const downloadingMessage = `📥 ${sourceId} 문서 다운로드 중...`;
-      const messagesWithDownloading = [
-        ...context.messages,
-        { role: 'assistant' as const, content: downloadingMessage },
-      ];
-      context.setMessages(messagesWithDownloading);
-
-      // Download
-      const result = await downloadDocsFromSource(sourceId);
-
-      let resultMessage: string;
-      if (result.success) {
-        resultMessage = `✅ ${result.message}\n\n`;
-        resultMessage += `📊 다운로드 결과:\n`;
-        resultMessage += `  • 신규 다운로드: ${result.downloadedFiles ?? 0}개\n`;
-        if (result.skippedFiles && result.skippedFiles > 0) {
-          resultMessage += `  • 이미 존재 (스킵): ${result.skippedFiles}개\n`;
-        }
-        if (result.failedFiles && result.failedFiles > 0) {
-          resultMessage += `  • 실패: ${result.failedFiles}개\n`;
-        }
-        resultMessage += `\n📁 경로: ${result.targetPath}`;
-      } else {
-        resultMessage = `❌ ${result.message}`;
-      }
-
-      const updatedMessages = [
-        ...messagesWithDownloading,
-        { role: 'assistant' as const, content: resultMessage },
-      ];
-      context.setMessages(updatedMessages);
-      return {
-        handled: true,
-        shouldContinue: false,
-        updatedContext: {
-          messages: updatedMessages,
-        },
-      };
-    }
-
-    // Unknown /docs subcommand
-    const unknownSubMessage = `알 수 없는 명령: /docs ${subCommand}\n사용법: /docs 또는 /docs download <source>`;
-    const updatedMessages = [
-      ...context.messages,
-      { role: 'assistant' as const, content: unknownSubMessage },
-    ];
-    context.setMessages(updatedMessages);
-    return {
-      handled: true,
-      shouldContinue: false,
-      updatedContext: {
-        messages: updatedMessages,
-      },
-    };
-  }
+  // DISABLED: /docs command removed
+  // The docs feature has been disabled
 
   // Help command
   if (trimmedCommand === '/help') {
@@ -372,7 +240,6 @@ Available commands:
   /tool           - Enable/disable optional tools (Browser, Background)
   /load           - Load a saved session
   /usage          - Show token usage statistics
-  /docs           - Manage documentation (download agno, adk)
 
 Keyboard shortcuts:
   Ctrl+C          - Exit

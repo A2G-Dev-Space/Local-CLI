@@ -30,7 +30,8 @@ const SessionBrowser = lazy(() => import('./components/SessionBrowser'));
 const Settings = lazy(() => import('./components/Settings'));
 const UsageStats = lazy(() => import('./components/UsageStats'));
 const ToolSelector = lazy(() => import('./components/ToolSelector'));
-const DocsBrowser = lazy(() => import('./components/DocsBrowser'));
+// DISABLED: DocsBrowser removed - docs feature disabled
+// const DocsBrowser = lazy(() => import('./components/DocsBrowser'));
 const UpdateModal = lazy(() => import('./components/UpdateModal'));
 import './components/ResizablePanel.css';
 import './components/SplitView.css';
@@ -130,7 +131,8 @@ const App: React.FC = () => {
   const [allowAllPermissions, setAllowAllPermissions] = useState(true);
   const [isUsageStatsOpen, setIsUsageStatsOpen] = useState(false);
   const [isToolSelectorOpen, setIsToolSelectorOpen] = useState(false);
-  const [isDocsBrowserOpen, setIsDocsBrowserOpen] = useState(false);
+  // DISABLED: isDocsBrowserOpen removed - docs feature disabled
+  // const [isDocsBrowserOpen, setIsDocsBrowserOpen] = useState(false);
 
   // Command Palette state
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
@@ -602,9 +604,10 @@ const App: React.FC = () => {
     onUsage: () => {
       setIsUsageStatsOpen(true);
     },
-    onDocs: () => {
-      setIsDocsBrowserOpen(true);
-    },
+    // DISABLED: onDocs removed - docs feature disabled
+    // onDocs: () => {
+    //   setIsDocsBrowserOpen(true);
+    // },
     onLoad: () => {
       window.electronAPI?.log?.debug('[App] Load session requested');
       // TODO: Show session browser
@@ -900,15 +903,7 @@ const App: React.FC = () => {
         </Suspense>
       )}
 
-      {/* Documentation Browser (Lazy) */}
-      {isDocsBrowserOpen && (
-        <Suspense fallback={<div className="loading-fallback">Loading...</div>}>
-          <DocsBrowser
-            isOpen={isDocsBrowserOpen}
-            onClose={() => setIsDocsBrowserOpen(false)}
-          />
-        </Suspense>
-      )}
+      {/* DISABLED: Documentation Browser removed - docs feature disabled */}
 
       {/* Custom Title Bar */}
       <TitleBar
@@ -928,7 +923,7 @@ const App: React.FC = () => {
         onModel={commandHandlers.onModel}
         onTool={commandHandlers.onTool}
         onUsage={commandHandlers.onUsage}
-        onDocs={commandHandlers.onDocs}
+        // DISABLED: onDocs removed - docs feature disabled
         onLoad={commandHandlers.onLoad}
         onCompact={commandHandlers.onCompact}
         onCommandPalette={() => setIsCommandPaletteOpen(true)}
