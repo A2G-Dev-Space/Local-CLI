@@ -78,6 +78,13 @@ export function usePlanExecution(pendingMessageCallbacks?: PendingMessageCallbac
     setCurrentActivity,
     setMessages: () => {}, // Will be provided per-call
     setAskUserRequest,
+    // Planning LLM ask-user callback (Promise-based)
+    askUser: async (request) => {
+      return new Promise((resolve) => {
+        setAskUserRequest(request);
+        setAskUserResolver({ resolve });
+      });
+    },
     // Pending message callbacks for mid-execution user input injection
     getPendingMessage: pendingMessageCallbacks?.getPendingMessage,
     clearPendingMessage: pendingMessageCallbacks?.clearPendingMessage,

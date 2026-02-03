@@ -123,6 +123,12 @@ export class PlanExecutor {
       // 1. Generate TODO list with parallel docs search decision
       callbacks.setCurrentActivity('Thinking');
       const planningLLM = new PlanningLLM(llmClient);
+
+      // Connect ask-user callback for planning phase clarification
+      if (callbacks.askUser) {
+        planningLLM.setAskUserCallback(callbacks.askUser);
+      }
+
       const planResult = await planningLLM.generateTODOListWithDocsDecision(userMessage, currentMessages);
 
       // Add clarification messages to history (ask_to_user Q&A from planning phase)

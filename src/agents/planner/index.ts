@@ -111,11 +111,12 @@ export class PlanningLLM {
     const planningTools = toolRegistry.getLLMPlanningToolDefinitions();
 
     const MAX_RETRIES = 3;
+    const MAX_ASK_ITERATIONS = 5;
+    let askIterations = 0;
     let lastError: Error | null = null;
 
     // Main planning loop - continues until create_todos or respond_to_user is called
-    // No limit on ask_to_user iterations - user can clarify as many times as needed
-    while (true) {
+    while (askIterations < MAX_ASK_ITERATIONS) {
       let shouldContinueMainLoop = false; // Track if we should continue after ask_to_user
 
       for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
@@ -192,13 +193,18 @@ Choose one of your 3 tools now.`,
                 continue; // Retry
               }
 
+              askIterations++;
+
               // Check if callback is available
               if (!this.askUserCallback) {
-                logger.warn('ask_to_user called but no callback is set, skipping to create_todos');
-                // Add message indicating we couldn't ask, continue without user input
+                logger.warn('ask_to_user called but no callback is set, forcing create_todos');
                 messages.push({
                   role: 'assistant',
-                  content: `[Planning LLM attempted to ask: "${question}" but user interaction is not available. Proceeding with best judgment.]`,
+                  content: `[ask_to_user was called but user interaction is not available.]`,
+                });
+                messages.push({
+                  role: 'user',
+                  content: `User interaction is unavailable. You MUST call 'create_todos' now with your best judgment. Do NOT call ask_to_user again.`,
                 });
                 shouldContinueMainLoop = true;
                 break; // Exit retry loop, continue main loop
