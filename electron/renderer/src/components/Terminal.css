@@ -97,12 +97,17 @@
   font-family: var(--font-mono);
   font-size: var(--font-size-sm);
   line-height: 1.6;
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
 }
 
 .terminal-line {
   padding: var(--space-1) 0;
   white-space: pre-wrap;
   word-break: break-all;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .terminal-line.stdout {

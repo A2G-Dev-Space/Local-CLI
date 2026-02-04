@@ -77,6 +77,9 @@ export interface AppConfig {
 
   // Tool settings
   enabledTools: string[];
+
+  // External tools
+  vscodePath?: string; // Custom VSCode path (if not in PATH)
 }
 
 // System status type

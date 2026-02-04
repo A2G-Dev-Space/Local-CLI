@@ -158,6 +158,20 @@ export interface ElectronAPI {
     openExternal: (url: string) => Promise<{ success: boolean }>;
   };
 
+  // VSCode
+  vscode: {
+    isAvailable: () => Promise<{ available: boolean; autoDetected: boolean }>;
+    openFile: (filePath: string) => Promise<{ success: boolean; error?: string; fallback?: boolean }>;
+    openDiff: (originalPath: string, modifiedPath: string, title?: string) => Promise<{ success: boolean; error?: string; fallback?: boolean }>;
+    openDiffWithContent: (data: {
+      filePath: string;
+      originalContent: string;
+      newContent: string;
+    }) => Promise<{ success: boolean; error?: string; fallback?: boolean }>;
+    setPath: (vscodePath: string | null) => Promise<{ success: boolean; error?: string }>;
+    getPath: () => Promise<{ path: string | null }>;
+  };
+
   // PowerShell
   powershell: {
     startSession: () => Promise<{

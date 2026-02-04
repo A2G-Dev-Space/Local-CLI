@@ -179,7 +179,7 @@ const Terminal: React.FC<TerminalProps> = ({ currentDirectory }) => {
   };
 
   // Handle keyboard events
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       executeCommand();
     } else if (e.key === 'ArrowUp') {
@@ -202,6 +202,25 @@ const Terminal: React.FC<TerminalProps> = ({ currentDirectory }) => {
     } else if (e.key === 'l' && e.ctrlKey) {
       e.preventDefault();
       clearOutput();
+    } else if (e.key === 'v' && (e.ctrlKey || e.metaKey)) {
+      // Handle paste from clipboard
+      try {
+        const text = await navigator.clipboard.readText();
+        if (text) {
+          e.preventDefault();
+          const target = e.currentTarget;
+          const start = target.selectionStart || 0;
+          const end = target.selectionEnd || 0;
+          const newValue = input.slice(0, start) + text + input.slice(end);
+          setInput(newValue);
+          // Set cursor position after pasted text
+          setTimeout(() => {
+            target.setSelectionRange(start + text.length, start + text.length);
+          }, 0);
+        }
+      } catch (err) {
+        // Clipboard read failed, let browser handle it
+      }
     }
   };
 

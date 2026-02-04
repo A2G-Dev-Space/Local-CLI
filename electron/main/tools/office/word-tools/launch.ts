@@ -7,7 +7,7 @@
 import { ToolDefinition } from '../../../types/index';
 import { LLMSimpleTool, ToolResult } from '../../types';
 import { wordClient } from '../word-client';
-import { saveScreenshot } from '../common/utils';
+import { saveScreenshot, delay, APP_LAUNCH_DELAY_MS } from '../common/utils';
 import { OFFICE_SCREENSHOT_PATH_DESC, OFFICE_CATEGORIES } from '../common/constants';
 import { logger } from '../../../utils/logger';
 
@@ -38,6 +38,8 @@ async function executeWordLaunch(_args: Record<string, unknown>): Promise<ToolRe
   try {
     const response = await wordClient.wordLaunch();
     if (response.success) {
+      // Wait for Word to fully load before LLM proceeds
+      await delay(APP_LAUNCH_DELAY_MS);
       logger.toolSuccess('word_launch', _args, { message: response.message }, Date.now() - startTime);
       return { success: true, result: response.message || 'Word launched successfully' };
     }
@@ -81,6 +83,8 @@ async function executeWordCreate(_args: Record<string, unknown>): Promise<ToolRe
   try {
     const response = await wordClient.wordCreate();
     if (response.success) {
+      // Wait for document to fully load before LLM proceeds
+      await delay(APP_LAUNCH_DELAY_MS);
       logger.toolSuccess('word_create', _args, { message: response.message }, Date.now() - startTime);
       return { success: true, result: response.message || 'New document created' };
     }
@@ -125,6 +129,8 @@ async function executeWordOpen(args: Record<string, unknown>): Promise<ToolResul
   try {
     const response = await wordClient.wordOpen(args['path'] as string);
     if (response.success) {
+      // Wait for document to fully load before LLM proceeds
+      await delay(APP_LAUNCH_DELAY_MS);
       logger.toolSuccess('word_open', args, { document_name: response['document_name'] }, Date.now() - startTime);
       return { success: true, result: `Document opened: ${response['document_name'] || args['path']}` };
     }

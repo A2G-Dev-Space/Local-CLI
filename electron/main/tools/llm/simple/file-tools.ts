@@ -14,6 +14,40 @@ import type { LLMSimpleTool, ToolResult, ToolCategory } from '../../types';
 import { sendFileEditEvent, sendFileCreateEvent } from '../../../ipc-handlers';
 import { logger } from '../../../utils/logger';
 
+/**
+ * Delay execution for specified milliseconds
+ * @param ms - Milliseconds to wait
+ */
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Standard delay for file open operations (3 seconds)
+ * This gives VSCode time to fully open the file before LLM proceeds
+ */
+const FILE_OPEN_DELAY_MS = 3000;
+
+/**
+ * Unescape double-escaped characters in content from LLM
+ * Some LLMs send \\n instead of \n, \\t instead of \t, etc.
+ * This function converts them to actual escape sequences
+ */
+function unescapeContent(content: string): string {
+  if (!content) return content;
+
+  // Replace double-escaped sequences with actual escape characters
+  // Order matters: handle special sequences before backslash
+  return content
+    .replace(/\\n/g, '\n')   // \\n -> newline
+    .replace(/\\t/g, '\t')   // \\t -> tab
+    .replace(/\\r/g, '\r')   // \\r -> carriage return
+    .replace(/\\"/g, '"')    // \\" -> double quote
+    .replace(/\\'/g, "'")    // \\' -> single quote
+    .replace(/\\\//g, '/')   // \\/ -> forward slash
+    .replace(/\\\\/g, '\\'); // \\\\ -> single backslash (must be last)
+}
+
 // =============================================================================
 // Constants
 // =============================================================================
@@ -233,7 +267,9 @@ Examples:
 
 async function executeCreateFile(args: Record<string, unknown>): Promise<ToolResult> {
   const filePath = args['file_path'] as string;
-  const content = args['content'] as string;
+  const rawContent = args['content'] as string;
+  // Unescape double-escaped characters from LLM (\\n -> \n, etc.)
+  const content = unescapeContent(rawContent);
 
   logger.toolStart('create_file', { file_path: filePath, contentLength: content?.length || 0 });
 
@@ -266,6 +302,8 @@ async function executeCreateFile(args: Record<string, unknown>): Promise<ToolRes
         content,
         language,
       });
+      // Wait for VSCode to fully open the file before LLM proceeds
+      await delay(FILE_OPEN_DELAY_MS);
     } catch {
       // Silently ignore event emission errors
     }
@@ -349,8 +387,9 @@ Examples:
 
 async function executeEditFile(args: Record<string, unknown>): Promise<ToolResult> {
   const filePath = args['file_path'] as string;
-  const oldString = args['old_string'] as string;
-  const newString = args['new_string'] as string;
+  // Unescape double-escaped characters from LLM (\\n -> \n, etc.)
+  const oldString = unescapeContent(args['old_string'] as string);
+  const newString = unescapeContent(args['new_string'] as string);
   const replaceAll = args['replace_all'] as boolean | undefined;
 
   const oldStringLength = oldString?.length || 0;
@@ -419,6 +458,8 @@ async function executeEditFile(args: Record<string, unknown>): Promise<ToolResul
         newContent,
         language,
       });
+      // Wait for VSCode to fully open the file before LLM proceeds
+      await delay(FILE_OPEN_DELAY_MS);
     } catch {
       // Silently ignore event emission errors
     }

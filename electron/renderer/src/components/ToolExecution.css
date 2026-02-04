@@ -146,12 +146,50 @@
   margin-left: var(--space-2);
 }
 
-/* Message tool (tell_to_user) - show actual message */
+/* Message tool (tell_to_user) - show actual message with markdown */
 .tool-name.tool-message {
   white-space: normal;
   word-break: break-word;
   line-height: 1.4;
   font-weight: var(--font-weight-normal);
+}
+
+.tool-message-markdown {
+  display: block;
+}
+
+.tool-message-markdown p {
+  margin: 0.25em 0;
+}
+
+.tool-message-markdown ul,
+.tool-message-markdown ol {
+  margin: 0.25em 0;
+  padding-left: 1.5em;
+}
+
+.tool-message-markdown code {
+  background: var(--color-bg-secondary);
+  padding: 0.1em 0.4em;
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+
+.tool-message-markdown strong {
+  font-weight: var(--font-weight-semibold);
+}
+
+.tool-message-markdown pre {
+  background: var(--color-bg-secondary);
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+  margin: 0.5em 0;
+}
+
+.tool-message-markdown pre code {
+  background: none;
+  padding: 0;
 }
 
 .tool-execution.message-tool .tool-execution-header {

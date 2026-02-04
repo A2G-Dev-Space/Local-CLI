@@ -9,6 +9,21 @@ import * as path from 'path';
 import { OFFICE_SCREENSHOT_DIR } from './constants';
 
 /**
+ * Delay execution for specified milliseconds
+ * Used to give applications time to fully load before LLM proceeds
+ * @param ms - Milliseconds to wait
+ */
+export function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Standard delay for application launch/open operations (3 seconds)
+ * This prevents LLM from racing ahead before apps fully load
+ */
+export const APP_LAUNCH_DELAY_MS = 3000;
+
+/**
  * Save a base64-encoded screenshot to the office screenshots directory
  * @param base64Image - Base64 encoded image data
  * @param appName - Application name (e.g., 'word', 'excel', 'powerpoint')

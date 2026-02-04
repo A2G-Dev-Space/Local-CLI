@@ -120,6 +120,66 @@ export class RateLimitError extends BaseError {
 }
 
 /**
+ * QuotaExceededError - 서버 사용량 한도 초과 에러
+ */
+export interface QuotaPeriodInfo {
+  used: number;
+  limit: number;
+  remaining: number;
+  percentage: number;
+  resetsIn: number;
+  resetsAt: string;
+  timeDisplay: string;
+  totalTimeDisplay: string;
+}
+
+export interface QuotaInfo {
+  hourly: QuotaPeriodInfo;
+  weekly: QuotaPeriodInfo;
+}
+
+export class QuotaExceededError extends BaseError {
+  public readonly quota: QuotaInfo;
+
+  constructor(quota: Partial<QuotaInfo> | undefined, options: ErrorOptions = {}) {
+    // 방어적 코딩: quota가 불완전하게 전달될 수 있음
+    const defaultPeriod: QuotaPeriodInfo = {
+      used: 0,
+      limit: 0,
+      remaining: 0,
+      percentage: 100,
+      resetsIn: 0,
+      resetsAt: '',
+      timeDisplay: '알 수 없음',
+      totalTimeDisplay: '알 수 없음',
+    };
+
+    const safeQuota: QuotaInfo = {
+      hourly: quota?.hourly ?? defaultPeriod,
+      weekly: quota?.weekly ?? defaultPeriod,
+    };
+
+    const hourlyDisplay = safeQuota.hourly.timeDisplay || '알 수 없음';
+    const weeklyDisplay = safeQuota.weekly.timeDisplay || '알 수 없음';
+
+    super(
+      `사용 한도 초과. 시간당: ${hourlyDisplay} 남음, 주간: ${weeklyDisplay} 남음`,
+      'QUOTA_EXCEEDED_ERROR',
+      {
+        ...options,
+        details: {
+          ...options.details,
+          quota: safeQuota,
+        },
+        isRecoverable: false,
+        userMessage: options.userMessage ?? `사용 한도를 초과했습니다. 시간당: ${hourlyDisplay} 남음, 주간: ${weeklyDisplay} 남음`,
+      }
+    );
+    this.quota = safeQuota;
+  }
+}
+
+/**
  * ContextLengthError - 컨텍스트 길이 초과 에러
  */
 export class ContextLengthError extends BaseError {
