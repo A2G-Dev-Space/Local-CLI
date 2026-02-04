@@ -5,6 +5,8 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from '../i18n/LanguageContext';
+import type { Language } from '../i18n/translations';
 import './Settings.css';
 
 // Types matching CLI
@@ -41,13 +43,27 @@ type ColorPalette = 'default' | 'rose' | 'mint' | 'lavender' | 'peach' | 'sky';
 const FONT_SIZE_MIN = 10;
 const FONT_SIZE_MAX = 18;
 
-const COLOR_PALETTE_OPTIONS: { value: ColorPalette; label: string; color: string }[] = [
-  { value: 'default', label: 'Default Blue', color: '#3B82F6' },
-  { value: 'rose', label: 'Rose', color: '#F472B6' },
-  { value: 'mint', label: 'Mint', color: '#34D399' },
-  { value: 'lavender', label: 'Lavender', color: '#A78BFA' },
-  { value: 'peach', label: 'Peach', color: '#FB923C' },
-  { value: 'sky', label: 'Sky', color: '#38BDF8' },
+// Palette options (translation keys used for labels)
+const COLOR_PALETTE_OPTIONS: { value: ColorPalette; labelKey: string; color: string }[] = [
+  { value: 'default', labelKey: 'palette.default', color: '#3B82F6' },
+  { value: 'rose', labelKey: 'palette.rose', color: '#F472B6' },
+  { value: 'mint', labelKey: 'palette.mint', color: '#34D399' },
+  { value: 'lavender', labelKey: 'palette.lavender', color: '#A78BFA' },
+  { value: 'peach', labelKey: 'palette.peach', color: '#FB923C' },
+  { value: 'sky', labelKey: 'palette.sky', color: '#38BDF8' },
+];
+
+// Font family options
+type FontFamily = 'default' | 'Cafe24Syongsyong' | 'Cafe24Dongdong' | 'Cafe24PROSlimMax' | 'Cafe24Oneprettynight' | 'Cafe24SsurroundAir' | 'Cafe24Moyamoya';
+
+const FONT_FAMILY_OPTIONS: { value: FontFamily; labelKey: string; cssFamily: string }[] = [
+  { value: 'default', labelKey: 'font.default', cssFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" },
+  { value: 'Cafe24Syongsyong', labelKey: 'font.cafe24Syongsyong', cssFamily: "'Cafe24Syongsyong', -apple-system, sans-serif" },
+  { value: 'Cafe24Dongdong', labelKey: 'font.cafe24Dongdong', cssFamily: "'Cafe24Dongdong', -apple-system, sans-serif" },
+  { value: 'Cafe24PROSlimMax', labelKey: 'font.cafe24SlimMax', cssFamily: "'Cafe24PROSlimMax', -apple-system, sans-serif" },
+  { value: 'Cafe24Oneprettynight', labelKey: 'font.cafe24Oneprettynight', cssFamily: "'Cafe24Oneprettynight', -apple-system, sans-serif" },
+  { value: 'Cafe24SsurroundAir', labelKey: 'font.cafe24SsurroundAir', cssFamily: "'Cafe24SsurroundAir', -apple-system, sans-serif" },
+  { value: 'Cafe24Moyamoya', labelKey: 'font.cafe24Moyamoya', cssFamily: "'Cafe24Moyamoya', -apple-system, sans-serif" },
 ];
 
 interface FormData {
@@ -60,6 +76,7 @@ interface FormData {
 }
 
 const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
+  const { t, language, setLanguage } = useTranslation();
   const [view, setView] = useState<SettingsView>('main');
   const [endpoints, setEndpoints] = useState<EndpointConfig[]>([]);
   const [currentEndpointId, setCurrentEndpointId] = useState<string | null>(null);
@@ -72,6 +89,7 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
   // Appearance settings
   const [fontSize, setFontSize] = useState<number>(12);
   const [colorPalette, setColorPalette] = useState<ColorPalette>('default');
+  const [fontFamily, setFontFamily] = useState<FontFamily>('default');
 
   // Form state
   const [formData, setFormData] = useState<FormData>({
@@ -122,36 +140,46 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
       if (config?.colorPalette) {
         setColorPalette(config.colorPalette as ColorPalette);
       }
+      const configAny = config as unknown as Record<string, unknown>;
+      if (configAny?.fontFamily && typeof configAny.fontFamily === 'string') {
+        setFontFamily(configAny.fontFamily as FontFamily);
+      }
     } catch (err) {
       window.electronAPI?.log?.error('[Settings] Failed to load appearance settings', { error: err instanceof Error ? err.message : String(err) });
     }
   }, []);
 
   // Save appearance settings
-  const saveAppearanceSetting = useCallback(async (key: 'fontSize' | 'colorPalette', value: number | string) => {
-    if (!window.electronAPI?.config) return;
-    try {
-      await window.electronAPI.config.set(key, value);
-      // Update document root for immediate effect
-      if (key === 'fontSize') {
-        document.documentElement.style.setProperty('--user-font-size', `${value}px`);
-      } else if (key === 'colorPalette') {
-        document.querySelector('.app-root')?.setAttribute('data-palette', value as string);
+  const saveAppearanceSetting = useCallback(
+    async (key: string, value: number | string) => {
+      if (!window.electronAPI?.config) return;
+      try {
+        await window.electronAPI.config.set(key, value);
+        if (key === 'fontSize') {
+          document.documentElement.style.setProperty('--user-font-size', `${value}px`);
+        } else if (key === 'colorPalette') {
+          document.querySelector('.app-root')?.setAttribute('data-palette', value as string);
+        } else if (key === 'fontFamily') {
+          const opt = FONT_FAMILY_OPTIONS.find((f) => f.value === value);
+          if (opt) {
+            document.documentElement.style.setProperty('--font-sans', opt.cssFamily);
+          }
+        }
+      } catch (err) {
+        window.electronAPI?.log?.error(`[Settings] Failed to save ${key}`, {
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
-    } catch (err) {
-      window.electronAPI?.log?.error(`[Settings] Failed to save ${key}`, { error: err instanceof Error ? err.message : String(err) });
-    }
-  }, []);
+    },
+    [],
+  );
 
   // Load VSCode settings
   const loadVscodeSettings = useCallback(async () => {
     if (!window.electronAPI?.vscode) return;
     try {
-      // Check if VSCode is auto-detected
       const availResult = await window.electronAPI.vscode.isAvailable();
       setVscodeAutoDetected(availResult.autoDetected);
-
-      // Get custom path if set
       const pathResult = await window.electronAPI.vscode.getPath();
       setVscodePath(pathResult.path || '');
     } catch (err) {
@@ -190,7 +218,6 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
   // Handle keyboard events
   useEffect(() => {
     if (!isOpen) return;
-
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (view === 'main') {
@@ -201,7 +228,6 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
         }
       }
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, view, onClose]);
@@ -408,16 +434,16 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
               <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
             </svg>
             <span>
-              {view === 'main' && 'Settings'}
+              {view === 'main' && t('settings.title')}
               {view === 'llms' && 'Settings > LLM Endpoints'}
               {view === 'llm-add' && 'Add New Endpoint'}
               {view === 'llm-edit' && 'Edit Endpoint'}
               {view === 'llm-delete' && 'Delete Endpoint'}
-              {view === 'appearance' && 'Settings > Appearance'}
-              {view === 'tools' && 'Settings > External Tools'}
+              {view === 'appearance' && t('settings.appearance.title')}
+              {view === 'tools' && t('settings.tools.title')}
             </span>
           </div>
-          <button className="settings-close" onClick={onClose}>
+          <button className="settings-close" onClick={onClose} title={t('settings.close')}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
               <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
             </svg>
@@ -461,7 +487,7 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                 </div>
                 <span className="menu-badge">{endpoints.length}</span>
                 <svg className="menu-arrow" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
+                  <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
                 </svg>
               </button>
 
@@ -472,11 +498,11 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                   </svg>
                 </div>
                 <div className="menu-content">
-                  <span className="menu-label">Appearance</span>
-                  <span className="menu-description">Font size & color theme</span>
+                  <span className="menu-label">{t('settings.appearance')}</span>
+                  <span className="menu-description">{t('settings.appearance.desc')}</span>
                 </div>
                 <svg className="menu-arrow" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
+                  <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
                 </svg>
               </button>
 
@@ -487,16 +513,10 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                   </svg>
                 </div>
                 <div className="menu-content">
-                  <span className="menu-label">External Tools</span>
-                  <span className="menu-description">VSCode path & integrations</span>
+                  <span className="menu-label">{t('settings.tools')}</span>
+                  <span className="menu-description">{t('settings.tools.desc')}</span>
                 </div>
-                <svg
-                  className="menu-arrow"
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                >
+                <svg className="menu-arrow" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
                 </svg>
               </button>
@@ -597,11 +617,11 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                 </div>
               )}
 
-              <button className="back-button" onClick={() => setView('main')}>
+              <button className="back-button" onClick={() => setView('main')} title={t('settings.back')}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
                 </svg>
-                Back
+                {t('settings.back')}
               </button>
             </div>
           )}
@@ -711,9 +731,47 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
           {/* Appearance Settings */}
           {view === 'appearance' && (
             <div className="appearance-view">
+              {/* Language */}
+              <div className="setting-section">
+                <label className="setting-label">{t('appearance.language')}</label>
+                <div className="language-selector">
+                  {(['ko', 'en'] as Language[]).map((lang) => (
+                    <button
+                      key={lang}
+                      className={`language-option ${language === lang ? 'selected' : ''}`}
+                      onClick={() => setLanguage(lang)}
+                    >
+                      {t(`lang.${lang}`)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Font Family */}
+              <div className="setting-section">
+                <label className="setting-label">{t('appearance.fontFamily')}</label>
+                <div className="font-family-grid">
+                  {FONT_FAMILY_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      className={`font-family-option ${fontFamily === opt.value ? 'selected' : ''}`}
+                      style={{ fontFamily: opt.cssFamily }}
+                      onClick={() => {
+                        setFontFamily(opt.value);
+                        saveAppearanceSetting('fontFamily', opt.value);
+                      }}
+                      title={t(opt.labelKey)}
+                    >
+                      <span className="font-family-label">{t(opt.labelKey)}</span>
+                      <span className="font-family-preview" style={{ fontFamily: opt.cssFamily }}>가나다 ABC</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Font Size */}
               <div className="setting-section">
-                <label className="setting-label">Font Size</label>
+                <label className="setting-label">{t('appearance.fontSize')}</label>
                 <div className="font-size-control">
                   <input
                     type="range"
@@ -730,13 +788,13 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                   <span className="font-size-value">{fontSize}px</span>
                 </div>
                 <div className="font-size-preview" style={{ fontSize: `${fontSize}px` }}>
-                  The quick brown fox jumps over the lazy dog
+                  {t('appearance.fontPreview')}
                 </div>
               </div>
 
               {/* Color Palette */}
               <div className="setting-section">
-                <label className="setting-label">Color Theme</label>
+                <label className="setting-label">{t('appearance.colorTheme')}</label>
                 <div className="palette-grid">
                   {COLOR_PALETTE_OPTIONS.map((option) => (
                     <button
@@ -746,22 +804,20 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                         setColorPalette(option.value);
                         saveAppearanceSetting('colorPalette', option.value);
                       }}
+                      title={t(option.labelKey)}
                     >
-                      <div
-                        className="palette-color"
-                        style={{ background: option.color }}
-                      />
-                      <span className="palette-label">{option.label}</span>
+                      <div className="palette-color" style={{ background: option.color }} />
+                      <span className="palette-label">{t(option.labelKey)}</span>
                     </button>
                   ))}
                 </div>
               </div>
 
-              <button className="back-button" onClick={() => setView('main')}>
+              <button className="back-button" onClick={() => setView('main')} title={t('settings.back')}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
                 </svg>
-                Back
+                {t('settings.back')}
               </button>
             </div>
           )}
@@ -769,64 +825,52 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
           {/* External Tools Settings */}
           {view === 'tools' && (
             <div className="appearance-view">
-              {/* VSCode Path */}
               <div className="setting-section">
-                <label className="setting-label">VSCode Path</label>
-
+                <label className="setting-label">{t('tools.vscodePath')}</label>
                 {vscodeAutoDetected ? (
                   <div className="vscode-auto-detected">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style={{ color: '#10B981' }}>
                       <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
                     </svg>
-                    <span>Auto-detected (code command found in PATH)</span>
+                    <span>{t('tools.autoDetected')}</span>
                   </div>
                 ) : (
                   <div className="vscode-not-detected">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style={{ color: '#F59E0B' }}>
                       <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
                     </svg>
-                    <span>Not found in PATH - specify path below</span>
+                    <span>{t('tools.notFound')}</span>
                   </div>
                 )}
-
                 <div className="vscode-path-input-wrapper">
                   <input
                     type="text"
                     className="vscode-path-input"
                     value={vscodePath}
                     onChange={(e) => setVscodePath(e.target.value)}
-                    placeholder={vscodeAutoDetected ? 'Using auto-detected path' : 'C:\\Users\\...\\Code.exe or /usr/bin/code'}
+                    placeholder={vscodeAutoDetected ? t('tools.autoPlaceholder') : t('tools.manualPlaceholder')}
                     disabled={vscodeAutoDetected}
                   />
                   {!vscodeAutoDetected && (
-                    <button
-                      className="vscode-path-save-btn"
-                      onClick={() => saveVscodePath(vscodePath)}
-                      disabled={vscodePathSaved}
-                    >
+                    <button className="vscode-path-save-btn" onClick={() => saveVscodePath(vscodePath)} disabled={vscodePathSaved}>
                       {vscodePathSaved ? (
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                           <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
                         </svg>
-                      ) : (
-                        'Save'
-                      )}
+                      ) : t('tools.save')}
                     </button>
                   )}
                 </div>
-
                 <div className="vscode-path-hint">
-                  {vscodeAutoDetected
-                    ? 'VSCode will be launched using the "code" command. No manual path needed.'
-                    : 'Enter the full path to VSCode executable (Code.exe on Windows, code on Mac/Linux)'}
+                  {vscodeAutoDetected ? t('tools.autoHint') : t('tools.manualHint')}
                 </div>
               </div>
 
-              <button className="back-button" onClick={() => setView('main')}>
+              <button className="back-button" onClick={() => setView('main')} title={t('settings.back')}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
                 </svg>
-                Back
+                {t('settings.back')}
               </button>
             </div>
           )}
@@ -834,7 +878,7 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
 
         {/* Footer */}
         <div className="settings-footer">
-          <span className="keyboard-hint">ESC to {view === 'main' ? 'close' : 'go back'}</span>
+          <span className="keyboard-hint">ESC</span>
         </div>
       </div>
     </div>

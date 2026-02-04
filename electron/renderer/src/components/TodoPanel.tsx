@@ -11,6 +11,7 @@
 
 import React, { useState, useMemo, memo, useCallback, useEffect, useRef } from 'react';
 import type { TodoItem } from './TodoList';
+import { useTranslation } from '../i18n/LanguageContext';
 import './TodoPanel.css';
 
 interface TodoPanelProps {
@@ -19,6 +20,7 @@ interface TodoPanelProps {
 }
 
 const TodoPanel: React.FC<TodoPanelProps> = ({ todos, onRetry }) => {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const [animatingId, setAnimatingId] = useState<string | null>(null);
   const prevCurrentIdRef = useRef<string | null>(null);
@@ -121,8 +123,8 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ todos, onRetry }) => {
             <path d="M18 9l-1.4-1.4-6.6 6.6-2.6-2.6L6 13l4 4z" />
           </svg>
         </div>
-        <h3>No Tasks</h3>
-        <p>Tasks will appear here when the agent creates a plan</p>
+        <h3>{t('todo.noTasks')}</h3>
+        <p>{t('todo.noTasksDesc')}</p>
       </div>
     );
   }
@@ -140,7 +142,7 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ todos, onRetry }) => {
               <path d="M18 9l-1.4-1.4-6.6 6.6-2.6-2.6L6 13l4 4z" />
             </svg>
           </div>
-          <span className="todo-title">Task Progress</span>
+          <span className="todo-title">{t('todo.title')}</span>
         </div>
         <div className="todo-header-right">
           <span className="todo-count">
@@ -167,9 +169,9 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ todos, onRetry }) => {
             <div className={`todo-row ${prevTodo.status}`}>
               <span className="row-label">
                 {prevTodo.status === 'completed' ? (
-                  <><span className="check">✓</span> DONE</>
+                  <><span className="check">✓</span> {t('todo.done')}</>
                 ) : (
-                  <><span className="fail">✗</span> FAIL</>
+                  <><span className="fail">✗</span> {t('todo.fail')}</>
                 )}
               </span>
               <div className={`todo-card ${prevTodo.status}`}>
@@ -184,7 +186,7 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ todos, onRetry }) => {
           {currentTodo && (
             <div className={`todo-row current ${animatingId === currentTodo.id ? 'slide-in' : ''}`}>
               <span className="row-label">
-                <span className="pulse">●</span> CURRENT
+                <span className="pulse">●</span> {t('todo.current')}
               </span>
               <div className="todo-card current">
                 <span className="card-num">{getTodoIndex(currentTodo)}</span>
@@ -198,7 +200,7 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ todos, onRetry }) => {
           {nextTodo && (
             <div className="todo-row next">
               <span className="row-label">
-                <span className="arrow">→</span> NEXT{pendingCount > 1 ? ` (+${pendingCount - 1})` : ''}
+                <span className="arrow">→</span> {t('todo.next')}{pendingCount > 1 ? ` (+${pendingCount - 1})` : ''}
               </span>
               <div className="todo-card next">
                 <span className="card-num">{getTodoIndex(nextTodo)}</span>
@@ -211,7 +213,7 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ todos, onRetry }) => {
           {/* All Done */}
           {!currentTodo && !nextTodo && completedCount > 0 && (
             <div className="todo-row all-done">
-              <span className="row-label done-label">🎉 All Tasks Completed!</span>
+              <span className="row-label done-label">🎉 {t('todo.allCompleted')}</span>
             </div>
           )}
 
@@ -220,7 +222,7 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ todos, onRetry }) => {
             <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
               <path d="M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6z" />
             </svg>
-            Click to view all {totalCount} tasks
+            {t('todo.viewAll', { count: totalCount })}
           </div>
         </div>
       )}
@@ -228,11 +230,11 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ todos, onRetry }) => {
       {/* Expanded View */}
       {expanded && (
         <div className="todo-expanded">
-          <button className="todo-collapse-btn" onClick={toggleExpanded}>
+          <button className="todo-collapse-btn" onClick={toggleExpanded} title={t('todo.collapse')}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
               <path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z" />
             </svg>
-            Collapse
+            {t('todo.collapse')}
           </button>
           <div className="todo-all-list">
             {todos.map((todo, index) => (
@@ -252,7 +254,7 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ todos, onRetry }) => {
                       e.stopPropagation();
                       onRetry(todo.id);
                     }}
-                    title="Retry"
+                    title={t('todo.retry')}
                   >
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
                       <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />

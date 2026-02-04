@@ -299,6 +299,29 @@ const electronAPI = {
     reload: (): Promise<{ success: boolean }> => {
       return ipcRenderer.invoke('window:reload');
     },
+
+    getWindowType: (): Promise<'chat' | 'task'> => {
+      return ipcRenderer.invoke('window:getType');
+    },
+  },
+
+  // ============ Task 윈도우 제어 ============
+  taskWindow: {
+    toggle: (): Promise<{ success: boolean; visible?: boolean }> => {
+      return ipcRenderer.invoke('task-window:toggle');
+    },
+
+    show: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke('task-window:show');
+    },
+
+    hide: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke('task-window:hide');
+    },
+
+    isVisible: (): Promise<boolean> => {
+      return ipcRenderer.invoke('task-window:isVisible');
+    },
   },
 
   // ============ 테마 ============
@@ -311,6 +334,12 @@ const electronAPI = {
       const handler = (_event: IpcRendererEvent, theme: Theme) => callback(theme);
       ipcRenderer.on('theme:change', handler);
       return () => ipcRenderer.removeListener('theme:change', handler);
+    },
+
+    onAppearanceChange: (callback: (data: { key: string; value: unknown }) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, data: { key: string; value: unknown }) => callback(data);
+      ipcRenderer.on('appearance:change', handler);
+      return () => ipcRenderer.removeListener('appearance:change', handler);
     },
   },
 

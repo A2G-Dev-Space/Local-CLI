@@ -24,6 +24,7 @@ import {
   getCurrentTodos,
   setCurrentTodos,
   setAgentMainWindow,
+  setAgentTaskWindow,
   simpleChat,
   handleToolApprovalResponse,
   clearAlwaysApprovedTools,
@@ -63,14 +64,34 @@ interface FileContentResult {
   error?: string;
 }
 
-// 주 창 참조 (index.ts에서 설정)
-let mainWindow: BrowserWindow | null = null;
+// 윈도우 참조 (index.ts에서 설정)
+let chatWindow: BrowserWindow | null = null;
+let taskWindow: BrowserWindow | null = null;
 
 /**
- * 메인 창 설정
+ * Chat 윈도우 설정 (메인)
  */
-export function setMainWindow(win: BrowserWindow): void {
-  mainWindow = win;
+export function setChatWindow(win: BrowserWindow): void {
+  chatWindow = win;
+}
+
+/**
+ * Task 윈도우 설정 (보조)
+ */
+export function setTaskWindow(win: BrowserWindow | null): void {
+  taskWindow = win;
+}
+
+/**
+ * 양쪽 윈도우에 IPC 메시지 전송
+ */
+function broadcastToAll(channel: string, ...args: unknown[]): void {
+  if (chatWindow && !chatWindow.isDestroyed()) {
+    chatWindow.webContents.send(channel, ...args);
+  }
+  if (taskWindow && !taskWindow.isDestroyed()) {
+    taskWindow.webContents.send(channel, ...args);
+  }
 }
 
 /**
@@ -82,7 +103,7 @@ export function sendFileEditEvent(data: {
   newContent: string;
   language: string;
 }): void {
-  mainWindow?.webContents.send('agent:fileEdit', data);
+  chatWindow?.webContents.send('agent:fileEdit', data);
 }
 
 /**
@@ -93,43 +114,89 @@ export function sendFileCreateEvent(data: {
   content: string;
   language: string;
 }): void {
-  mainWindow?.webContents.send('agent:fileCreate', data);
+  chatWindow?.webContents.send('agent:fileCreate', data);
 }
 
 /**
  * IPC 핸들러 등록
  */
 export function setupIpcHandlers(): void {
-  // ============ 윈도우 제어 ============
+  // ============ 윈도우 제어 (event.sender 기반) ============
 
   // 창 최소화
-  ipcMain.on('window:minimize', () => {
-    mainWindow?.minimize();
+  ipcMain.on('window:minimize', (event) => {
+    BrowserWindow.fromWebContents(event.sender)?.minimize();
   });
 
   // 창 최대화/복원
-  ipcMain.on('window:maximize', () => {
-    if (mainWindow?.isMaximized()) {
-      mainWindow.restore();
+  ipcMain.on('window:maximize', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (win?.isMaximized()) {
+      win.restore();
     } else {
-      mainWindow?.maximize();
+      win?.maximize();
     }
   });
 
   // 창 닫기
-  ipcMain.on('window:close', () => {
-    mainWindow?.close();
+  ipcMain.on('window:close', (event) => {
+    BrowserWindow.fromWebContents(event.sender)?.close();
   });
 
   // 창 최대화 상태 확인
-  ipcMain.handle('window:isMaximized', () => {
-    return mainWindow?.isMaximized() ?? false;
+  ipcMain.handle('window:isMaximized', (event) => {
+    return BrowserWindow.fromWebContents(event.sender)?.isMaximized() ?? false;
   });
 
   // 창 최대화 상태 변경 이벤트 전달
   ipcMain.handle('window:onMaximizeChange', () => {
-    // 이벤트 리스너는 메인 프로세스에서 설정하고 렌더러로 전달
     return true;
+  });
+
+  // ============ 윈도우 타입 판별 ============
+
+  ipcMain.handle('window:getType', (event) => {
+    // BrowserWindow.fromWebContents로 정확한 윈도우 매칭
+    const senderWin = BrowserWindow.fromWebContents(event.sender);
+    if (senderWin && taskWindow && !taskWindow.isDestroyed() && senderWin.id === taskWindow.id) {
+      return 'task';
+    }
+    return 'chat';
+  });
+
+  // ============ Task 윈도우 제어 ============
+
+  ipcMain.handle('task-window:toggle', () => {
+    if (taskWindow && !taskWindow.isDestroyed()) {
+      if (taskWindow.isVisible()) {
+        taskWindow.hide();
+      } else {
+        taskWindow.show();
+      }
+      const visible = taskWindow.isVisible();
+      return { success: true, visible };
+    }
+    return { success: false, visible: false };
+  });
+
+  ipcMain.handle('task-window:show', () => {
+    if (taskWindow && !taskWindow.isDestroyed()) {
+      taskWindow.show();
+      return { success: true };
+    }
+    return { success: false };
+  });
+
+  ipcMain.handle('task-window:hide', () => {
+    if (taskWindow && !taskWindow.isDestroyed()) {
+      taskWindow.hide();
+      return { success: true };
+    }
+    return { success: false };
+  });
+
+  ipcMain.handle('task-window:isVisible', () => {
+    return taskWindow && !taskWindow.isDestroyed() ? taskWindow.isVisible() : false;
   });
 
   // ============ 테마 ============
@@ -160,6 +227,13 @@ export function setupIpcHandlers(): void {
   // Config 특정 값 설정
   ipcMain.handle('config:set', async (_event, key: keyof AppConfig, value: unknown) => {
     await configManager.set(key, value as AppConfig[typeof key]);
+
+    // 외관 관련 설정 변경 시 모든 윈도우에 브로드캐스트
+    const appearanceKeys = ['fontSize', 'fontFamily', 'colorPalette', 'theme'];
+    if (appearanceKeys.includes(key)) {
+      broadcastToAll('appearance:change', { key, value });
+    }
+
     return true;
   });
 
@@ -204,14 +278,11 @@ export function setupIpcHandlers(): void {
       clearAlwaysApprovedTools();
 
       // Notify renderer that context is reset
-      const mainWindow = BrowserWindow.getAllWindows()[0];
-      if (mainWindow) {
-        mainWindow.webContents.send('agent:contextUpdate', {
-          usagePercentage: 0,
-          currentTokens: 0,
-          maxTokens: 128000,
-        });
-      }
+      broadcastToAll('agent:contextUpdate', {
+        usagePercentage: 0,
+        currentTokens: 0,
+        maxTokens: 128000,
+      });
 
       return { success: true, session };
     } catch (error) {
@@ -428,7 +499,7 @@ export function setupIpcHandlers(): void {
     ): Promise<DialogResult> => {
       logger.ipcHandle('dialog:openFile', { title: options?.title, defaultPath: options?.defaultPath });
       try {
-        const result = await dialog.showOpenDialog(mainWindow!, {
+        const result = await dialog.showOpenDialog(chatWindow!, {
           title: options?.title || '파일 열기',
           defaultPath: options?.defaultPath,
           filters: options?.filters || [{ name: '모든 파일', extensions: ['*'] }],
@@ -466,7 +537,7 @@ export function setupIpcHandlers(): void {
       }
     ): Promise<DialogResult> => {
       try {
-        const result = await dialog.showSaveDialog(mainWindow!, {
+        const result = await dialog.showSaveDialog(chatWindow!, {
           title: options?.title || '파일 저장',
           defaultPath: options?.defaultPath,
           filters: options?.filters || [{ name: '모든 파일', extensions: ['*'] }],
@@ -500,7 +571,7 @@ export function setupIpcHandlers(): void {
       }
     ): Promise<DialogResult> => {
       try {
-        const result = await dialog.showOpenDialog(mainWindow!, {
+        const result = await dialog.showOpenDialog(chatWindow!, {
           title: options?.title || '폴더 선택',
           defaultPath: options?.defaultPath,
           properties: options?.multiSelections
@@ -539,7 +610,7 @@ export function setupIpcHandlers(): void {
       }
     ) => {
       try {
-        const result = await dialog.showMessageBox(mainWindow!, {
+        const result = await dialog.showMessageBox(chatWindow!, {
           type: options.type || 'info',
           title: options.title || 'Local CLI',
           message: options.message,
@@ -882,15 +953,15 @@ export function setupIpcHandlers(): void {
 
   // PowerShell 출력 이벤트 리스너 설정
   powerShellManager.on('output', (output: PowerShellOutput) => {
-    mainWindow?.webContents.send('powershell:output', output);
+    chatWindow?.webContents.send('powershell:output', output);
   });
 
   powerShellManager.on('exit', (data: { code: number | null; sessionId: string }) => {
-    mainWindow?.webContents.send('powershell:exit', data);
+    chatWindow?.webContents.send('powershell:exit', data);
   });
 
   powerShellManager.on('error', (data: { error: Error; sessionId: string }) => {
-    mainWindow?.webContents.send('powershell:error', {
+    chatWindow?.webContents.send('powershell:error', {
       error: data.error.message,
       sessionId: data.sessionId,
     });
@@ -1017,7 +1088,7 @@ export function setupIpcHandlers(): void {
     }
 
     logStreamUnsubscribe = logger.onLogEntry((entry) => {
-      mainWindow?.webContents.send('log:entry', entry);
+      chatWindow?.webContents.send('log:entry', entry);
     });
 
     return { success: true };
@@ -1165,14 +1236,14 @@ export function setupIpcHandlers(): void {
   });
 
   // 개발자 도구 토글
-  ipcMain.handle('devTools:toggle', () => {
-    mainWindow?.webContents.toggleDevTools();
+  ipcMain.handle('devTools:toggle', (event) => {
+    BrowserWindow.fromWebContents(event.sender)?.webContents.toggleDevTools();
     return { success: true };
   });
 
   // 윈도우 리로드
-  ipcMain.handle('window:reload', () => {
-    mainWindow?.reload();
+  ipcMain.handle('window:reload', (event) => {
+    BrowserWindow.fromWebContents(event.sender)?.reload();
     return { success: true };
   });
 
@@ -1315,14 +1386,14 @@ export function setupIpcHandlers(): void {
     try {
       // Streaming은 IPC event로 청크 전송
       const result = await llmClient.chat(messages, true, (chunk, done) => {
-        mainWindow?.webContents.send('chat:chunk', { chunk, done });
+        chatWindow?.webContents.send('chat:chunk', { chunk, done });
       });
       logger.httpStreamEnd(0, 0);
       return { success: true, ...result };
     } catch (error) {
       logger.error('Chat stream failed', error);
       // 에러 발생시에도 done 이벤트 전송
-      mainWindow?.webContents.send('chat:chunk', { chunk: '', done: true, error: true });
+      chatWindow?.webContents.send('chat:chunk', { chunk: '', done: true, error: true });
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
@@ -1335,7 +1406,7 @@ export function setupIpcHandlers(): void {
     try {
       if (stream) {
         const content = await llmClient.sendMessage(userMessage, systemPrompt, true, (chunk, done) => {
-          mainWindow?.webContents.send('chat:chunk', { chunk, done });
+          chatWindow?.webContents.send('chat:chunk', { chunk, done });
         });
         return { success: true, content };
       } else {
@@ -1345,7 +1416,7 @@ export function setupIpcHandlers(): void {
     } catch (error) {
       logger.error('Send message failed', error);
       if (stream) {
-        mainWindow?.webContents.send('chat:chunk', { chunk: '', done: true, error: true });
+        chatWindow?.webContents.send('chat:chunk', { chunk: '', done: true, error: true });
       }
       return {
         success: false,
@@ -1562,7 +1633,8 @@ export function setupIpcHandlers(): void {
     logger.ipcHandle('agent:run', { messageLength: userMessage.length, existingMessagesCount: existingMessages.length, config });
     try {
       // Set main window for agent IPC
-      setAgentMainWindow(mainWindow);
+      setAgentMainWindow(chatWindow);
+      setAgentTaskWindow(taskWindow);
 
       // Set session ID for logging
       const currentSession = sessionManager.getCurrentSession();
@@ -1574,7 +1646,7 @@ export function setupIpcHandlers(): void {
       const callbacks: AgentCallbacks = {
         onAskUser: async (request: AskUserRequest): Promise<AskUserResponse> => {
           // Send question to renderer
-          mainWindow?.webContents.send('agent:askUser', request);
+          chatWindow?.webContents.send('agent:askUser', request);
 
           // Wait for user response
           return new Promise((resolve) => {
@@ -1634,7 +1706,7 @@ export function setupIpcHandlers(): void {
     try {
       if (stream) {
         const result = await simpleChat(userMessage, existingMessages, systemPrompt, (chunk) => {
-          mainWindow?.webContents.send('agent:streamChunk', chunk);
+          chatWindow?.webContents.send('agent:streamChunk', chunk);
         });
         return { success: true, ...result };
       } else {
@@ -1702,7 +1774,7 @@ export function setupIpcHandlers(): void {
   ipcMain.on('agent:askUserQuestion', (_event, request: AskUserRequest) => {
     // 이 이벤트는 agent에서 직접 발생시키지 않음
     // askUserCallback에서 IPC를 통해 renderer에 질문을 보냄
-    mainWindow?.webContents.send('agent:askUser', request);
+    chatWindow?.webContents.send('agent:askUser', request);
   });
 
   // ============ Documentation ============
@@ -1715,7 +1787,7 @@ export function setupIpcHandlers(): void {
   // 문서 다운로드
   ipcMain.handle('docs:download', async (_event, sourceId: string) => {
     const progressCallback = (progress: DownloadProgress) => {
-      mainWindow?.webContents.send('docs:downloadProgress', progress);
+      chatWindow?.webContents.send('docs:downloadProgress', progress);
     };
     return await downloadDocs(sourceId, progressCallback);
   });

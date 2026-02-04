@@ -9,6 +9,7 @@
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import * as os from 'os';
 import type { ToolDefinition } from '../../../core';
 import type { LLMSimpleTool, ToolResult, ToolCategory } from '../../types';
 import { sendFileEditEvent, sendFileCreateEvent } from '../../../ipc-handlers';
@@ -74,7 +75,17 @@ const CORE_CATEGORIES: ToolCategory[] = ['llm-simple'];
 // Working Directory Management
 // =============================================================================
 
-let currentWorkingDirectory: string = process.cwd();
+// Portable 실행 시 temp 경로 방지: 홈 디렉토리로 fallback
+function getSafeInitialCwd(): string {
+  const cwd = process.cwd();
+  const lower = cwd.toLowerCase();
+  const tempDir = (process.env.TEMP || process.env.TMP || os.tmpdir()).toLowerCase();
+  if ((tempDir && lower.startsWith(tempDir)) || lower.includes('\\appdata\\local\\temp\\')) {
+    return os.homedir();
+  }
+  return cwd;
+}
+let currentWorkingDirectory: string = getSafeInitialCwd();
 
 export function setWorkingDirectory(dir: string): void {
   currentWorkingDirectory = dir;

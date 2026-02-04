@@ -7,6 +7,50 @@
 /* Font loading with swap to prevent FOIT (Flash of Invisible Text) */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
+/* ============ Bundled Korean Fonts (Cafe24) ============ */
+@font-face {
+  font-family: 'Cafe24Syongsyong';
+  src: url('/fonts/Cafe24Syongsyong.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Cafe24Dongdong';
+  src: url('/fonts/Cafe24Dongdong.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Cafe24PROSlimMax';
+  src: url('/fonts/Cafe24PROSlimMax.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Cafe24Oneprettynight';
+  src: url('/fonts/Cafe24Oneprettynight.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Cafe24SsurroundAir';
+  src: url('/fonts/Cafe24SsurroundAir.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Cafe24Moyamoya';
+  src: url('/fonts/Cafe24Moyamoya.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* GPU acceleration for smoother animations */
 .animate-slide-in-up,
 .animate-slide-in-left,
@@ -59,6 +103,16 @@
   --color-accent-gradient: linear-gradient(135deg, #3B82F6 0%, #2563EB 50%, #1D4ED8 100%);
   --color-accent-hover: #2563EB;
   --color-accent-active: #1D4ED8;
+
+  /* Chat Message Colors (palette-responsive) */
+  --color-msg-user-bg: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+  --color-msg-user-text: #0c4a6e;
+  --color-msg-user-border: rgba(125, 211, 252, 0.4);
+  --color-msg-user-shadow: rgba(56, 189, 248, 0.15);
+  --color-msg-assistant-bg: rgba(255, 255, 255, 0.95);
+  --color-msg-assistant-border: rgba(226, 232, 240, 0.6);
+  --color-msg-avatar-bg: #ffffff;
+  --color-msg-avatar-border: #e2e8f0;
 
   /* Semantic Colors */
   --color-success: #3fb950;
@@ -214,6 +268,16 @@
   --color-accent-secondary: #60A5FA;
   --color-accent-tertiary: #93C5FD;
 
+  /* Chat Message Colors - Dark default */
+  --color-msg-user-bg: linear-gradient(135deg, #0c4a6e 0%, #075985 100%);
+  --color-msg-user-text: #e0f2fe;
+  --color-msg-user-border: rgba(56, 189, 248, 0.3);
+  --color-msg-user-shadow: rgba(56, 189, 248, 0.2);
+  --color-msg-assistant-bg: rgba(30, 41, 59, 0.95);
+  --color-msg-assistant-border: rgba(71, 85, 105, 0.4);
+  --color-msg-avatar-bg: #1e293b;
+  --color-msg-avatar-border: #334155;
+
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.4);
@@ -241,6 +305,12 @@
   --color-accent-hover: #EC4899;
   --color-accent-active: #DB2777;
   --bg-gradient: linear-gradient(135deg, #FDF2F8 0%, #FCE7F3 50%, #FBCFE8 100%);
+  --color-msg-user-bg: linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%);
+  --color-msg-user-text: #831843;
+  --color-msg-user-border: rgba(244, 114, 182, 0.4);
+  --color-msg-user-shadow: rgba(244, 114, 182, 0.15);
+  --color-msg-assistant-bg: rgba(255, 251, 253, 0.95);
+  --color-msg-assistant-border: rgba(244, 114, 182, 0.2);
 }
 
 /* Mint - Fresh green tones */
@@ -252,6 +322,12 @@
   --color-accent-hover: #10B981;
   --color-accent-active: #059669;
   --bg-gradient: linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 50%, #A7F3D0 100%);
+  --color-msg-user-bg: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+  --color-msg-user-text: #064e3b;
+  --color-msg-user-border: rgba(52, 211, 153, 0.4);
+  --color-msg-user-shadow: rgba(52, 211, 153, 0.15);
+  --color-msg-assistant-bg: rgba(251, 255, 253, 0.95);
+  --color-msg-assistant-border: rgba(52, 211, 153, 0.2);
 }
 
 /* Lavender - Soft purple tones */
@@ -263,6 +339,12 @@
   --color-accent-hover: #8B5CF6;
   --color-accent-active: #7C3AED;
   --bg-gradient: linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 50%, #DDD6FE 100%);
+  --color-msg-user-bg: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%);
+  --color-msg-user-text: #3b0764;
+  --color-msg-user-border: rgba(167, 139, 250, 0.4);
+  --color-msg-user-shadow: rgba(167, 139, 250, 0.15);
+  --color-msg-assistant-bg: rgba(253, 251, 255, 0.95);
+  --color-msg-assistant-border: rgba(167, 139, 250, 0.2);
 }
 
 /* Peach - Warm orange tones */
@@ -274,6 +356,12 @@
   --color-accent-hover: #F97316;
   --color-accent-active: #EA580C;
   --bg-gradient: linear-gradient(135deg, #FFF7ED 0%, #FFEDD5 50%, #FED7AA 100%);
+  --color-msg-user-bg: linear-gradient(135deg, #ffedd5 0%, #fed7aa 100%);
+  --color-msg-user-text: #7c2d12;
+  --color-msg-user-border: rgba(251, 146, 60, 0.4);
+  --color-msg-user-shadow: rgba(251, 146, 60, 0.15);
+  --color-msg-assistant-bg: rgba(255, 253, 251, 0.95);
+  --color-msg-assistant-border: rgba(251, 146, 60, 0.2);
 }
 
 /* Sky - Cool blue tones (different from default) */
@@ -285,6 +373,12 @@
   --color-accent-hover: #0EA5E9;
   --color-accent-active: #0284C7;
   --bg-gradient: linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 50%, #BAE6FD 100%);
+  --color-msg-user-bg: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+  --color-msg-user-text: #0c4a6e;
+  --color-msg-user-border: rgba(56, 189, 248, 0.4);
+  --color-msg-user-shadow: rgba(56, 189, 248, 0.15);
+  --color-msg-assistant-bg: rgba(251, 254, 255, 0.95);
+  --color-msg-assistant-border: rgba(56, 189, 248, 0.2);
 }
 
 /* ============ Color Palettes - Dark Mode ============ */
@@ -293,6 +387,12 @@
   --color-accent-secondary: #F9A8D4;
   --color-accent-tertiary: #FBCFE8;
   --bg-gradient: linear-gradient(135deg, #1A0A14 0%, #2D1424 50%, #4A1942 100%);
+  --color-msg-user-bg: linear-gradient(135deg, #831843 0%, #9d174d 100%);
+  --color-msg-user-text: #fce7f3;
+  --color-msg-user-border: rgba(244, 114, 182, 0.3);
+  --color-msg-user-shadow: rgba(244, 114, 182, 0.2);
+  --color-msg-assistant-bg: rgba(35, 25, 32, 0.95);
+  --color-msg-assistant-border: rgba(244, 114, 182, 0.15);
 }
 
 [data-theme="dark"][data-palette="mint"] {
@@ -300,6 +400,12 @@
   --color-accent-secondary: #6EE7B7;
   --color-accent-tertiary: #A7F3D0;
   --bg-gradient: linear-gradient(135deg, #0A1A14 0%, #0D2818 50%, #134E2C 100%);
+  --color-msg-user-bg: linear-gradient(135deg, #064e3b 0%, #065f46 100%);
+  --color-msg-user-text: #d1fae5;
+  --color-msg-user-border: rgba(52, 211, 153, 0.3);
+  --color-msg-user-shadow: rgba(52, 211, 153, 0.2);
+  --color-msg-assistant-bg: rgba(25, 35, 30, 0.95);
+  --color-msg-assistant-border: rgba(52, 211, 153, 0.15);
 }
 
 [data-theme="dark"][data-palette="lavender"] {
@@ -307,6 +413,12 @@
   --color-accent-secondary: #C4B5FD;
   --color-accent-tertiary: #DDD6FE;
   --bg-gradient: linear-gradient(135deg, #0F0A1A 0%, #1E1434 50%, #3B2366 100%);
+  --color-msg-user-bg: linear-gradient(135deg, #3b0764 0%, #4c1d95 100%);
+  --color-msg-user-text: #ede9fe;
+  --color-msg-user-border: rgba(167, 139, 250, 0.3);
+  --color-msg-user-shadow: rgba(167, 139, 250, 0.2);
+  --color-msg-assistant-bg: rgba(30, 25, 40, 0.95);
+  --color-msg-assistant-border: rgba(167, 139, 250, 0.15);
 }
 
 [data-theme="dark"][data-palette="peach"] {
@@ -314,6 +426,12 @@
   --color-accent-secondary: #FDBA74;
   --color-accent-tertiary: #FED7AA;
   --bg-gradient: linear-gradient(135deg, #1A0F0A 0%, #2D1A0D 50%, #4A2A14 100%);
+  --color-msg-user-bg: linear-gradient(135deg, #7c2d12 0%, #9a3412 100%);
+  --color-msg-user-text: #ffedd5;
+  --color-msg-user-border: rgba(251, 146, 60, 0.3);
+  --color-msg-user-shadow: rgba(251, 146, 60, 0.2);
+  --color-msg-assistant-bg: rgba(35, 30, 25, 0.95);
+  --color-msg-assistant-border: rgba(251, 146, 60, 0.15);
 }
 
 [data-theme="dark"][data-palette="sky"] {
@@ -321,6 +439,12 @@
   --color-accent-secondary: #7DD3FC;
   --color-accent-tertiary: #BAE6FD;
   --bg-gradient: linear-gradient(135deg, #0A141A 0%, #0D1E2D 50%, #144A66 100%);
+  --color-msg-user-bg: linear-gradient(135deg, #0c4a6e 0%, #0369a1 100%);
+  --color-msg-user-text: #e0f2fe;
+  --color-msg-user-border: rgba(56, 189, 248, 0.3);
+  --color-msg-user-shadow: rgba(56, 189, 248, 0.2);
+  --color-msg-assistant-bg: rgba(25, 32, 38, 0.95);
+  --color-msg-assistant-border: rgba(56, 189, 248, 0.15);
 }
 
 /* ============ Reset & Base ============ */

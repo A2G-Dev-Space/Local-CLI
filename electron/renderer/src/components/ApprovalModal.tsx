@@ -7,6 +7,7 @@
  */
 
 import React, { useState, useRef, useEffect, memo, useMemo, useCallback } from 'react';
+import { useTranslation } from '../i18n/LanguageContext';
 import './ApprovalModal.css';
 
 export interface ApprovalModalProps {
@@ -104,6 +105,7 @@ const ApprovalModal: React.FC<ApprovalModalProps> = ({
   onResponse,
   onCancel,
 }) => {
+  const { t } = useTranslation();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isRejectMode, setIsRejectMode] = useState(false);
   const [rejectComment, setRejectComment] = useState('');
@@ -112,10 +114,10 @@ const ApprovalModal: React.FC<ApprovalModalProps> = ({
 
   // Memoize static options
   const options = useMemo(() => [
-    { label: 'Approve', description: '이번 한 번만 승인', icon: '✅', shortcut: '1' },
-    { label: `Always Approve`, description: '이 세션에서 항상 승인', icon: '✅✅', shortcut: '2' },
-    { label: 'Reject', description: '거부하고 코멘트 추가', icon: '❌', shortcut: '3' },
-  ], []);
+    { label: t('approval.approve'), description: t('approval.approveDesc'), icon: '✅', shortcut: '1' },
+    { label: t('approval.alwaysApprove'), description: t('approval.alwaysDesc'), icon: '✅✅', shortcut: '2' },
+    { label: t('approval.reject'), description: t('approval.rejectDesc'), icon: '❌', shortcut: '3' },
+  ], [t]);
 
   // Memoize formatted args
   const formattedArgs = useMemo(() => formatArgs(args), [args]);
@@ -223,9 +225,9 @@ const ApprovalModal: React.FC<ApprovalModalProps> = ({
           </div>
           <div className="approval-modal-title-section">
             <h2 id="approval-modal-title" className="approval-modal-title">
-              Tool Execution Approval
+              {t('approval.title')}
             </h2>
-            <span className="approval-modal-subtitle">Supervised Mode</span>
+            <span className="approval-modal-subtitle">{t('approval.supervised')}</span>
           </div>
           <span className={`approval-modal-category category-${category}`}>
             {category.toUpperCase()}
@@ -246,11 +248,11 @@ const ApprovalModal: React.FC<ApprovalModalProps> = ({
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
               <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
             </svg>
-            <span>Arguments</span>
+            <span>{t('approval.arguments')}</span>
           </div>
           <div className="args-content">
             {formattedArgs.length === 0 ? (
-              <div className="args-empty">No arguments</div>
+              <div className="args-empty">{t('approval.noArguments')}</div>
             ) : (
               formattedArgs.map(({ key, value, isLong }, idx) => (
                 <div key={idx} className={`arg-item ${isLong ? 'arg-long' : ''}`}>
@@ -271,14 +273,14 @@ const ApprovalModal: React.FC<ApprovalModalProps> = ({
           <div className="approval-modal-reject">
             <div className="reject-header">
               <span className="reject-icon">❌</span>
-              <span>Reject with Comment</span>
+              <span>{t('approval.rejectWithComment')}</span>
             </div>
             <textarea
               ref={inputRef}
               className="reject-input"
               value={rejectComment}
               onChange={(e) => setRejectComment(e.target.value)}
-              placeholder="Enter reason or alternative approach... (Enter to submit, ESC to cancel)"
+              placeholder={t('approval.rejectPlaceholder')}
               rows={3}
             />
             <div className="reject-actions">
@@ -289,13 +291,13 @@ const ApprovalModal: React.FC<ApprovalModalProps> = ({
                   setRejectComment('');
                 }}
               >
-                Cancel
+                {t('approval.cancel')}
               </button>
               <button
                 className="reject-submit-btn"
                 onClick={() => onResponse({ reject: true, comment: rejectComment.trim() })}
               >
-                Reject & Send Comment
+                {t('approval.rejectAndSend')}
               </button>
             </div>
           </div>
@@ -323,10 +325,10 @@ const ApprovalModal: React.FC<ApprovalModalProps> = ({
         {/* Footer */}
         {!isRejectMode && (
           <div className="approval-modal-footer">
-            <span>↑↓ 이동</span>
-            <span>Enter 선택</span>
-            <span>1-3 번호 선택</span>
-            <span>ESC 취소</span>
+            <span>{t('approval.footer.move')}</span>
+            <span>{t('approval.footer.select')}</span>
+            <span>{t('approval.footer.number')}</span>
+            <span>{t('approval.footer.cancel')}</span>
           </div>
         )}
       </div>

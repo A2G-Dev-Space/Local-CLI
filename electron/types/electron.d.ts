@@ -93,6 +93,15 @@ export interface ElectronAPI {
     onMaximizeChange: (callback: (isMaximized: boolean) => void) => () => void;
     onFocusChange: (callback: (isFocused: boolean) => void) => () => void;
     reload: () => Promise<{ success: boolean }>;
+    getWindowType: () => Promise<'chat' | 'task'>;
+  };
+
+  // Task 윈도우 제어
+  taskWindow: {
+    toggle: () => Promise<{ success: boolean; visible?: boolean }>;
+    show: () => Promise<{ success: boolean }>;
+    hide: () => Promise<{ success: boolean }>;
+    isVisible: () => Promise<boolean>;
   };
 
   // 테마

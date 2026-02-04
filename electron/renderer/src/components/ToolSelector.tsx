@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from '../i18n/LanguageContext';
 import './ToolSelector.css';
 
 interface ToolGroup {
@@ -22,6 +23,7 @@ interface ToolSelectorProps {
 }
 
 const ToolSelector: React.FC<ToolSelectorProps> = ({ isOpen, onClose }) => {
+  const { t } = useTranslation();
   const [toolGroups, setToolGroups] = useState<ToolGroup[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -141,9 +143,9 @@ const ToolSelector: React.FC<ToolSelectorProps> = ({ isOpen, onClose }) => {
             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
               <path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/>
             </svg>
-            <span>Optional Tools</span>
+            <span>{t('toolSelector.title')}</span>
           </div>
-          <button className="tool-selector-close" onClick={onClose}>
+          <button className="tool-selector-close" onClick={onClose} title={t('toolSelector.close')}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
               <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
             </svg>
@@ -155,13 +157,13 @@ const ToolSelector: React.FC<ToolSelectorProps> = ({ isOpen, onClose }) => {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
             <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
           </svg>
-          <span>Too many tools can slow down performance. Enable only what you need.</span>
+          <span>{t('toolSelector.warning')}</span>
         </div>
 
         {/* Content */}
         <div className="tool-selector-content">
           {isLoading && (
-            <div className="tool-loading">Loading tools...</div>
+            <div className="tool-loading">{t('toolSelector.loading')}</div>
           )}
 
           {error && (
@@ -169,7 +171,7 @@ const ToolSelector: React.FC<ToolSelectorProps> = ({ isOpen, onClose }) => {
           )}
 
           {!isLoading && toolGroups.length === 0 && (
-            <div className="tool-empty">No optional tools available.</div>
+            <div className="tool-empty">{t('toolSelector.empty')}</div>
           )}
 
           {!isLoading && toolGroups.length > 0 && (
@@ -186,11 +188,11 @@ const ToolSelector: React.FC<ToolSelectorProps> = ({ isOpen, onClose }) => {
                     <div className="tool-info">
                       <div className="tool-name">
                         {group.name}
-                        <span className="tool-count">({group.toolCount} tools)</span>
+                        <span className="tool-count">({t('toolSelector.toolCount', { count: group.toolCount })})</span>
                       </div>
                       <div className="tool-description">{group.description}</div>
                       {!group.available && group.requiresWindows && (
-                        <div className="tool-requirement">Requires Windows</div>
+                        <div className="tool-requirement">{t('toolSelector.requiresWindows')}</div>
                       )}
                     </div>
                   </div>
@@ -218,14 +220,14 @@ const ToolSelector: React.FC<ToolSelectorProps> = ({ isOpen, onClose }) => {
           <div className="tool-stats">
             <span className="stat-item">
               <span className="stat-dot enabled" />
-              {enabledCount} enabled
+              {t('toolSelector.enabled', { count: enabledCount })}
             </span>
             <span className="stat-item">
               <span className="stat-dot available" />
-              {availableCount} available
+              {t('toolSelector.available', { count: availableCount })}
             </span>
           </div>
-          <span className="footer-hint">ESC to close</span>
+          <span className="footer-hint">{t('toolSelector.escToClose')}</span>
         </div>
       </div>
     </div>

@@ -10,6 +10,7 @@
 
 import React, { useRef, useEffect } from 'react';
 import { useResizable, type ResizableConfig } from '../hooks/useResizable';
+import { useTranslation } from '../i18n/LanguageContext';
 import './ResizablePanel.css';
 
 export type ResizeDirection = 'left' | 'right' | 'top' | 'bottom';
@@ -60,6 +61,7 @@ const ResizablePanel: React.FC<ResizablePanelProps> = ({
   useRatio = false,
   header,
 }) => {
+  const { t } = useTranslation();
   const panelRef = useRef<HTMLDivElement>(null);
   const isFirstRender = useRef(true);
 
@@ -195,7 +197,7 @@ const ResizablePanel: React.FC<ResizablePanelProps> = ({
             <button
               className="resizable-panel-collapse-btn"
               onClick={toggle}
-              title={isCollapsed ? '패널 펼치기' : '패널 접기'}
+              title={isCollapsed ? t('ui.expandPanel') : t('ui.collapsePanel')}
             >
               {getCollapseIcon()}
             </button>
@@ -213,7 +215,7 @@ const ResizablePanel: React.FC<ResizablePanelProps> = ({
         <div
           className={`resize-handle ${handlePositionClass}`}
           {...resizeHandleProps}
-          title="드래그하여 크기 조절 | 더블클릭으로 기본 크기 복원"
+          title={t('ui.resizeHint')}
         >
           <div className="resize-handle-indicator" />
         </div>

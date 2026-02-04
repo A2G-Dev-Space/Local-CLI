@@ -7,6 +7,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import type { SessionSummary } from '../../../preload/index';
+import { useTranslation } from '../i18n/LanguageContext';
 import ConfirmModal from './ConfirmModal';
 import './SessionBrowser.css';
 import './ConfirmModal.css';
@@ -26,6 +27,7 @@ const SessionBrowser: React.FC<SessionBrowserProps> = ({
   onDeleteCurrentSession,
   currentSessionId,
 }) => {
+  const { t, language } = useTranslation();
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -45,10 +47,10 @@ const SessionBrowser: React.FC<SessionBrowserProps> = ({
       if (result.success && result.sessions) {
         setSessions(result.sessions);
       } else {
-        setError(result.error || '세션 목록을 불러올 수 없습니다.');
+        setError(result.error || t('session.errorLoad'));
       }
     } catch (err) {
-      setError('세션 목록을 불러오는 중 오류가 발생했습니다.');
+      setError(t('session.errorLoadDetail'));
     } finally {
       setLoading(false);
     }
@@ -112,7 +114,7 @@ const SessionBrowser: React.FC<SessionBrowserProps> = ({
     if (result.success && result.data) {
       // 파일 저장 다이얼로그
       const saveResult = await window.electronAPI.dialog.saveFile({
-        title: '세션 내보내기',
+        title: t('session.exportTitle'),
         defaultPath: `session-${sessionId}.json`,
         filters: [{ name: 'JSON', extensions: ['json'] }],
       });
@@ -121,8 +123,8 @@ const SessionBrowser: React.FC<SessionBrowserProps> = ({
         await window.electronAPI.fs.writeFile(saveResult.filePath, result.data);
         await window.electronAPI.dialog.showMessage({
           type: 'info',
-          title: '내보내기 완료',
-          message: '세션이 성공적으로 내보내졌습니다.',
+          title: t('session.exportSuccess'),
+          message: t('session.exportSuccessMsg'),
         });
       }
     }
@@ -137,7 +139,7 @@ const SessionBrowser: React.FC<SessionBrowserProps> = ({
   // 세션 가져오기
   const handleImportSession = useCallback(async () => {
     const result = await window.electronAPI.dialog.openFile({
-      title: '세션 가져오기',
+      title: t('session.importTitle'),
       filters: [{ name: 'JSON', extensions: ['json'] }],
     });
 
@@ -149,14 +151,14 @@ const SessionBrowser: React.FC<SessionBrowserProps> = ({
           loadSessions();
           await window.electronAPI.dialog.showMessage({
             type: 'info',
-            title: '가져오기 완료',
-            message: '세션이 성공적으로 가져와졌습니다.',
+            title: t('session.importSuccess'),
+            message: t('session.importSuccessMsg'),
           });
         } else {
           await window.electronAPI.dialog.showMessage({
             type: 'error',
-            title: '가져오기 실패',
-            message: importResult.error || '세션 데이터가 올바르지 않습니다.',
+            title: t('session.importError'),
+            message: importResult.error || t('session.importErrorMsg'),
           });
         }
       }
@@ -202,12 +204,12 @@ const SessionBrowser: React.FC<SessionBrowserProps> = ({
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
 
-    if (diffMins < 1) return '방금 전';
-    if (diffMins < 60) return `${diffMins}분 전`;
-    if (diffHours < 24) return `${diffHours}시간 전`;
-    if (diffDays < 7) return `${diffDays}일 전`;
+    if (diffMins < 1) return t('time.justNow');
+    if (diffMins < 60) return t('time.minutesAgo', { count: String(diffMins) });
+    if (diffHours < 24) return t('time.hoursAgo', { count: String(diffHours) });
+    if (diffDays < 7) return t('time.daysAgo', { count: String(diffDays) });
 
-    return date.toLocaleDateString('ko-KR', {
+    return date.toLocaleDateString(language === 'ko' ? 'ko-KR' : 'en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -219,7 +221,7 @@ const SessionBrowser: React.FC<SessionBrowserProps> = ({
       <div className="session-browser" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="session-browser-header">
-          <h2>세션 목록</h2>
+          <h2>{t('session.title')}</h2>
           <button className="session-browser-close" onClick={onClose}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
               <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
@@ -234,7 +236,7 @@ const SessionBrowser: React.FC<SessionBrowserProps> = ({
           </svg>
           <input
             type="text"
-            placeholder="세션 검색..."
+            placeholder={t('session.search')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             autoFocus
@@ -246,7 +248,7 @@ const SessionBrowser: React.FC<SessionBrowserProps> = ({
           {loading ? (
             <div className="session-browser-loading">
               <div className="loading-spinner" />
-              <span>세션 로딩 중...</span>
+              <span>{t('session.loading')}</span>
             </div>
           ) : error ? (
             <div className="session-browser-error">
@@ -260,8 +262,8 @@ const SessionBrowser: React.FC<SessionBrowserProps> = ({
               <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
               </svg>
-              <span>저장된 세션이 없습니다</span>
-              <p>새 세션을 시작하면 자동으로 저장됩니다.</p>
+              <span>{t('session.noSessions')}</span>
+              <p>{t('session.noSessionsDesc')}</p>
             </div>
           ) : (
             sessions.map((session) => (
@@ -280,12 +282,12 @@ const SessionBrowser: React.FC<SessionBrowserProps> = ({
                   <div className="session-item-header">
                     <span className="session-item-name">{session.name}</span>
                     {currentSessionId === session.id && (
-                      <span className="session-item-badge">현재</span>
+                      <span className="session-item-badge">{t('session.current')}</span>
                     )}
                   </div>
                   <div className="session-item-meta">
                     <span className="session-item-date">{formatDate(session.updatedAt)}</span>
-                    <span className="session-item-messages">{session.messageCount}개 메시지</span>
+                    <span className="session-item-messages">{t('session.messages', { count: String(session.messageCount) })}</span>
                   </div>
                   {session.preview && (
                     <div className="session-item-preview">{session.preview}</div>
@@ -303,7 +305,7 @@ const SessionBrowser: React.FC<SessionBrowserProps> = ({
                   <button
                     className="session-action-btn"
                     onClick={(e) => handleExportSession(session.id, e)}
-                    title="내보내기"
+                    title={t('session.export')}
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                       <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
@@ -312,7 +314,7 @@ const SessionBrowser: React.FC<SessionBrowserProps> = ({
                   <button
                     className="session-action-btn delete"
                     onClick={(e) => handleDeleteSession(session.id, e)}
-                    title="삭제"
+                    title={t('session.delete')}
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                       <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
@@ -330,7 +332,7 @@ const SessionBrowser: React.FC<SessionBrowserProps> = ({
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
               <path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/>
             </svg>
-            가져오기
+            {t('session.import')}
           </button>
           <div className="session-browser-footer-spacer" />
           <button
@@ -338,7 +340,7 @@ const SessionBrowser: React.FC<SessionBrowserProps> = ({
             onClick={() => selectedSession && handleLoadSession(selectedSession)}
             disabled={!selectedSession}
           >
-            세션 열기
+            {t('session.open')}
           </button>
         </div>
       </div>
@@ -346,11 +348,11 @@ const SessionBrowser: React.FC<SessionBrowserProps> = ({
       {/* Delete Confirmation Modal */}
       <ConfirmModal
         isOpen={deleteConfirm.isOpen}
-        title="세션 삭제"
-        message="이 세션을 삭제하시겠습니까?"
-        detail="삭제된 세션은 복구할 수 없습니다."
-        confirmText="삭제"
-        cancelText="취소"
+        title={t('session.deleteTitle')}
+        message={t('session.deleteMessage')}
+        detail={t('session.deleteDetail')}
+        confirmText={t('session.deleteConfirm')}
+        cancelText={t('session.cancel')}
         type="danger"
         onConfirm={confirmDeleteSession}
         onCancel={cancelDeleteSession}
