@@ -129,15 +129,10 @@
   width: 32px;
   height: 32px;
   min-width: 32px;
-  background: white;
+  background: var(--color-msg-avatar-bg);
   border-radius: 50%;
-  border: 2px solid #e2e8f0;
+  border: 2px solid var(--color-msg-avatar-border);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-}
-
-[data-theme="dark"] .message-avatar {
-  background: #1e293b;
-  border-color: #334155;
 }
 
 .chat-message.user .message-avatar {
@@ -154,9 +149,8 @@
 .message-content {
   max-width: 80%;
   padding: 12px 16px;
-  /* Replaced expensive backdrop-filter with solid background for performance */
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid rgba(226, 232, 240, 0.6);
+  background: var(--color-msg-assistant-bg);
+  border: 1px solid var(--color-msg-assistant-border);
   border-radius: 16px;
   font-size: var(--font-size-sm);
   line-height: var(--line-height-relaxed);
@@ -200,27 +194,30 @@
   opacity: 1;
 }
 
-[data-theme="dark"] .message-content {
-  background: rgba(30, 41, 59, 0.95);
-  border-color: rgba(71, 85, 105, 0.4);
-}
-
 .chat-message.user .message-content {
-  background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
-  color: #0c4a6e;
+  background: var(--color-msg-user-bg);
+  color: var(--color-msg-user-text);
   border-radius: 16px 16px 4px 16px;
-  border: 1px solid rgba(125, 211, 252, 0.4);
-  box-shadow: 0 2px 8px rgba(56, 189, 248, 0.15);
-}
-
-[data-theme="dark"] .chat-message.user .message-content {
-  background: linear-gradient(135deg, #0c4a6e 0%, #075985 100%);
-  color: #e0f2fe;
-  border-color: rgba(56, 189, 248, 0.3);
+  border: 1px solid var(--color-msg-user-border);
+  box-shadow: 0 2px 8px var(--color-msg-user-shadow);
 }
 
 .chat-message.assistant .message-content {
   border-radius: 16px 16px 16px 4px;
+  border-left: 3px solid var(--color-accent-primary);
+}
+
+/* Timestamp */
+.message-timestamp {
+  font-size: 10px;
+  color: var(--color-text-disabled);
+  margin-top: 4px;
+  padding: 0 4px;
+  user-select: none;
+}
+
+.chat-message.user .message-timestamp {
+  text-align: right;
 }
 
 /* ============ Markdown Styles ============ */
@@ -315,17 +312,18 @@
 /* ============ Code Block ============ */
 .code-block {
   margin: var(--space-3) 0;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   overflow: hidden;
   background-color: var(--color-bg-inset);
   border: 1px solid var(--color-border-muted);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
 }
 
 .code-block-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-2) var(--space-3);
+  padding: 6px var(--space-3);
   background-color: var(--color-bg-surface);
   border-bottom: 1px solid var(--color-border-muted);
 }
@@ -378,6 +376,27 @@
   animation-fill-mode: backwards;
 }
 
+/* Bounce animation for logo avatar during LLM loading */
+.chat-message.loading .message-avatar {
+  animation: logoBounce 2s ease-in-out infinite;
+}
+
+.chat-message.loading .message-avatar img {
+  animation: logoSpin 3s ease-in-out infinite;
+}
+
+@keyframes logoBounce {
+  0%, 100% { transform: translateY(0); }
+  25% { transform: translateY(-4px); }
+  50% { transform: translateY(0); }
+  75% { transform: translateY(-2px); }
+}
+
+@keyframes logoSpin {
+  0%, 100% { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(5deg) scale(1.05); }
+}
+
 .typing-indicator {
   display: flex;
   gap: 4px;
@@ -420,10 +439,12 @@
   /* Replaced expensive backdrop-filter with solid background for performance */
   background: rgba(255, 255, 255, 0.98);
   border-top: 1px solid var(--glass-border);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.03);
 }
 
 [data-theme="dark"] .chat-input-container {
   background: rgba(15, 23, 42, 0.98);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .chat-input-wrapper {
@@ -700,6 +721,17 @@
 
 .directory-open-btn:active {
   transform: scale(0.95);
+}
+
+.directory-change-btn {
+  color: var(--color-accent-primary);
+  background: rgba(59, 130, 246, 0.08);
+  border-color: rgba(59, 130, 246, 0.2);
+}
+
+.directory-change-btn:hover {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.4);
 }
 
 /* ============ Model Selector Dropdown ============ */

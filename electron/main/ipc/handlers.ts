@@ -7,5 +7,6 @@
 export {
   setupIpcHandlers,
   cleanupIpcHandlers,
-  setMainWindow,
+  setChatWindow,
+  setTaskWindow,
 } from '../ipc-handlers';

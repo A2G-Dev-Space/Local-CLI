@@ -1,0 +1,546 @@
+/**
+ * UI Translation strings for Korean/English
+ * Internal prompts and LLM interactions remain in English.
+ */
+
+export type Language = 'ko' | 'en';
+
+const translations: Record<Language, Record<string, string>> = {
+  ko: {
+    // BottomPanel - Tabs
+    'tab.chat': '채팅',
+    'tab.terminal': '터미널',
+    'tab.logs': '로그',
+    'tab.chat.title': '채팅 패널',
+    'tab.terminal.title': '터미널 패널',
+    'tab.logs.title': '로그 뷰어',
+
+    // BottomPanel - Toolbar
+    'toolbar.changeModel': '모델 변경 (Ctrl+M)',
+    'toolbar.compact': '대화 압축',
+    'toolbar.newSession': '새 세션 (Ctrl+N)',
+    'toolbar.loadSession': '세션 불러오기 (Ctrl+O)',
+    'toolbar.clearChat': '대화 초기화 (Ctrl+L)',
+    'toolbar.toolSettings': '도구 설정',
+    'toolbar.tokenUsage': '토큰 사용량',
+    'toolbar.settings': '설정 (Ctrl+,)',
+    'toolbar.about': '정보',
+    'toolbar.fullscreen': '전체화면',
+
+    // BottomPanel - Model
+    'model.noModels': '모델이 설정되지 않았습니다',
+    'model.openSettings': '설정 열기',
+    'model.context': '컨텍스트',
+    'model.noModel': '모델 없음',
+
+    // ChatPanel
+    'chat.copyMessage': '메시지 복사',
+    'chat.copied': '복사됨!',
+    'chat.send': '전송 (Enter)',
+    'chat.stop': '중지 (Esc)',
+    'chat.showEarlier': '이전 메시지 {count}개 보기',
+    'chat.openExplorer': '탐색기에서 열기',
+    'chat.changeDir': '작업 디렉토리 변경',
+    'chat.autoMode': '자동 모드 (모든 권한 허용)',
+    'chat.supervisedMode': '감독 모드 (승인 요청)',
+    'chat.inputPlaceholder': '메시지를 입력하세요... (Enter: 전송, Shift+Enter: 줄바꿈)',
+    'chat.thinking': '생각하는 중...',
+    'chat.auto': '자동',
+    'chat.supervised': '감독',
+    'chat.inputHint': 'Enter: 전송, Shift+Enter: 줄바꿈',
+    'chat.chatCleared': '대화가 초기화되었습니다. 무엇을 도와드릴까요?',
+    'chat.aborted': '에이전트 실행이 중단되었습니다.',
+    'chat.compacting': '대화 압축 중...',
+    'chat.noDirectory': '디렉토리가 선택되지 않았습니다',
+    'chat.loadingLogs': '로그 로딩 중...',
+    'chat.welcome': '# 한설 Assistant에 오신 것을 환영합니다\n\n그 무엇이든지 시켜주세요. 무엇이든 대신해드릴게요.\n\n- **코드 작성 및 수정** - 코딩, 디버깅, 리팩토링을 도와드립니다\n- **파일 관리** - 파일 탐색, 생성, 수정, 정리를 대신합니다\n- **PowerShell 명령** - 시스템 작업과 자동화를 수행합니다\n- **브라우저 자동화** - 웹 검색, 스크래핑, 폼 입력을 대행합니다\n- **Excel 작업** - 데이터 분석, 차트 생성, 수식 작성을 합니다\n- **Word 문서** - 보고서 작성, 서식 편집, 문서 변환을 합니다\n- **PowerPoint** - 프레젠테이션 생성 및 슬라이드 편집을 합니다\n- **문제 해결** - 오류 분석과 트러블슈팅을 해결합니다\n\n아래에 명령을 입력하세요!',
+
+    // TitleBar
+    'titlebar.minimize': '최소화',
+    'titlebar.maximize': '최대화',
+    'titlebar.restore': '원래 크기',
+    'titlebar.close': '닫기',
+
+    // Settings
+    'settings.title': '설정',
+    'settings.account': '계정',
+    'settings.appearance': '외관',
+    'settings.tools': '외부 도구',
+    'settings.close': '설정 닫기',
+    'settings.back': '뒤로',
+    'settings.account.desc': '로그인 상태 및 플랜 정보',
+    'settings.appearance.desc': '글꼴, 크기, 색상 테마',
+    'settings.tools.desc': 'VSCode 경로 및 연동',
+    'settings.account.title': '설정 > 계정',
+    'settings.appearance.title': '설정 > 외관',
+    'settings.tools.title': '설정 > 외부 도구',
+
+    // Settings - Account
+    'account.loginInfo': '로그인 정보',
+    'account.name': '이름',
+    'account.email': '이메일',
+    'account.provider': '제공자',
+    'account.plan': '플랜',
+    'account.expires': '만료',
+    'account.logout': '로그아웃',
+    'account.logoutTitle': '계정에서 로그아웃',
+    'account.notLoggedIn': '로그인되지 않았습니다',
+    'account.loading': '로딩 중...',
+
+    // Settings - Appearance
+    'appearance.fontSize': '글자 크기',
+    'appearance.fontPreview': '다람쥐 헌 쳇바퀴에 타고파',
+    'appearance.colorTheme': '색상 테마',
+    'appearance.fontFamily': '글꼴',
+    'appearance.language': '언어',
+
+    // Settings - Tools
+    'tools.vscodePath': 'VSCode 경로',
+    'tools.autoDetected': '자동 감지됨 (code 명령어가 PATH에 있음)',
+    'tools.notFound': 'PATH에서 찾을 수 없음 - 아래에 경로를 지정하세요',
+    'tools.save': '저장',
+    'tools.autoHint': 'VSCode는 "code" 명령어로 실행됩니다. 수동 경로 불필요.',
+    'tools.manualHint': 'VSCode 실행 파일의 전체 경로를 입력하세요 (Windows: Code.exe, Mac/Linux: code)',
+    'tools.autoPlaceholder': '자동 감지된 경로 사용 중',
+    'tools.manualPlaceholder': 'C:\\Users\\...\\Code.exe 또는 /usr/bin/code',
+
+    // TodoPanel
+    'todo.collapse': '접기',
+    'todo.retry': '다시 시도',
+    'todo.title': '작업 진행 상황',
+    'todo.noTasks': '작업 없음',
+    'todo.noTasksDesc': '에이전트가 계획을 세우면 여기에 작업이 표시됩니다',
+    'todo.done': '완료',
+    'todo.fail': '실패',
+    'todo.current': '진행 중',
+    'todo.next': '다음',
+    'todo.allCompleted': '모든 작업이 완료되었습니다!',
+    'todo.viewAll': '전체 {count}개 작업 보기',
+
+    // ToolSelector
+    'toolSelector.close': '도구 설정 닫기',
+    'toolSelector.title': '선택적 도구',
+    'toolSelector.warning': '도구가 너무 많으면 성능이 저하될 수 있습니다. 필요한 것만 활성화하세요.',
+    'toolSelector.loading': '도구 로딩 중...',
+    'toolSelector.empty': '사용 가능한 선택적 도구가 없습니다.',
+    'toolSelector.enabled': '{count}개 활성화',
+    'toolSelector.available': '{count}개 사용 가능',
+    'toolSelector.escToClose': 'ESC로 닫기',
+    'toolSelector.toolCount': '{count}개 도구',
+    'toolSelector.requiresWindows': 'Windows 필요',
+
+    // Palette names
+    'palette.default': '기본 블루',
+    'palette.rose': '로즈',
+    'palette.mint': '민트',
+    'palette.lavender': '라벤더',
+    'palette.peach': '피치',
+    'palette.sky': '스카이',
+
+    // Font names
+    'font.default': '기본 (Inter)',
+    'font.cafe24Syongsyong': 'Cafe24 쑝쑝',
+    'font.cafe24Dongdong': 'Cafe24 동동',
+    'font.cafe24SlimMax': 'Cafe24 슬림맥스',
+    'font.cafe24Oneprettynight': 'Cafe24 아름다운밤',
+    'font.cafe24SsurroundAir': 'Cafe24 써라운드에어',
+    'font.cafe24Moyamoya': 'Cafe24 모야모야',
+
+    // ApprovalModal
+    'approval.title': '도구 실행 승인',
+    'approval.supervised': '감독 모드',
+    'approval.arguments': '인수',
+    'approval.noArguments': '인수 없음',
+    'approval.approve': '승인',
+    'approval.approveDesc': '이번 한 번만 승인',
+    'approval.alwaysApprove': '항상 승인',
+    'approval.alwaysDesc': '이 세션에서 항상 승인',
+    'approval.reject': '거부',
+    'approval.rejectDesc': '거부하고 코멘트 추가',
+    'approval.rejectWithComment': '코멘트와 함께 거부',
+    'approval.rejectPlaceholder': '거부 사유 또는 대안을 입력하세요... (Enter: 전송, ESC: 취소)',
+    'approval.cancel': '취소',
+    'approval.rejectAndSend': '거부 및 코멘트 전송',
+    'approval.footer.move': '↑↓ 이동',
+    'approval.footer.select': 'Enter 선택',
+    'approval.footer.number': '1-3 번호 선택',
+    'approval.footer.cancel': 'ESC 취소',
+
+    // Info Modal
+    'info.title': '한설',
+    'info.version': '버전',
+    'info.developer': '개발자',
+    'info.contact': '연락처',
+    'info.ok': '확인',
+    'info.close': '닫기',
+
+    // VSCode Toast
+    'vscode.toast.title': 'VSCode를 설치하면 파일 변경사항을 더 직관적으로 확인할 수 있습니다',
+    'vscode.toast.desc': 'code.visualstudio.com 에서 다운로드 후, Settings > External Tools에서 연동하세요',
+    'vscode.toast.close': '닫기',
+
+    // Common
+    'common.loading': '로딩 중...',
+    'app.selectFolder': '작업 폴더 선택',
+    'app.title': '한설 (For Windows)',
+
+    // TaskApp
+    'task.title': '작업',
+    'task.emptyLine1': '에이전트가 작업을 시작하면',
+    'task.emptyLine2': '여기에 진행상황이 표시됩니다',
+
+    // SessionBrowser
+    'session.title': '세션 목록',
+    'session.search': '세션 검색...',
+    'session.loading': '세션 로딩 중...',
+    'session.errorLoad': '세션 목록을 불러올 수 없습니다.',
+    'session.errorLoadDetail': '세션 목록을 불러오는 중 오류가 발생했습니다.',
+    'session.noSessions': '저장된 세션이 없습니다',
+    'session.noSessionsDesc': '새 세션을 시작하면 자동으로 저장됩니다.',
+    'session.current': '현재',
+    'session.messages': '{count}개 메시지',
+    'session.export': '내보내기',
+    'session.delete': '삭제',
+    'session.import': '가져오기',
+    'session.open': '세션 열기',
+    'session.exportTitle': '세션 내보내기',
+    'session.exportSuccess': '내보내기 완료',
+    'session.exportSuccessMsg': '세션이 성공적으로 내보내졌습니다.',
+    'session.importTitle': '세션 가져오기',
+    'session.importSuccess': '가져오기 완료',
+    'session.importSuccessMsg': '세션이 성공적으로 가져와졌습니다.',
+    'session.importError': '가져오기 실패',
+    'session.importErrorMsg': '세션 데이터가 올바르지 않습니다.',
+    'session.deleteTitle': '세션 삭제',
+    'session.deleteMessage': '이 세션을 삭제하시겠습니까?',
+    'session.deleteDetail': '삭제된 세션은 복구할 수 없습니다.',
+    'session.deleteConfirm': '삭제',
+    'session.cancel': '취소',
+
+    // Relative time
+    'time.justNow': '방금 전',
+    'time.minutesAgo': '{count}분 전',
+    'time.hoursAgo': '{count}시간 전',
+    'time.daysAgo': '{count}일 전',
+
+    // ConfirmModal
+    'confirm.ok': '확인',
+    'confirm.cancel': '취소',
+
+    // ResizablePanel
+    'ui.expandPanel': '패널 펼치기',
+    'ui.collapsePanel': '패널 접기',
+    'ui.resizeHint': '드래그하여 크기 조절 | 더블클릭으로 기본 크기 복원',
+
+    // LogViewer
+    'log.title': '로그 뷰어',
+    'log.openFolder': '로그 폴더 열기',
+    'log.clearOld': '오래된 로그 삭제',
+    'log.session': '세션',
+    'log.sessionTitle': '세션별 로그',
+    'log.currentRun': '이번 실행',
+    'log.currentRunTitle': '이번 실행 로그',
+    'log.selectSession': '세션 선택...',
+    'log.refreshLogs': '로그 새로고침',
+    'log.copyAll': '전체 복사',
+    'log.copied': '복사됨!',
+    'log.copyToClipboard': '전체 로그 클립보드에 복사',
+    'log.search': '로그 검색... (Ctrl+F)',
+    'log.showTimestamp': '타임스탬프 표시',
+    'log.autoScroll': '자동 스크롤',
+    'log.wrapLines': '줄 바꿈',
+    'log.level': '레벨:',
+    'log.dismiss': '닫기',
+    'log.loadingLogs': '로그 로딩 중...',
+    'log.noEntries': '로그 항목이 없습니다',
+    'log.noEntriesHint': '다른 파일을 선택하거나 필터를 조정하세요',
+    'log.entries': '{count}개 항목',
+    'log.thisRun': '(이번 실행)',
+    'log.deleteConfirm': '{name} 로그 파일을 삭제하시겠습니까?',
+    'log.clearAllConfirm': '모든 오래된 로그를 삭제하시겠습니까? (현재 로그는 유지)',
+    'log.live': 'LIVE',
+    'log.run': '실행:',
+    'log.cat.all': '모든 로그 표시',
+    'log.cat.chat': '대화 관련 로그',
+    'log.cat.tool': '도구 실행 로그',
+    'log.cat.http': 'HTTP 요청/응답 로그',
+    'log.cat.llm': 'LLM API 로그',
+    'log.cat.ui': 'UI 컴포넌트 로그',
+    'log.cat.system': '시스템 로그',
+    'log.cat.debug': '디버그 로그',
+
+    // Language names
+    'lang.ko': '한국어',
+    'lang.en': 'English',
+  },
+
+  en: {
+    // BottomPanel - Tabs
+    'tab.chat': 'Chat',
+    'tab.terminal': 'Terminal',
+    'tab.logs': 'Logs',
+    'tab.chat.title': 'Chat Panel',
+    'tab.terminal.title': 'Terminal Panel',
+    'tab.logs.title': 'Log Viewer',
+
+    // BottomPanel - Toolbar
+    'toolbar.changeModel': 'Change Model (Ctrl+M)',
+    'toolbar.compact': 'Compact Conversation',
+    'toolbar.newSession': 'New Session (Ctrl+N)',
+    'toolbar.loadSession': 'Load Session (Ctrl+O)',
+    'toolbar.clearChat': 'Clear Chat (Ctrl+L)',
+    'toolbar.toolSettings': 'Tool Settings',
+    'toolbar.tokenUsage': 'Token Usage',
+    'toolbar.settings': 'Settings (Ctrl+,)',
+    'toolbar.about': 'About',
+    'toolbar.fullscreen': 'Fullscreen',
+
+    // BottomPanel - Model
+    'model.noModels': 'No models configured',
+    'model.openSettings': 'Open Settings',
+    'model.context': 'Context',
+    'model.noModel': 'No model',
+
+    // ChatPanel
+    'chat.copyMessage': 'Copy message',
+    'chat.copied': 'Copied!',
+    'chat.send': 'Send (Enter)',
+    'chat.stop': 'Stop (Esc)',
+    'chat.showEarlier': 'Show {count} earlier messages',
+    'chat.openExplorer': 'Open in Explorer',
+    'chat.changeDir': 'Change Working Directory',
+    'chat.autoMode': 'Auto Mode (all permissions granted)',
+    'chat.supervisedMode': 'Supervised Mode (ask for approval)',
+    'chat.inputPlaceholder': 'Type a message... (Enter: send, Shift+Enter: newline)',
+    'chat.thinking': 'Thinking...',
+    'chat.auto': 'Auto',
+    'chat.supervised': 'Supervised',
+    'chat.inputHint': 'Enter to submit, Shift+Enter for newline',
+    'chat.chatCleared': 'Chat cleared. How can I help you?',
+    'chat.aborted': 'Agent execution aborted.',
+    'chat.compacting': 'Compacting conversation...',
+    'chat.noDirectory': 'No directory selected',
+    'chat.loadingLogs': 'Loading logs...',
+    'chat.welcome': '# Welcome to Hanseol Assistant\n\nTell me anything. I\'ll do it for you.\n\n- **Code & Development** - Coding, debugging, and refactoring assistance\n- **File Management** - Browse, create, edit, and organize files\n- **PowerShell Commands** - System tasks and automation\n- **Browser Automation** - Web search, scraping, and form filling\n- **Excel** - Data analysis, charts, and formulas\n- **Word Documents** - Report writing, formatting, and conversion\n- **PowerPoint** - Create and edit presentations\n- **Troubleshooting** - Error analysis and problem solving\n\nType a command below!',
+
+    // TitleBar
+    'titlebar.minimize': 'Minimize',
+    'titlebar.maximize': 'Maximize',
+    'titlebar.restore': 'Restore',
+    'titlebar.close': 'Close',
+
+    // Settings
+    'settings.title': 'Settings',
+    'settings.account': 'Account',
+    'settings.appearance': 'Appearance',
+    'settings.tools': 'External Tools',
+    'settings.close': 'Close Settings',
+    'settings.back': 'Back',
+    'settings.account.desc': 'Login status & plan info',
+    'settings.appearance.desc': 'Font, size & color theme',
+    'settings.tools.desc': 'VSCode path & integrations',
+    'settings.account.title': 'Settings > Account',
+    'settings.appearance.title': 'Settings > Appearance',
+    'settings.tools.title': 'Settings > External Tools',
+
+    // Settings - Account
+    'account.loginInfo': 'Login Info',
+    'account.name': 'Name',
+    'account.email': 'Email',
+    'account.provider': 'Provider',
+    'account.plan': 'Plan',
+    'account.expires': 'Expires',
+    'account.logout': 'Logout',
+    'account.logoutTitle': 'Sign out of your account',
+    'account.notLoggedIn': 'Not logged in',
+    'account.loading': 'Loading...',
+
+    // Settings - Appearance
+    'appearance.fontSize': 'Font Size',
+    'appearance.fontPreview': 'The quick brown fox jumps over the lazy dog',
+    'appearance.colorTheme': 'Color Theme',
+    'appearance.fontFamily': 'Font Family',
+    'appearance.language': 'Language',
+
+    // Settings - Tools
+    'tools.vscodePath': 'VSCode Path',
+    'tools.autoDetected': 'Auto-detected (code command found in PATH)',
+    'tools.notFound': 'Not found in PATH - specify path below',
+    'tools.save': 'Save',
+    'tools.autoHint': 'VSCode will be launched using the "code" command. No manual path needed.',
+    'tools.manualHint': 'Enter the full path to VSCode executable (Code.exe on Windows, code on Mac/Linux)',
+    'tools.autoPlaceholder': 'Using auto-detected path',
+    'tools.manualPlaceholder': 'C:\\Users\\...\\Code.exe or /usr/bin/code',
+
+    // TodoPanel
+    'todo.collapse': 'Collapse',
+    'todo.retry': 'Retry',
+    'todo.title': 'Task Progress',
+    'todo.noTasks': 'No Tasks',
+    'todo.noTasksDesc': 'Tasks will appear here when the agent creates a plan',
+    'todo.done': 'DONE',
+    'todo.fail': 'FAIL',
+    'todo.current': 'CURRENT',
+    'todo.next': 'NEXT',
+    'todo.allCompleted': 'All Tasks Completed!',
+    'todo.viewAll': 'Click to view all {count} tasks',
+
+    // ToolSelector
+    'toolSelector.close': 'Close Tool Settings',
+    'toolSelector.title': 'Optional Tools',
+    'toolSelector.warning': 'Too many tools can slow down performance. Enable only what you need.',
+    'toolSelector.loading': 'Loading tools...',
+    'toolSelector.empty': 'No optional tools available.',
+    'toolSelector.enabled': '{count} enabled',
+    'toolSelector.available': '{count} available',
+    'toolSelector.escToClose': 'ESC to close',
+    'toolSelector.toolCount': '{count} tools',
+    'toolSelector.requiresWindows': 'Requires Windows',
+
+    // Palette names
+    'palette.default': 'Default Blue',
+    'palette.rose': 'Rose',
+    'palette.mint': 'Mint',
+    'palette.lavender': 'Lavender',
+    'palette.peach': 'Peach',
+    'palette.sky': 'Sky',
+
+    // Font names
+    'font.default': 'Default (Inter)',
+    'font.cafe24Syongsyong': 'Cafe24 Syongsyong',
+    'font.cafe24Dongdong': 'Cafe24 Dongdong',
+    'font.cafe24SlimMax': 'Cafe24 SlimMax',
+    'font.cafe24Oneprettynight': 'Cafe24 One Pretty Night',
+    'font.cafe24SsurroundAir': 'Cafe24 Ssurround Air',
+    'font.cafe24Moyamoya': 'Cafe24 Moyamoya',
+
+    // ApprovalModal
+    'approval.title': 'Tool Execution Approval',
+    'approval.supervised': 'Supervised Mode',
+    'approval.arguments': 'Arguments',
+    'approval.noArguments': 'No arguments',
+    'approval.approve': 'Approve',
+    'approval.approveDesc': 'Approve this one time',
+    'approval.alwaysApprove': 'Always Approve',
+    'approval.alwaysDesc': 'Always approve in this session',
+    'approval.reject': 'Reject',
+    'approval.rejectDesc': 'Reject with comment',
+    'approval.rejectWithComment': 'Reject with Comment',
+    'approval.rejectPlaceholder': 'Enter reason or alternative approach... (Enter to submit, ESC to cancel)',
+    'approval.cancel': 'Cancel',
+    'approval.rejectAndSend': 'Reject & Send Comment',
+    'approval.footer.move': '↑↓ Navigate',
+    'approval.footer.select': 'Enter Select',
+    'approval.footer.number': '1-3 Number',
+    'approval.footer.cancel': 'ESC Cancel',
+
+    // Info Modal
+    'info.title': 'Hanseol',
+    'info.version': 'Version',
+    'info.developer': 'Developer',
+    'info.contact': 'Contact',
+    'info.ok': 'OK',
+    'info.close': 'Close',
+
+    // VSCode Toast
+    'vscode.toast.title': 'Install VSCode to view file changes more intuitively',
+    'vscode.toast.desc': 'Download from code.visualstudio.com, then integrate in Settings > External Tools',
+    'vscode.toast.close': 'Close',
+
+    // Common
+    'common.loading': 'Loading...',
+    'app.selectFolder': 'Select Working Folder',
+    'app.title': 'Hanseol (For Windows)',
+
+    // TaskApp
+    'task.title': 'Tasks',
+    'task.emptyLine1': 'When the agent starts working,',
+    'task.emptyLine2': 'progress will appear here',
+
+    // SessionBrowser
+    'session.title': 'Sessions',
+    'session.search': 'Search sessions...',
+    'session.loading': 'Loading sessions...',
+    'session.errorLoad': 'Failed to load sessions.',
+    'session.errorLoadDetail': 'An error occurred while loading sessions.',
+    'session.noSessions': 'No saved sessions',
+    'session.noSessionsDesc': 'Sessions are auto-saved when you start a new one.',
+    'session.current': 'Current',
+    'session.messages': '{count} messages',
+    'session.export': 'Export',
+    'session.delete': 'Delete',
+    'session.import': 'Import',
+    'session.open': 'Open Session',
+    'session.exportTitle': 'Export Session',
+    'session.exportSuccess': 'Export Complete',
+    'session.exportSuccessMsg': 'Session exported successfully.',
+    'session.importTitle': 'Import Session',
+    'session.importSuccess': 'Import Complete',
+    'session.importSuccessMsg': 'Session imported successfully.',
+    'session.importError': 'Import Failed',
+    'session.importErrorMsg': 'Invalid session data.',
+    'session.deleteTitle': 'Delete Session',
+    'session.deleteMessage': 'Delete this session?',
+    'session.deleteDetail': 'Deleted sessions cannot be recovered.',
+    'session.deleteConfirm': 'Delete',
+    'session.cancel': 'Cancel',
+
+    // Relative time
+    'time.justNow': 'Just now',
+    'time.minutesAgo': '{count} min ago',
+    'time.hoursAgo': '{count} hr ago',
+    'time.daysAgo': '{count} days ago',
+
+    // ConfirmModal
+    'confirm.ok': 'OK',
+    'confirm.cancel': 'Cancel',
+
+    // ResizablePanel
+    'ui.expandPanel': 'Expand panel',
+    'ui.collapsePanel': 'Collapse panel',
+    'ui.resizeHint': 'Drag to resize | Double-click to reset',
+
+    // LogViewer
+    'log.title': 'Log Viewer',
+    'log.openFolder': 'Open Log Folder',
+    'log.clearOld': 'Clear Old Logs',
+    'log.session': 'Session',
+    'log.sessionTitle': 'Session Logs',
+    'log.currentRun': 'This Run',
+    'log.currentRunTitle': 'Current Run Logs',
+    'log.selectSession': 'Select Session...',
+    'log.refreshLogs': 'Refresh logs',
+    'log.copyAll': 'Copy All',
+    'log.copied': 'Copied!',
+    'log.copyToClipboard': 'Copy all logs to clipboard',
+    'log.search': 'Search logs... (Ctrl+F)',
+    'log.showTimestamp': 'Show Timestamp',
+    'log.autoScroll': 'Auto Scroll',
+    'log.wrapLines': 'Wrap Lines',
+    'log.level': 'Level:',
+    'log.dismiss': 'Dismiss',
+    'log.loadingLogs': 'Loading logs...',
+    'log.noEntries': 'No log entries found',
+    'log.noEntriesHint': 'Select a different file or adjust filters',
+    'log.entries': '{count} entries',
+    'log.thisRun': '(this run)',
+    'log.deleteConfirm': 'Delete log file: {name}?',
+    'log.clearAllConfirm': 'Delete all old log files? (Current log will be kept)',
+    'log.live': 'LIVE',
+    'log.run': 'Run:',
+    'log.cat.all': 'Show all logs',
+    'log.cat.chat': 'Chat logs',
+    'log.cat.tool': 'Tool execution logs',
+    'log.cat.http': 'HTTP request/response logs',
+    'log.cat.llm': 'LLM API logs',
+    'log.cat.ui': 'UI component logs',
+    'log.cat.system': 'System logs',
+    'log.cat.debug': 'Debug logs',
+
+    // Language names
+    'lang.ko': '한국어',
+    'lang.en': 'English',
+  },
+};
+
+export default translations;

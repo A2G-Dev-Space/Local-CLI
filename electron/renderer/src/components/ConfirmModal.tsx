@@ -4,6 +4,7 @@
  */
 
 import React, { useEffect, useRef, memo } from 'react';
+import { useTranslation } from '../i18n/LanguageContext';
 import './ConfirmModal.css';
 
 interface ConfirmModalProps {
@@ -23,12 +24,15 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
   title,
   message,
   detail,
-  confirmText = '확인',
-  cancelText = '취소',
+  confirmText,
+  cancelText,
   type = 'question',
   onConfirm,
   onCancel,
 }) => {
+  const { t } = useTranslation();
+  const resolvedConfirmText = confirmText || t('confirm.ok');
+  const resolvedCancelText = cancelText || t('confirm.cancel');
   const confirmRef = useRef<HTMLButtonElement>(null);
 
   // Focus confirm button when modal opens
@@ -109,14 +113,14 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
             className="confirm-modal-btn confirm-modal-btn-cancel"
             onClick={onCancel}
           >
-            {cancelText}
+            {resolvedCancelText}
           </button>
           <button
             ref={confirmRef}
             className={`confirm-modal-btn confirm-modal-btn-confirm confirm-modal-btn-${type}`}
             onClick={onConfirm}
           >
-            {confirmText}
+            {resolvedConfirmText}
           </button>
         </div>
       </div>

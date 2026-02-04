@@ -7,14 +7,15 @@
  * - 전역 에러 핸들링
  */
 
-import { app, BrowserWindow, shell, nativeTheme, crashReporter, dialog } from 'electron';
+import { app, BrowserWindow, shell, nativeTheme, crashReporter, dialog, screen } from 'electron';
 import path from 'path';
+import os from 'os';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import pkg from 'electron-updater';
 const { autoUpdater } = pkg;
 import { logger, LogLevel } from './utils/logger';
-import { setupIpcHandlers, setMainWindow, cleanupIpcHandlers } from './ipc-handlers';
+import { setupIpcHandlers, setChatWindow, setTaskWindow, cleanupIpcHandlers } from './ipc-handlers';
 import { powerShellManager } from './powershell-manager';
 import { configManager } from './core/config';
 import { sessionManager } from './core/session';
@@ -33,8 +34,23 @@ const RENDERER_DIST = path.join(__dirname, '../renderer');
 const VITE_DEV_SERVER_URL = process.env['ELECTRON_RENDERER_URL'];
 const isDev = !!VITE_DEV_SERVER_URL;
 
-// 메인 윈도우 참조
-let mainWindow: BrowserWindow | null = null;
+// 윈도우 참조 (Chat: 메인, Task: 보조)
+let chatWindow: BrowserWindow | null = null;
+let taskWindow: BrowserWindow | null = null;
+
+// ============ 작업 디렉토리 보정 (Portable 실행 시 temp 경로 방지) ============
+
+const cwd = process.cwd();
+const tempDir = os.tmpdir().toLowerCase();
+if (cwd.toLowerCase().startsWith(tempDir) || cwd.toLowerCase().includes('\\temp\\')) {
+  const home = os.homedir();
+  try {
+    process.chdir(home);
+    logger.info('Working directory corrected from temp to home', { from: cwd, to: home });
+  } catch {
+    // fallback: keep current directory
+  }
+}
 
 // ============ 크래시 리포터 설정 ============
 
@@ -83,118 +99,258 @@ if (process.platform === 'win32') {
   app.setAppUserModelId('com.local-cli.powershell-ui');
 }
 
-// ============ 윈도우 생성 ============
+// ============ 공통 webPreferences ============
 
-async function createWindow(): Promise<void> {
-  // 윈도우 상태 저장/복원을 위한 기본값
-  const defaultWidth = 1400;
-  const defaultHeight = 900;
-  const minWidth = 800;
-  const minHeight = 600;
+const commonWebPreferences = {
+  preload: path.join(__dirname, '../preload/index.mjs'),
+  contextIsolation: true,
+  nodeIntegration: false,
+  sandbox: false,
+  webSecurity: true,
+  allowRunningInsecureContent: false,
+  experimentalFeatures: false,
+  devTools: true,
+};
 
-  mainWindow = new BrowserWindow({
-    width: defaultWidth,
-    height: defaultHeight,
-    minWidth,
-    minHeight,
+const appIcon = app.isPackaged
+  ? path.join(process.resourcesPath, process.platform === 'win32' ? 'icon.ico' : 'icon.png')
+  : path.join(__dirname, '../../build', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
 
-    // 프레임리스 디자인
+// 윈도우 URL 로드 헬퍼
+function loadWindowURL(win: BrowserWindow, windowType: string): void {
+  if (VITE_DEV_SERVER_URL) {
+    win.loadURL(`${VITE_DEV_SERVER_URL}?window=${windowType}`);
+  } else {
+    win.loadFile(path.join(RENDERER_DIST, 'index.html'), {
+      query: { window: windowType },
+    });
+  }
+}
+
+// 윈도우 bounds 저장/복원
+function saveWindowBounds(key: string, win: BrowserWindow): void {
+  try {
+    const bounds = win.getBounds();
+    (configManager as { set(key: string, value: unknown): void }).set(`windowBounds.${key}`, bounds);
+  } catch {
+    // ignore
+  }
+}
+
+function getWindowBounds(key: string): Electron.Rectangle | null {
+  try {
+    const bounds = (configManager as { get(key: string): unknown }).get(`windowBounds.${key}`) as Electron.Rectangle | undefined;
+    return bounds || null;
+  } catch {
+    return null;
+  }
+}
+
+// ============ Chat 윈도우 생성 (메인) ============
+
+async function createChatWindow(): Promise<void> {
+  const savedBounds = getWindowBounds('chat');
+  const defaultWidth = 820;
+  const defaultHeight = 620;
+  const taskWindowWidth = 400;
+
+  // 저장된 bounds가 없으면 Chat + Task 양쪽이 화면에 들어오도록 배치
+  let chatX: number | undefined = savedBounds?.x;
+  let chatY: number | undefined = savedBounds?.y;
+  let shouldCenter = false;
+  if (!savedBounds) {
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const workArea = primaryDisplay.workArea;
+    const totalWidth = defaultWidth + 10 + taskWindowWidth; // Chat + gap + Task
+
+    if (totalWidth <= workArea.width) {
+      // 두 윈도우가 모두 들어감 → Chat을 왼쪽에 배치
+      chatX = workArea.x + Math.floor((workArea.width - totalWidth) / 2);
+      chatY = workArea.y + Math.floor((workArea.height - defaultHeight) / 2);
+    } else {
+      // 공간 부족 → Chat만 중앙 배치
+      shouldCenter = true;
+    }
+  }
+
+  chatWindow = new BrowserWindow({
+    width: savedBounds?.width || defaultWidth,
+    height: savedBounds?.height || defaultHeight,
+    x: chatX,
+    y: chatY,
+    minWidth: 480,
+    minHeight: 400,
     frame: false,
     titleBarStyle: 'hidden',
     titleBarOverlay: false,
-
-    // 투명 배경 (테마 전환 시 깜빡임 방지)
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#1e1e1e' : '#ffffff',
     transparent: false,
-
-    // 아이콘 설정 (Windows는 .ico 필요)
-    // 패키징된 앱에서는 resources 폴더에서, 개발 모드에서는 build 폴더에서 로드
-    icon: app.isPackaged
-      ? path.join(process.resourcesPath, process.platform === 'win32' ? 'icon.ico' : 'icon.png')
-      : path.join(__dirname, '../../build', process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
-
-    // 웹 환경설정 (보안)
-    webPreferences: {
-      preload: path.join(__dirname, '../preload/index.mjs'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: false, // preload 스크립트가 정상 동작하도록 false
-      webSecurity: true,
-      allowRunningInsecureContent: false,
-      experimentalFeatures: false,
-      devTools: true, // 디버깅을 위해 항상 활성화
-    },
-
-    // 창 표시 설정
+    icon: appIcon,
+    webPreferences: commonWebPreferences,
     show: true,
-    center: true,
+    center: shouldCenter,
   });
 
-  // IPC 핸들러에 메인 윈도우 참조 전달
-  setMainWindow(mainWindow);
+  setChatWindow(chatWindow);
 
-  // 개발 모드에서 DevTools 열기
   if (isDev) {
-    mainWindow.webContents.once('did-finish-load', () => {
-      mainWindow?.webContents.openDevTools({ mode: 'detach' });
+    chatWindow.webContents.once('did-finish-load', () => {
+      chatWindow?.webContents.openDevTools({ mode: 'detach' });
     });
   }
 
-  // 최대화 상태 변경 이벤트 전달
-  mainWindow.on('maximize', () => {
-    mainWindow?.webContents.send('window:maximizeChange', true);
+  chatWindow.on('maximize', () => {
+    chatWindow?.webContents.send('window:maximizeChange', true);
   });
 
-  mainWindow.on('unmaximize', () => {
-    mainWindow?.webContents.send('window:maximizeChange', false);
+  chatWindow.on('unmaximize', () => {
+    chatWindow?.webContents.send('window:maximizeChange', false);
   });
 
-  // 창 포커스 이벤트
-  mainWindow.on('focus', () => {
-    logger.windowFocus({ windowId: mainWindow?.id });
-    mainWindow?.webContents.send('window:focus', true);
+  chatWindow.on('focus', () => {
+    logger.windowFocus({ windowId: chatWindow?.id });
+    chatWindow?.webContents.send('window:focus', true);
   });
 
-  mainWindow.on('blur', () => {
-    logger.windowBlur({ windowId: mainWindow?.id });
-    mainWindow?.webContents.send('window:focus', false);
+  chatWindow.on('blur', () => {
+    logger.windowBlur({ windowId: chatWindow?.id });
+    chatWindow?.webContents.send('window:focus', false);
   });
 
-  // 외부 링크는 기본 브라우저에서 열기
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    // 허용된 프로토콜만 열기
+  chatWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('https://') || url.startsWith('http://')) {
       shell.openExternal(url);
     }
     return { action: 'deny' };
   });
 
-  // 네비게이션 차단 (보안)
-  mainWindow.webContents.on('will-navigate', (event, url) => {
-    // 개발 서버 URL만 허용
+  chatWindow.webContents.on('will-navigate', (event, url) => {
     if (!url.startsWith(VITE_DEV_SERVER_URL || '') && !url.startsWith('file://')) {
       event.preventDefault();
       logger.warn('Navigation blocked', { url });
     }
   });
 
-  // 개발 서버 또는 빌드된 파일 로드
-  if (VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(VITE_DEV_SERVER_URL);
-  } else {
-    mainWindow.loadFile(path.join(RENDERER_DIST, 'index.html'));
-  }
+  loadWindowURL(chatWindow, 'chat');
 
-  // 창 닫힘 처리
-  mainWindow.on('closed', () => {
-    logger.windowClose({ windowId: 'main' });
-    mainWindow = null;
+  // Chat 닫힘 = 앱 종료
+  chatWindow.on('close', () => {
+    saveWindowBounds('chat', chatWindow!);
+  });
+
+  chatWindow.on('closed', () => {
+    logger.windowClose({ windowId: 'chat' });
+    chatWindow = null;
+    // Task 윈도우도 정리 후 종료
+    if (taskWindow && !taskWindow.isDestroyed()) {
+      taskWindow.destroy();
+      taskWindow = null;
+    }
+    app.quit();
   });
 
   logger.windowCreate({
-    id: mainWindow.id,
-    width: defaultWidth,
-    height: defaultHeight,
+    id: chatWindow.id,
+    width: savedBounds?.width || defaultWidth,
+    height: savedBounds?.height || defaultHeight,
+    isDev,
+    frame: false,
+    titleBarStyle: 'hidden',
+  });
+}
+
+// ============ Task 윈도우 생성 (보조) ============
+
+async function createTaskWindow(): Promise<void> {
+  const savedBounds = getWindowBounds('task');
+
+  // 저장된 bounds 없으면 Chat 윈도우 오른쪽에 배치 (화면 경계 검사 포함)
+  const taskWidth = savedBounds?.width || 400;
+  const taskHeight = savedBounds?.height || 600;
+  let x: number | undefined = savedBounds?.x;
+  let y: number | undefined = savedBounds?.y;
+  if (!savedBounds && chatWindow) {
+    const chatBounds = chatWindow.getBounds();
+    const display = screen.getDisplayMatching(chatBounds);
+    const workArea = display.workArea;
+
+    // Chat 오른쪽에 배치 시도
+    const idealX = chatBounds.x + chatBounds.width + 10;
+    if (idealX + taskWidth <= workArea.x + workArea.width) {
+      x = idealX;
+      y = chatBounds.y;
+    } else {
+      // 오른쪽에 공간 없으면 Chat 왼쪽에 배치
+      const leftX = chatBounds.x - taskWidth - 10;
+      if (leftX >= workArea.x) {
+        x = leftX;
+        y = chatBounds.y;
+      } else {
+        // 양쪽 다 불가능하면 화면 오른쪽 끝에 정렬
+        x = workArea.x + workArea.width - taskWidth;
+        y = chatBounds.y;
+      }
+    }
+  }
+
+  taskWindow = new BrowserWindow({
+    width: savedBounds?.width || 400,
+    height: savedBounds?.height || 600,
+    x,
+    y,
+    minWidth: 300,
+    minHeight: 400,
+    frame: false,
+    titleBarStyle: 'hidden',
+    titleBarOverlay: false,
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#1e1e1e' : '#ffffff',
+    transparent: false,
+    icon: appIcon,
+    webPreferences: commonWebPreferences,
+    show: true, // 앱 시작 시 Task 윈도우도 함께 표시
+  });
+
+  setTaskWindow(taskWindow);
+
+  taskWindow.on('maximize', () => {
+    taskWindow?.webContents.send('window:maximizeChange', true);
+  });
+
+  taskWindow.on('unmaximize', () => {
+    taskWindow?.webContents.send('window:maximizeChange', false);
+  });
+
+  taskWindow.on('focus', () => {
+    taskWindow?.webContents.send('window:focus', true);
+  });
+
+  taskWindow.on('blur', () => {
+    taskWindow?.webContents.send('window:focus', false);
+  });
+
+  taskWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('https://') || url.startsWith('http://')) {
+      shell.openExternal(url);
+    }
+    return { action: 'deny' };
+  });
+
+  loadWindowURL(taskWindow, 'task');
+
+  // Task 닫기 = hide (destroy가 아님, 재표시 가능)
+  taskWindow.on('close', (e) => {
+    if (chatWindow && !chatWindow.isDestroyed()) {
+      e.preventDefault();
+      saveWindowBounds('task', taskWindow!);
+      taskWindow!.hide();
+    }
+    // Chat이 이미 닫힌 경우에는 정상적으로 destroy됨
+  });
+
+  logger.windowCreate({
+    id: taskWindow.id,
+    width: savedBounds?.width || 400,
+    height: savedBounds?.height || 600,
     isDev,
     frame: false,
     titleBarStyle: 'hidden',
@@ -205,14 +361,17 @@ async function createWindow(): Promise<void> {
 
 nativeTheme.on('updated', () => {
   const isDark = nativeTheme.shouldUseDarkColors;
-  mainWindow?.webContents.send('theme:change', isDark ? 'dark' : 'light');
+  const themeValue = isDark ? 'dark' : 'light';
+  const bgColor = isDark ? '#1e1e1e' : '#ffffff';
 
-  // 배경색 업데이트
-  if (mainWindow) {
-    mainWindow.setBackgroundColor(isDark ? '#1e1e1e' : '#ffffff');
-  }
+  // 양쪽 윈도우에 테마 변경 전달
+  chatWindow?.webContents.send('theme:change', themeValue);
+  taskWindow?.webContents.send('theme:change', themeValue);
 
-  logger.systemThemeChange({ theme: isDark ? 'dark' : 'light', isDark });
+  if (chatWindow) chatWindow.setBackgroundColor(bgColor);
+  if (taskWindow) taskWindow.setBackgroundColor(bgColor);
+
+  logger.systemThemeChange({ theme: themeValue, isDark });
 });
 
 // ============ Auto Updater 설정 ============
@@ -246,37 +405,37 @@ function setupAutoUpdater(): void {
   // 업데이트 확인 시작
   autoUpdater.on('checking-for-update', () => {
     logger.updateCheckStart();
-    mainWindow?.webContents.send('update:checking');
+    chatWindow?.webContents.send('update:checking');
   });
 
   // 업데이트 가능 - renderer로만 전달 (커스텀 UI 사용)
   autoUpdater.on('update-available', (info) => {
     logger.updateAvailable({ version: info.version, releaseDate: info.releaseDate });
-    mainWindow?.webContents.send('update:available', info);
+    chatWindow?.webContents.send('update:available', info);
   });
 
   // 업데이트 없음
   autoUpdater.on('update-not-available', () => {
     logger.info('No updates available');
-    mainWindow?.webContents.send('update:not-available');
+    chatWindow?.webContents.send('update:not-available');
   });
 
   // 다운로드 진행률
   autoUpdater.on('download-progress', (progress) => {
     logger.updateDownloadProgress({ percent: progress.percent, bytesPerSecond: progress.bytesPerSecond, transferred: progress.transferred, total: progress.total });
-    mainWindow?.webContents.send('update:download-progress', progress);
+    chatWindow?.webContents.send('update:download-progress', progress);
   });
 
   // 다운로드 완료 - renderer로만 전달 (커스텀 UI 사용)
   autoUpdater.on('update-downloaded', (info) => {
     logger.updateDownloadComplete({ version: info.version });
-    mainWindow?.webContents.send('update:downloaded', info);
+    chatWindow?.webContents.send('update:downloaded', info);
   });
 
   // 에러 처리
   autoUpdater.on('error', (error) => {
     logger.updateError({ error: error.message, stack: error.stack });
-    mainWindow?.webContents.send('update:error', error.message);
+    chatWindow?.webContents.send('update:error', error.message);
   });
 
   // 앱 시작 후 업데이트 확인 (5초 후)
@@ -321,8 +480,9 @@ app.whenReady().then(async () => {
   // IPC 핸들러 등록
   setupIpcHandlers();
 
-  // 메인 윈도우 생성
-  await createWindow();
+  // 윈도우 생성 (Chat 메인 + Task 보조)
+  await createChatWindow();
+  await createTaskWindow();
 
   // Auto Updater 설정
   setupAutoUpdater();
@@ -330,7 +490,8 @@ app.whenReady().then(async () => {
   // macOS: 독 아이콘 클릭 시 창 재생성
   app.on('activate', async () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      await createWindow();
+      await createChatWindow();
+      await createTaskWindow();
     }
   });
 });
@@ -366,8 +527,8 @@ app.on('render-process-gone', (_event, _webContents, details) => {
   });
 
   // 개발 모드에서는 자동 재시작
-  if (isDev && mainWindow) {
-    mainWindow.reload();
+  if (isDev && chatWindow) {
+    chatWindow.reload();
   }
 });
 
@@ -389,12 +550,12 @@ if (!gotTheLock) {
   app.quit();
 } else {
   app.on('second-instance', () => {
-    // 두 번째 인스턴스 실행 시 기존 창 포커스
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) {
-        mainWindow.restore();
+    // 두 번째 인스턴스 실행 시 Chat 창 포커스
+    if (chatWindow) {
+      if (chatWindow.isMinimized()) {
+        chatWindow.restore();
       }
-      mainWindow.focus();
+      chatWindow.focus();
     }
   });
 }

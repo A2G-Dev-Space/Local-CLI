@@ -6,7 +6,6 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
-  HelpCircle,
   RefreshCcw,
   Settings,
   Cpu,
@@ -287,7 +286,6 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
 
 // Default slash commands mapped to UI commands
 export const createDefaultCommands = (handlers: {
-  onHelp: () => void;
   onClear: () => void;
   onSettings: () => void;
   onModel: () => void;
@@ -298,15 +296,6 @@ export const createDefaultCommands = (handlers: {
   onCompact: () => void;
   onExit: () => void;
 }): CommandItem[] => [
-  {
-    id: 'help',
-    name: 'Help',
-    description: 'Show available commands and shortcuts',
-    shortcut: 'F1',
-    icon: HelpCircle,
-    category: 'general',
-    action: handlers.onHelp,
-  },
   {
     id: 'clear',
     name: 'Clear Conversation',

@@ -9,22 +9,23 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { LogFile, LogEntry, LogCategory } from '../../../preload/index';
+import { useTranslation } from '../i18n/LanguageContext';
 import './LogViewer.css';
 
 // 로그 레벨 정의
 const LOG_LEVELS = ['DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL'] as const;
 type LogLevelName = typeof LOG_LEVELS[number];
 
-// 로그 카테고리 정의
-const LOG_CATEGORIES: { id: LogCategory; label: string; description: string; color: string }[] = [
-  { id: 'all', label: 'All', description: '모든 로그 표시', color: '#8b5cf6' },
-  { id: 'chat', label: 'Chat', description: '대화 관련 로그', color: '#10b981' },
-  { id: 'tool', label: 'Tool', description: '도구 실행 로그', color: '#f59e0b' },
-  { id: 'http', label: 'HTTP', description: 'HTTP 요청/응답 로그', color: '#3b82f6' },
-  { id: 'llm', label: 'LLM', description: 'LLM API 로그', color: '#ec4899' },
-  { id: 'ui', label: 'UI', description: 'UI 컴포넌트 로그', color: '#06b6d4' },
-  { id: 'system', label: 'System', description: '시스템 로그', color: '#6366f1' },
-  { id: 'debug', label: 'Debug', description: '디버그 로그', color: '#6b7280' },
+// 로그 카테고리 정의 (description은 번역 키)
+const LOG_CATEGORIES: { id: LogCategory; label: string; descKey: string; color: string }[] = [
+  { id: 'all', label: 'All', descKey: 'log.cat.all', color: '#8b5cf6' },
+  { id: 'chat', label: 'Chat', descKey: 'log.cat.chat', color: '#10b981' },
+  { id: 'tool', label: 'Tool', descKey: 'log.cat.tool', color: '#f59e0b' },
+  { id: 'http', label: 'HTTP', descKey: 'log.cat.http', color: '#3b82f6' },
+  { id: 'llm', label: 'LLM', descKey: 'log.cat.llm', color: '#ec4899' },
+  { id: 'ui', label: 'UI', descKey: 'log.cat.ui', color: '#06b6d4' },
+  { id: 'system', label: 'System', descKey: 'log.cat.system', color: '#6366f1' },
+  { id: 'debug', label: 'Debug', descKey: 'log.cat.debug', color: '#6b7280' },
 ];
 
 /**
@@ -180,6 +181,8 @@ interface LogViewerProps {
 }
 
 const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, currentSessionId }) => {
+  const { t } = useTranslation();
+
   // 상태
   const [logFiles, setLogFiles] = useState<LogFile[]>([]);
   const [selectedFile, setSelectedFile] = useState<LogFile | null>(null);
@@ -336,7 +339,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
 
   // 로그 파일 삭제
   const deleteLogFile = useCallback(async (file: LogFile) => {
-    const confirmed = window.confirm(`Delete log file: ${file.name}?`);
+    const confirmed = window.confirm(t('log.deleteConfirm', { name: file.name }));
     if (!confirmed) return;
 
     try {
@@ -358,7 +361,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
 
   // 모든 로그 삭제
   const clearAllLogs = useCallback(async () => {
-    const confirmed = window.confirm('Delete all old log files? (Current log will be kept)');
+    const confirmed = window.confirm(t('log.clearAllConfirm'));
     if (!confirmed) return;
 
     try {
@@ -552,13 +555,13 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/>
             <path d="M8 12h8v2H8zm0 4h8v2H8z"/>
           </svg>
-          <span>Log Viewer</span>
+          <span>{t('log.title')}</span>
         </div>
         <div className="log-viewer-actions">
           <button
             className="log-action-btn"
             onClick={openLogDirectory}
-            title="Open Log Folder"
+            title={t('log.openFolder')}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
               <path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z"/>
@@ -567,7 +570,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
           <button
             className="log-action-btn"
             onClick={clearAllLogs}
-            title="Clear Old Logs"
+            title={t('log.clearOld')}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
               <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
@@ -590,16 +593,16 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
           <button
             className={`source-btn ${logSource === 'session' ? 'active' : ''}`}
             onClick={() => setLogSource('session')}
-            title="Session Logs (채팅 세션별 로그)"
+            title={t('log.sessionTitle')}
           >
-            Session
+            {t('log.session')}
           </button>
           <button
             className={`source-btn ${logSource === 'currentRun' ? 'active' : ''}`}
             onClick={() => setLogSource('currentRun')}
-            title="Current Run Logs (이번 실행 로그)"
+            title={t('log.currentRunTitle')}
           >
-            This Run
+            {t('log.currentRun')}
           </button>
         </div>
 
@@ -610,7 +613,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
             value={selectedSessionId || ''}
             onChange={(e) => setSelectedSessionId(e.target.value || null)}
           >
-            <option value="">Select Session...</option>
+            <option value="">{t('log.selectSession')}</option>
             {sessionLogFiles.map(file => (
               <option key={file.sessionId} value={file.sessionId}>
                 {file.sessionId === currentSessionId ? '★ ' : ''}
@@ -623,12 +626,12 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
         {/* Current Run 표시 */}
         {logSource === 'currentRun' && (
           <div className="log-current-run-info">
-            <span className="run-indicator">● LIVE</span>
-            <span className="run-id">Run: {currentRunId ? currentRunId.slice(0, 16) : 'Loading...'}</span>
+            <span className="run-indicator">● {t('log.live')}</span>
+            <span className="run-id">{t('log.run')} {currentRunId ? currentRunId.slice(0, 16) : t('common.loading')}</span>
             <button
               className="log-action-btn refresh-btn"
               onClick={loadCurrentRunLogEntries}
-              title="Refresh logs"
+              title={t('log.refreshLogs')}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
@@ -641,7 +644,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
         <button
           className={`log-action-btn copy-btn ${copySuccess ? 'success' : ''}`}
           onClick={copyLogsToClipboard}
-          title="Copy all logs to clipboard"
+          title={t('log.copyToClipboard')}
         >
           {copySuccess ? (
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
@@ -652,7 +655,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
               <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
             </svg>
           )}
-          {copySuccess ? 'Copied!' : 'Copy All'}
+          {copySuccess ? t('log.copied') : t('log.copyAll')}
         </button>
 
         {/* 검색 */}
@@ -663,7 +666,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
           <input
             ref={searchInputRef}
             type="text"
-            placeholder="Search logs... (Ctrl+F)"
+            placeholder={t('log.search')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -699,7 +702,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
               className={`category-filter-btn ${categoryFilter === cat.id ? 'active' : ''}`}
               style={{ '--category-color': cat.color } as React.CSSProperties}
               onClick={() => setCategoryFilter(cat.id)}
-              title={cat.description}
+              title={t(cat.descKey)}
             >
               {cat.label}
             </button>
@@ -711,7 +714,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
           <button
             className={`option-btn ${showTimestamp ? 'active' : ''}`}
             onClick={() => setShowTimestamp(!showTimestamp)}
-            title="Show Timestamp"
+            title={t('log.showTimestamp')}
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
               <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
@@ -720,7 +723,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
           <button
             className={`option-btn ${autoScroll ? 'active' : ''}`}
             onClick={() => setAutoScroll(!autoScroll)}
-            title="Auto Scroll"
+            title={t('log.autoScroll')}
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
               <path d="M16 13h-3V3h-2v10H8l4 4 4-4zM4 19v2h16v-2H4z"/>
@@ -729,7 +732,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
           <button
             className={`option-btn ${wrapLines ? 'active' : ''}`}
             onClick={() => setWrapLines(!wrapLines)}
-            title="Wrap Lines"
+            title={t('log.wrapLines')}
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
               <path d="M4 19h6v-2H4v2zM20 5H4v2h16V5zm-3 6H4v2h13.25c1.1 0 2 .9 2 2s-.9 2-2 2H15v-2l-3 3 3 3v-2h2c2.21 0 4-1.79 4-4s-1.79-4-4-4z"/>
@@ -739,7 +742,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
 
         {/* 로그 레벨 설정 */}
         <div className="log-level-setting">
-          <span>Level:</span>
+          <span>{t('log.level')}</span>
           <select
             value={currentLogLevel}
             onChange={(e) => setLogLevel(Number(e.target.value))}
@@ -760,7 +763,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
             <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
           </svg>
           {error}
-          <button onClick={() => setError(null)}>Dismiss</button>
+          <button onClick={() => setError(null)}>{t('log.dismiss')}</button>
         </div>
       )}
 
@@ -772,7 +775,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
         {isLoading && (
           <div className="log-loading">
             <div className="spinner" />
-            Loading logs...
+            {t('log.loadingLogs')}
           </div>
         )}
 
@@ -781,8 +784,8 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
             <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor" opacity="0.3">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"/>
             </svg>
-            <span>No log entries found</span>
-            <span className="hint">Select a different file or adjust filters</span>
+            <span>{t('log.noEntries')}</span>
+            <span className="hint">{t('log.noEntriesHint')}</span>
           </div>
         )}
 
@@ -816,8 +819,8 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
       {/* 푸터 - 통계 */}
       <div className="log-viewer-footer">
         <span className="log-count">
-          {displayEntries.length} entries
-          {logSource === 'currentRun' && ' (이번 실행)'}
+          {t('log.entries', { count: String(displayEntries.length) })}
+          {logSource === 'currentRun' && ` ${t('log.thisRun')}`}
           {logSource === 'session' && selectedSessionId && ` (${selectedSessionId.slice(0, 8)}...)`}
         </span>
       </div>

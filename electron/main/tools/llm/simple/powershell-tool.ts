@@ -11,6 +11,7 @@
 
 import * as fsSync from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import { spawn, ChildProcess } from 'child_process';
 import { powerShellManager } from '../../../powershell-manager';
 import { logger } from '../../../utils/logger';
@@ -50,7 +51,17 @@ function isDangerousPowerShellCommand(command: string): boolean {
 // Working Directory Management
 // =============================================================================
 
-let currentWorkingDirectory: string = process.cwd();
+// Portable 실행 시 temp 경로 방지: 홈 디렉토리로 fallback
+function getSafeInitialCwd(): string {
+  const cwd = process.cwd();
+  const lower = cwd.toLowerCase();
+  const tempDir = (process.env.TEMP || process.env.TMP || os.tmpdir()).toLowerCase();
+  if ((tempDir && lower.startsWith(tempDir)) || lower.includes('\\appdata\\local\\temp\\')) {
+    return os.homedir();
+  }
+  return cwd;
+}
+let currentWorkingDirectory: string = getSafeInitialCwd();
 
 export function setWorkingDirectory(dir: string): void {
   currentWorkingDirectory = dir;

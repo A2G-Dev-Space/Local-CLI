@@ -21,6 +21,9 @@ import { useMarkdownWorker } from '../hooks/useMarkdownWorker';
 // Import AgentContext
 import { useAgent } from '../contexts/AgentContext';
 
+// Import i18n
+import { useTranslation } from '../i18n/LanguageContext';
+
 // Exposed methods via ref
 export interface ChatPanelRef {
   clear: () => Promise<void>;
@@ -52,6 +55,7 @@ interface ChatPanelProps {
   onSessionChange?: (session: Session | null) => void;
   onClearSession?: () => void;
   currentDirectory?: string;
+  onChangeDirectory?: () => void;
   allowAllPermissions?: boolean;
   onAllowAllPermissionsChange?: (value: boolean) => void;
 }
@@ -88,8 +92,16 @@ interface MessageItemProps {
   isBatchLoad: boolean;
 }
 
+function formatMessageTime(timestamp: number): string {
+  const d = new Date(timestamp);
+  const h = d.getHours().toString().padStart(2, '0');
+  const m = d.getMinutes().toString().padStart(2, '0');
+  return `${h}:${m}`;
+}
+
 const MessageItem = memo<MessageItemProps>(({ message, isBatchLoad }) => {
   const [copied, setCopied] = React.useState(false);
+  const { t } = useTranslation();
 
   const handleCopy = async () => {
     try {
@@ -116,7 +128,7 @@ const MessageItem = memo<MessageItemProps>(({ message, isBatchLoad }) => {
         <button
           className={`message-copy-btn ${copied ? 'copied' : ''}`}
           onClick={handleCopy}
-          title={copied ? 'Copied!' : 'Copy message'}
+          title={copied ? t('chat.copied') : t('chat.copyMessage')}
         >
           {copied ? (
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
@@ -129,25 +141,19 @@ const MessageItem = memo<MessageItemProps>(({ message, isBatchLoad }) => {
           )}
         </button>
       </div>
+      {message.role !== 'system' && message.id !== 'welcome' && (
+        <div className="message-timestamp">{formatMessageTime(message.timestamp)}</div>
+      )}
     </div>
   );
 });
 MessageItem.displayName = 'MessageItem';
 
-// Welcome message
-const WELCOME_MESSAGE: ChatMessage = {
+// Default welcome message (will be replaced by translated version inside component)
+const DEFAULT_WELCOME_MESSAGE: ChatMessage = {
   id: 'welcome',
   role: 'assistant',
-  content: `# Welcome to Local CLI Assistant
-
-I'm here to help you with:
-
-- **PowerShell commands** - Ask me about any PowerShell operations
-- **Code assistance** - Get help with coding tasks
-- **File operations** - Navigate and manage files
-- **Troubleshooting** - Debug issues and errors
-
-Type your question below to get started!`,
+  content: '', // Filled by useEffect with t('chat.welcome')
   timestamp: Date.now(),
 };
 
@@ -156,15 +162,28 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
   onSessionChange,
   onClearSession,
   currentDirectory,
+  onChangeDirectory,
   allowAllPermissions = true,
   onAllowAllPermissionsChange,
 }, ref) => {
-  const [messages, setMessages] = useState<ChatMessage[]>([WELCOME_MESSAGE]);
+  const { t, language } = useTranslation();
+  const [messages, setMessages] = useState<ChatMessage[]>([{ ...DEFAULT_WELCOME_MESSAGE, content: '' }]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   // Track if we're doing a batch load (for animation disabling)
   const [isBatchLoad, setIsBatchLoad] = useState(true);
+
+  // Update welcome message when language changes
+  useEffect(() => {
+    setMessages(prev => {
+      const hasWelcome = prev.some(m => m.id === 'welcome');
+      if (!hasWelcome) return prev;
+      return prev.map(msg =>
+        msg.id === 'welcome' ? { ...msg, content: t('chat.welcome') } : msg
+      );
+    });
+  }, [language, t]);
 
   // Message windowing for performance (only render recent messages)
   const MAX_VISIBLE_MESSAGES = 50;
@@ -313,15 +332,8 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
       window.electronAPI?.log?.debug?.('[ChatPanel] Restoring session messages', { count: session.messages.length });
       setMessages(session.messages);
     } else {
-      // Only show welcome message if we don't have any messages yet
-      // This prevents overwriting "Chat cleared" message with welcome message
-      setMessages(prev => {
-        // Keep current messages if they exist (e.g., "Chat cleared" message)
-        if (prev.length > 0 && prev[0].id !== 'welcome') {
-          return prev;
-        }
-        return [WELCOME_MESSAGE];
-      });
+      // New or empty session: reset to welcome
+      setMessages([{ ...DEFAULT_WELCOME_MESSAGE, content: t('chat.welcome') }]);
     }
     // Reset windowing state when session changes
     setShowAllMessages(false);
@@ -632,11 +644,11 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
       setIsLoading(false);
       setIsExecuting(false);
       clearTodos(); // Clear UI todos so next message triggers fresh planning
-      setAbortMessage('Agent execution aborted.');
+      setAbortMessage(t('chat.aborted'));
 
       setTimeout(() => setAbortMessage(null), 5000);
     }
-  }, [setIsExecuting, clearTodos, isExecuting, isLoading]);
+  }, [setIsExecuting, clearTodos, isExecuting, isLoading, t]);
 
   // Handle keyboard events (arrow up/down history disabled for Electron)
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -774,7 +786,7 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
       {
         id: 'cleared',
         role: 'system',
-        content: 'Chat cleared. How can I help you?',
+        content: t('chat.chatCleared'),
         timestamp: Date.now(),
       },
     ]);
@@ -809,7 +821,7 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
     setTimeout(() => {
       skipSessionLoadRef.current = false;
     }, 500);
-  }, [session, onSessionChange, isExecuting, clearTodos, clearProgressMessages, clearToolExecutions, setIsExecuting]);
+  }, [session, onSessionChange, isExecuting, clearTodos, clearProgressMessages, clearToolExecutions, setIsExecuting, t]);
 
   // Expose methods via ref
   useImperativeHandle(ref, () => ({
@@ -838,23 +850,32 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
       />
 
       {/* Current Directory Info */}
-      {currentDirectory && (
-        <div className="chat-directory-info">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
-          </svg>
-          <span>{currentDirectory}</span>
+      <div className="chat-directory-info">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+        </svg>
+        <span>{currentDirectory || t('chat.noDirectory')}</span>
+        {currentDirectory && (
           <button
             className="directory-open-btn"
             onClick={() => window.electronAPI?.shell?.openPath(currentDirectory)}
-            title="Open in Explorer"
+            title={t('chat.openExplorer')}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
               <path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
             </svg>
           </button>
-        </div>
-      )}
+        )}
+        <button
+          className="directory-open-btn directory-change-btn"
+          onClick={onChangeDirectory}
+          title={t('chat.changeDir')}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10zM12.5 10l-5 4.5 1.41 1.41L11.5 13.5V18h2v-4.5l2.59 2.41L17.5 14.5z"/>
+          </svg>
+        </button>
+      </div>
 
       {/* Messages */}
       <div className="chat-messages" role="log" aria-live="polite" aria-label="Chat messages">
@@ -863,11 +884,12 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
           <button
             className="show-earlier-btn"
             onClick={() => setShowAllMessages(true)}
+            title={t('chat.showEarlier', { count: hiddenMessageCount })}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
               <path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"/>
             </svg>
-            Show {hiddenMessageCount} earlier messages
+            {t('chat.showEarlier', { count: hiddenMessageCount })}
           </button>
         )}
         {/* Unified timeline: messages and tool executions interleaved by timestamp */}
@@ -901,6 +923,20 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
             onDismiss={dismissProgressMessage}
           />
         )}
+
+        {isCompacting && (
+          <div className="chat-message system">
+            <div className="message-content">
+              <div className="typing-indicator" style={{ display: 'inline-flex', marginRight: '8px' }}>
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+              <span>{t('chat.compacting')}</span>
+            </div>
+          </div>
+        )}
+
 
         {isLoading && (
           <div className="chat-message assistant loading">
@@ -942,18 +978,18 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Send a command to the agent..."
+            placeholder={t('chat.inputPlaceholder')}
             rows={1}
             disabled={isLoading}
-            aria-label="Type your message"
+            aria-label={t('chat.inputPlaceholder')}
             aria-describedby="chat-input-hint"
           />
-          <span id="chat-input-hint" className="sr-only">Press Enter to send, Shift+Enter for new line</span>
+          <span id="chat-input-hint" className="sr-only">{t('chat.inputHint')}</span>
           {isExecuting ? (
             <button
               className="chat-send-btn chat-abort-btn"
               onClick={handleAbort}
-              title="Stop (Esc)"
+              title={t('chat.stop')}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M6 6h12v12H6z"/>
@@ -964,7 +1000,7 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
               className="chat-send-btn"
               onClick={sendMessage}
               disabled={!input.trim() || isLoading}
-              title="Send (Enter)"
+              title={t('chat.send')}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z"/>
@@ -973,11 +1009,11 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
           )}
         </div>
         <div className="chat-input-hints">
-          <span className="chat-input-hint">Enter to submit, Shift+Enter for newline</span>
+          <span className="chat-input-hint">{t('chat.inputHint')}</span>
           <button
             className={`permission-toggle ${allowAllPermissions ? 'on' : 'off'}`}
             onClick={() => onAllowAllPermissionsChange?.(!allowAllPermissions)}
-            title={allowAllPermissions ? 'Auto Mode (all permissions granted)' : 'Supervised Mode (ask for approval)'}
+            title={allowAllPermissions ? t('chat.autoMode') : t('chat.supervisedMode')}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
               {allowAllPermissions ? (
@@ -986,7 +1022,7 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
                 <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/>
               )}
             </svg>
-            <span>{allowAllPermissions ? 'Auto' : 'Supervised'}</span>
+            <span>{allowAllPermissions ? t('chat.auto') : t('chat.supervised')}</span>
           </button>
         </div>
       </div>

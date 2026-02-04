@@ -86,11 +86,19 @@ function findPowerShell(): string {
   return 'powershell.exe';
 }
 
-// UNC 경로를 일반 경로로 변환
+// UNC 경로 또는 임시 디렉토리를 안전한 경로로 변환
 function normalizeWorkingDirectory(dir: string): string {
   // WSL UNC 경로는 Windows에서 PowerShell 시작 디렉토리로 사용 불가
   if (dir.startsWith('\\\\wsl')) {
-    // 기본적으로 사용자 홈 디렉토리 사용
+    return process.env.USERPROFILE || process.env.HOME || 'C:\\';
+  }
+  // Portable 실행 시 temp 추출 경로 감지 → 홈 디렉토리로 교체
+  const lower = dir.toLowerCase();
+  const tempDir = (process.env.TEMP || process.env.TMP || '').toLowerCase();
+  if (tempDir && lower.startsWith(tempDir)) {
+    return process.env.USERPROFILE || process.env.HOME || 'C:\\';
+  }
+  if (lower.includes('\\appdata\\local\\temp\\') || lower.includes('/tmp/')) {
     return process.env.USERPROFILE || process.env.HOME || 'C:\\';
   }
   return dir;

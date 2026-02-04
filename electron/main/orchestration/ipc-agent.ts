@@ -119,7 +119,8 @@ interface AgentState {
   isRunning: boolean;
   abortController: AbortController | null;
   currentTodos: TodoItem[];
-  mainWindow: BrowserWindow | null;
+  chatWindow: BrowserWindow | null;
+  taskWindow: BrowserWindow | null;
   runId: number; // Unique ID per runAgent() call to detect stale runs
   pendingApprovals: Map<string, (result: ToolApprovalResult) => void>; // Supervised Mode approval resolvers
   alwaysApprovedTools: Set<string>; // Tools approved with "always" in current session
@@ -130,7 +131,8 @@ const state: AgentState = {
   isRunning: false,
   abortController: null,
   currentTodos: [],
-  mainWindow: null,
+  chatWindow: null,
+  taskWindow: null,
   runId: 0,
   pendingApprovals: new Map(),
   alwaysApprovedTools: new Set(),
@@ -138,6 +140,16 @@ const state: AgentState = {
 };
 
 // Tools that don't require approval (communication tools, not action tools)
+
+// Helper to send IPC messages to both chat and task windows
+function broadcastToWindows(channel: string, ...args: unknown[]): void {
+  if (state.chatWindow && !state.chatWindow.isDestroyed()) {
+    state.chatWindow.webContents.send(channel, ...args);
+  }
+  if (state.taskWindow && !state.taskWindow.isDestroyed()) {
+    state.taskWindow.webContents.send(channel, ...args);
+  }
+}
 const NO_APPROVAL_TOOLS = new Set([
   'tell_to_user',
   'ask_to_user',
@@ -152,7 +164,11 @@ const NO_APPROVAL_TOOLS = new Set([
 // =============================================================================
 
 export function setAgentMainWindow(window: BrowserWindow | null): void {
-  state.mainWindow = window;
+  state.chatWindow = window;
+}
+
+export function setAgentTaskWindow(window: BrowserWindow | null): void {
+  state.taskWindow = window;
 }
 
 export function isAgentRunning(): boolean {
@@ -252,8 +268,10 @@ export async function runAgent(
     if (callbacks.onTodoUpdate) {
       callbacks.onTodoUpdate(todos);
     }
-    if (state.mainWindow) {
-      state.mainWindow.webContents.send('agent:todoUpdate', todos);
+    broadcastToWindows('agent:todoUpdate', todos);
+    // Task 윈도우 자동 표시 (TODO가 처음 생성될 때)
+    if (state.taskWindow && !state.taskWindow.isDestroyed() && !state.taskWindow.isVisible() && todos.length > 0) {
+      state.taskWindow.show();
     }
     return true;
   });
@@ -267,9 +285,7 @@ export async function runAgent(
     if (callbacks.onTellUser) {
       callbacks.onTellUser(message);
     }
-    if (state.mainWindow) {
-      state.mainWindow.webContents.send('agent:tellUser', message);
-    }
+    broadcastToWindows('agent:tellUser', message);
   });
 
   setAskUserCallback(async (request: AskUserRequest) => {
@@ -283,7 +299,7 @@ export async function runAgent(
   });
 
   // Supervised Mode: Tool approval callback
-  if (!autoMode && state.mainWindow) {
+  if (!autoMode && state.chatWindow) {
     setToolApprovalCallback(async (toolName: string, args: Record<string, unknown>, reason?: string): Promise<ToolApprovalResult> => {
       return new Promise((resolve) => {
         const requestId = `approval-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
@@ -295,7 +311,7 @@ export async function runAgent(
         // Send approval request to renderer
         // NOTE: Event name must match preload's onApprovalRequest listener ('agent:approvalRequest')
         logger.info('[Supervised] Requesting tool approval', { requestId, toolName, reason });
-        state.mainWindow!.webContents.send('agent:approvalRequest', {
+        state.chatWindow!.webContents.send('agent:approvalRequest', {
           id: requestId,
           toolName,
           args,
@@ -313,10 +329,8 @@ export async function runAgent(
     if (callbacks.onToolExecution) {
       callbacks.onToolExecution(toolName, reason, args);
     }
-    if (state.mainWindow) {
-      // Use agent:toolCall to match preload's onToolCall listener
-      state.mainWindow.webContents.send('agent:toolCall', { toolName, args: { ...args, reason } });
-    }
+    // Use agent:toolCall to match preload's onToolCall listener
+    broadcastToWindows('agent:toolCall', { toolName, args: { ...args, reason } });
   });
 
   // Tool response callback - send to renderer for UI display
@@ -324,17 +338,13 @@ export async function runAgent(
     if (callbacks.onToolResponse) {
       callbacks.onToolResponse(toolName, success, result);
     }
-    if (state.mainWindow) {
-      // Use agent:toolResult to match preload's onToolResult listener
-      state.mainWindow.webContents.send('agent:toolResult', { toolName, success, result });
-    }
+    // Use agent:toolResult to match preload's onToolResult listener
+    broadcastToWindows('agent:toolResult', { toolName, success, result });
   });
 
   // Reasoning callback - send reasoning content to renderer (CLI parity)
   setReasoningCallback((content: string, isStreaming: boolean) => {
-    if (state.mainWindow) {
-      state.mainWindow.webContents.send('agent:reasoning', { content, isStreaming });
-    }
+    broadcastToWindows('agent:reasoning', { content, isStreaming });
   });
 
   // Get tools from registry
@@ -401,11 +411,9 @@ export async function runAgent(
         if (callbacks.onComplete) {
           callbacks.onComplete(planningResult.directResponse);
         }
-        if (state.mainWindow) {
-          state.mainWindow.webContents.send('agent:complete', {
-            response: planningResult.directResponse,
-          });
-        }
+        broadcastToWindows('agent:complete', {
+          response: planningResult.directResponse,
+        });
 
         state.isRunning = false;
         state.abortController = null;
@@ -433,9 +441,7 @@ export async function runAgent(
         if (callbacks.onTodoUpdate) {
           callbacks.onTodoUpdate(planningResult.todos);
         }
-        if (state.mainWindow) {
-          state.mainWindow.webContents.send('agent:todoUpdate', planningResult.todos);
-        }
+        broadcastToWindows('agent:todoUpdate', planningResult.todos);
 
         logger.info('Planning complete', {
           todoCount: planningResult.todos.length,
@@ -475,9 +481,7 @@ export async function runAgent(
   if (callbacks.onMessage) {
     callbacks.onMessage(userMessageObj);
   }
-  if (state.mainWindow) {
-    state.mainWindow.webContents.send('agent:message', userMessageObj);
-  }
+  broadcastToWindows('agent:message', userMessageObj);
 
   // Tool call history
   const toolCallHistory: Array<{
@@ -535,9 +539,7 @@ export async function runAgent(
           if (callbacks.onTellUser) {
             callbacks.onTellUser('컨텍스트 길이 초과로 자동 압축을 시도합니다...');
           }
-          if (state.mainWindow) {
-            state.mainWindow.webContents.send('agent:tellUser', '컨텍스트 길이 초과로 자동 압축을 시도합니다...');
-          }
+          broadcastToWindows('agent:tellUser', '컨텍스트 길이 초과로 자동 압축을 시도합니다...');
 
           const compactResult = await compactConversation(messages, { workingDirectory });
 
@@ -590,9 +592,7 @@ export async function runAgent(
       if (callbacks.onMessage) {
         callbacks.onMessage(assistantMessage);
       }
-      if (state.mainWindow) {
-        state.mainWindow.webContents.send('agent:message', assistantMessage);
-      }
+      broadcastToWindows('agent:message', assistantMessage);
 
       // Check for tool calls
       if (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
@@ -660,7 +660,7 @@ export async function runAgent(
                 const newContent = originalContent.replace(oldString, newString);
 
                 // Send diff preview event
-                state.mainWindow?.webContents.send('agent:fileEdit', {
+                state.chatWindow?.webContents.send('agent:fileEdit', {
                   path: resolvedPath,
                   originalContent,
                   newContent,
@@ -748,13 +748,11 @@ export async function runAgent(
 
               // Send agent:toolResult for final_response - AgentContext will display it as chat message
               // NOTE: simple-tool-executor skips final_response, so we send it here (only once)
-              if (state.mainWindow) {
-                state.mainWindow.webContents.send('agent:toolResult', {
-                  toolName,
-                  result: finalResponse,
-                  success: result.success,
-                });
-              }
+              broadcastToWindows('agent:toolResult', {
+                toolName,
+                result: finalResponse,
+                success: result.success,
+              });
 
               // Send agent:complete with empty response to signal completion
               // (the actual message is displayed via agent:toolResult above)
@@ -764,9 +762,7 @@ export async function runAgent(
               if (callbacks.onComplete) {
                 callbacks.onComplete(finalResponse);
               }
-              if (state.mainWindow) {
-                state.mainWindow.webContents.send('agent:complete', { response: '' });
-              }
+              broadcastToWindows('agent:complete', { response: '' });
 
               return {
                 success: true,
@@ -799,20 +795,16 @@ export async function runAgent(
                 if (callbacks.onToolResult) {
                   callbacks.onToolResult(toolName, fallbackMessage, false);
                 }
-                if (state.mainWindow) {
-                  state.mainWindow.webContents.send('agent:toolResult', {
-                    toolName,
-                    result: fallbackMessage,
-                    success: false,
-                  });
-                }
+                broadcastToWindows('agent:toolResult', {
+                  toolName,
+                  result: fallbackMessage,
+                  success: false,
+                });
 
                 if (callbacks.onTellUser) {
                   callbacks.onTellUser('완료되지 않은 TODO가 있지만, 최대 재시도 횟수에 도달하여 작업을 종료합니다.');
                 }
-                if (state.mainWindow) {
-                  state.mainWindow.webContents.send('agent:tellUser', '완료되지 않은 TODO가 있지만, 최대 재시도 횟수에 도달하여 작업을 종료합니다.');
-                }
+                broadcastToWindows('agent:tellUser', '완료되지 않은 TODO가 있지만, 최대 재시도 횟수에 도달하여 작업을 종료합니다.');
 
                 // Chat 로그: fallback 응답
                 logger.info('[CHAT] Final response (fallback)', { content: fallbackMessage.substring(0, 500) });
@@ -820,9 +812,7 @@ export async function runAgent(
                 if (callbacks.onComplete) {
                   callbacks.onComplete(fallbackMessage);
                 }
-                if (state.mainWindow) {
-                  state.mainWindow.webContents.send('agent:complete', { response: fallbackMessage });
-                }
+                broadcastToWindows('agent:complete', { response: fallbackMessage });
 
                 return {
                   success: true,
@@ -851,13 +841,11 @@ export async function runAgent(
           if (callbacks.onToolResult) {
             callbacks.onToolResult(toolName, toolResultContent, result.success);
           }
-          if (state.mainWindow) {
-            state.mainWindow.webContents.send('agent:toolResult', {
-              toolName,
-              result: toolResultContent,
-              success: result.success,
-            });
-          }
+          broadcastToWindows('agent:toolResult', {
+            toolName,
+            result: toolResultContent,
+            success: result.success,
+          });
         }
       } else {
         noToolCallRetries++;
@@ -907,8 +895,8 @@ export async function runAgent(
 
       // Send context usage to renderer for StatusBar display
       const usage = contextTracker.getContextUsage(maxTokens);
-      if (state.mainWindow && usage.usagePercentage > 0) {
-        state.mainWindow.webContents.send('agent:contextUpdate', {
+      if (usage.usagePercentage > 0) {
+        broadcastToWindows('agent:contextUpdate', {
           usagePercentage: usage.usagePercentage,
           currentTokens: usage.currentTokens,
           maxTokens: usage.maxTokens,
@@ -924,9 +912,7 @@ export async function runAgent(
         if (callbacks.onTellUser) {
           callbacks.onTellUser(`컨텍스트 ${usage.usagePercentage}% 사용 - 자동 압축을 실행합니다...`);
         }
-        if (state.mainWindow) {
-          state.mainWindow.webContents.send('agent:tellUser', `컨텍스트 ${usage.usagePercentage}% 사용 - 자동 압축을 실행합니다...`);
-        }
+        broadcastToWindows('agent:tellUser', `컨텍스트 ${usage.usagePercentage}% 사용 - 자동 압축을 실행합니다...`);
 
         const compactResult = await compactConversation(messages, { workingDirectory });
 
@@ -951,13 +937,11 @@ export async function runAgent(
 
           // Update renderer with new usage
           const newUsage = contextTracker.getContextUsage(maxTokens);
-          if (state.mainWindow) {
-            state.mainWindow.webContents.send('agent:contextUpdate', {
-              usagePercentage: newUsage.usagePercentage,
-              currentTokens: newUsage.currentTokens,
-              maxTokens: newUsage.maxTokens,
-            });
-          }
+          broadcastToWindows('agent:contextUpdate', {
+            usagePercentage: newUsage.usagePercentage,
+            currentTokens: newUsage.currentTokens,
+            maxTokens: newUsage.maxTokens,
+          });
         } else {
           logger.warn('Preventative auto-compact failed', { error: compactResult.error });
         }
@@ -969,9 +953,7 @@ export async function runAgent(
     if (callbacks.onComplete) {
       callbacks.onComplete(finalResponse);
     }
-    if (state.mainWindow) {
-      state.mainWindow.webContents.send('agent:complete', { response: finalResponse });
-    }
+    broadcastToWindows('agent:complete', { response: finalResponse });
 
     // Return messages without system prompt (CLI parity)
     // System prompt should not be stored in history
@@ -1000,9 +982,7 @@ export async function runAgent(
       if (callbacks.onError) {
         callbacks.onError(error instanceof Error ? error : new Error(errorMessage));
       }
-      if (state.mainWindow) {
-        state.mainWindow.webContents.send('agent:error', { error: errorMessage });
-      }
+      broadcastToWindows('agent:error', { error: errorMessage });
     }
 
     // Return messages without system prompt (CLI parity)
@@ -1111,4 +1091,5 @@ export default {
   getCurrentTodos,
   setCurrentTodos,
   setAgentMainWindow,
+  setAgentTaskWindow,
 };
