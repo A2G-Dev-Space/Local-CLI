@@ -5,6 +5,7 @@
  */
 
 import React, { useState, memo, useCallback } from 'react';
+import { parseMarkdownSync } from '../hooks';
 import './ToolExecution.css';
 
 // Import circle logo for user/message tools
@@ -185,7 +186,10 @@ const ToolExecution: React.FC<ToolExecutionProps> = ({
                   {getCategoryIcon(exec.category)}
                 </span>
                 <span className={`tool-name ${isMessageTool(exec.toolName) ? 'tool-message' : ''}`}>
-                  {getToolDisplayText(exec)}
+                  {isMessageTool(exec.toolName)
+                    ? <span className="tool-message-markdown">{parseMarkdownSync(getToolDisplayText(exec))}</span>
+                    : getToolDisplayText(exec)
+                  }
                 </span>
                 {/* Reason displayed by default (except for tell_to_user) */}
                 {reason && !isMessageTool(exec.toolName) && (

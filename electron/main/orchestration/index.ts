@@ -15,6 +15,7 @@ export {
   setCurrentTodos,
   setAgentMainWindow,
   handleToolApprovalResponse,
+  clearAlwaysApprovedTools,
   type AgentConfig,
   type AgentCallbacks,
   type AgentResult,

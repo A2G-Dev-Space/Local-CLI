@@ -9,6 +9,8 @@
  */
 
 import { BrowserWindow } from 'electron';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 import { llmClient, Message } from '../core/llm';
 import { logger } from '../utils/logger';
 import { detectGitRepo } from '../utils/git-utils';
@@ -25,7 +27,7 @@ import {
   setToolExecutionCallback,
   setToolResponseCallback,
 } from '../tools';
-import { setReasoningCallback, setToolApprovalCallback } from '../tools/llm/simple/simple-tool-executor';
+import { setReasoningCallback, setToolApprovalCallback, requestToolApproval } from '../tools/llm/simple/simple-tool-executor';
 import type { ToolApprovalResult } from '../tools/llm/simple/simple-tool-executor';
 import { ContextLengthError } from '../errors';
 import { PLAN_EXECUTE_SYSTEM_PROMPT, buildPlanExecutePrompt } from '../prompts';
@@ -120,6 +122,8 @@ interface AgentState {
   mainWindow: BrowserWindow | null;
   runId: number; // Unique ID per runAgent() call to detect stale runs
   pendingApprovals: Map<string, (result: ToolApprovalResult) => void>; // Supervised Mode approval resolvers
+  alwaysApprovedTools: Set<string>; // Tools approved with "always" in current session
+  currentSessionId: string | null; // Track session for clearing always-approved tools
 }
 
 const state: AgentState = {
@@ -129,7 +133,19 @@ const state: AgentState = {
   mainWindow: null,
   runId: 0,
   pendingApprovals: new Map(),
+  alwaysApprovedTools: new Set(),
+  currentSessionId: null,
 };
+
+// Tools that don't require approval (communication tools, not action tools)
+const NO_APPROVAL_TOOLS = new Set([
+  'tell_to_user',
+  'ask_to_user',
+  'final_response',
+  'write_todos',
+  'update_todos',
+  'get_todo_list',
+]);
 
 // =============================================================================
 // Agent Setup
@@ -181,6 +197,14 @@ export function getCurrentTodos(): TodoItem[] {
 
 export function setCurrentTodos(todos: TodoItem[]): void {
   state.currentTodos = [...todos];
+}
+
+/**
+ * Clear always-approved tools (call when starting a new session/chat)
+ */
+export function clearAlwaysApprovedTools(): void {
+  state.alwaysApprovedTools.clear();
+  logger.info('[Supervised] Cleared always-approved tools for new session');
 }
 
 // =============================================================================
@@ -603,6 +627,87 @@ export async function runAgent(
           }
 
           logger.info(`Executing tool: ${toolName}`, { args: JSON.stringify(toolArgs).substring(0, 200) });
+
+          // Supervised Mode: Request approval before executing tool
+          // Skip approval for: Auto Mode, communication tools, always-approved tools
+          const skipApproval = autoMode || NO_APPROVAL_TOOLS.has(toolName) || state.alwaysApprovedTools.has(toolName);
+
+          if (!skipApproval) {
+            // For edit_file, show diff preview BEFORE asking for approval
+            // (create_file skipped because file doesn't exist yet)
+            if (toolName === 'edit_file') {
+              try {
+                const filePath = toolArgs['file_path'] as string;
+                const resolvedPath = path.isAbsolute(filePath)
+                  ? filePath
+                  : path.resolve(workingDirectory, filePath);
+                const ext = path.extname(filePath).toLowerCase();
+                const langMap: Record<string, string> = {
+                  '.ts': 'typescript', '.tsx': 'typescript', '.js': 'javascript', '.jsx': 'javascript',
+                  '.py': 'python', '.json': 'json', '.html': 'html', '.css': 'css', '.md': 'markdown',
+                };
+                const language = langMap[ext] || 'plaintext';
+
+                // Helper to unescape LLM content
+                const unescape = (s: string) => s
+                  .replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\r/g, '\r')
+                  .replace(/\\"/g, '"').replace(/\\'/g, "'").replace(/\\\//g, '/')
+                  .replace(/\\\\/g, '\\');
+
+                const oldString = unescape(toolArgs['old_string'] as string || '');
+                const newString = unescape(toolArgs['new_string'] as string || '');
+                const originalContent = await fs.readFile(resolvedPath, 'utf-8');
+                const newContent = originalContent.replace(oldString, newString);
+
+                // Send diff preview event
+                state.mainWindow?.webContents.send('agent:fileEdit', {
+                  path: resolvedPath,
+                  originalContent,
+                  newContent,
+                  language,
+                });
+
+                // Wait for diff to be shown
+                await new Promise(resolve => setTimeout(resolve, 2000));
+              } catch (previewError) {
+                logger.warn('[Supervised] Failed to show edit_file preview', { error: previewError });
+              }
+            }
+
+            // Request approval
+            const approvalResult = await requestToolApproval(
+              toolName,
+              toolArgs,
+              toolArgs['reason'] as string | undefined
+            );
+
+            // If 'always' approved, remember for this session
+            if (approvalResult === 'always') {
+              state.alwaysApprovedTools.add(toolName);
+              logger.info('[Supervised] Tool always-approved for session', { toolName });
+            }
+
+            // If approval was rejected, skip tool execution
+            if (approvalResult && typeof approvalResult === 'object' && approvalResult.reject) {
+              const rejectMessage = `Tool execution rejected by user: ${approvalResult.comment || 'No reason provided'}`;
+              logger.info('[Supervised] Tool rejected', { toolName, comment: approvalResult.comment });
+
+              messages.push({
+                role: 'tool',
+                content: rejectMessage,
+                tool_call_id: toolCall.id,
+              });
+
+              toolCallHistory.push({
+                tool: toolName,
+                args: toolArgs,
+                result: rejectMessage,
+                success: false,
+              });
+
+              continue;
+            }
+          }
 
           // Execute tool via simple tool executor (CLI parity: uses executeFileTool)
           const result = await executeSimpleTool(toolName, toolArgs);

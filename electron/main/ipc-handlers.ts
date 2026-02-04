@@ -26,6 +26,7 @@ import {
   setAgentMainWindow,
   simpleChat,
   handleToolApprovalResponse,
+  clearAlwaysApprovedTools,
   AgentConfig,
   AgentCallbacks,
   TodoItem,
@@ -195,6 +196,23 @@ export function setupIpcHandlers(): void {
     try {
       const session = await sessionManager.createSession(name, workingDirectory);
       logger.sessionStart({ sessionId: session.id, name: session.name, workingDirectory });
+
+      // Reset context tracker for fresh session (prevents stale context from leaking)
+      contextTracker.reset();
+
+      // Clear always-approved tools for new session (Supervised Mode)
+      clearAlwaysApprovedTools();
+
+      // Notify renderer that context is reset
+      const mainWindow = BrowserWindow.getAllWindows()[0];
+      if (mainWindow) {
+        mainWindow.webContents.send('agent:contextUpdate', {
+          usagePercentage: 0,
+          currentTokens: 0,
+          maxTokens: 128000,
+        });
+      }
+
       return { success: true, session };
     } catch (error) {
       logger.error('Failed to create session', error);
@@ -1672,13 +1690,11 @@ export function setupIpcHandlers(): void {
   }) => {
     logger.ipcHandle('agent:respondToApproval', { requestId: response.id, result: response.result });
 
-    // Convert 'approve' or 'always' to null (meaning approved)
-    // Convert { reject: true, comment } to ToolApprovalResult
-    const approvalResult = response.result === 'approve' || response.result === 'always'
-      ? null // null means approved
-      : response.result; // { reject: true, comment: string }
-
-    handleToolApprovalResponse(response.id, approvalResult as { reject: true; comment: string } | null);
+    // Pass through the result as-is:
+    // - 'approve': single approval
+    // - 'always': remember for session (don't convert to null!)
+    // - { reject: true, comment }: rejection
+    handleToolApprovalResponse(response.id, response.result);
     return { success: true };
   });
 
