@@ -89,6 +89,18 @@ interface MessageItemProps {
 }
 
 const MessageItem = memo<MessageItemProps>(({ message, isBatchLoad }) => {
+  const [copied, setCopied] = React.useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(message.content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      window.electronAPI?.log?.error('[MessageItem] Failed to copy', { error: err instanceof Error ? err.message : String(err) });
+    }
+  };
+
   return (
     <div
       className={`chat-message ${message.role}${isBatchLoad ? ' no-animation' : ''}`}
@@ -100,6 +112,22 @@ const MessageItem = memo<MessageItemProps>(({ message, isBatchLoad }) => {
       )}
       <div className="message-content">
         <MemoizedMessageContent content={message.content} role={message.role} />
+        {/* Copy button for all message types */}
+        <button
+          className={`message-copy-btn ${copied ? 'copied' : ''}`}
+          onClick={handleCopy}
+          title={copied ? 'Copied!' : 'Copy message'}
+        >
+          {copied ? (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+            </svg>
+          ) : (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+            </svg>
+          )}
+        </button>
       </div>
     </div>
   );
@@ -610,7 +638,7 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
     }
   }, [setIsExecuting, clearTodos, isExecuting, isLoading]);
 
-  // Handle keyboard events with input history (wrapped in useCallback to prevent re-renders)
+  // Handle keyboard events (arrow up/down history disabled for Electron)
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -618,38 +646,14 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
       return;
     }
 
-    if (e.key === 'ArrowUp' && inputHistory.length > 0) {
-      const cursorPos = e.currentTarget.selectionStart;
-      if (cursorPos === 0 || input === '') {
-        e.preventDefault();
-        const newIndex = historyIndex < inputHistory.length - 1 ? historyIndex + 1 : historyIndex;
-        if (newIndex !== historyIndex) {
-          setHistoryIndex(newIndex);
-          setInput(inputHistory[inputHistory.length - 1 - newIndex]);
-        }
-      }
-    }
-
-    if (e.key === 'ArrowDown' && historyIndex >= 0) {
-      const cursorPos = e.currentTarget.selectionStart;
-      if (cursorPos === input.length) {
-        e.preventDefault();
-        const newIndex = historyIndex - 1;
-        if (newIndex >= 0) {
-          setHistoryIndex(newIndex);
-          setInput(inputHistory[inputHistory.length - 1 - newIndex]);
-        } else {
-          setHistoryIndex(-1);
-          setInput('');
-        }
-      }
-    }
+    // Arrow up/down history navigation disabled for Electron
+    // Users can use normal text editing with arrow keys
 
     if (e.key === 'Escape' && isExecuting) {
       e.preventDefault();
       handleAbort();
     }
-  }, [sendMessage, inputHistory, input, historyIndex, isExecuting, handleAbort]);
+  }, [sendMessage, isExecuting, handleAbort]);
 
   // Retry failed tool execution
   const handleToolRetry = useCallback((id: string) => {
@@ -840,6 +844,15 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
             <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
           </svg>
           <span>{currentDirectory}</span>
+          <button
+            className="directory-open-btn"
+            onClick={() => window.electronAPI?.shell?.openPath(currentDirectory)}
+            title="Open in Explorer"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
+            </svg>
+          </button>
         </div>
       )}
 

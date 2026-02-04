@@ -10,6 +10,19 @@ import { LLMSimpleTool, ToolResult, BROWSER_CATEGORIES } from '../types';
 import { browserClient } from './browser-client';
 import { logger } from '../../utils/logger';
 
+/**
+ * Delay execution for specified milliseconds
+ * @param ms - Milliseconds to wait
+ */
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Standard delay for browser launch/navigate operations (3 seconds)
+ */
+const BROWSER_LAUNCH_DELAY_MS = 3000;
+
 // =============================================================================
 // Browser Launch
 // =============================================================================
@@ -49,6 +62,8 @@ async function executeBrowserLaunch(args: Record<string, unknown>): Promise<Tool
       headless: args['headless'] as boolean | undefined,
     });
     if (response.success) {
+      // Wait for browser to fully load before LLM proceeds
+      await delay(BROWSER_LAUNCH_DELAY_MS);
       logger.toolSuccess('browser_launch', args, { message: response.message }, Date.now() - startTime);
       return { success: true, result: response.message || 'Browser launched' };
     }
@@ -136,6 +151,8 @@ async function executeBrowserNavigate(args: Record<string, unknown>): Promise<To
   try {
     const response = await browserClient.navigate(args['url'] as string);
     if (response.success) {
+      // Wait for page to fully load before LLM proceeds
+      await delay(BROWSER_LAUNCH_DELAY_MS);
       logger.toolSuccess('browser_navigate', args, { url: response['url'], title: response['title'] }, Date.now() - startTime);
       return { success: true, result: `Navigated to: ${response['url']} - ${response['title']}` };
     }

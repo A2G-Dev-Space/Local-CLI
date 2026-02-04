@@ -281,6 +281,64 @@
   margin: 0 var(--space-1);
 }
 
+/* ============ Auto File View Toggle ============ */
+.panel-auto-view-btn.active {
+  color: var(--color-accent-primary);
+  background-color: rgba(56, 189, 248, 0.15);
+}
+
+.panel-auto-view-btn.active:hover {
+  background-color: rgba(56, 189, 248, 0.25);
+}
+
+/* ============ Panel Context Usage ============ */
+.panel-context-usage {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  cursor: default;
+}
+
+.panel-context-label {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-medium);
+}
+
+.panel-context-bar {
+  width: 40px;
+  height: 4px;
+  background: var(--color-bg-overlay);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.panel-context-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease, background 0.3s ease;
+}
+
+.panel-context-percent {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--color-text-muted);
+  min-width: 24px;
+  text-align: right;
+}
+
+.panel-context-usage.warning .panel-context-label,
+.panel-context-usage.warning .panel-context-percent {
+  color: #F59E0B;
+}
+
+.panel-context-usage.critical .panel-context-label,
+.panel-context-usage.critical .panel-context-percent {
+  color: #EF4444;
+}
+
 /* ============ Panel Model Selector ============ */
 .panel-model-selector {
   position: relative;

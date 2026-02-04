@@ -14,6 +14,20 @@ import type { LLMSimpleTool, ToolResult, ToolCategory } from '../../types';
 import { sendFileEditEvent, sendFileCreateEvent } from '../../../ipc-handlers';
 import { logger } from '../../../utils/logger';
 
+/**
+ * Delay execution for specified milliseconds
+ * @param ms - Milliseconds to wait
+ */
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Standard delay for file open operations (3 seconds)
+ * This gives VSCode time to fully open the file before LLM proceeds
+ */
+const FILE_OPEN_DELAY_MS = 3000;
+
 // =============================================================================
 // Constants
 // =============================================================================
@@ -266,6 +280,8 @@ async function executeCreateFile(args: Record<string, unknown>): Promise<ToolRes
         content,
         language,
       });
+      // Wait for VSCode to fully open the file before LLM proceeds
+      await delay(FILE_OPEN_DELAY_MS);
     } catch {
       // Silently ignore event emission errors
     }
@@ -419,6 +435,8 @@ async function executeEditFile(args: Record<string, unknown>): Promise<ToolResul
         newContent,
         language,
       });
+      // Wait for VSCode to fully open the file before LLM proceeds
+      await delay(FILE_OPEN_DELAY_MS);
     } catch {
       // Silently ignore event emission errors
     }

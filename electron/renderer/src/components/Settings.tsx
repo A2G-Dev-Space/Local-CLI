@@ -32,7 +32,7 @@ interface SettingsProps {
   onClose: () => void;
 }
 
-type SettingsView = 'main' | 'llms' | 'llm-add' | 'llm-edit' | 'llm-delete' | 'appearance';
+type SettingsView = 'main' | 'llms' | 'llm-add' | 'llm-edit' | 'llm-delete' | 'appearance' | 'tools';
 
 // Color palette type
 type ColorPalette = 'default' | 'rose' | 'mint' | 'lavender' | 'peach' | 'sky';
@@ -82,6 +82,11 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
     modelName: '',
     maxContextLength: '128000',
   });
+
+  // External tools settings
+  const [vscodeAutoDetected, setVscodeAutoDetected] = useState(false);
+  const [vscodePath, setVscodePath] = useState<string>('');
+  const [vscodePathSaved, setVscodePathSaved] = useState(false);
 
   // Load endpoints
   const loadEndpoints = useCallback(async () => {
@@ -138,16 +143,49 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
     }
   }, []);
 
+  // Load VSCode settings
+  const loadVscodeSettings = useCallback(async () => {
+    if (!window.electronAPI?.vscode) return;
+    try {
+      // Check if VSCode is auto-detected
+      const availResult = await window.electronAPI.vscode.isAvailable();
+      setVscodeAutoDetected(availResult.autoDetected);
+
+      // Get custom path if set
+      const pathResult = await window.electronAPI.vscode.getPath();
+      setVscodePath(pathResult.path || '');
+    } catch (err) {
+      window.electronAPI?.log?.error('[Settings] Failed to load VSCode settings', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }, []);
+
+  // Save VSCode path
+  const saveVscodePath = useCallback(async (path: string) => {
+    if (!window.electronAPI?.vscode) return;
+    try {
+      await window.electronAPI.vscode.setPath(path || null);
+      setVscodePathSaved(true);
+      setTimeout(() => setVscodePathSaved(false), 2000);
+    } catch (err) {
+      window.electronAPI?.log?.error('[Settings] Failed to save VSCode path', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }, []);
+
   // Initial load
   useEffect(() => {
     if (isOpen) {
       loadEndpoints();
       loadAppearanceSettings();
+      loadVscodeSettings();
       setView('main');
       setError(null);
       setSuccessMessage(null);
     }
-  }, [isOpen, loadEndpoints, loadAppearanceSettings]);
+  }, [isOpen, loadEndpoints, loadAppearanceSettings, loadVscodeSettings]);
 
   // Handle keyboard events
   useEffect(() => {
@@ -376,6 +414,7 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
               {view === 'llm-edit' && 'Edit Endpoint'}
               {view === 'llm-delete' && 'Delete Endpoint'}
               {view === 'appearance' && 'Settings > Appearance'}
+              {view === 'tools' && 'Settings > External Tools'}
             </span>
           </div>
           <button className="settings-close" onClick={onClose}>
@@ -438,6 +477,27 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                 </div>
                 <svg className="menu-arrow" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
+                </svg>
+              </button>
+
+              <button className="menu-item" onClick={() => { setView('tools'); loadVscodeSettings(); }}>
+                <div className="menu-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/>
+                  </svg>
+                </div>
+                <div className="menu-content">
+                  <span className="menu-label">External Tools</span>
+                  <span className="menu-description">VSCode path & integrations</span>
+                </div>
+                <svg
+                  className="menu-arrow"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                >
+                  <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
                 </svg>
               </button>
             </div>
@@ -700,6 +760,71 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
               <button className="back-button" onClick={() => setView('main')}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+                </svg>
+                Back
+              </button>
+            </div>
+          )}
+
+          {/* External Tools Settings */}
+          {view === 'tools' && (
+            <div className="appearance-view">
+              {/* VSCode Path */}
+              <div className="setting-section">
+                <label className="setting-label">VSCode Path</label>
+
+                {vscodeAutoDetected ? (
+                  <div className="vscode-auto-detected">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style={{ color: '#10B981' }}>
+                      <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+                    </svg>
+                    <span>Auto-detected (code command found in PATH)</span>
+                  </div>
+                ) : (
+                  <div className="vscode-not-detected">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style={{ color: '#F59E0B' }}>
+                      <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
+                    </svg>
+                    <span>Not found in PATH - specify path below</span>
+                  </div>
+                )}
+
+                <div className="vscode-path-input-wrapper">
+                  <input
+                    type="text"
+                    className="vscode-path-input"
+                    value={vscodePath}
+                    onChange={(e) => setVscodePath(e.target.value)}
+                    placeholder={vscodeAutoDetected ? 'Using auto-detected path' : 'C:\\Users\\...\\Code.exe or /usr/bin/code'}
+                    disabled={vscodeAutoDetected}
+                  />
+                  {!vscodeAutoDetected && (
+                    <button
+                      className="vscode-path-save-btn"
+                      onClick={() => saveVscodePath(vscodePath)}
+                      disabled={vscodePathSaved}
+                    >
+                      {vscodePathSaved ? (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+                        </svg>
+                      ) : (
+                        'Save'
+                      )}
+                    </button>
+                  )}
+                </div>
+
+                <div className="vscode-path-hint">
+                  {vscodeAutoDetected
+                    ? 'VSCode will be launched using the "code" command. No manual path needed.'
+                    : 'Enter the full path to VSCode executable (Code.exe on Windows, code on Mac/Linux)'}
+                </div>
+              </div>
+
+              <button className="back-button" onClick={() => setView('main')}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
                 </svg>
                 Back
               </button>

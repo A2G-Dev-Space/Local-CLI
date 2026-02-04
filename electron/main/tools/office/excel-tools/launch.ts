@@ -8,7 +8,7 @@
 import { ToolDefinition } from '../../../types/index';
 import { LLMSimpleTool, ToolResult } from '../../types';
 import { excelClient } from '../excel-client';
-import { saveScreenshot } from '../common/utils';
+import { saveScreenshot, delay, APP_LAUNCH_DELAY_MS } from '../common/utils';
 import { OFFICE_SCREENSHOT_PATH_DESC, OFFICE_CATEGORIES } from '../common/constants';
 import { logger } from '../../../utils/logger';
 
@@ -39,6 +39,8 @@ async function executeExcelLaunch(_args: Record<string, unknown>): Promise<ToolR
   try {
     const response = await excelClient.excelLaunch();
     if (response.success) {
+      // Wait for Excel to fully load before LLM proceeds
+      await delay(APP_LAUNCH_DELAY_MS);
       logger.toolSuccess('excel_launch', _args, { message: response.message }, Date.now() - startTime);
       return { success: true, result: response.message || 'Excel launched successfully' };
     }
@@ -82,6 +84,8 @@ async function executeExcelCreate(_args: Record<string, unknown>): Promise<ToolR
   try {
     const response = await excelClient.excelCreate();
     if (response.success) {
+      // Wait for workbook to fully load before LLM proceeds
+      await delay(APP_LAUNCH_DELAY_MS);
       logger.toolSuccess('excel_create', _args, { message: response.message }, Date.now() - startTime);
       return { success: true, result: response.message || 'New workbook created' };
     }
@@ -126,6 +130,8 @@ async function executeExcelOpen(args: Record<string, unknown>): Promise<ToolResu
   try {
     const response = await excelClient.excelOpen(args['path'] as string);
     if (response.success) {
+      // Wait for workbook to fully load before LLM proceeds
+      await delay(APP_LAUNCH_DELAY_MS);
       logger.toolSuccess('excel_open', args, { workbookName: response['workbook_name'], path: args['path'] }, Date.now() - startTime);
       return { success: true, result: `Workbook opened: ${response['workbook_name'] || args['path']}` };
     }

@@ -915,6 +915,37 @@ const electronAPI = {
     },
   },
 
+  // ============ VSCode Integration ============
+  vscode: {
+    isAvailable: (): Promise<{ available: boolean; autoDetected: boolean }> => {
+      return ipcRenderer.invoke('vscode:isAvailable');
+    },
+
+    openFile: (filePath: string): Promise<{ success: boolean; error?: string; fallback?: boolean }> => {
+      return ipcRenderer.invoke('vscode:openFile', filePath);
+    },
+
+    openDiff: (originalPath: string, modifiedPath: string, title?: string): Promise<{ success: boolean; error?: string; fallback?: boolean }> => {
+      return ipcRenderer.invoke('vscode:openDiff', originalPath, modifiedPath, title);
+    },
+
+    openDiffWithContent: (data: {
+      filePath: string;
+      originalContent: string;
+      newContent: string;
+    }): Promise<{ success: boolean; error?: string; fallback?: boolean }> => {
+      return ipcRenderer.invoke('vscode:openDiffWithContent', data);
+    },
+
+    setPath: (vscodePath: string | null): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke('vscode:setPath', vscodePath);
+    },
+
+    getPath: (): Promise<{ path: string | null }> => {
+      return ipcRenderer.invoke('vscode:getPath');
+    },
+  },
+
   // ============ PowerShell ============
   powershell: {
     startSession: (): Promise<{ success: boolean; session?: SessionInfo; error?: string }> => {

@@ -134,6 +134,9 @@ const App: React.FC = () => {
   // DISABLED: isDocsBrowserOpen removed - docs feature disabled
   // const [isDocsBrowserOpen, setIsDocsBrowserOpen] = useState(false);
 
+  // Auto file view state - when ON, shows diff view in editor when files are edited/created
+  const [autoFileView, setAutoFileView] = useState(true);
+
   // Command Palette state
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [recentCommands, setRecentCommands] = useState<string[]>([]);
@@ -261,12 +264,21 @@ const App: React.FC = () => {
     };
   }, []);
 
+  // Ref to track autoFileView in event handlers (avoids stale closure)
+  const autoFileViewRef = useRef(autoFileView);
+  useEffect(() => {
+    autoFileViewRef.current = autoFileView;
+  }, [autoFileView]);
+
   // File edit/create event listeners (for diff view)
   useEffect(() => {
     if (!window.electronAPI?.agent) return;
 
-    // Handle file edit event - show diff view
+    // Handle file edit event - show diff view and/or open in VSCode
     const unsubEdit = window.electronAPI.agent.onFileEdit?.((data) => {
+      // Skip if auto file view is disabled
+      if (!autoFileViewRef.current) return;
+
       const fileName = data.path.split(/[/\\]/).pop() || 'Untitled';
       const newTabId = `diff-${Date.now()}`;
       const newTab: EditorTab = {
@@ -282,10 +294,22 @@ const App: React.FC = () => {
       };
       setTabs(prev => [...prev.map(t => ({ ...t, isActive: false })), newTab]);
       setActiveTabId(newTabId);
+
+      // Also try to open in VSCode
+      window.electronAPI?.vscode?.openDiffWithContent?.({
+        filePath: data.path,
+        originalContent: data.originalContent,
+        newContent: data.newContent,
+      }).catch(() => {
+        // Silently ignore VSCode errors
+      });
     });
 
-    // Handle file create event - open in editor
+    // Handle file create event - open in editor and/or VSCode
     const unsubCreate = window.electronAPI.agent.onFileCreate?.((data) => {
+      // Skip if auto file view is disabled
+      if (!autoFileViewRef.current) return;
+
       const fileName = data.path.split(/[/\\]/).pop() || 'Untitled';
       const newTabId = `file-${Date.now()}`;
       const newTab: EditorTab = {
@@ -299,6 +323,11 @@ const App: React.FC = () => {
       };
       setTabs(prev => [...prev.map(t => ({ ...t, isActive: false })), newTab]);
       setActiveTabId(newTabId);
+
+      // Also try to open in VSCode
+      window.electronAPI?.vscode?.openFile?.(data.path).catch(() => {
+        // Silently ignore VSCode errors
+      });
     });
 
     // Handle TODO update event - show todo panel in editor
@@ -1043,6 +1072,7 @@ const App: React.FC = () => {
             currentDirectory={currentDirectory}
             currentSession={currentSession}
             allowAllPermissions={allowAllPermissions}
+            autoFileView={autoFileView}
             endpoints={endpoints}
             currentEndpointId={currentEndpointId}
             isModelDropdownOpen={isModelDropdownOpen}
@@ -1058,6 +1088,7 @@ const App: React.FC = () => {
             onNewSession={handleNewSession}
             onLoadSession={handleLoadSession}
             onAllowAllPermissionsChange={setAllowAllPermissions}
+            onAutoFileViewChange={setAutoFileView}
             onModelDropdownToggle={() => setIsModelDropdownOpen(prev => !prev)}
             onSelectModel={handleSelectModel}
           />

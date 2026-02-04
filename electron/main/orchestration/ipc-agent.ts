@@ -25,7 +25,8 @@ import {
   setToolExecutionCallback,
   setToolResponseCallback,
 } from '../tools';
-import { setReasoningCallback } from '../tools/llm/simple/simple-tool-executor';
+import { setReasoningCallback, setToolApprovalCallback } from '../tools/llm/simple/simple-tool-executor';
+import type { ToolApprovalResult } from '../tools/llm/simple/simple-tool-executor';
 import { ContextLengthError } from '../errors';
 import { PLAN_EXECUTE_SYSTEM_PROMPT, buildPlanExecutePrompt } from '../prompts';
 import { GIT_COMMIT_RULES } from '../prompts/shared/git-rules';
@@ -117,6 +118,8 @@ interface AgentState {
   abortController: AbortController | null;
   currentTodos: TodoItem[];
   mainWindow: BrowserWindow | null;
+  runId: number; // Unique ID per runAgent() call to detect stale runs
+  pendingApprovals: Map<string, (result: ToolApprovalResult) => void>; // Supervised Mode approval resolvers
 }
 
 const state: AgentState = {
@@ -124,6 +127,8 @@ const state: AgentState = {
   abortController: null,
   currentTodos: [],
   mainWindow: null,
+  runId: 0,
+  pendingApprovals: new Map(),
 };
 
 // =============================================================================
@@ -145,8 +150,29 @@ export function abortAgent(): void {
   }
   state.isRunning = false;
   state.currentTodos = []; // Clear todos so next run starts fresh with new planning
+  // Clear pending approvals
+  state.pendingApprovals.forEach((resolve) => {
+    resolve({ reject: true, comment: 'Agent aborted' });
+  });
+  state.pendingApprovals.clear();
   llmClient.abort();
   logger.info('Agent aborted');
+}
+
+/**
+ * Handle tool approval response from renderer (Supervised Mode)
+ * result: null means approved, { reject: true, comment: string } means rejected
+ */
+export function handleToolApprovalResponse(requestId: string, result: ToolApprovalResult | null): void {
+  const resolver = state.pendingApprovals.get(requestId);
+  if (resolver) {
+    logger.info('[Supervised] Tool approval response received', { requestId, result });
+    // null means approved (no rejection), pass it through
+    resolver(result as ToolApprovalResult);
+    state.pendingApprovals.delete(requestId);
+  } else {
+    logger.warn('[Supervised] No pending approval found for request', { requestId });
+  }
 }
 
 export function getCurrentTodos(): TodoItem[] {
@@ -172,6 +198,7 @@ export async function runAgent(
     workingDirectory = process.cwd(),
     enablePlanning = true,
     resumeTodos = false,
+    autoMode = true, // true = Auto Mode (no approval), false = Supervised Mode (ask for approval)
   } = config;
 
   logger.info('Starting agent', {
@@ -180,6 +207,7 @@ export async function runAgent(
     workingDirectory,
     enablePlanning,
     resumeTodos,
+    autoMode,
   });
 
   // Initialize state
@@ -229,6 +257,32 @@ export async function runAgent(
       isOther: false,
     };
   });
+
+  // Supervised Mode: Tool approval callback
+  if (!autoMode && state.mainWindow) {
+    setToolApprovalCallback(async (toolName: string, args: Record<string, unknown>, reason?: string): Promise<ToolApprovalResult> => {
+      return new Promise((resolve) => {
+        const requestId = `approval-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
+        // Store resolver for this request
+        state.pendingApprovals = state.pendingApprovals || new Map();
+        state.pendingApprovals.set(requestId, resolve);
+
+        // Send approval request to renderer
+        // NOTE: Event name must match preload's onApprovalRequest listener ('agent:approvalRequest')
+        logger.info('[Supervised] Requesting tool approval', { requestId, toolName, reason });
+        state.mainWindow!.webContents.send('agent:approvalRequest', {
+          id: requestId,
+          toolName,
+          args,
+          reason: reason || (args['reason'] as string) || undefined,
+        });
+      });
+    });
+  } else {
+    // Auto Mode: No approval needed
+    setToolApprovalCallback(null);
+  }
 
   // Tool execution callback - send to renderer for UI display
   setToolExecutionCallback((toolName: string, reason: string, args: Record<string, unknown>) => {

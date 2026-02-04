@@ -8,7 +8,7 @@
 import { ToolDefinition } from '../../../types/index';
 import { LLMSimpleTool, ToolResult } from '../../types';
 import { powerpointClient } from '../powerpoint-client';
-import { saveScreenshot } from '../common/utils';
+import { saveScreenshot, delay, APP_LAUNCH_DELAY_MS } from '../common/utils';
 import { OFFICE_SCREENSHOT_PATH_DESC, OFFICE_CATEGORIES } from '../common/constants';
 import { logger } from '../../../utils/logger';
 
@@ -39,6 +39,8 @@ async function executePowerPointLaunch(_args: Record<string, unknown>): Promise<
   try {
     const response = await powerpointClient.powerpointLaunch();
     if (response.success) {
+      // Wait for PowerPoint to fully load before LLM proceeds
+      await delay(APP_LAUNCH_DELAY_MS);
       logger.toolSuccess('powerpoint_launch', _args, { message: response.message }, Date.now() - startTime);
       return { success: true, result: response.message || 'PowerPoint launched successfully' };
     }
@@ -82,6 +84,8 @@ async function executePowerPointCreate(_args: Record<string, unknown>): Promise<
   try {
     const response = await powerpointClient.powerpointCreate();
     if (response.success) {
+      // Wait for presentation to fully load before LLM proceeds
+      await delay(APP_LAUNCH_DELAY_MS);
       logger.toolSuccess('powerpoint_create', _args, { message: response.message }, Date.now() - startTime);
       return { success: true, result: response.message || 'New presentation created' };
     }
@@ -126,6 +130,8 @@ async function executePowerPointOpen(args: Record<string, unknown>): Promise<Too
   try {
     const response = await powerpointClient.powerpointOpen(args['path'] as string);
     if (response.success) {
+      // Wait for presentation to fully load before LLM proceeds
+      await delay(APP_LAUNCH_DELAY_MS);
       logger.toolSuccess('powerpoint_open', args, { presentationName: response['presentation_name'], path: args['path'] }, Date.now() - startTime);
       return { success: true, result: `Presentation opened: ${response['presentation_name'] || args['path']}` };
     }

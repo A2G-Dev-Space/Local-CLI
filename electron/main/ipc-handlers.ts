@@ -25,6 +25,7 @@ import {
   setCurrentTodos,
   setAgentMainWindow,
   simpleChat,
+  handleToolApprovalResponse,
   AgentConfig,
   AgentCallbacks,
   TodoItem,
@@ -621,6 +622,139 @@ export function setupIpcHandlers(): void {
   ipcMain.handle('shell:openExternal', async (_event, url: string) => {
     await shell.openExternal(url);
     return { success: true };
+  });
+
+  // ============ VSCode Integration ============
+
+  // Helper: Get VSCode command (custom path or 'code')
+  const getVSCodeCommand = (): string => {
+    const customPath = configManager.get('vscodePath');
+    if (customPath && typeof customPath === 'string') {
+      // Windows paths with spaces need quotes
+      return `"${customPath}"`;
+    }
+    return 'code';
+  };
+
+  // Check if VSCode is available (auto-detect from PATH)
+  ipcMain.handle('vscode:isAvailable', async () => {
+    const { exec } = await import('child_process');
+    const { promisify } = await import('util');
+    const execAsync = promisify(exec);
+
+    try {
+      // Try to get VSCode version using 'code' command in PATH
+      await execAsync('code --version');
+      return { available: true, autoDetected: true };
+    } catch {
+      return { available: false, autoDetected: false };
+    }
+  });
+
+  // Open file in VSCode
+  ipcMain.handle('vscode:openFile', async (_event, filePath: string) => {
+    const { exec } = await import('child_process');
+    const { promisify } = await import('util');
+    const execAsync = promisify(exec);
+    const vscodeCmd = getVSCodeCommand();
+
+    try {
+      await execAsync(`${vscodeCmd} "${filePath}"`);
+      return { success: true };
+    } catch (error) {
+      // Fallback to shell.openPath
+      const result = await shell.openPath(filePath);
+      return { success: !result, error: result || undefined, fallback: true };
+    }
+  });
+
+  // Open diff in VSCode
+  ipcMain.handle('vscode:openDiff', async (_event, originalPath: string, modifiedPath: string, title?: string) => {
+    const { exec } = await import('child_process');
+    const { promisify } = await import('util');
+    const execAsync = promisify(exec);
+    const vscodeCmd = getVSCodeCommand();
+
+    try {
+      // VSCode diff command: code --diff file1 file2
+      const titleArg = title ? ` --title "${title}"` : '';
+      await execAsync(`${vscodeCmd} --diff "${originalPath}" "${modifiedPath}"${titleArg}`);
+      return { success: true };
+    } catch (error) {
+      // Fallback to opening the modified file
+      const result = await shell.openPath(modifiedPath);
+      return { success: !result, error: result || undefined, fallback: true };
+    }
+  });
+
+  // Open diff with temp files (for showing edit diff)
+  ipcMain.handle('vscode:openDiffWithContent', async (_event, data: {
+    filePath: string;
+    originalContent: string;
+    newContent: string;
+  }) => {
+    const { exec } = await import('child_process');
+    const { promisify } = await import('util');
+    const execAsync = promisify(exec);
+    const os = await import('os');
+    const fsPromises = await import('fs/promises');
+    const pathModule = await import('path');
+    const vscodeCmd = getVSCodeCommand();
+
+    const { filePath, originalContent, newContent } = data;
+    const ext = pathModule.extname(filePath);
+    const baseName = pathModule.basename(filePath, ext);
+
+    // Create temp files for diff
+    const tempDir = os.tmpdir();
+    const originalTempPath = pathModule.join(tempDir, `${baseName}.original${ext}`);
+    const modifiedTempPath = pathModule.join(tempDir, `${baseName}.modified${ext}`);
+
+    try {
+      // Write temp files
+      await fsPromises.writeFile(originalTempPath, originalContent, 'utf-8');
+      await fsPromises.writeFile(modifiedTempPath, newContent, 'utf-8');
+
+      // Open diff in VSCode
+      await execAsync(`${vscodeCmd} --diff "${originalTempPath}" "${modifiedTempPath}"`);
+
+      // Clean up temp files after a delay (give VSCode time to read them)
+      setTimeout(async () => {
+        try {
+          await fsPromises.unlink(originalTempPath);
+          await fsPromises.unlink(modifiedTempPath);
+        } catch {
+          // Ignore cleanup errors
+        }
+      }, 5000);
+
+      return { success: true };
+    } catch (error) {
+      // Fallback to opening the actual file
+      const result = await shell.openPath(filePath);
+      return { success: !result, error: result || undefined, fallback: true };
+    }
+  });
+
+  // Set custom VSCode path
+  ipcMain.handle('vscode:setPath', async (_event, vscodePath: string | null) => {
+    try {
+      if (vscodePath) {
+        configManager.set('vscodePath', vscodePath);
+      } else {
+        // Clear custom path
+        configManager.set('vscodePath', undefined);
+      }
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // Get custom VSCode path
+  ipcMain.handle('vscode:getPath', async () => {
+    const customPath = configManager.get('vscodePath');
+    return { path: customPath || null };
   });
 
   // ============ PowerShell ============
@@ -1528,6 +1662,23 @@ export function setupIpcHandlers(): void {
       pendingAskUserResolve(normalizedResponse);
       pendingAskUserResolve = null;
     }
+    return { success: true };
+  });
+
+  // Tool approval 응답 (Supervised Mode)
+  ipcMain.handle('agent:respondToApproval', (_event, response: {
+    id: string;
+    result: 'approve' | 'always' | { reject: true; comment: string };
+  }) => {
+    logger.ipcHandle('agent:respondToApproval', { requestId: response.id, result: response.result });
+
+    // Convert 'approve' or 'always' to null (meaning approved)
+    // Convert { reject: true, comment } to ToolApprovalResult
+    const approvalResult = response.result === 'approve' || response.result === 'always'
+      ? null // null means approved
+      : response.result; // { reject: true, comment: string }
+
+    handleToolApprovalResponse(response.id, approvalResult as { reject: true; comment: string } | null);
     return { success: true };
   });
 

@@ -4,7 +4,7 @@
  * Handles user input with history navigation and keyboard shortcuts
  */
 
-import React, { memo, useRef, useEffect, useCallback, useState } from 'react';
+import React, { memo, useRef, useEffect, useCallback } from 'react';
 
 interface ChatInputProps {
   value: string;
@@ -13,7 +13,7 @@ interface ChatInputProps {
   onAbort: () => void;
   isLoading: boolean;
   isExecuting: boolean;
-  inputHistory: string[];
+  inputHistory?: string[]; // Deprecated: kept for API compatibility
   allowAllPermissions: boolean;
   onAllowAllPermissionsChange?: (value: boolean) => void;
 }
@@ -25,12 +25,11 @@ const ChatInput: React.FC<ChatInputProps> = ({
   onAbort,
   isLoading,
   isExecuting,
-  inputHistory,
+  // inputHistory removed - arrow history disabled for Electron
   allowAllPermissions,
   onAllowAllPermissionsChange,
 }) => {
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const [historyIndex, setHistoryIndex] = useState(-1);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -40,50 +39,24 @@ const ChatInput: React.FC<ChatInputProps> = ({
     }
   }, [value]);
 
-  // Handle keyboard events with input history
+  // Handle keyboard events (arrow history disabled for Electron)
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // Submit on Enter
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       onSend();
-      setHistoryIndex(-1);
       return;
     }
 
-    // Navigate input history with Up/Down arrows
-    if (e.key === 'ArrowUp' && inputHistory.length > 0) {
-      const cursorPos = e.currentTarget.selectionStart;
-      if (cursorPos === 0 || value === '') {
-        e.preventDefault();
-        const newIndex = historyIndex < inputHistory.length - 1 ? historyIndex + 1 : historyIndex;
-        if (newIndex !== historyIndex) {
-          setHistoryIndex(newIndex);
-          onChange(inputHistory[inputHistory.length - 1 - newIndex]);
-        }
-      }
-    }
-
-    if (e.key === 'ArrowDown' && historyIndex >= 0) {
-      const cursorPos = e.currentTarget.selectionStart;
-      if (cursorPos === value.length) {
-        e.preventDefault();
-        const newIndex = historyIndex - 1;
-        if (newIndex >= 0) {
-          setHistoryIndex(newIndex);
-          onChange(inputHistory[inputHistory.length - 1 - newIndex]);
-        } else {
-          setHistoryIndex(-1);
-          onChange('');
-        }
-      }
-    }
+    // Arrow up/down history navigation disabled for Electron
+    // Users can use normal text editing with arrow keys
 
     // Escape to abort execution
     if (e.key === 'Escape' && isExecuting) {
       e.preventDefault();
       onAbort();
     }
-  }, [value, historyIndex, inputHistory, isExecuting, onSend, onAbort, onChange]);
+  }, [isExecuting, onSend, onAbort]);
 
   return (
     <div className="chat-input-container" role="form" aria-label="Message input">

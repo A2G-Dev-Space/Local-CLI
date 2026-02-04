@@ -728,3 +728,86 @@
   color: var(--color-text-secondary);
   text-align: center;
 }
+
+/* ============ VSCode Path Settings ============ */
+.vscode-auto-detected,
+.vscode-not-detected {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+}
+
+.vscode-auto-detected {
+  background: rgba(16, 185, 129, 0.1);
+  color: #10B981;
+}
+
+.vscode-not-detected {
+  background: rgba(245, 158, 11, 0.1);
+  color: #F59E0B;
+}
+
+.vscode-path-input-wrapper {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.vscode-path-input {
+  flex: 1;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-mono);
+  color: var(--color-text-primary);
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  outline: none;
+  transition: border-color var(--transition-fast);
+}
+
+.vscode-path-input:focus {
+  border-color: var(--color-accent-primary);
+}
+
+.vscode-path-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: var(--color-bg-overlay);
+}
+
+.vscode-path-input::placeholder {
+  color: var(--color-text-muted);
+  font-family: var(--font-sans);
+}
+
+.vscode-path-save-btn {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: white;
+  background: var(--color-accent-primary);
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  min-width: 60px;
+}
+
+.vscode-path-save-btn:hover:not(:disabled) {
+  background: var(--color-accent-hover);
+}
+
+.vscode-path-save-btn:disabled {
+  background: #10B981;
+}
+
+.vscode-path-hint {
+  margin-top: var(--space-2);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
