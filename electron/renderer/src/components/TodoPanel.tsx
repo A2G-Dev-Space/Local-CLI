@@ -21,7 +21,8 @@ interface TodoPanelProps {
 
 const TodoPanel: React.FC<TodoPanelProps> = ({ todos, onRetry }) => {
   const { t } = useTranslation();
-  const [expanded, setExpanded] = useState(false);
+  // Default to expanded view - show all tasks
+  const [expanded, setExpanded] = useState(true);
   const [animatingId, setAnimatingId] = useState<string | null>(null);
   const prevCurrentIdRef = useRef<string | null>(null);
 

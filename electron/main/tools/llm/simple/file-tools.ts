@@ -29,25 +29,13 @@ function delay(ms: number): Promise<void> {
  */
 const FILE_OPEN_DELAY_MS = 3000;
 
-/**
- * Unescape double-escaped characters in content from LLM
- * Some LLMs send \\n instead of \n, \\t instead of \t, etc.
- * This function converts them to actual escape sequences
- */
-function unescapeContent(content: string): string {
-  if (!content) return content;
-
-  // Replace double-escaped sequences with actual escape characters
-  // Order matters: handle special sequences before backslash
-  return content
-    .replace(/\\n/g, '\n')   // \\n -> newline
-    .replace(/\\t/g, '\t')   // \\t -> tab
-    .replace(/\\r/g, '\r')   // \\r -> carriage return
-    .replace(/\\"/g, '"')    // \\" -> double quote
-    .replace(/\\'/g, "'")    // \\' -> single quote
-    .replace(/\\\//g, '/')   // \\/ -> forward slash
-    .replace(/\\\\/g, '\\'); // \\\\ -> single backslash (must be last)
-}
+// NOTE: We previously had an unescapeContent() function here that converted
+// \\n to \n, \\t to \t, etc. This was REMOVED because:
+// 1. JSON parsing already handles escape sequences properly
+// 2. It was corrupting source code with string literals like '\n' or '\t'
+//    by converting them to actual newlines/tabs
+// 3. If an LLM sends double-escaped content, that's an LLM bug to be fixed
+//    at the LLM/prompt level, not here
 
 // =============================================================================
 // Constants
@@ -278,9 +266,9 @@ Examples:
 
 async function executeCreateFile(args: Record<string, unknown>): Promise<ToolResult> {
   const filePath = args['file_path'] as string;
-  const rawContent = args['content'] as string;
-  // Unescape double-escaped characters from LLM (\\n -> \n, etc.)
-  const content = unescapeContent(rawContent);
+  // Content is used as-is - JSON parsing already handles escape sequences.
+  // unescapeContent is now a no-op to prevent corrupting source code string literals.
+  const content = args['content'] as string;
 
   logger.toolStart('create_file', { file_path: filePath, contentLength: content?.length || 0 });
 
@@ -398,9 +386,10 @@ Examples:
 
 async function executeEditFile(args: Record<string, unknown>): Promise<ToolResult> {
   const filePath = args['file_path'] as string;
-  // Unescape double-escaped characters from LLM (\\n -> \n, etc.)
-  const oldString = unescapeContent(args['old_string'] as string);
-  const newString = unescapeContent(args['new_string'] as string);
+  // Strings are used as-is - JSON parsing already handles escape sequences.
+  // unescapeContent is now a no-op to prevent corrupting source code string literals.
+  const oldString = args['old_string'] as string;
+  const newString = args['new_string'] as string;
   const replaceAll = args['replace_all'] as boolean | undefined;
 
   const oldStringLength = oldString?.length || 0;

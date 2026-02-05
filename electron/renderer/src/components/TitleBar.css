@@ -210,3 +210,17 @@
   outline: 2px solid var(--color-accent-primary);
   outline-offset: -2px;
 }
+
+/* ============ Pin Button ============ */
+.titlebar-btn.pin {
+  width: 32px;
+}
+
+.titlebar-btn.pin.active {
+  color: var(--color-accent-primary);
+  background-color: rgba(59, 130, 246, 0.1);
+}
+
+.titlebar-btn.pin.active:hover {
+  background-color: rgba(59, 130, 246, 0.2);
+}

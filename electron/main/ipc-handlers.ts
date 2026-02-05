@@ -199,6 +199,19 @@ export function setupIpcHandlers(): void {
     return taskWindow && !taskWindow.isDestroyed() ? taskWindow.isVisible() : false;
   });
 
+  // Task 윈도우 항상 맨 위에 고정 (pin)
+  ipcMain.handle('task-window:setAlwaysOnTop', (_event, value: boolean) => {
+    if (taskWindow && !taskWindow.isDestroyed()) {
+      taskWindow.setAlwaysOnTop(value, 'floating');
+      return { success: true, alwaysOnTop: value };
+    }
+    return { success: false };
+  });
+
+  ipcMain.handle('task-window:isAlwaysOnTop', () => {
+    return taskWindow && !taskWindow.isDestroyed() ? taskWindow.isAlwaysOnTop() : false;
+  });
+
   // ============ 테마 ============
 
   // 시스템 테마 가져오기

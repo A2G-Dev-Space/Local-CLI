@@ -34,6 +34,7 @@ const TaskApp: React.FC = () => {
   const [colorPalette, setColorPalette] = useState<ColorPalette>('default');
   const [isMaximized, setIsMaximized] = useState(false);
   const [isFocused, setIsFocused] = useState(true);
+  const [isPinned, setIsPinned] = useState(false);
 
   // Task state
   const [todos, setTodos] = useState<TodoItem[]>([]);
@@ -65,16 +66,31 @@ const TaskApp: React.FC = () => {
     }
   }, []);
 
+  // Toggle pin (always on top)
+  const handlePinToggle = useCallback(async () => {
+    if (!window.electronAPI?.taskWindow) return;
+    try {
+      const newPinned = !isPinned;
+      await window.electronAPI.taskWindow.setAlwaysOnTop(newPinned);
+      setIsPinned(newPinned);
+    } catch (error) {
+      window.electronAPI?.log?.error('[TaskApp] Failed to toggle pin', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }, [isPinned]);
+
   // Initialize
   useEffect(() => {
     const init = async () => {
       if (!window.electronAPI) return;
       try {
-        const [savedTheme, maximized, initialTodos, config] = await Promise.all([
+        const [savedTheme, maximized, initialTodos, config, pinned] = await Promise.all([
           window.electronAPI.config.getTheme(),
           window.electronAPI.window.isMaximized(),
           window.electronAPI.agent.getTodos(),
           window.electronAPI.config.getAll(),
+          window.electronAPI.taskWindow?.isAlwaysOnTop?.() ?? false,
         ]);
 
         // Theme
@@ -99,6 +115,7 @@ const TaskApp: React.FC = () => {
         }
 
         setIsMaximized(maximized);
+        setIsPinned(pinned);
         if (initialTodos) setTodos(initialTodos);
       } catch (error) {
         window.electronAPI?.log?.error('[TaskApp] Init failed', {
@@ -145,6 +162,8 @@ const TaskApp: React.FC = () => {
         onMaximize={() => window.electronAPI?.window.maximize()}
         onClose={() => window.electronAPI?.window.close()}
         simplified
+        isPinned={isPinned}
+        onPinToggle={handlePinToggle}
       />
       <div className="task-content">
         {todos.length > 0 ? (
