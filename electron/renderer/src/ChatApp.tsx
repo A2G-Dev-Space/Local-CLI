@@ -81,6 +81,13 @@ const ChatApp: React.FC = () => {
   const [isUsageStatsOpen, setIsUsageStatsOpen] = useState(false);
   const [isToolSelectorOpen, setIsToolSelectorOpen] = useState(false);
 
+  // VSCode auto-popup toggle (eye icon)
+  const [autoFileView, setAutoFileView] = useState(true);
+  const autoFileViewRef = useRef(autoFileView);
+  useEffect(() => {
+    autoFileViewRef.current = autoFileView;
+  }, [autoFileView]);
+
   // VSCode availability toast state
   const [vscodeToast, setVscodeToast] = useState(false);
   const vscodeCheckedRef = useRef(false);
@@ -240,6 +247,7 @@ const ChatApp: React.FC = () => {
     if (!window.electronAPI?.agent) return;
 
     const unsubEdit = window.electronAPI.agent.onFileEdit?.((data) => {
+      if (!autoFileViewRef.current) return;
       checkVscodeAndNotify();
       window.electronAPI?.vscode?.openDiffWithContent?.({
         filePath: data.path,
@@ -249,6 +257,7 @@ const ChatApp: React.FC = () => {
     });
 
     const unsubCreate = window.electronAPI.agent.onFileCreate?.((data) => {
+      if (!autoFileViewRef.current) return;
       checkVscodeAndNotify();
       window.electronAPI?.vscode?.openFile?.(data.path).catch(() => {});
     });
@@ -655,6 +664,8 @@ const ChatApp: React.FC = () => {
           onAllowAllPermissionsChange={setAllowAllPermissions}
           onModelDropdownToggle={() => setIsModelDropdownOpen(prev => !prev)}
           onSelectModel={handleSelectModel}
+          autoFileView={autoFileView}
+          onAutoFileViewChange={setAutoFileView}
           onCommandPalette={() => setIsCommandPaletteOpen(true)}
           onToggleTaskWindow={() => window.electronAPI?.taskWindow?.toggle()}
           onChangeDirectory={handleChangeDirectory}

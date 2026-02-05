@@ -278,6 +278,16 @@
   flex: 1;
 }
 
+/* ============ Auto File View Toggle ============ */
+.panel-auto-view-btn.active {
+  color: var(--color-accent-primary);
+  background-color: rgba(56, 189, 248, 0.15);
+}
+
+.panel-auto-view-btn.active:hover {
+  background-color: rgba(56, 189, 248, 0.25);
+}
+
 /* ============ Panel Context Usage ============ */
 .panel-context-usage {
   display: flex;
