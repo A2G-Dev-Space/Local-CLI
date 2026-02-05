@@ -18,6 +18,8 @@ const translations: Record<Language, Record<string, string>> = {
     // BottomPanel - Toolbar
     'toolbar.changeModel': '모델 변경 (Ctrl+M)',
     'toolbar.compact': '대화 압축',
+    'toolbar.autoViewOn': 'VSCode 자동 팝업: ON — 클릭하여 끄기',
+    'toolbar.autoViewOff': 'VSCode 자동 팝업: OFF — 클릭하여 켜기',
     'toolbar.newSession': '새 세션 (Ctrl+N)',
     'toolbar.loadSession': '세션 불러오기 (Ctrl+O)',
     'toolbar.clearChat': '대화 초기화 (Ctrl+L)',
@@ -286,6 +288,8 @@ const translations: Record<Language, Record<string, string>> = {
     // BottomPanel - Toolbar
     'toolbar.changeModel': 'Change Model (Ctrl+M)',
     'toolbar.compact': 'Compact Conversation',
+    'toolbar.autoViewOn': 'VSCode Auto Popup: ON — Click to disable',
+    'toolbar.autoViewOff': 'VSCode Auto Popup: OFF — Click to enable',
     'toolbar.newSession': 'New Session (Ctrl+N)',
     'toolbar.loadSession': 'Load Session (Ctrl+O)',
     'toolbar.clearChat': 'Clear Chat (Ctrl+L)',
