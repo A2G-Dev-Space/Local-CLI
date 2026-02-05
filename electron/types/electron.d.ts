@@ -102,12 +102,15 @@ export interface ElectronAPI {
     show: () => Promise<{ success: boolean }>;
     hide: () => Promise<{ success: boolean }>;
     isVisible: () => Promise<boolean>;
+    setAlwaysOnTop: (value: boolean) => Promise<{ success: boolean; alwaysOnTop?: boolean }>;
+    isAlwaysOnTop: () => Promise<boolean>;
   };
 
   // 테마
   theme: {
     getSystem: () => Promise<Theme>;
     onChange: (callback: (theme: Theme) => void) => () => void;
+    onAppearanceChange?: (callback: (data: { key: string; value: unknown }) => void) => () => void;
   };
 
   // 다이얼로그

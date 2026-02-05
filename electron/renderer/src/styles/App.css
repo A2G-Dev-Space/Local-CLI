@@ -240,11 +240,12 @@
   transform: scale(0.95);
 }
 
-/* Tooltip-style label on hover (data-tooltip to avoid native title doubling) */
+/* Tooltip-style label on hover (data-tooltip to avoid native title doubling)
+   Displayed ABOVE the button to avoid clipping by overflow:hidden on chat area */
 .panel-toolbar-btn::after {
   content: attr(data-tooltip);
   position: absolute;
-  bottom: -28px;
+  top: -28px;
   left: 50%;
   transform: translateX(-50%);
   padding: 3px 8px;
@@ -265,6 +266,19 @@
 .panel-toolbar-btn:hover::after {
   opacity: 1;
   transition-delay: 0.15s;
+}
+
+/* Fix tooltip clipping for leftmost buttons - align to left edge */
+.panel-toolbar-group:first-child .panel-toolbar-btn:first-child::after {
+  left: 0;
+  transform: none;
+}
+
+/* Fix tooltip clipping for rightmost buttons - align to right edge */
+.panel-toolbar-group:last-child .panel-toolbar-btn:last-child::after {
+  left: auto;
+  right: 0;
+  transform: none;
 }
 
 .panel-toolbar-divider {

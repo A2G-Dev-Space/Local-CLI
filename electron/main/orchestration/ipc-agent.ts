@@ -648,14 +648,12 @@ export async function runAgent(
                 };
                 const language = langMap[ext] || 'plaintext';
 
-                // Helper to unescape LLM content
-                const unescape = (s: string) => s
-                  .replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\r/g, '\r')
-                  .replace(/\\"/g, '"').replace(/\\'/g, "'").replace(/\\\//g, '/')
-                  .replace(/\\\\/g, '\\');
-
-                const oldString = unescape(toolArgs['old_string'] as string || '');
-                const newString = unescape(toolArgs['new_string'] as string || '');
+                // NOTE: We no longer unescape content here.
+                // JSON parsing already handles escape sequences properly.
+                // The old unescape function was corrupting source code that contains
+                // string literals like '\n' or '\t' by converting them to actual newlines/tabs.
+                const oldString = toolArgs['old_string'] as string || '';
+                const newString = toolArgs['new_string'] as string || '';
                 const originalContent = await fs.readFile(resolvedPath, 'utf-8');
                 const newContent = originalContent.replace(oldString, newString);
 

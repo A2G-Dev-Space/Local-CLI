@@ -62,6 +62,8 @@ const translations: Record<Language, Record<string, string>> = {
     'titlebar.maximize': '최대화',
     'titlebar.restore': '원래 크기',
     'titlebar.close': '닫기',
+    'titlebar.pin': '항상 위에 고정',
+    'titlebar.unpin': '고정 해제',
 
     // Settings
     'settings.title': '설정',
@@ -332,6 +334,8 @@ const translations: Record<Language, Record<string, string>> = {
     'titlebar.maximize': 'Maximize',
     'titlebar.restore': 'Restore',
     'titlebar.close': 'Close',
+    'titlebar.pin': 'Always on top',
+    'titlebar.unpin': 'Unpin',
 
     // Settings
     'settings.title': 'Settings',

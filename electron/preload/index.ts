@@ -322,6 +322,14 @@ const electronAPI = {
     isVisible: (): Promise<boolean> => {
       return ipcRenderer.invoke('task-window:isVisible');
     },
+
+    setAlwaysOnTop: (value: boolean): Promise<{ success: boolean; alwaysOnTop?: boolean }> => {
+      return ipcRenderer.invoke('task-window:setAlwaysOnTop', value);
+    },
+
+    isAlwaysOnTop: (): Promise<boolean> => {
+      return ipcRenderer.invoke('task-window:isAlwaysOnTop');
+    },
   },
 
   // ============ 테마 ============
