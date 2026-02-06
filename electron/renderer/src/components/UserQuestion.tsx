@@ -22,7 +22,7 @@ export interface UserQuestionData {
 interface UserQuestionProps {
   isOpen: boolean;
   question: UserQuestionData | null;
-  onAnswer: (questionId: string, answer: string) => void;
+  onAnswer: (questionId: string, answer: string, isCustom: boolean) => void;
   onCancel?: () => void;
 }
 
@@ -61,11 +61,11 @@ const UserQuestion: React.FC<UserQuestionProps> = ({
     if (!question) return;
 
     if (isCustomMode && customInput.trim()) {
-      onAnswer(question.id, customInput.trim());
+      onAnswer(question.id, customInput.trim(), true);
     } else if (selectedOption) {
       const selected = question.options.find(o => o.id === selectedOption);
       if (selected) {
-        onAnswer(question.id, selected.label);
+        onAnswer(question.id, selected.label, false);
       }
     }
   }, [question, isCustomMode, customInput, selectedOption, onAnswer]);

@@ -85,7 +85,7 @@ interface AgentContextValue {
   // User question
   currentQuestion: UserQuestionData | null;
   isQuestionOpen: boolean;
-  handleQuestionAnswer: (questionId: string, answer: string) => Promise<void>;
+  handleQuestionAnswer: (questionId: string, answer: string, isCustom: boolean) => Promise<void>;
   handleQuestionCancel: () => Promise<void>;
 
   // Approval modal
@@ -165,16 +165,22 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // User question handlers
-  const handleQuestionAnswer = useCallback(async (questionId: string, answer: string) => {
-    window.electronAPI?.log?.debug('[AgentContext] Question answered', { questionId, answer });
+  const handleQuestionAnswer = useCallback(async (questionId: string, answer: string, isCustom: boolean) => {
+    window.electronAPI?.log?.debug('[AgentContext] Question answered', { questionId, answer, isCustom });
     setIsQuestionOpen(false);
     setCurrentQuestion(null);
 
     if (window.electronAPI?.agent) {
-      const response: AskUserResponse = {
-        selectedOption: { label: answer, value: answer },
-        isOther: false,
-      };
+      const response: AskUserResponse = isCustom
+        ? {
+            selectedOption: { label: 'Other', value: 'other' },
+            isOther: true,
+            customText: answer,
+          }
+        : {
+            selectedOption: { label: answer, value: answer },
+            isOther: false,
+          };
       await window.electronAPI.agent.respondToQuestion(response);
     }
   }, []);
