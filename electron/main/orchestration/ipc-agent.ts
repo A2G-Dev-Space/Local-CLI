@@ -508,6 +508,30 @@ export async function runAgent(
 
       logger.info(`Agent iteration ${iterations}`, { messagesCount: messages.length });
 
+      // [DEBUG] Log last 4 messages before LLM call to diagnose repeated tool calls
+      {
+        const lastN = messages.slice(-4);
+        const debugMsgs = lastN.map((m, i) => {
+          const idx = messages.length - lastN.length + i;
+          const base: Record<string, unknown> = { idx, role: m.role };
+          if (m.role === 'tool') {
+            base.tool_call_id = (m as any).tool_call_id;
+            base.content = typeof m.content === 'string' ? m.content.substring(0, 300) : m.content;
+          } else if (m.role === 'assistant') {
+            base.contentSnippet = typeof m.content === 'string' ? m.content.substring(0, 100) : '(none)';
+            base.toolCalls = (m as any).tool_calls?.map((tc: any) => ({
+              id: tc.id,
+              name: tc.function?.name,
+              argsSnippet: typeof tc.function?.arguments === 'string' ? tc.function.arguments.substring(0, 100) : '',
+            }));
+          } else {
+            base.contentSnippet = typeof m.content === 'string' ? m.content.substring(0, 100) : '(none)';
+          }
+          return base;
+        });
+        logger.info('[DEBUG] Messages before LLM call (last 4)', { messages: JSON.stringify(debugMsgs) });
+      }
+
       // Soft warning at 50 iterations (informational only, not a limit)
       if (iterations === SOFT_ITERATION_LIMIT && !softLimitWarned) {
         softLimitWarned = true;
@@ -587,6 +611,11 @@ export async function runAgent(
         content: assistantMessage.content?.substring(0, 500),
         hasToolCalls: !!assistantMessage.tool_calls?.length,
         toolCount: assistantMessage.tool_calls?.length || 0,
+        toolCallDetails: assistantMessage.tool_calls?.map(tc => ({
+          id: tc.id,
+          name: tc.function.name,
+          argsSnippet: tc.function.arguments?.substring(0, 150),
+        })),
       });
 
       if (callbacks.onMessage) {
@@ -827,6 +856,16 @@ export async function runAgent(
             role: 'tool',
             content: toolResultContent,
             tool_call_id: toolCall.id,
+          });
+
+          // [DEBUG] Verify tool result was pushed to messages
+          logger.info('[DEBUG] Tool result pushed', {
+            toolName,
+            tool_call_id: toolCall.id,
+            contentSnippet: toolResultContent.substring(0, 200),
+            messagesCountAfterPush: messages.length,
+            lastMsgRole: messages[messages.length - 1]?.role,
+            lastMsgToolCallId: (messages[messages.length - 1] as any)?.tool_call_id,
           });
 
           toolCallHistory.push({

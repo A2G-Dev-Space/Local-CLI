@@ -341,6 +341,39 @@ class LLMClient {
     // Preprocess messages for model-specific requirements
     const processedMessages = this.preprocessMessages(options.messages, modelId);
 
+    // [DEBUG] Log tool message integrity after preprocessing
+    {
+      const toolMsgs = processedMessages.filter(m => m.role === 'tool');
+      const lastToolMsg = toolMsgs[toolMsgs.length - 1];
+      if (lastToolMsg) {
+        logger.info('[DEBUG] Last tool msg in request', {
+          role: lastToolMsg.role,
+          tool_call_id: (lastToolMsg as any).tool_call_id,
+          contentSnippet: typeof lastToolMsg.content === 'string' ? lastToolMsg.content.substring(0, 200) : '(non-string)',
+          totalToolMsgs: toolMsgs.length,
+          totalMsgs: processedMessages.length,
+        });
+      }
+
+      // [DEBUG] Check for orphaned tool_calls (assistant with tool_calls but no matching tool response)
+      const assistantToolCallIds = new Set<string>();
+      const toolResponseIds = new Set<string>();
+      for (const m of processedMessages) {
+        if (m.role === 'assistant' && (m as any).tool_calls) {
+          for (const tc of (m as any).tool_calls) {
+            assistantToolCallIds.add(tc.id);
+          }
+        }
+        if (m.role === 'tool' && (m as any).tool_call_id) {
+          toolResponseIds.add((m as any).tool_call_id);
+        }
+      }
+      const orphanedIds = [...assistantToolCallIds].filter(id => !toolResponseIds.has(id));
+      if (orphanedIds.length > 0) {
+        logger.warn('[DEBUG] ORPHANED tool_calls (no matching tool response)!', { orphanedIds });
+      }
+    }
+
     const url = `${endpoint.baseUrl.replace(/\/$/, '')}/chat/completions`;
 
     const headers: Record<string, string> = {
