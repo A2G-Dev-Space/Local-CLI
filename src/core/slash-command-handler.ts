@@ -8,6 +8,7 @@
 import { Message, TodoItem } from '../types/index.js';
 import { sessionManager } from './session/session-manager.js';
 import { usageTracker } from './usage-tracker.js';
+import { contextTracker } from './compact/context-tracker.js';
 import { logger } from '../utils/logger.js';
 // DISABLED: docs feature removed
 // import {
@@ -72,9 +73,10 @@ export async function executeSlashCommand(
 
   // Clear command
   if (trimmedCommand === '/clear') {
-    logger.flow('Clear command - resetting messages and todos');
+    logger.flow('Clear command - resetting messages, todos, and context tracker');
     context.setMessages([]);
     context.setTodos([]);
+    contextTracker.reset();
     logger.exit('executeSlashCommand', { handled: true, command: 'clear' });
     return {
       handled: true,

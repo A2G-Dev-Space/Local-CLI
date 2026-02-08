@@ -182,6 +182,8 @@ export function abortAgent(): void {
   }
   state.isRunning = false;
   state.currentTodos = []; // Clear todos so next run starts fresh with new planning
+  // Broadcast empty todos to sync Task Window
+  broadcastToWindows('agent:todoUpdate', []);
   // Clear pending approvals
   state.pendingApprovals.forEach((resolve) => {
     resolve({ reject: true, comment: 'Agent aborted' });
@@ -677,12 +679,11 @@ export async function runAgent(
                 };
                 const language = langMap[ext] || 'plaintext';
 
-                // NOTE: We no longer unescape content here.
-                // JSON parsing already handles escape sequences properly.
-                // The old unescape function was corrupting source code that contains
-                // string literals like '\n' or '\t' by converting them to actual newlines/tabs.
-                const oldString = toolArgs['old_string'] as string || '';
-                const newString = toolArgs['new_string'] as string || '';
+                // Smart unescape for diff preview: match what file-tools.ts does
+                const rawOld = toolArgs['old_string'] as string || '';
+                const rawNew = toolArgs['new_string'] as string || '';
+                const oldString = rawOld.includes('\n') ? rawOld : rawOld.replace(/\\\\n/g, '\x00E\x00').replace(/\\n/g, '\n').replace(/\x00E\x00/g, '\\n');
+                const newString = rawNew.includes('\n') ? rawNew : rawNew.replace(/\\\\n/g, '\x00E\x00').replace(/\\n/g, '\n').replace(/\x00E\x00/g, '\\n');
                 const originalContent = await fs.readFile(resolvedPath, 'utf-8');
                 const newContent = originalContent.replace(oldString, newString);
 

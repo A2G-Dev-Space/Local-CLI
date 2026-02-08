@@ -1697,6 +1697,29 @@ export function setupIpcHandlers(): void {
     return isAgentRunning();
   });
 
+  // 에이전트 상태 초기화 (Clear Chat 시 호출)
+  ipcMain.handle('agent:clearState', () => {
+    // Context tracker 초기화
+    contextTracker.reset();
+
+    // TODO 초기화
+    setCurrentTodos([]);
+
+    // Supervised Mode 승인 목록 초기화
+    clearAlwaysApprovedTools();
+
+    // 모든 윈도우에 초기화 브로드캐스트
+    broadcastToAll('agent:contextUpdate', {
+      usagePercentage: 0,
+      currentTokens: 0,
+      maxTokens: 128000,
+    });
+    broadcastToAll('agent:todoUpdate', []);
+
+    logger.info('Agent state cleared (clear chat)');
+    return { success: true };
+  });
+
   // 현재 TODO 목록 가져오기
   ipcMain.handle('agent:getTodos', () => {
     return getCurrentTodos();

@@ -11,6 +11,47 @@ import { ToolDefinition } from '../../../types/index.js';
 import { LLMSimpleTool, ToolResult, ToolCategory } from '../../types.js';
 import { logger } from '../../../utils/logger.js';
 
+/**
+ * Smart unescape for file content from LLM tool calls.
+ *
+ * Problem: Some LLMs double-escape content, sending \\n instead of \n in JSON.
+ * After JSON.parse, this becomes literal \n (two chars) instead of actual newlines.
+ *
+ * Strategy:
+ * - If content already has actual newlines → JSON parsing worked → don't touch
+ * - If NO actual newlines exist → double-escaped → unescape, but PROTECT
+ *   double-backslash sequences (\\n, \\t) that represent source code literals
+ */
+function smartUnescapeContent(content: string): string {
+  if (!content) return content;
+
+  // If content already has actual newlines, JSON parsing worked correctly
+  if (content.includes('\n')) return content;
+
+  // No actual newlines. Check for literal escape sequences.
+  if (!content.includes('\\n') && !content.includes('\\t') && !content.includes('\\r')) {
+    return content;
+  }
+
+  // Step 1: Protect double-backslash sequences (\\n → source code "\n")
+  let result = content;
+  result = result.replace(/\\\\n/g, '\x00ESC_N\x00');
+  result = result.replace(/\\\\t/g, '\x00ESC_T\x00');
+  result = result.replace(/\\\\r/g, '\x00ESC_R\x00');
+
+  // Step 2: Convert single-backslash escape sequences to actual characters
+  result = result.replace(/\\n/g, '\n');
+  result = result.replace(/\\t/g, '\t');
+  result = result.replace(/\\r/g, '\r');
+
+  // Step 3: Restore protected sequences as literal escape chars
+  result = result.replace(/\x00ESC_N\x00/g, '\\n');
+  result = result.replace(/\x00ESC_T\x00/g, '\\t');
+  result = result.replace(/\x00ESC_R\x00/g, '\\r');
+
+  return result;
+}
+
 // Safety limits
 const EXCLUDED_DIRS = new Set([
   'node_modules',
@@ -198,7 +239,7 @@ Examples:
  */
 async function _executeCreateFile(args: Record<string, unknown>): Promise<ToolResult> {
   const filePath = args['file_path'] as string;
-  const content = args['content'] as string;
+  const content = smartUnescapeContent(args['content'] as string);
 
   logger.toolStart('create_file', { file_path: filePath, contentLength: content?.length || 0 });
 
@@ -337,8 +378,8 @@ Examples:
  */
 async function _executeEditFile(args: Record<string, unknown>): Promise<ToolResult> {
   const filePath = args['file_path'] as string;
-  const oldString = args['old_string'] as string;
-  const newString = args['new_string'] as string;
+  const oldString = smartUnescapeContent(args['old_string'] as string);
+  const newString = smartUnescapeContent(args['new_string'] as string);
   const replaceAll = args['replace_all'] as boolean | undefined;
 
   logger.toolStart('edit_file', { file_path: filePath, oldStringLength: oldString?.length || 0, newStringLength: newString?.length || 0, replaceAll });

@@ -743,6 +743,11 @@ const electronAPI = {
       return ipcRenderer.invoke('agent:setTodos', todos);
     },
 
+    // 에이전트 상태 초기화 (Clear Chat 시)
+    clearState: (): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke('agent:clearState');
+    },
+
     // 간단한 채팅 (도구 없음)
     simpleChat: (
       userMessage: string,
