@@ -22,11 +22,14 @@ import { logger } from '../../utils/logger';
 export interface ModelInfo {
   id: string;
   name: string;
+  /** Actual model name for API calls (e.g., "claude-3-5-sonnet"). Falls back to name if not set. */
+  apiModelId?: string;
   maxTokens: number;
   enabled: boolean;
   healthStatus?: 'healthy' | 'degraded' | 'unhealthy';
   lastHealthCheck?: Date;
   costPerMToken?: number;
+  supportsVision?: boolean;
 }
 
 export interface EndpointConfig {

@@ -100,6 +100,7 @@ import {
   setReasoningCallback,
   type ToolApprovalResult,
 } from '../../tools/llm/simple/file-tools.js';
+import { findVisionModel } from '../../tools/llm/simple/read-image-tool.js';
 import { createRequire } from 'module';
 
 // Get version from package.json
@@ -1529,6 +1530,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
               animate={false}
               modelName={currentModelInfo.model}
               workingDirectory={shortenPath(process.cwd())}
+              visionAvailable={findVisionModel() !== null}
             />
             <Text>{' '}</Text>
             <Box>
@@ -1784,6 +1786,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
               animate={false}
               modelName={currentModelInfo.model}
               workingDirectory={shortenPath(process.cwd())}
+              visionAvailable={findVisionModel() !== null}
             />
             <Text color="gray">── {entry.content} ──</Text>
           </Box>

@@ -41,6 +41,7 @@ import { getShellTools } from './llm/simple/index.js';
 // Import optional tools
 import { BROWSER_TOOLS, startBrowserServer, shutdownBrowserServer } from './browser/index.js';
 import { WORD_TOOLS, EXCEL_TOOLS, POWERPOINT_TOOLS } from './office/index.js';
+import { VISION_TOOLS, findVisionModel } from './llm/simple/read-image-tool.js';
 
 /**
  * Enable result with optional error message
@@ -61,6 +62,7 @@ export interface OptionalToolGroup {
   enabled: boolean;
   onEnable?: () => Promise<EnableResult>;  // Validation callback when enabling
   onDisable?: () => Promise<void>;  // Cleanup callback when disabled
+  autoManaged?: boolean;  // If true, hidden from /tool UI (managed by system)
 }
 
 /**
@@ -100,6 +102,14 @@ function getOptionalToolGroupsConfig(): OptionalToolGroup[] {
       enabled: false,
       onEnable: validateBrowserTools,
       onDisable: shutdownBrowserServer,
+    },
+    {
+      id: 'vision',
+      name: 'Vision (Image Reading)',
+      description: 'Read and analyze images using a registered Vision Language Model',
+      tools: VISION_TOOLS,
+      enabled: false,
+      autoManaged: true,
     },
   ];
 
@@ -518,6 +528,27 @@ export async function initializeOptionalTools(): Promise<void> {
     }
   } catch {
     // Config not initialized yet, skip loading saved state
+  }
+}
+
+/**
+ * Sync vision tool state based on VL model availability.
+ * Enables vision tools if a VL model exists, disables if not.
+ */
+export async function syncVisionToolState(): Promise<void> {
+  const vlModel = findVisionModel();
+  if (vlModel) {
+    if (!toolRegistry.isToolGroupEnabled('vision')) {
+      await toolRegistry.enableToolGroup('vision', false, true);
+      logger.info('Vision tools auto-enabled (VL model found)', {
+        model: vlModel.model.name || vlModel.model.id,
+      });
+    }
+  } else {
+    if (toolRegistry.isToolGroupEnabled('vision')) {
+      await toolRegistry.disableToolGroup('vision', false);
+      logger.info('Vision tools auto-disabled (no VL model)');
+    }
   }
 }
 

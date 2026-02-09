@@ -42,6 +42,7 @@ import { BROWSER_TOOLS } from './browser';
 import { WORD_TOOLS } from './office/word-tools';
 import { EXCEL_TOOLS } from './office/excel-tools';
 import { POWERPOINT_TOOLS } from './office/powerpoint-tools';
+import { VISION_TOOLS, findVisionModel } from './llm/simple/read-image-tool';
 
 // =============================================================================
 // Types
@@ -66,6 +67,7 @@ export interface OptionalToolGroup {
   enabled: boolean;
   onEnable?: () => Promise<EnableResult>;
   onDisable?: () => Promise<void>;
+  autoManaged?: boolean;  // If true, hidden from tool UI (managed by system)
 }
 
 // =============================================================================
@@ -80,6 +82,14 @@ function getOptionalToolGroupsConfig(): OptionalToolGroup[] {
       description: 'Control Chrome/Edge browser (navigate, click, screenshot, etc.)',
       tools: BROWSER_TOOLS,
       enabled: false,
+    },
+    {
+      id: 'vision',
+      name: 'Vision (Image Reading)',
+      description: 'Read and analyze images using a registered Vision Language Model',
+      tools: VISION_TOOLS,
+      enabled: false,
+      autoManaged: true,
     },
     {
       id: 'word',
@@ -455,6 +465,27 @@ export async function initializeOptionalTools(): Promise<void> {
     }
   } catch {
     // Config not initialized yet
+  }
+}
+
+/**
+ * Sync vision tool state based on VL model availability.
+ * Enables vision tools if a VL model exists, disables if not.
+ */
+export async function syncVisionToolState(): Promise<void> {
+  const vlModel = findVisionModel();
+  if (vlModel) {
+    if (!toolRegistry.isToolGroupEnabled('vision')) {
+      await toolRegistry.enableToolGroup('vision', false, true);
+      logger.info('Vision tools auto-enabled (VL model found)', {
+        model: vlModel.model.name || vlModel.model.id,
+      });
+    }
+  } else {
+    if (toolRegistry.isToolGroupEnabled('vision')) {
+      await toolRegistry.disableToolGroup('vision', false);
+      logger.info('Vision tools auto-disabled (no VL model)');
+    }
   }
 }
 

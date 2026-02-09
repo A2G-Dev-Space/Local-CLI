@@ -27,11 +27,14 @@ export interface EndpointConfig {
 export interface ModelInfo {
   id: string;
   name: string;
+  /** Actual model name for API calls (e.g., "claude-3-5-sonnet"). Falls back to name if not set. */
+  apiModelId?: string;
   maxTokens: number;
   costPerMToken?: number;
   enabled: boolean;
   lastHealthCheck?: Date;
   healthStatus?: 'healthy' | 'degraded' | 'unhealthy';
+  supportsVision?: boolean;
 }
 
 /**

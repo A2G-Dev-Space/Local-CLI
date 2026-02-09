@@ -188,10 +188,12 @@ export interface SessionSummary {
 export interface ModelInfo {
   id: string;
   name: string;
+  apiModelId?: string;
   maxTokens: number;
   enabled: boolean;
   healthStatus?: 'healthy' | 'degraded' | 'unhealthy';
   lastHealthCheck?: Date;
+  supportsVision?: boolean;
 }
 
 // LLM Endpoint 타입

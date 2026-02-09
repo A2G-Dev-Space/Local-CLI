@@ -52,7 +52,7 @@ interface SelectItem {
 
 export const ToolSelector: React.FC<ToolSelectorProps> = ({ onClose }) => {
   const [toolGroups, setToolGroups] = useState<OptionalToolGroup[]>(() =>
-    toolRegistry.getOptionalToolGroups()
+    toolRegistry.getOptionalToolGroups().filter(g => !g.autoManaged)
   );
   const [isToggling, setIsToggling] = useState(false);
   const [togglingGroup, setTogglingGroup] = useState<{ name: string; enabling: boolean } | null>(null);
@@ -91,7 +91,7 @@ export const ToolSelector: React.FC<ToolSelectorProps> = ({ onClose }) => {
 
       try {
         const result = await toolRegistry.toggleToolGroup(groupId);
-        setToolGroups(toolRegistry.getOptionalToolGroups());
+        setToolGroups(toolRegistry.getOptionalToolGroups().filter(g => !g.autoManaged));
 
         // Show error if validation failed
         if (!result.success && result.error) {

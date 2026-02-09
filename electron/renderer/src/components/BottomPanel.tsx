@@ -116,6 +116,11 @@ const BottomPanel: React.FC<BottomPanelProps> = ({
   const currentEndpoint = endpoints.find(e => e.id === currentEndpointId);
   const currentModelName = currentEndpoint?.models?.[0]?.name || currentEndpoint?.name || t('model.noModel');
 
+  // Check if any VL model exists across all endpoints
+  const hasVisionModel = endpoints.some(ep =>
+    ep.models?.some(m => m.supportsVision && m.enabled)
+  );
+
   return (
     <div
       className={`bottom-panel-wrapper ${isFullscreen ? 'fullscreen' : ''}`}
@@ -183,6 +188,7 @@ const BottomPanel: React.FC<BottomPanelProps> = ({
                         <path d="M15 9H9v6h6V9zm-2 4h-2v-2h2v2zm8-2V9h-2V7c0-1.1-.9-2-2-2h-2V3h-2v2h-2V3H9v2H7c-1.1 0-2 .9-2 2v2H3v2h2v2H3v2h2v2c0 1.1.9 2 2 2h2v2h2v-2h2v2h2v-2h2c1.1 0 2-.9 2-2v-2h2v-2h-2v-2h2zm-4 6H7V7h10v10z"/>
                       </svg>
                       <span className="panel-model-name">{currentModelName}</span>
+                      {hasVisionModel && <span className="vision-badge" title="Vision model available">Vision</span>}
                       <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" className="dropdown-arrow">
                         <path d="M7 10l5 5 5-5z"/>
                       </svg>
