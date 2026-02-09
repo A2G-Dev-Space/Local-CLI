@@ -89,6 +89,38 @@ export function estimateTokenCount(messages: Message[]): number {
 // =============================================================================
 
 /**
+ * Flatten messages to chronological history text
+ * Converts multi-turn messages into single text for XML tag structure
+ * CLI parity: src/orchestration/utils.ts
+ */
+export function flattenMessagesToHistory(messages: Message[]): string {
+  const lines: string[] = [];
+
+  for (const msg of messages) {
+    if (msg.role === 'system') continue;
+
+    if (msg.role === 'user') {
+      lines.push(`[USER]: ${msg.content}`);
+    } else if (msg.role === 'assistant') {
+      if (msg.content) {
+        lines.push(`[ASSISTANT]: ${msg.content}`);
+      }
+      if (msg.tool_calls && msg.tool_calls.length > 0) {
+        for (const tc of msg.tool_calls) {
+          lines.push(`[TOOL_CALL]: ${tc.function.name}(${tc.function.arguments})`);
+        }
+      }
+    } else if (msg.role === 'tool') {
+      lines.push(`[TOOL_RESULT]: ${msg.content}`);
+    } else if (msg.role === 'error') {
+      lines.push(`[ERROR]: ${msg.content}`);
+    }
+  }
+
+  return lines.join('\n');
+}
+
+/**
  * Build TODO context string to inject into user message
  */
 export function buildTodoContext(todos: TodoItem[]): string {

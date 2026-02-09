@@ -89,6 +89,16 @@ Example:
 - User: "프로젝트 이름이 뭐야?" → "이 프로젝트는 **Local-CLI**입니다."
 - User: "debug 함수 추가해줘" → "logger.ts에 debug 함수를 추가했습니다."
 
+## MESSAGE STRUCTURE
+
+Messages use XML tags to separate context:
+- \`<CONVERSATION_HISTORY>\`: Previous conversation (user messages, assistant responses, tool calls/results in chronological order). This is READ-ONLY context.
+- \`<CURRENT_TASK>\`: Current TODO list and execution instructions. This is what you must work on.
+- \`<CURRENT_REQUEST>\`: The current user message to act on.
+
+**Focus on \`<CURRENT_REQUEST>\` and \`<CURRENT_TASK>\`.** Use \`<CONVERSATION_HISTORY>\` for reference only.
+Do NOT re-execute tools from history. Do NOT confuse tools used in history with your current task.
+
 ## Loop Detection
 
 If TODO context keeps repeating but work is done → IMMEDIATELY mark all as "completed".

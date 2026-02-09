@@ -14,6 +14,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { logger } from '../../utils/logger';
 import type { Message, ToolDefinition } from '../../core/llm';
+import { flattenMessagesToHistory } from '../../orchestration/utils';
 import {
   buildDocsSearchDecisionPrompt,
   parseDocsSearchDecision,
@@ -139,23 +140,33 @@ export class PlanningLLM {
     const systemPrompt = this.buildSystemPrompt();
     const clarificationMessages: Message[] = [];
 
-    // Build messages
+    // Build messages with XML tag structure for history/request separation
+    // CLI parity: src/agents/planner/index.ts
     const messages: Message[] = [{ role: 'system', content: systemPrompt }];
 
-    // Include conversation history (excluding system messages)
-    // System prompts are injected per-LLM call, not stored in history
-    // CLI parity: src/agents/planner/index.ts
+    // Flatten conversation history into chronological text with XML tags
     if (contextMessages && contextMessages.length > 0) {
       const conversationMsgs = contextMessages.filter((m) => m.role !== 'system');
-      messages.push(...conversationMsgs);
-    }
 
-    // Add user request with marker
-    const lastMsg = messages[messages.length - 1];
-    if (!(lastMsg?.role === 'user' && lastMsg?.content === userRequest)) {
+      // Check if last context message is already the same user request (avoid duplicate in history)
+      const lastContextMsg = conversationMsgs[conversationMsgs.length - 1];
+      const isDuplicate = lastContextMsg?.role === 'user' && lastContextMsg?.content === userRequest;
+
+      // If duplicate, flatten history WITHOUT the last message (it will go in CURRENT_REQUEST)
+      const msgsToFlatten = isDuplicate ? conversationMsgs.slice(0, -1) : conversationMsgs;
+      const historyText = flattenMessagesToHistory(msgsToFlatten);
+
+      // Build user message with history + current request (always include CURRENT_REQUEST)
+      let userContent = '';
+      if (historyText) {
+        userContent += `<CONVERSATION_HISTORY>\n${historyText}\n</CONVERSATION_HISTORY>\n\n`;
+      }
+      userContent += `<CURRENT_REQUEST>\n${userRequest}\n</CURRENT_REQUEST>`;
+      messages.push({ role: 'user', content: userContent });
+    } else {
       messages.push({
         role: 'user',
-        content: `[NEW REQUEST]\n${userRequest}`,
+        content: `<CURRENT_REQUEST>\n${userRequest}\n</CURRENT_REQUEST>`,
       });
     }
 
