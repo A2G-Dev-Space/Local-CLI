@@ -26,6 +26,7 @@ export {
   FILE_TOOLS,
   setWorkingDirectory,
   getWorkingDirectory,
+  setPowerShellWorkingDirectory,
   POWERSHELL_TOOLS,
   TODO_TOOLS,
   setTodoWriteCallback,

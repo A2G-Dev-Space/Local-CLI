@@ -243,8 +243,9 @@ export async function executeSimpleTool(
 
   // Call the callback to notify UI about tool execution (pass all args)
   // Skip for TODO tools which don't have reason parameter
-  if (toolExecutionCallback && reason) {
-    toolExecutionCallback(toolName, reason, args);
+  const isTodo = ['update_todos', 'get_todo_list', 'write_todos'].includes(toolName);
+  if (toolExecutionCallback && !isTodo) {
+    toolExecutionCallback(toolName, reason || toolName, args);
   }
 
   // Execute the tool

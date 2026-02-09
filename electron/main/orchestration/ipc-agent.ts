@@ -18,6 +18,7 @@ import { toolRegistry, executeSimpleTool } from '../tools';
 import { OptionalToolGroupId } from '../tools/types';
 import {
   setWorkingDirectory,
+  setPowerShellWorkingDirectory,
   setTodoWriteCallback,
   setTellToUserCallback,
   setAskUserCallback,
@@ -262,8 +263,9 @@ export async function runAgent(
     state.currentTodos = [];
   }
 
-  // Set working directory for tool executor
+  // Set working directory for all tool executors
   setWorkingDirectory(workingDirectory);
+  setPowerShellWorkingDirectory(workingDirectory);
 
   // Setup callbacks
   setTodoWriteCallback(async (todos: TodoItem[]) => {

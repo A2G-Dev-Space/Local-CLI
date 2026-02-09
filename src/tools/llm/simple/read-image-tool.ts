@@ -66,6 +66,10 @@ Supported formats: PNG, JPEG, GIF, WebP, BMP. Max size: 100MB.`,
       parameters: {
         type: 'object',
         properties: {
+          reason: {
+            type: 'string',
+            description: 'Brief explanation of why you are reading this image',
+          },
           file_path: {
             type: 'string',
             description: 'Absolute path to the image file',
@@ -75,7 +79,7 @@ Supported formats: PNG, JPEG, GIF, WebP, BMP. Max size: 100MB.`,
             description: 'Detailed analysis prompt with specific things to check in the image',
           },
         },
-        required: ['file_path', 'prompt'],
+        required: ['reason', 'file_path', 'prompt'],
       },
     },
   },
