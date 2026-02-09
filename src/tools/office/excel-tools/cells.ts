@@ -147,7 +147,7 @@ async function executeExcelWriteRange(args: Record<string, unknown>): Promise<To
     );
     if (response.success) {
       const rows = values.length;
-      const cols = values[0]?.length || 0;
+      const cols = Math.max(...values.map((row: unknown[]) => row?.length || 0));
       return { success: true, result: `Written ${rows}x${cols} values starting at ${args['start_cell']}` };
     }
     return { success: false, error: response.error || 'Failed to write range' };

@@ -443,6 +443,12 @@ Remove-Item $tempPath -Force
     height: number = 200,
     data?: string[][]
   ): Promise<OfficeResponse> {
+    // Auto-adjust dimensions to fit data
+    if (data) {
+      rows = Math.max(rows, data.length);
+      cols = Math.max(cols, ...data.map(row => row?.length || 0));
+    }
+
     // TEXT FIRST, FONT AFTER pattern (Microsoft recommended for Korean)
     // Generate per-cell: text first, then font if Korean detected
     let dataScript = '';
