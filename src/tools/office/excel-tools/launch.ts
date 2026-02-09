@@ -12,54 +12,15 @@ import { saveScreenshot } from '../common/utils.js';
 import { OFFICE_SCREENSHOT_PATH_DESC, OFFICE_CATEGORIES } from '../common/constants.js';
 
 // =============================================================================
-// Excel Launch
-// =============================================================================
-
-const EXCEL_LAUNCH_DEFINITION: ToolDefinition = {
-  type: 'function',
-  function: {
-    name: 'excel_launch',
-    description: `Launch Microsoft Excel for spreadsheet editing.
-Use this tool to start Excel before working with spreadsheets.
-The Excel window will be visible so you can see the changes in real-time.`,
-    parameters: {
-      type: 'object',
-      properties: {
-        reason: { type: 'string', description: 'Explanation of why you are launching Excel' },
-      },
-      required: ['reason'],
-    },
-  },
-};
-
-async function executeExcelLaunch(_args: Record<string, unknown>): Promise<ToolResult> {
-  try {
-    const response = await excelClient.excelLaunch();
-    if (response.success) {
-      return { success: true, result: response.message || 'Excel launched successfully' };
-    }
-    return { success: false, error: response.error || 'Failed to launch Excel' };
-  } catch (error) {
-    return { success: false, error: `Failed to launch Excel: ${error instanceof Error ? error.message : String(error)}` };
-  }
-}
-
-export const excelLaunchTool: LLMSimpleTool = {
-  definition: EXCEL_LAUNCH_DEFINITION,
-  execute: executeExcelLaunch,
-  categories: OFFICE_CATEGORIES,
-  description: 'Launch Microsoft Excel',
-};
-
-// =============================================================================
-// Excel Create
+// Excel Create (auto-launches Excel if not running)
 // =============================================================================
 
 const EXCEL_CREATE_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'excel_create',
-    description: `Create a new Excel workbook.`,
+    description: `Create a new Excel workbook. Automatically launches Excel if it is not already running.
+Use this tool to start working with a new spreadsheet.`,
     parameters: {
       type: 'object',
       properties: {
@@ -293,7 +254,6 @@ export const excelQuitTool: LLMSimpleTool = {
 // =============================================================================
 
 export const launchTools: LLMSimpleTool[] = [
-  excelLaunchTool,
   excelCreateTool,
   excelOpenTool,
   excelSaveTool,

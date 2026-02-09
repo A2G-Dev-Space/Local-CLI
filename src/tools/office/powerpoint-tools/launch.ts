@@ -12,54 +12,15 @@ import { saveScreenshot } from '../common/utils.js';
 import { OFFICE_SCREENSHOT_PATH_DESC, OFFICE_CATEGORIES } from '../common/constants.js';
 
 // =============================================================================
-// PowerPoint Launch
-// =============================================================================
-
-const POWERPOINT_LAUNCH_DEFINITION: ToolDefinition = {
-  type: 'function',
-  function: {
-    name: 'powerpoint_launch',
-    description: `Launch Microsoft PowerPoint for presentation editing.
-Use this tool to start PowerPoint before working with presentations.
-The PowerPoint window will be visible so you can see the changes in real-time.`,
-    parameters: {
-      type: 'object',
-      properties: {
-        reason: { type: 'string', description: 'Explanation of why you are launching PowerPoint' },
-      },
-      required: ['reason'],
-    },
-  },
-};
-
-async function executePowerPointLaunch(_args: Record<string, unknown>): Promise<ToolResult> {
-  try {
-    const response = await powerpointClient.powerpointLaunch();
-    if (response.success) {
-      return { success: true, result: response.message || 'PowerPoint launched successfully' };
-    }
-    return { success: false, error: response.error || 'Failed to launch PowerPoint' };
-  } catch (error) {
-    return { success: false, error: `Failed to launch PowerPoint: ${error instanceof Error ? error.message : String(error)}` };
-  }
-}
-
-export const powerpointLaunchTool: LLMSimpleTool = {
-  definition: POWERPOINT_LAUNCH_DEFINITION,
-  execute: executePowerPointLaunch,
-  categories: OFFICE_CATEGORIES,
-  description: 'Launch Microsoft PowerPoint',
-};
-
-// =============================================================================
-// PowerPoint Create
+// PowerPoint Create (auto-launches PowerPoint if not running)
 // =============================================================================
 
 const POWERPOINT_CREATE_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'powerpoint_create',
-    description: `Create a new PowerPoint presentation.`,
+    description: `Create a new PowerPoint presentation. Automatically launches PowerPoint if it is not already running.
+Use this tool to start working with a new presentation.`,
     parameters: {
       type: 'object',
       properties: {
@@ -254,7 +215,6 @@ export const powerpointQuitTool: LLMSimpleTool = {
 // =============================================================================
 
 export const launchTools: LLMSimpleTool[] = [
-  powerpointLaunchTool,
   powerpointCreateTool,
   powerpointOpenTool,
   powerpointScreenshotTool,
