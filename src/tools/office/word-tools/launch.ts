@@ -11,15 +11,54 @@ import { saveScreenshot } from '../common/utils.js';
 import { OFFICE_SCREENSHOT_PATH_DESC, OFFICE_CATEGORIES } from '../common/constants.js';
 
 // =============================================================================
-// Word Create (auto-launches Word if not running)
+// Word Launch
+// =============================================================================
+
+const WORD_LAUNCH_DEFINITION: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'word_launch',
+    description: `Launch Microsoft Word for document editing.
+Use this tool to start Word before creating or editing documents.
+The Word window will be visible so you can see the changes in real-time.`,
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: { type: 'string', description: 'Explanation of why you are launching Word' },
+      },
+      required: ['reason'],
+    },
+  },
+};
+
+async function executeWordLaunch(_args: Record<string, unknown>): Promise<ToolResult> {
+  try {
+    const response = await wordClient.wordLaunch();
+    if (response.success) {
+      return { success: true, result: response.message || 'Word launched successfully' };
+    }
+    return { success: false, error: response.error || 'Failed to launch Word' };
+  } catch (error) {
+    return { success: false, error: `Failed to launch Word: ${error instanceof Error ? error.message : String(error)}` };
+  }
+}
+
+export const wordLaunchTool: LLMSimpleTool = {
+  definition: WORD_LAUNCH_DEFINITION,
+  execute: executeWordLaunch,
+  categories: OFFICE_CATEGORIES,
+  description: 'Launch Microsoft Word',
+};
+
+// =============================================================================
+// Word Create
 // =============================================================================
 
 const WORD_CREATE_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'word_create',
-    description: `Create a new Word document. Automatically launches Word if it is not already running.
-Use this tool to start working with a new document.`,
+    description: `Create a new Word document.`,
     parameters: {
       type: 'object',
       properties: {
@@ -263,6 +302,7 @@ export const wordQuitTool: LLMSimpleTool = {
 // =============================================================================
 
 export const launchTools: LLMSimpleTool[] = [
+  wordLaunchTool,
   wordCreateTool,
   wordOpenTool,
   wordSaveTool,
