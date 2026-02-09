@@ -68,8 +68,10 @@ $doc = $word.Documents.Add()
     }).join('\n');
 
     // TEXT FIRST, FONT AFTER pattern (Microsoft recommended for Korean)
+    // Record start position, type text, then re-select and apply font
     return this.executePowerShell(`
 $word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
+$doc = $word.ActiveDocument
 $selection = $word.Selection
 
 # Set formatting options (except font name for Korean)
@@ -77,11 +79,15 @@ ${fontSize ? `$selection.Font.Size = ${fontSize}` : ''}
 $selection.Font.Bold = ${bold}
 $selection.Font.Italic = ${italic}
 
+# Record start position before typing
+$startPos = $selection.Start
+
 # Type text first
 ${typeCommands}
 
-# Set font after text (prevents Korean garbled text)
-${fontName ? `$selection.Font.Name = '${fontName}'` : ''}
+# Apply font to the typed range (not just insertion point)
+${fontName ? `$typedRange = $doc.Range($startPos, $selection.Start)
+$typedRange.Font.Name = '${fontName}'` : ''}
 
 @{ success = $true; message = "Text written successfully" } | ConvertTo-Json -Compress
 `);
@@ -208,6 +214,12 @@ $doc.Hyperlinks.Add($range, '${escapedUrl}', '', '', '${escapedText}')
   }
 
   async wordAddTable(rows: number, cols: number, data?: string[][]): Promise<OfficeResponse> {
+    // Auto-adjust dimensions to fit data
+    if (data) {
+      rows = Math.max(rows, data.length);
+      cols = Math.max(cols, ...data.map(row => row?.length || 0));
+    }
+
     let dataScript = '';
 
     // TEXT FIRST, FONT AFTER pattern (Microsoft recommended for Korean)
