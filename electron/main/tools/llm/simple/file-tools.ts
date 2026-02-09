@@ -29,13 +29,49 @@ function delay(ms: number): Promise<void> {
  */
 const FILE_OPEN_DELAY_MS = 3000;
 
-// NOTE: We previously had an unescapeContent() function here that converted
-// \\n to \n, \\t to \t, etc. This was REMOVED because:
-// 1. JSON parsing already handles escape sequences properly
-// 2. It was corrupting source code with string literals like '\n' or '\t'
-//    by converting them to actual newlines/tabs
-// 3. If an LLM sends double-escaped content, that's an LLM bug to be fixed
-//    at the LLM/prompt level, not here
+/**
+ * Smart unescape for file content from LLM tool calls.
+ *
+ * Problem: Some LLMs double-escape content, sending \\n instead of \n in JSON.
+ * After JSON.parse, this becomes literal \n (two chars) instead of actual newlines.
+ *
+ * The old unescapeContent() blindly converted ALL \n → newline, which broke
+ * source code containing string literals like "\n", f"\n", '\t' etc.
+ *
+ * Strategy:
+ * - If content already has actual newlines → JSON parsing worked → don't touch
+ * - If NO actual newlines exist → double-escaped → unescape, but PROTECT
+ *   double-backslash sequences (\\n, \\t) that represent source code literals
+ */
+function smartUnescapeContent(content: string): string {
+  if (!content) return content;
+
+  // If content already has actual newlines, JSON parsing worked correctly
+  if (content.includes('\n')) return content;
+
+  // No actual newlines. Check for literal escape sequences.
+  if (!content.includes('\\n') && !content.includes('\\t') && !content.includes('\\r')) {
+    return content;
+  }
+
+  // Step 1: Protect double-backslash sequences (\\n → source code "\n")
+  let result = content;
+  result = result.replace(/\\\\n/g, '\x00ESC_N\x00');
+  result = result.replace(/\\\\t/g, '\x00ESC_T\x00');
+  result = result.replace(/\\\\r/g, '\x00ESC_R\x00');
+
+  // Step 2: Convert single-backslash escape sequences to actual characters
+  result = result.replace(/\\n/g, '\n');
+  result = result.replace(/\\t/g, '\t');
+  result = result.replace(/\\r/g, '\r');
+
+  // Step 3: Restore protected sequences as literal escape chars
+  result = result.replace(/\x00ESC_N\x00/g, '\\n');
+  result = result.replace(/\x00ESC_T\x00/g, '\\t');
+  result = result.replace(/\x00ESC_R\x00/g, '\\r');
+
+  return result;
+}
 
 // =============================================================================
 // Constants
@@ -266,9 +302,8 @@ Examples:
 
 async function executeCreateFile(args: Record<string, unknown>): Promise<ToolResult> {
   const filePath = args['file_path'] as string;
-  // Content is used as-is - JSON parsing already handles escape sequences.
-  // unescapeContent is now a no-op to prevent corrupting source code string literals.
-  const content = args['content'] as string;
+  // Smart unescape: fixes double-escaped \n from LLM while preserving source code literals
+  const content = smartUnescapeContent(args['content'] as string);
 
   logger.toolStart('create_file', { file_path: filePath, contentLength: content?.length || 0 });
 
@@ -386,10 +421,9 @@ Examples:
 
 async function executeEditFile(args: Record<string, unknown>): Promise<ToolResult> {
   const filePath = args['file_path'] as string;
-  // Strings are used as-is - JSON parsing already handles escape sequences.
-  // unescapeContent is now a no-op to prevent corrupting source code string literals.
-  const oldString = args['old_string'] as string;
-  const newString = args['new_string'] as string;
+  // Smart unescape: fixes double-escaped \n from LLM while preserving source code literals
+  const oldString = smartUnescapeContent(args['old_string'] as string);
+  const newString = smartUnescapeContent(args['new_string'] as string);
   const replaceAll = args['replace_all'] as boolean | undefined;
 
   const oldStringLength = oldString?.length || 0;

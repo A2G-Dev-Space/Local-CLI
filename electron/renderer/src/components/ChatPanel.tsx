@@ -792,6 +792,9 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
     ]);
     setTimeout(() => setIsBatchLoad(false), 100);
 
+    // Reset main process state (context tracker, todos, approved tools)
+    await window.electronAPI?.agent?.clearState?.();
+
     // Clear execution state via context
     clearTodos();
     clearProgressMessages();

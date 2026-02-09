@@ -182,6 +182,8 @@ export function abortAgent(): void {
   }
   state.isRunning = false;
   state.currentTodos = []; // Clear todos so next run starts fresh with new planning
+  // Broadcast empty todos to sync Task Window
+  broadcastToWindows('agent:todoUpdate', []);
   // Clear pending approvals
   state.pendingApprovals.forEach((resolve) => {
     resolve({ reject: true, comment: 'Agent aborted' });
@@ -508,6 +510,30 @@ export async function runAgent(
 
       logger.info(`Agent iteration ${iterations}`, { messagesCount: messages.length });
 
+      // [DEBUG] Log last 4 messages before LLM call to diagnose repeated tool calls
+      {
+        const lastN = messages.slice(-4);
+        const debugMsgs = lastN.map((m, i) => {
+          const idx = messages.length - lastN.length + i;
+          const base: Record<string, unknown> = { idx, role: m.role };
+          if (m.role === 'tool') {
+            base.tool_call_id = (m as any).tool_call_id;
+            base.content = typeof m.content === 'string' ? m.content.substring(0, 300) : m.content;
+          } else if (m.role === 'assistant') {
+            base.contentSnippet = typeof m.content === 'string' ? m.content.substring(0, 100) : '(none)';
+            base.toolCalls = (m as any).tool_calls?.map((tc: any) => ({
+              id: tc.id,
+              name: tc.function?.name,
+              argsSnippet: typeof tc.function?.arguments === 'string' ? tc.function.arguments.substring(0, 100) : '',
+            }));
+          } else {
+            base.contentSnippet = typeof m.content === 'string' ? m.content.substring(0, 100) : '(none)';
+          }
+          return base;
+        });
+        logger.info('[DEBUG] Messages before LLM call (last 4)', { messages: JSON.stringify(debugMsgs) });
+      }
+
       // Soft warning at 50 iterations (informational only, not a limit)
       if (iterations === SOFT_ITERATION_LIMIT && !softLimitWarned) {
         softLimitWarned = true;
@@ -587,6 +613,11 @@ export async function runAgent(
         content: assistantMessage.content?.substring(0, 500),
         hasToolCalls: !!assistantMessage.tool_calls?.length,
         toolCount: assistantMessage.tool_calls?.length || 0,
+        toolCallDetails: assistantMessage.tool_calls?.map(tc => ({
+          id: tc.id,
+          name: tc.function.name,
+          argsSnippet: tc.function.arguments?.substring(0, 150),
+        })),
       });
 
       if (callbacks.onMessage) {
@@ -648,12 +679,11 @@ export async function runAgent(
                 };
                 const language = langMap[ext] || 'plaintext';
 
-                // NOTE: We no longer unescape content here.
-                // JSON parsing already handles escape sequences properly.
-                // The old unescape function was corrupting source code that contains
-                // string literals like '\n' or '\t' by converting them to actual newlines/tabs.
-                const oldString = toolArgs['old_string'] as string || '';
-                const newString = toolArgs['new_string'] as string || '';
+                // Smart unescape for diff preview: match what file-tools.ts does
+                const rawOld = toolArgs['old_string'] as string || '';
+                const rawNew = toolArgs['new_string'] as string || '';
+                const oldString = rawOld.includes('\n') ? rawOld : rawOld.replace(/\\\\n/g, '\x00E\x00').replace(/\\n/g, '\n').replace(/\x00E\x00/g, '\\n');
+                const newString = rawNew.includes('\n') ? rawNew : rawNew.replace(/\\\\n/g, '\x00E\x00').replace(/\\n/g, '\n').replace(/\x00E\x00/g, '\\n');
                 const originalContent = await fs.readFile(resolvedPath, 'utf-8');
                 const newContent = originalContent.replace(oldString, newString);
 
@@ -827,6 +857,16 @@ export async function runAgent(
             role: 'tool',
             content: toolResultContent,
             tool_call_id: toolCall.id,
+          });
+
+          // [DEBUG] Verify tool result was pushed to messages
+          logger.info('[DEBUG] Tool result pushed', {
+            toolName,
+            tool_call_id: toolCall.id,
+            contentSnippet: toolResultContent.substring(0, 200),
+            messagesCountAfterPush: messages.length,
+            lastMsgRole: messages[messages.length - 1]?.role,
+            lastMsgToolCallId: (messages[messages.length - 1] as any)?.tool_call_id,
           });
 
           toolCallHistory.push({
