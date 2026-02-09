@@ -193,6 +193,8 @@ export class PlanExecutor {
       const planMessage = planResult.docsSearchNeeded
         ? `📋 Created ${currentTodos.length} tasks (including docs search). Starting execution...`
         : `📋 Created ${currentTodos.length} tasks. Starting execution...`;
+      // Save history before adding userMessage + planMessage (for flatten without duplication)
+      const historyBeforeExecution = [...currentMessages];
       // Check if last message is already the same user request (avoid duplicate)
       const lastMsgForPlan = currentMessages[currentMessages.length - 1];
       const needsUserMessageForPlan = !(lastMsgForPlan?.role === 'user' && lastMsgForPlan?.content === userMessage);
@@ -234,8 +236,9 @@ export class PlanExecutor {
       const activeTodo = findActiveTodo(currentTodos);
       callbacks.setCurrentActivity(activeTodo?.title || 'Working on tasks');
 
-      // Flatten history + TODO context + request into single user message with XML tags
-      const historyText = flattenMessagesToHistory(currentMessages);
+      // Flatten history (exclude current userMessage - it goes in CURRENT_REQUEST)
+      // Include planMessage to give LLM context that planning happened
+      const historyText = flattenMessagesToHistory([...historyBeforeExecution, { role: 'assistant' as const, content: planMessage }]);
       const todoContext = buildTodoContext(currentTodos);
 
       let userContent = '';
@@ -377,8 +380,9 @@ export class PlanExecutor {
       const activeTodo = findActiveTodo(currentTodos);
       callbacks.setCurrentActivity(activeTodo?.title || 'Working on tasks');
 
-      // Flatten history + TODO context + user message into single user message with XML tags
-      const historyText = flattenMessagesToHistory(currentMessages);
+      // Flatten history (exclude current userMessage - it goes in CURRENT_REQUEST)
+      // Use `messages` param (without current userMessage) to match Electron behavior
+      const historyText = flattenMessagesToHistory(messages);
       const todoContext = buildTodoContext(currentTodos);
 
       let userContent = '';

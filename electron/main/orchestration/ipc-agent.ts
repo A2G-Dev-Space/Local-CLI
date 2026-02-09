@@ -487,7 +487,7 @@ export async function runAgent(
 
   // Track where tool loop messages start (for return value reconstruction)
   // Return value must contain ORIGINAL history format, not the synthetic flattened message
-  const toolLoopStartIdx = messages.length; // = 2 (system + flattenedUser)
+  let toolLoopStartIdx = messages.length; // = 2 (system + flattenedUser)
 
   // Chat 로그: 사용자 입력
   logger.info('[CHAT] User message', { content: userMessage.substring(0, 500) });
@@ -593,6 +593,11 @@ export async function runAgent(
             messages = systemMessage
               ? [systemMessage, ...compactResult.compactedMessages]
               : compactResult.compactedMessages;
+
+            // Update return value references after compact
+            // Compacted messages replace original history; toolLoopStartIdx resets
+            validMessages = [...compactResult.compactedMessages];
+            toolLoopStartIdx = messages.length;
 
             response = await llmClient.chatCompletion({
               messages,
@@ -987,6 +992,11 @@ export async function runAgent(
           messages = systemMessage
             ? [systemMessage, ...compactResult.compactedMessages]
             : compactResult.compactedMessages;
+
+          // Update return value references after compact
+          // Compacted messages replace original history; toolLoopStartIdx resets
+          validMessages = [...compactResult.compactedMessages];
+          toolLoopStartIdx = messages.length;
 
           // Reset context tracker with estimated token count
           const totalContent = messages
