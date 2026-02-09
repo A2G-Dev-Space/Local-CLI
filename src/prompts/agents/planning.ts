@@ -55,9 +55,11 @@ Use this ONLY for pure questions that need NO action:
    Even if it's a single simple task like "run tests" or "check the build", create a TODO for it.
    Only use respond_to_user for pure knowledge questions that require zero action.
 
-3. **[NEW REQUEST] marker** - When you see "[NEW REQUEST]" in the user message, this is a completely NEW task.
-   Ignore any previous TODO completions in the conversation. The user wants something NEW done.
-   You MUST create new TODOs (via create_todos) or provide a direct response (via respond_to_user) for this new request.
+3. **MESSAGE STRUCTURE** - Messages use XML tags to separate context:
+   - \`<CONVERSATION_HISTORY>\`: Previous conversation (user messages, assistant responses, tool calls/results in chronological order). This is READ-ONLY context.
+   - \`<CURRENT_REQUEST>\`: The NEW request you must plan for NOW.
+   **Focus ONLY on \`<CURRENT_REQUEST>\`.** Use \`<CONVERSATION_HISTORY>\` for context only.
+   Do NOT re-plan tasks from history. Create fresh TODOs for the current request.
 
 4. **Even if similar work was done before** - If the user asks for an action (even if similar to completed TODOs), you MUST create NEW TODOs.
    Previous completion does NOT mean the new request should be ignored.

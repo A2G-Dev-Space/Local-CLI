@@ -48,7 +48,7 @@ import { getStreamLogger } from '../utils/json-stream-logger.js';
 import { detectGitRepo } from '../utils/git-utils.js';
 
 import type { StateCallbacks } from './types.js';
-import { formatErrorMessage, buildTodoContext, findActiveTodo, getTodoStats } from './utils.js';
+import { formatErrorMessage, buildTodoContext, flattenMessagesToHistory, findActiveTodo, getTodoStats } from './utils.js';
 
 /**
  * Build system prompt with conditional Git rules
@@ -234,16 +234,24 @@ export class PlanExecutor {
       const activeTodo = findActiveTodo(currentTodos);
       callbacks.setCurrentActivity(activeTodo?.title || 'Working on tasks');
 
-      // Build TODO context and inject into last user message
+      // Flatten history + TODO context + request into single user message with XML tags
+      const historyText = flattenMessagesToHistory(currentMessages);
       const todoContext = buildTodoContext(currentTodos);
-      const lastUserMsgIndex = currentMessages.map(m => m.role).lastIndexOf('user');
-      const messagesForLLM = lastUserMsgIndex >= 0
-        ? currentMessages.map((m, i) =>
-            i === lastUserMsgIndex
-              ? { ...m, content: m.content + todoContext }
-              : m
-          )
-        : [...currentMessages, { role: 'user' as const, content: `Execute the TODO list.${todoContext}` }];
+
+      let userContent = '';
+      if (historyText) {
+        userContent += `<CONVERSATION_HISTORY>\n${historyText}\n</CONVERSATION_HISTORY>\n\n`;
+      }
+      if (todoContext) {
+        userContent += `<CURRENT_TASK>\n${todoContext}\n</CURRENT_TASK>\n\n`;
+      }
+      userContent += `<CURRENT_REQUEST>\n${userMessage}\n</CURRENT_REQUEST>`;
+
+      // LLM sees only system + single user message (flatten structure)
+      const messagesForLLM: Message[] = [
+        { role: 'system' as const, content: buildSystemPrompt() },
+        { role: 'user' as const, content: userContent },
+      ];
 
       // Single LLM call - continues internally until finish_reason: stop
       // Pass pending message callbacks for mid-execution user input injection
@@ -252,8 +260,10 @@ export class PlanExecutor {
         clearPendingMessage: callbacks.clearPendingMessage,
       });
 
-      // Update messages (without TODO context)
-      const newMessages = result.allMessages.slice(currentMessages.length);
+      // Update messages (skip system + flattened user message, keep new tool loop messages)
+      const newMessages = result.allMessages
+        .slice(2)  // system + flattened user message
+        .filter(m => m.role !== 'system');
       currentMessages = [...currentMessages, ...newMessages];
       callbacks.setMessages([...currentMessages]);
       sessionManager.autoSaveCurrentSession(currentMessages);
@@ -367,18 +377,24 @@ export class PlanExecutor {
       const activeTodo = findActiveTodo(currentTodos);
       callbacks.setCurrentActivity(activeTodo?.title || 'Working on tasks');
 
-      // Build TODO context
+      // Flatten history + TODO context + user message into single user message with XML tags
+      const historyText = flattenMessagesToHistory(currentMessages);
       const todoContext = buildTodoContext(currentTodos);
 
-      // Create messages with TODO context
-      const lastUserMsgIndex = currentMessages.map(m => m.role).lastIndexOf('user');
-      const messagesForLLM = lastUserMsgIndex >= 0
-        ? currentMessages.map((m, i) =>
-            i === lastUserMsgIndex
-              ? { ...m, content: m.content + todoContext }
-              : m
-          )
-        : [...currentMessages, { role: 'user' as const, content: `Resume the TODO list.${todoContext}` }];
+      let userContent = '';
+      if (historyText) {
+        userContent += `<CONVERSATION_HISTORY>\n${historyText}\n</CONVERSATION_HISTORY>\n\n`;
+      }
+      if (todoContext) {
+        userContent += `<CURRENT_TASK>\n${todoContext}\n</CURRENT_TASK>\n\n`;
+      }
+      userContent += `<CURRENT_REQUEST>\n${userMessage}\n</CURRENT_REQUEST>`;
+
+      // LLM sees only system + single user message (flatten structure)
+      const messagesForLLM: Message[] = [
+        { role: 'system' as const, content: buildSystemPrompt() },
+        { role: 'user' as const, content: userContent },
+      ];
 
       // Single LLM call - continues internally until finish_reason: stop
       // Pass pending message callbacks for mid-execution user input injection
@@ -387,8 +403,10 @@ export class PlanExecutor {
         clearPendingMessage: callbacks.clearPendingMessage,
       });
 
-      // Update messages
-      const newMessages = result.allMessages.slice(currentMessages.length);
+      // Update messages (skip system + flattened user message, keep new tool loop messages)
+      const newMessages = result.allMessages
+        .slice(2)  // system + flattened user message
+        .filter(m => m.role !== 'system');
       currentMessages = [...currentMessages, ...newMessages];
       callbacks.setMessages([...currentMessages]);
       sessionManager.autoSaveCurrentSession(currentMessages);

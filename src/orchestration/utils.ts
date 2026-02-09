@@ -4,7 +4,7 @@
  * Plan & Execute 워크플로우의 헬퍼 함수들
  */
 
-import { TodoItem } from '../types/index.js';
+import { TodoItem, Message } from '../types/index.js';
 import { BaseError } from '../errors/base.js';
 import { logger } from '../utils/logger.js';
 
@@ -48,6 +48,38 @@ export function formatErrorMessage(error: unknown): string {
 
   logger.exit('formatErrorMessage', { isUnknown: true });
   return `❌ Unknown Error: ${String(error)}`;
+}
+
+/**
+ * 메시지 배열을 시간순 텍스트로 flatten
+ * multi-turn 메시지를 단일 텍스트로 변환하여 XML 태그 구조에 사용
+ * system 메시지는 제외, tool 인자/결과는 전체 포함 (truncate 없음)
+ */
+export function flattenMessagesToHistory(messages: Message[]): string {
+  const lines: string[] = [];
+
+  for (const msg of messages) {
+    if (msg.role === 'system') continue;
+
+    if (msg.role === 'user') {
+      lines.push(`[USER]: ${msg.content}`);
+    } else if (msg.role === 'assistant') {
+      if (msg.content) {
+        lines.push(`[ASSISTANT]: ${msg.content}`);
+      }
+      if (msg.tool_calls && msg.tool_calls.length > 0) {
+        for (const tc of msg.tool_calls) {
+          lines.push(`[TOOL_CALL]: ${tc.function.name}(${tc.function.arguments})`);
+        }
+      }
+    } else if (msg.role === 'tool') {
+      lines.push(`[TOOL_RESULT]: ${msg.content}`);
+    } else if (msg.role === 'error') {
+      lines.push(`[ERROR]: ${msg.content}`);
+    }
+  }
+
+  return lines.join('\n');
 }
 
 /**

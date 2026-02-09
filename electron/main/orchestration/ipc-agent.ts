@@ -39,6 +39,7 @@ import {
   validateToolMessages,
   truncateMessages,
   buildTodoContext,
+  flattenMessagesToHistory,
   parseToolArguments,
 } from './utils';
 import { compactConversation } from '../core/compact';
@@ -460,20 +461,33 @@ export async function runAgent(
   // Prepare Messages
   // CLI parity: System prompt is injected per-LLM call, not stored in history
   // ==========================================================================
-  let messages: Message[] = validateToolMessages([...existingMessages]);
-  messages = truncateMessages(messages, 100);
+  // Flatten history messages into chronological text with XML tags
+  // CLI parity: This helps weaker LLMs distinguish history from current request
+  let validMessages: Message[] = validateToolMessages([...existingMessages]);
+  validMessages = truncateMessages(validMessages, 100);
+  validMessages = validMessages.filter((m) => m.role !== 'system');
 
-  // Filter out any system messages from history
-  // System prompt will be injected at LLM call time only
-  messages = messages.filter((m) => m.role !== 'system');
-
-  // Prepend system prompt for LLM call
-  // Inject todoContext into system prompt (not user message) to prevent leak into next planning call
+  const historyText = flattenMessagesToHistory(validMessages);
   const todoContext = buildTodoContext(state.currentTodos);
-  const systemWithTodos = todoContext ? systemPrompt + '\n' + todoContext : systemPrompt;
-  messages = [{ role: 'system', content: systemWithTodos }, ...messages];
 
-  messages.push({ role: 'user', content: userMessage });
+  let userContent = '';
+  if (historyText) {
+    userContent += `<CONVERSATION_HISTORY>\n${historyText}\n</CONVERSATION_HISTORY>\n\n`;
+  }
+  if (todoContext) {
+    userContent += `<CURRENT_TASK>\n${todoContext}\n</CURRENT_TASK>\n\n`;
+  }
+  userContent += `<CURRENT_REQUEST>\n${userMessage}\n</CURRENT_REQUEST>`;
+
+  // LLM sees only system + single user message (flatten structure)
+  let messages: Message[] = [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: userContent },
+  ];
+
+  // Track where tool loop messages start (for return value reconstruction)
+  // Return value must contain ORIGINAL history format, not the synthetic flattened message
+  const toolLoopStartIdx = messages.length; // = 2 (system + flattenedUser)
 
   // Chat 로그: 사용자 입력
   logger.info('[CHAT] User message', { content: userMessage.substring(0, 500) });
@@ -792,10 +806,14 @@ export async function runAgent(
               }
               broadcastToWindows('agent:complete', { response: '' });
 
+              // Return original history + user message + tool loop messages (not synthetic flatten)
+              const finalToolLoopMessages = messages.slice(toolLoopStartIdx);
+              const finalReturnMessages = [...validMessages, { role: 'user' as const, content: userMessage }, ...finalToolLoopMessages];
+
               return {
                 success: true,
                 response: finalResponse,
-                messages,
+                messages: finalReturnMessages,
                 toolCalls: toolCallHistory,
                 iterations,
               };
@@ -842,10 +860,14 @@ export async function runAgent(
                 }
                 broadcastToWindows('agent:complete', { response: fallbackMessage });
 
+                // Return original history + user message + tool loop messages (not synthetic flatten)
+                const fbToolLoopMessages = messages.slice(toolLoopStartIdx);
+                const fbReturnMessages = [...validMessages, { role: 'user' as const, content: userMessage }, ...fbToolLoopMessages];
+
                 return {
                   success: true,
                   response: fallbackMessage,
-                  messages,
+                  messages: fbReturnMessages,
                   toolCalls: toolCallHistory,
                   iterations,
                 };
@@ -993,14 +1015,15 @@ export async function runAgent(
     }
     broadcastToWindows('agent:complete', { response: finalResponse });
 
-    // Return messages without system prompt (CLI parity)
-    // System prompt should not be stored in history
-    const messagesWithoutSystem = messages.filter((m) => m.role !== 'system');
+    // Return original history + user message + tool loop messages (not the synthetic flattened message)
+    // CLI parity: system prompt and synthetic flatten message are excluded from stored history
+    const toolLoopMessages = messages.slice(toolLoopStartIdx);
+    const returnMessages = [...validMessages, { role: 'user' as const, content: userMessage }, ...toolLoopMessages];
 
     return {
       success: true,
       response: finalResponse,
-      messages: messagesWithoutSystem,
+      messages: returnMessages,
       toolCalls: toolCallHistory,
       iterations,
     };
@@ -1023,13 +1046,14 @@ export async function runAgent(
       broadcastToWindows('agent:error', { error: errorMessage });
     }
 
-    // Return messages without system prompt (CLI parity)
-    const messagesWithoutSystem = messages.filter((m) => m.role !== 'system');
+    // Return original history + user message + tool loop messages (not the synthetic flattened message)
+    const toolLoopMessages = messages.slice(toolLoopStartIdx);
+    const returnMessages = [...validMessages, { role: 'user' as const, content: userMessage }, ...toolLoopMessages];
 
     return {
       success: isAbort, // Abort is not a failure - messages are still valid
       response: '',
-      messages: messagesWithoutSystem,
+      messages: returnMessages,
       toolCalls: toolCallHistory,
       iterations,
       error: isAbort ? undefined : errorMessage,
