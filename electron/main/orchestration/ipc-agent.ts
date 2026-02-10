@@ -13,6 +13,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { llmClient, Message } from '../core/llm';
 import { logger } from '../utils/logger';
+import { reportError } from '../core/telemetry/error-reporter';
 import { detectGitRepo } from '../utils/git-utils';
 import { toolRegistry, executeSimpleTool } from '../tools';
 import { OptionalToolGroupId } from '../tools/types';
@@ -456,6 +457,7 @@ export async function runAgent(
       }
     } catch (planningError) {
       logger.error('Planning failed, falling back to direct execution', planningError as Error);
+      reportError(planningError, { type: 'planning', method: 'generateTODOListWithDocsDecision', ...errorContext }).catch(() => {});
     }
   }
 
@@ -516,6 +518,15 @@ export async function runAgent(
   let contextCompactRetried = false;
   let finalResponseFailures = 0;
   const MAX_FINAL_RESPONSE_FAILURES = 3;
+  let consecutiveParseFailures = 0;
+  const MAX_CONSECUTIVE_PARSE_FAILURES = 3;
+
+  // Error telemetry: 현재 모델 정보 (reportError context에 포함)
+  const currentModelInfo = configManager.getCurrentModel();
+  const errorContext = {
+    modelId: currentModelInfo?.id || 'unknown',
+    modelName: currentModelInfo?.name || 'unknown',
+  };
   const SOFT_ITERATION_LIMIT = 50; // Warn after this many iterations (informational only)
   let softLimitWarned = false;
 
@@ -658,13 +669,52 @@ export async function runAgent(
 
           try {
             toolArgs = parseToolArguments(toolCall.function.arguments);
+            consecutiveParseFailures = 0;
           } catch (parseError) {
+            consecutiveParseFailures++;
             const errorMessage = `Error parsing tool arguments: ${parseError instanceof Error ? parseError.message : 'Invalid JSON'}`;
-            logger.error('Tool argument parse error', { toolName, error: errorMessage });
+            logger.error('Tool argument parse error', {
+              toolName,
+              error: errorMessage,
+              consecutiveFailures: consecutiveParseFailures,
+            });
 
+            reportError(parseError, {
+              type: 'toolArgParsing',
+              tool: toolName,
+              consecutiveFailures: consecutiveParseFailures,
+              ...errorContext,
+              rawArguments: typeof toolCall.function.arguments === 'string' ? toolCall.function.arguments.substring(0, 500) : undefined,
+            }).catch(() => {});
+
+            // 3회 연속 parse 실패 시 abort — 모델이 JSON function calling을 지원하지 않음
+            if (consecutiveParseFailures >= MAX_CONSECUTIVE_PARSE_FAILURES) {
+              logger.error('[ABORT] Tool argument parse failed 3 times consecutively. Model may not support JSON function calling.');
+              const abortMsg = '현재 모델이 올바른 JSON tool arguments를 생성하지 못하고 있습니다. 다른 모델로 변경해 주세요.';
+              messages.push({
+                role: 'tool',
+                content: errorMessage,
+                tool_call_id: toolCall.id,
+              });
+
+              // 에이전트 종료 — 최종 응답으로 abort 메시지 전달
+              broadcastToWindows('agent:message', {
+                role: 'assistant',
+                content: abortMsg,
+              });
+              return {
+                messages: [...messages, { role: 'assistant' as const, content: abortMsg }],
+                toolCalls: toolCallHistory,
+                iterations,
+                finalResponse: abortMsg,
+              };
+            }
+
+            // JSON 형식 힌트를 LLM에게 전달
+            const hintMsg = `${errorMessage}\n\nIMPORTANT: Tool arguments MUST be valid JSON. Example: {"reason": "...", "cell": "A1", "value": "hello"}. Do NOT use XML tags like <arg_key> or <arg_value>.`;
             messages.push({
               role: 'tool',
-              content: errorMessage,
+              content: hintMsg,
               tool_call_id: toolCall.id,
             });
 
@@ -770,6 +820,16 @@ export async function runAgent(
           const toolResultContent = result.success
             ? result.result || '(no output)'
             : `Error: ${result.error}`;
+
+          // Tool 실행 실패 시 에러 텔레메트리
+          if (!result.success) {
+            reportError(new Error(result.error || 'Tool execution failed'), {
+              type: 'toolExecution',
+              tool: toolName,
+              ...errorContext,
+              toolArgs,
+            }).catch(() => {});
+          }
 
           logger.info(`Tool result: ${toolName}`, {
             success: result.success,
@@ -1052,6 +1112,7 @@ export async function runAgent(
 
     // Don't send error event for user-initiated aborts
     if (!isAbort) {
+      reportError(error, { type: 'agent', method: 'runAgent' }).catch(() => {});
       if (callbacks.onError) {
         callbacks.onError(error instanceof Error ? error : new Error(errorMessage));
       }
@@ -1148,6 +1209,7 @@ export async function simpleChat(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error('Simple chat error', { error: errorMessage });
+    reportError(error, { type: 'agent', method: 'simpleChat' }).catch(() => {});
     throw error;
   }
 }

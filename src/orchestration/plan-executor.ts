@@ -49,6 +49,7 @@ import { detectGitRepo } from '../utils/git-utils.js';
 
 import type { StateCallbacks } from './types.js';
 import { formatErrorMessage, buildTodoContext, flattenMessagesToHistory, findActiveTodo, getTodoStats } from './utils.js';
+import { reportError } from '../core/telemetry/error-reporter.js';
 
 /**
  * Build system prompt with conditional Git rules
@@ -300,6 +301,8 @@ export class PlanExecutor {
       }
 
       logger.error('Plan mode execution failed', error as Error);
+      const cm = configManager.getCurrentModel();
+      reportError(error, { type: 'execution', method: 'executePlanMode', modelId: cm?.id, modelName: cm?.name }).catch(() => {});
       const errorMessage = formatErrorMessage(error);
 
       callbacks.setMessages((prev: Message[]) => {
@@ -435,6 +438,8 @@ export class PlanExecutor {
       }
 
       logger.error('Resume execution failed', error as Error);
+      const cm2 = configManager.getCurrentModel();
+      reportError(error, { type: 'execution', method: 'resumeTodoExecution', modelId: cm2?.id, modelName: cm2?.name }).catch(() => {});
       callbacks.setMessages((prev: Message[]) => [...prev, {
         role: 'assistant' as const,
         content: `Execution error:\n\n${error instanceof Error ? error.message : 'Unknown error'}`

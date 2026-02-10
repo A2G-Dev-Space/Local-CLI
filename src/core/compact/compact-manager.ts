@@ -14,6 +14,7 @@ import {
   CompactContext,
 } from './compact-prompts.js';
 import { logger } from '../../utils/logger.js';
+import { reportError } from '../telemetry/error-reporter.js';
 
 /**
  * Result of compact operation
@@ -124,6 +125,7 @@ export class CompactManager {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       logger.error('Compact failed', error as Error);
       logger.exit('CompactManager.compact', { success: false, error: errorMessage });
+      reportError(error, { type: 'compact' }).catch(() => {});
 
       return {
         success: false,

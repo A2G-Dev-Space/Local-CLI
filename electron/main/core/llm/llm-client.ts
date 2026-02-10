@@ -17,6 +17,7 @@ import {
   ValidationError,
 } from '../../errors';
 import { emitReasoning } from '../../tools/llm/simple/simple-tool-executor';
+import { reportError } from '../telemetry/error-reporter';
 
 // =============================================================================
 // Types
@@ -541,6 +542,8 @@ class LLMClient {
 
       logger.error('LLM API error', { error: (error as Error).message });
       logger.exit('chatCompletion', { success: false, error: (error as Error).message });
+      const errModel = configManager.getCurrentModel();
+      reportError(error, { type: 'llm', method: 'chatCompletion', modelId: errModel?.id, modelName: errModel?.name }).catch(() => {});
       throw error;
     }
   }
@@ -730,6 +733,8 @@ class LLMClient {
 
       logger.error('Stream error', { error: (error as Error).message });
       logger.exit('chatCompletionStream', { success: false, error: (error as Error).message });
+      const errModel2 = configManager.getCurrentModel();
+      reportError(error, { type: 'llm', method: 'chatCompletionStream', modelId: errModel2?.id, modelName: errModel2?.name }).catch(() => {});
       throw error;
     }
   }
@@ -784,19 +789,9 @@ class LLMClient {
     }
   }
 
-  /**
-   * Chat Completion with Tools (CLI parity: chatCompletionWithTools)
-   * Full tool loop with ContextLengthError recovery, malformed tool call detection,
-   * final_response handling, no-tool-call retry, and max failures fallback.
-   *
-   * No iteration limit - continues until LLM stops calling tools.
-   *
-   * @param messages - Conversation history
-   * @param tools - Available tool definitions
-   * @param options - Additional options
-   * @param options.getPendingMessage - Callback to get pending user message
-   * @param options.clearPendingMessage - Callback to clear pending message after processing
-   */
+  // NOTE: chatCompletionWithTools()는 Electron에서 사용되지 않음 (dead code)
+  // Electron에서는 ipc-agent.ts가 직접 tool loop를 관리함
+
   async chatCompletionWithTools(
     messages: Message[],
     tools: ToolDefinition[],
@@ -818,8 +813,10 @@ class LLMClient {
     let contextLengthRecoveryAttempted = false;
     let noToolCallRetries = 0;
     let finalResponseFailures = 0;
+    let consecutiveParseFailures = 0;
     const MAX_NO_TOOL_CALL_RETRIES = 3;
     const MAX_FINAL_RESPONSE_FAILURES = 3;
+    const MAX_CONSECUTIVE_PARSE_FAILURES = 3;
 
     while (true) {
       // Check for interrupt at start of each iteration
@@ -911,13 +908,42 @@ class LLMClient {
 
           try {
             toolArgs = JSON.parse(toolCall.function.arguments) as Record<string, unknown>;
+            consecutiveParseFailures = 0; // 성공 시 리셋
           } catch (parseError) {
-            const errorMsg = `Error: Failed to parse tool arguments - ${parseError instanceof Error ? parseError.message : 'Unknown error'}`;
-            logger.error('Tool argument parse error', { toolName, error: errorMsg });
+            consecutiveParseFailures++;
+            const errorMsg = `Error parsing tool arguments: Failed to parse tool arguments: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`;
+            logger.error('Tool argument parse error', {
+              toolName,
+              error: errorMsg,
+              consecutiveFailures: consecutiveParseFailures,
+            });
+            reportError(parseError, {
+              type: 'toolArgParsing',
+              tool: toolName,
+              consecutiveFailures: consecutiveParseFailures,
+            }).catch(() => {});
 
+            // 3회 연속 parse 실패 시 강제 종료
+            if (consecutiveParseFailures >= MAX_CONSECUTIVE_PARSE_FAILURES) {
+              logger.error('[ABORT] Tool argument parse failed 3 times consecutively. Model may not support JSON function calling.');
+              const abortMsg = 'I cannot generate valid JSON tool arguments. Please try a different model that supports JSON function calling.';
+              workingMessages.push({
+                role: 'tool',
+                content: errorMsg,
+                tool_call_id: toolCall.id,
+              });
+              return {
+                message: { role: 'assistant', content: abortMsg },
+                toolCalls: toolCallHistory,
+                allMessages: workingMessages,
+              };
+            }
+
+            // LLM에게 JSON 형식 안내 포함
+            const hintMsg = `${errorMsg}\n\nIMPORTANT: Tool arguments MUST be valid JSON. Example: {"reason": "...", "cell": "A1", "value": "hello"}. Do NOT use XML tags like <arg_key> or <arg_value>.`;
             workingMessages.push({
               role: 'tool',
-              content: errorMsg,
+              content: hintMsg,
               tool_call_id: toolCall.id,
             });
             toolCallHistory.push({
@@ -992,6 +1018,7 @@ class LLMClient {
             }
           } catch (toolError) {
             logger.llmToolResult(toolName, `Error: ${toolError instanceof Error ? toolError.message : String(toolError)}`, false);
+            reportError(toolError, { type: 'toolExecution', tool: toolName }).catch(() => {});
             result = {
               success: false,
               error: toolError instanceof Error ? toolError.message : String(toolError),

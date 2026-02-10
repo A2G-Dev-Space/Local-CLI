@@ -17,6 +17,8 @@ import { logger } from '../../utils/logger.js';
 import { buildPlanningSystemPrompt } from '../../prompts/agents/planning.js';
 import { toolRegistry } from '../../tools/registry.js';
 import { flattenMessagesToHistory } from '../../orchestration/utils.js';
+import { reportError } from '../../core/telemetry/error-reporter.js';
+import { configManager } from '../../core/config/config-manager.js';
 // DISABLED: docs-search feature temporarily disabled
 // import {
 //   buildDocsSearchDecisionPrompt,
@@ -361,6 +363,10 @@ Choose one of your 3 tools now.`,
 
     // All retries exhausted - use fallback
     logger.warn('All planning retries exhausted, using fallback TODO', { lastError: lastError?.message });
+    if (lastError) {
+      const cm = configManager.getCurrentModel();
+      reportError(lastError, { type: 'planning', reason: 'retriesExhausted', modelId: cm?.id, modelName: cm?.name }).catch(() => {});
+    }
     return {
       todos: [
         {
