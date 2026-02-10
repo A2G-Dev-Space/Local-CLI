@@ -27,6 +27,7 @@ import {
   ContextLengthError,
 } from '../../errors/llm.js';
 import { logger, isLLMLogEnabled } from '../../utils/logger.js';
+import { reportError } from '../telemetry/error-reporter.js';
 import { usageTracker } from '../usage-tracker.js';
 
 /**
@@ -347,11 +348,13 @@ export class LLMClient {
         });
       }
       logger.exit('chatCompletion', { success: false, error: (error as Error).message, attempts: currentAttempt });
-      throw this.handleError(error, {
+      const handled = this.handleError(error, {
         method: 'POST',
         url,
         body: options,
       });
+      reportError(handled, { type: 'llm', method: 'chatCompletion', endpoint: url, modelId: this.model, modelName: this.modelName }).catch(() => {});
+      throw handled;
     }
   }
 
@@ -554,11 +557,13 @@ export class LLMClient {
       logger.debug('Streaming response completed', { chunkCount });
 
     } catch (error) {
-      throw this.handleError(error, {
+      const handled = this.handleError(error, {
         method: 'POST (stream)',
         url,
         body: options,
       });
+      reportError(handled, { type: 'llm', method: 'chatCompletionStream', endpoint: url, modelId: this.model, modelName: this.modelName }).catch(() => {});
+      throw handled;
     }
   }
 
@@ -680,8 +685,10 @@ export class LLMClient {
     let contextLengthRecoveryAttempted = false;  // Prevent infinite recovery loop
     let noToolCallRetries = 0;  // Prevent infinite loop when LLM doesn't use tools
     let finalResponseFailures = 0;  // Prevent infinite loop when final_response keeps failing
+    let consecutiveParseFailures = 0;  // Prevent infinite loop when model can't generate JSON
     const MAX_NO_TOOL_CALL_RETRIES = 3;  // Max retries for enforcing tool usage
     const MAX_FINAL_RESPONSE_FAILURES = 3;  // Max retries for final_response failures
+    const MAX_CONSECUTIVE_PARSE_FAILURES = 3;  // Max retries for arg parse failures
 
     while (true) {
       // Check for interrupt at start of each iteration
@@ -792,14 +799,46 @@ export class LLMClient {
 
           try {
             toolArgs = JSON.parse(toolCall.function.arguments) as Record<string, unknown>;
+            consecutiveParseFailures = 0; // 성공 시 리셋
           } catch (parseError) {
-            const errorMsg = `Tool argument parsing failed for ${toolName}`;
-            logger.error(errorMsg, parseError);
+            consecutiveParseFailures++;
+            const errorMsg = `Tool argument parsing failed for ${toolName}: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`;
+            logger.error('Tool argument parse error', {
+              toolName,
+              error: errorMsg,
+              consecutiveFailures: consecutiveParseFailures,
+            });
             logger.debug('Raw arguments', { raw: toolCall.function.arguments });
+            reportError(parseError, {
+              type: 'toolArgParsing',
+              tool: toolName,
+              consecutiveFailures: consecutiveParseFailures,
+              modelId: this.model,
+              modelName: this.modelName,
+              rawArguments: typeof toolCall.function.arguments === 'string' ? toolCall.function.arguments.substring(0, 500) : undefined,
+            }).catch(() => {});
 
+            // 3회 연속 parse 실패 시 강제 종료
+            if (consecutiveParseFailures >= MAX_CONSECUTIVE_PARSE_FAILURES) {
+              logger.error('[ABORT] Tool argument parse failed 3 times consecutively. Model may not support JSON function calling.');
+              const abortMsg = 'I cannot generate valid JSON tool arguments. Please try a different model that supports JSON function calling.';
+              workingMessages.push({
+                role: 'tool',
+                content: errorMsg,
+                tool_call_id: toolCall.id,
+              });
+              return {
+                message: { role: 'assistant', content: abortMsg },
+                toolCalls: toolCallHistory,
+                allMessages: workingMessages,
+              };
+            }
+
+            // LLM에게 JSON 형식 안내 포함
+            const hintMsg = `Error: Failed to parse tool arguments - ${parseError instanceof Error ? parseError.message : 'Unknown error'}\n\nIMPORTANT: Tool arguments MUST be valid JSON. Example: {"reason": "...", "cell": "A1", "value": "hello"}. Do NOT use XML tags like <arg_key> or <arg_value>.`;
             workingMessages.push({
               role: 'tool',
-              content: `Error: Failed to parse tool arguments - ${parseError instanceof Error ? parseError.message : 'Unknown error'}`,
+              content: hintMsg,
               tool_call_id: toolCall.id,
             });
 
@@ -907,6 +946,7 @@ export class LLMClient {
             }
           } catch (toolError) {
             logger.toolExecution(toolName, toolArgs, undefined, toolError as Error);
+            reportError(toolError, { type: 'toolExecution', tool: toolName, modelId: this.model, modelName: this.modelName, toolArgs }).catch(() => {});
 
             // LLM Log mode: Tool 에러 로깅
             if (isLLMLogEnabled()) {

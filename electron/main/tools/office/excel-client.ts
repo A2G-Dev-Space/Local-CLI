@@ -141,7 +141,8 @@ $value = $sheet.Range('${cell}').Value2
 
   async excelWriteRange(startCell: string, values: unknown[][], sheet?: string): Promise<OfficeResponse> {
     const rows = values.length;
-    const cols = values[0]?.length || 0;
+    // 모든 행 중 최대 열 수로 계산 (첫 행만 보면 #N/A 발생)
+    const cols = Math.max(...values.map(row => (row ? row.length : 0)), 0);
     const sheetScript = sheet ? `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}')` : '$sheet = $workbook.ActiveSheet';
 
     // Check for Korean text in any cell
@@ -165,15 +166,16 @@ $value = $sheet.Range('${cell}').Value2
       return `'${str.replace(/'/g, "''")}'`;
     };
 
-    // Build PowerShell 2D array
-    const arrayLines: string[] = [];
+    // Build proper 2D array (System.Object[,]) for Excel COM
+    // PowerShell @(@(),@()) creates jagged arrays which Excel cannot assign to ranges
+    const cellAssignments: string[] = [];
     for (let i = 0; i < values.length; i++) {
       const row = values[i];
       if (!row) continue;
-      const rowValues = row.map(v => toPsValue(v)).join(',');
-      arrayLines.push(`@(${rowValues})`);
+      for (let j = 0; j < row.length; j++) {
+        cellAssignments.push(`$data[${i},${j}] = ${toPsValue(row[j])}`);
+      }
     }
-    const arrayScript = `@(${arrayLines.join(',')})`;
 
     // Set Korean font if Korean text detected
     const fontScript = hasKorean ? "$range.Font.Name = 'Malgun Gothic'" : '';
@@ -185,8 +187,8 @@ ${sheetScript}
 $startRange = $sheet.Range('${startCell}')
 $endCell = $sheet.Cells($startRange.Row + ${rows - 1}, $startRange.Column + ${cols - 1})
 $range = $sheet.Range($startRange, $endCell)
-${fontScript}
-$data = ${arrayScript}
+$data = New-Object 'object[,]' ${rows},${cols}
+${cellAssignments.join('\n')}
 $range.Value = $data
 @{ success = $true; message = "Range written from ${startCell} (${rows}x${cols})" } | ConvertTo-Json -Compress
 `);

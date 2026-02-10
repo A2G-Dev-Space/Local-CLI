@@ -20,6 +20,7 @@ import { powerShellManager } from './powershell-manager';
 import { configManager } from './core/config';
 import { sessionManager } from './core/session';
 import { toolManager } from './tool-manager';
+import { reportError } from './core/telemetry/error-reporter';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -68,6 +69,7 @@ process.on('uncaughtException', (error) => {
     message: error.message,
     stack: error.stack,
   });
+  reportError(error, { type: 'uncaughtException' }).catch(() => {});
 
   // 개발 모드에서는 에러 표시
   if (isDev) {
@@ -80,6 +82,7 @@ process.on('unhandledRejection', (reason, promise) => {
     reason: reason instanceof Error ? reason.message : String(reason),
     promise: String(promise),
   });
+  reportError(reason, { type: 'unhandledRejection' }).catch(() => {});
 
   if (isDev) {
     console.error('Unhandled Rejection:', reason);

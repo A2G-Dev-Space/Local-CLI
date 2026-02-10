@@ -11,6 +11,7 @@ import { configManager } from '../config/config-manager.js';
 import { PROJECTS_DIR } from '../../constants.js';
 import { initializeJsonStreamLogger } from '../../utils/json-stream-logger.js';
 import { logger } from '../../utils/logger.js';
+import { reportError } from '../telemetry/error-reporter.js';
 
 /**
  * 세션 메타데이터 인터페이스
@@ -244,6 +245,7 @@ export class SessionManager {
       return sessionData;
     } catch (error) {
       logger.error('Failed to load session', { sessionId, error });
+      reportError(error, { type: 'session', method: 'loadSession', sessionId }).catch(() => {});
       return null;
     }
   }

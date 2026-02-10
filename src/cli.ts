@@ -19,10 +19,19 @@ import { setupLogging, logger } from './utils/logger.js';
 import { runEvalMode } from './eval/index.js';
 import { initializeOptionalTools } from './tools/registry.js';
 import { sessionManager } from './core/session/session-manager.js';
+import { reportError } from './core/telemetry/error-reporter.js';
 
 // Read version from package.json (single source of truth)
 const require = createRequire(import.meta.url);
 const packageJson = require('../package.json') as { version: string };
+
+// Process-level error handlers (fire-and-forget)
+process.on('uncaughtException', (error) => {
+  reportError(error, { type: 'uncaughtException' }).catch(() => {});
+});
+process.on('unhandledRejection', (reason) => {
+  reportError(reason, { type: 'unhandledRejection' }).catch(() => {});
+});
 
 const program = new Command();
 
@@ -132,11 +141,13 @@ program
         // Wait until the UI exits before cleanup
         await waitUntilExit();
       } catch (error) {
+        reportError(error, { type: 'inkUiInit' }).catch(() => {});
         console.log(chalk.yellow('\n⚠️  Ink UI를 시작할 수 없습니다.\n'));
         console.log(chalk.dim(`Error: ${error instanceof Error ? error.message : String(error)}\n`));
         process.exit(1);
       }
     } catch (error) {
+      reportError(error, { type: 'initialization' }).catch(() => {});
       console.error(chalk.red('\n❌ 에러 발생:'));
       if (error instanceof Error) {
         console.error(chalk.red(error.message));

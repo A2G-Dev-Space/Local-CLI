@@ -1318,6 +1318,20 @@ export function setupIpcHandlers(): void {
     }
   });
 
+  // 현재 모델 설정 (endpoint 내 개별 모델)
+  ipcMain.handle('llm:setCurrentModel', async (_event, modelId: string) => {
+    try {
+      const success = await configManager.setCurrentModel(modelId);
+      return { success };
+    } catch (error) {
+      logger.error('Failed to set current LLM model', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  });
+
   // 현재 endpoint 설정
   ipcMain.handle('llm:setCurrentEndpoint', async (_event, endpointId: string) => {
     try {

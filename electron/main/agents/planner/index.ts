@@ -13,6 +13,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
 import { logger } from '../../utils/logger';
+import { reportError } from '../../core/telemetry/error-reporter';
 import type { Message, ToolDefinition } from '../../core/llm';
 import { flattenMessagesToHistory } from '../../orchestration/utils';
 import {
@@ -411,6 +412,9 @@ Choose one of your 3 tools now.`,
 
     // All retries exhausted - use fallback
     logger.warn('All planning retries exhausted, using fallback TODO', { lastError: lastError?.message });
+    if (lastError) {
+      reportError(lastError, { type: 'planning', reason: 'retriesExhausted' }).catch(() => {});
+    }
 
     return {
       todos: [

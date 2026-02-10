@@ -11,6 +11,7 @@ import fs from 'fs';
 import path from 'path';
 import { app } from 'electron';
 import { logger } from '../../utils/logger';
+import { reportError } from '../telemetry/error-reporter';
 
 // =============================================================================
 // Types (CLI parity)
@@ -367,6 +368,7 @@ class SessionManager {
       return session;
     } catch (error) {
       logger.error('Failed to load session', { sessionId, error });
+      reportError(error, { type: 'session', method: 'loadSession' }).catch(() => {});
       return null;
     }
   }
