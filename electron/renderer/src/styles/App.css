@@ -373,6 +373,14 @@
   max-width: 100px;
 }
 
+.vision-badge {
+  font-size: 9px;
+  font-weight: 700;
+  color: #4ade80;
+  margin-left: 4px;
+  flex-shrink: 0;
+}
+
 .panel-model-btn .dropdown-arrow {
   flex-shrink: 0;
   opacity: 0.6;

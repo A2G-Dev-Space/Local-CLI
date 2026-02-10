@@ -73,6 +73,7 @@ import { useFileBrowserState } from '../hooks/useFileBrowserState.js';
 import { useCommandBrowserState } from '../hooks/useCommandBrowserState.js';
 import { usePlanExecution } from '../hooks/usePlanExecution.js';
 import { useInputHistory } from '../hooks/useInputHistory.js';
+import { useTerminalWidth, clampText } from '../hooks/useTerminalWidth.js';
 import { isValidCommand } from '../hooks/slashCommandProcessor.js';
 import { processFileReferences } from '../hooks/atFileProcessor.js';
 import {
@@ -100,6 +101,7 @@ import {
   setReasoningCallback,
   type ToolApprovalResult,
 } from '../../tools/llm/simple/file-tools.js';
+import { findVisionModel } from '../../tools/llm/simple/read-image-tool.js';
 import { createRequire } from 'module';
 
 // Get version from package.json
@@ -200,6 +202,7 @@ interface PlanExecuteAppProps {
 
 export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initialLlmClient, modelInfo }) => {
   const { exit } = useApp();
+  const termWidth = useTerminalWidth();
   const [messages, setMessages] = useState<Message[]>([]);
   const { input, setInput, handleHistoryPrev, handleHistoryNext, addToHistory } = useInputHistory();
   const [isProcessing, setIsProcessing] = useState(false);
@@ -438,22 +441,16 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
     };
   }, [addLog]);
 
-  // Setup reasoning callback - adds to Static log (non-streaming only)
-  // Note: Streaming updates to Static items cause render issues, so we only support non-streaming
+  // Setup reasoning callback - log only, no Static entry (prevents "Thinking..." residue)
   useEffect(() => {
     setReasoningCallback((content, _isStreaming) => {
-      // Always add as new entry (don't update existing Static items)
-      addLog({
-        type: 'reasoning',
-        content,
-      });
       logger.debug('Reasoning received', { contentLength: content.length });
     });
 
     return () => {
       setReasoningCallback(null);
     };
-  }, [addLog]);
+  }, []);
 
   // Setup tool approval callback (Supervised Mode)
   useEffect(() => {
@@ -1529,6 +1526,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
               animate={false}
               modelName={currentModelInfo.model}
               workingDirectory={shortenPath(process.cwd())}
+              visionAvailable={findVisionModel() !== null}
             />
             <Text>{' '}</Text>
             <Box>
@@ -1693,12 +1691,10 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         const params = getToolParams(entry.content, entry.toolArgs);
         const toolName = entry.content;
 
-        // Truncate reason if too long
+        // Truncate reason to fit terminal width
         const reason = entry.details || '';
-        const maxReasonLen = 80;
-        const truncatedReason = reason.length > maxReasonLen
-          ? reason.substring(0, maxReasonLen) + '...'
-          : reason;
+        const maxReasonLen = Math.max(20, termWidth - 10);
+        const truncatedReason = clampText(reason, maxReasonLen);
 
         // 모든 도구 통일된 2줄 포맷
         return (
@@ -1784,6 +1780,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
               animate={false}
               modelName={currentModelInfo.model}
               workingDirectory={shortenPath(process.cwd())}
+              visionAvailable={findVisionModel() !== null}
             />
             <Text color="gray">── {entry.content} ──</Text>
           </Box>
@@ -1842,12 +1839,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         );
 
       case 'reasoning':
-        // Hide reasoning content - just show indicator
-        return (
-          <Box key={entry.id} marginTop={1}>
-            <Text color="gray">💭 Thinking...</Text>
-          </Box>
-        );
+        return null;
 
       default:
         return null;
@@ -2044,11 +2036,14 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
                   <Spinner type="star" />
                 </Text>
                 <Text color="white">{' '}
-                  {getStatusText({
-                    phase: planExecutionState.executionPhase,
-                    todos: planExecutionState.todos,
-                    currentToolName,
-                  })}…
+                  {clampText(
+                    getStatusText({
+                      phase: planExecutionState.executionPhase,
+                      todos: planExecutionState.todos,
+                      currentToolName,
+                    }) + '\u2026',
+                    Math.max(20, termWidth - 40),
+                  )}
                 </Text>
                 <Text color="gray">
                   {' '}(esc to interrupt · {formatElapsedTime(sessionElapsed)}
@@ -2095,7 +2090,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
               <Text color="gray">{getHealthIndicator()} </Text>
               <Text color="cyan">{currentModelInfo.model}</Text>
               <Text color="gray"> │ </Text>
-              <Text color="gray">{shortenPath(process.cwd())}</Text>
+              <Text color="gray">{clampText(shortenPath(process.cwd()), Math.max(10, termWidth - 50))}</Text>
               {planExecutionState.todos.length > 0 && (
                 <>
                   <Text color="gray"> │ </Text>

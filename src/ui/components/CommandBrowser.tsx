@@ -10,6 +10,7 @@ import SelectInput from 'ink-select-input';
 import {
   filterCommands,
 } from '../hooks/slashCommandProcessor.js';
+import { useTerminalWidth, clampText } from '../hooks/useTerminalWidth.js';
 
 interface CommandBrowserProps {
   partialCommand: string;
@@ -23,7 +24,6 @@ interface SelectItem {
   value: string;
 }
 
-const COMMAND_COLUMN_WIDTH = 25;
 const MAX_VISIBLE_COMMANDS = 10;
 
 export const CommandBrowser: React.FC<CommandBrowserProps> = ({
@@ -32,7 +32,12 @@ export const CommandBrowser: React.FC<CommandBrowserProps> = ({
   onSelect,
   onCancel,
 }) => {
+  const termWidth = useTerminalWidth();
   const commands = filterCommands(partialCommand, MAX_VISIBLE_COMMANDS);
+
+  // Dynamic column width based on terminal size
+  const commandColWidth = Math.max(15, Math.min(25, Math.floor(termWidth * 0.3)));
+  const descMaxWidth = Math.max(10, termWidth - commandColWidth - 8);
 
   // Convert CommandMetadata to SelectItem format
   const items: SelectItem[] = commands.map((cmd) => {
@@ -40,10 +45,11 @@ export const CommandBrowser: React.FC<CommandBrowserProps> = ({
       ? ` (${cmd.aliases.join(', ')})`
       : '';
     const commandPart = `${cmd.name}${aliasText}`;
-    // Pad to COMMAND_COLUMN_WIDTH characters for alignment
-    const paddedCommand = commandPart.padEnd(COMMAND_COLUMN_WIDTH);
+    // Pad to dynamic column width for alignment
+    const paddedCommand = commandPart.padEnd(commandColWidth);
+    const desc = clampText(cmd.description, descMaxWidth);
     return {
-      label: `${paddedCommand} ${cmd.description}`,
+      label: `${paddedCommand} ${desc}`,
       value: cmd.name,
     };
   });

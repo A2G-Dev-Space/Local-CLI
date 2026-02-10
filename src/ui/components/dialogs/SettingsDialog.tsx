@@ -48,6 +48,7 @@ interface LLMFormData {
   modelId: string;
   modelName: string;
   maxContextLength: string;
+  supportsVision: boolean;
 }
 
 type SettingsView =
@@ -60,7 +61,7 @@ type SettingsView =
   | 'llm-edit'
   | 'llm-delete-confirm';
 
-type FormField = 'name' | 'baseUrl' | 'apiKey' | 'modelId' | 'modelName' | 'maxContextLength' | 'buttons';
+type FormField = 'name' | 'baseUrl' | 'apiKey' | 'modelId' | 'modelName' | 'maxContextLength' | 'supportsVision' | 'buttons';
 
 export const SettingsBrowser: React.FC<SettingsBrowserProps> = ({
   currentPlanningMode: _currentPlanningMode, // Kept for backward compatibility but not used (always auto)
@@ -88,6 +89,7 @@ export const SettingsBrowser: React.FC<SettingsBrowserProps> = ({
     modelId: '',
     modelName: '',
     maxContextLength: '128000',
+    supportsVision: false,
   });
   const [formField, setFormField] = useState<FormField>('name');
   const [formButtonIndex, setFormButtonIndex] = useState(0);
@@ -220,8 +222,14 @@ export const SettingsBrowser: React.FC<SettingsBrowserProps> = ({
   // Handle form field navigation with Tab, Arrow keys, and Enter
   const handleFormNavigation = useCallback(
     (key: { tab?: boolean; shift?: boolean; return?: boolean; upArrow?: boolean; downArrow?: boolean }) => {
-      const fields: FormField[] = ['name', 'baseUrl', 'apiKey', 'modelId', 'modelName', 'maxContextLength', 'buttons'];
+      const fields: FormField[] = ['name', 'baseUrl', 'apiKey', 'modelId', 'modelName', 'maxContextLength', 'supportsVision', 'buttons'];
       const currentIndex = fields.indexOf(formField);
+
+      // Toggle supportsVision on Enter
+      if (key.return && formField === 'supportsVision') {
+        setFormData((prev) => ({ ...prev, supportsVision: !prev.supportsVision }));
+        return true;
+      }
 
       // Tab or Enter to move to next field (except on buttons where Enter submits)
       if (key.tab || (key.return && formField !== 'buttons')) {
@@ -335,6 +343,7 @@ export const SettingsBrowser: React.FC<SettingsBrowserProps> = ({
             enabled: true,
             healthStatus: 'healthy',
             lastHealthCheck: new Date(),
+            supportsVision: formData.supportsVision,
           },
         ],
         createdAt: new Date(),
@@ -355,6 +364,7 @@ export const SettingsBrowser: React.FC<SettingsBrowserProps> = ({
               enabled: true,
               healthStatus: 'healthy',
               lastHealthCheck: new Date(),
+              supportsVision: formData.supportsVision,
             },
           ],
         });
@@ -368,6 +378,12 @@ export const SettingsBrowser: React.FC<SettingsBrowserProps> = ({
         }
       }
 
+      // Sync vision tool state after saving
+      try {
+        const { syncVisionToolState } = await import('../../../tools/registry.js');
+        await syncVisionToolState();
+      } catch { /* ignore if not available */ }
+
       setIsTesting(false);
       setView('llms');
       loadEndpoints();
@@ -378,7 +394,7 @@ export const SettingsBrowser: React.FC<SettingsBrowserProps> = ({
   }, [formData, formButtonIndex, view, selectedEndpoint, endpoints.length, loadEndpoints]);
 
   // Custom keyboard handling
-  useInput((_inputChar, key) => {
+  useInput((inputChar, key) => {
     if (key.escape) {
       if (view === 'llm-add' || view === 'llm-edit') {
         setView('llms');
@@ -395,6 +411,12 @@ export const SettingsBrowser: React.FC<SettingsBrowserProps> = ({
 
     // Form navigation for add/edit views
     if (view === 'llm-add' || view === 'llm-edit') {
+      // Space to toggle supportsVision
+      if (inputChar === ' ' && formField === 'supportsVision') {
+        setFormData((prev) => ({ ...prev, supportsVision: !prev.supportsVision }));
+        return;
+      }
+
       // Handle Tab, Arrow keys, and Enter for navigation
       if (key.tab || key.upArrow || key.downArrow) {
         handleFormNavigation({
@@ -490,7 +512,7 @@ export const SettingsBrowser: React.FC<SettingsBrowserProps> = ({
   // Handle LLMs menu selection
   const handleLLMsSelect = (item: SelectItem) => {
     if (item.value === 'add') {
-      setFormData({ name: '', baseUrl: '', apiKey: '', modelId: '', modelName: '', maxContextLength: '128000' });
+      setFormData({ name: '', baseUrl: '', apiKey: '', modelId: '', modelName: '', maxContextLength: '128000', supportsVision: false });
       setFormField('name');
       setFormButtonIndex(0);
       setFormError(null);
@@ -517,6 +539,7 @@ export const SettingsBrowser: React.FC<SettingsBrowserProps> = ({
           modelId: selectedEndpoint.models[0]?.id || '',
           modelName: selectedEndpoint.models[0]?.name || '',
           maxContextLength: String(selectedEndpoint.models[0]?.maxTokens || 128000),
+          supportsVision: selectedEndpoint.models[0]?.supportsVision || false,
         });
         setFormField('name');
         setFormButtonIndex(0);
@@ -893,6 +916,19 @@ export const SettingsBrowser: React.FC<SettingsBrowserProps> = ({
               />
             ) : (
               <Text>{formData.maxContextLength || '128000'}</Text>
+            )}
+          </Box>
+
+          {/* Vision Support Toggle */}
+          <Box>
+            <Text color={formField === 'supportsVision' ? 'cyan' : 'yellow'}>
+              {formField === 'supportsVision' ? '> ' : '  '}Vision (VL):
+            </Text>
+            <Text color={formData.supportsVision ? 'green' : 'gray'}>
+              {formData.supportsVision ? ' [ON] ' : ' [OFF]'}
+            </Text>
+            {formField === 'supportsVision' && (
+              <Text color="gray" dimColor> (Space/Enter to toggle)</Text>
             )}
           </Box>
         </Box>

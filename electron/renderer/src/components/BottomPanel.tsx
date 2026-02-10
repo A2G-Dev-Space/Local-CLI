@@ -116,6 +116,11 @@ const BottomPanel: React.FC<BottomPanelProps> = ({
   const currentEndpoint = endpoints.find(e => e.id === currentEndpointId);
   const currentModelName = currentEndpoint?.models?.[0]?.name || currentEndpoint?.name || t('model.noModel');
 
+  // Check if any VL model exists across all endpoints
+  const hasVisionModel = endpoints.some(ep =>
+    ep.models?.some(m => m.supportsVision && m.enabled)
+  );
+
   return (
     <div
       className={`bottom-panel-wrapper ${isFullscreen ? 'fullscreen' : ''}`}
@@ -171,6 +176,10 @@ const BottomPanel: React.FC<BottomPanelProps> = ({
               </div>
 
               <div className="panel-header-row1-right">
+                {/* Vision indicator - shown when any VL model exists */}
+                {hasVisionModel && (
+                  <span className="vision-badge" title="Vision Language Model available">Vision</span>
+                )}
                 {/* Model Selector - only when Chat active */}
                 {layout === 'chat' && (
                   <div className="panel-model-selector" ref={modelDropdownRef}>

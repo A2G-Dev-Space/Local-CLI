@@ -31,6 +31,7 @@ interface LogoProps {
   animate?: boolean;
   modelName?: string;
   workingDirectory?: string;
+  visionAvailable?: boolean;
 }
 
 export const Logo: React.FC<LogoProps> = ({
@@ -40,6 +41,7 @@ export const Logo: React.FC<LogoProps> = ({
   animate = true,
   modelName,
   workingDirectory,
+  visionAvailable,
 }) => {
   // variant reserved for future use (compact, animated modes)
   void _variant;
@@ -108,6 +110,9 @@ export const Logo: React.FC<LogoProps> = ({
             <Text color="cyan">
               {workingDirectory}
             </Text>
+          )}
+          {visionAvailable && (
+            <Text color="green"> Vision</Text>
           )}
           {showTagline && !modelName && !workingDirectory && (
             <Text color="magenta" dimColor>

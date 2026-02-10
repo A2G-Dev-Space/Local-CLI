@@ -11,6 +11,7 @@ import React, { useState, useCallback } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { CustomTextInput } from '../CustomTextInput.js';
 import { logger } from '../../../utils/logger.js';
+import { useTerminalWidth, separatorLine, clampText } from '../../hooks/useTerminalWidth.js';
 
 export interface ApprovalDialogProps {
   toolName: string;
@@ -88,6 +89,7 @@ export const ApprovalDialog: React.FC<ApprovalDialogProps> = ({
   reason,
   onResponse,
 }) => {
+  const termWidth = useTerminalWidth();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isRejectMode, setIsRejectMode] = useState(false);
   const [rejectComment, setRejectComment] = useState('');
@@ -204,7 +206,7 @@ export const ApprovalDialog: React.FC<ApprovalDialogProps> = ({
 
       {/* Separator */}
       <Box marginY={0}>
-        <Text color="gray">{'─'.repeat(50)}</Text>
+        <Text color="gray">{separatorLine(termWidth, 6)}</Text>
       </Box>
 
       {/* Arguments */}
@@ -219,7 +221,7 @@ export const ApprovalDialog: React.FC<ApprovalDialogProps> = ({
                 ))}
               </Box>
             ) : (
-              <Text color="white">{value}</Text>
+              <Text color="white">{clampText(value, Math.max(20, termWidth - 12))}</Text>
             )}
           </Box>
         ))}
@@ -227,7 +229,7 @@ export const ApprovalDialog: React.FC<ApprovalDialogProps> = ({
 
       {/* Separator */}
       <Box marginY={0}>
-        <Text color="gray">{'─'.repeat(50)}</Text>
+        <Text color="gray">{separatorLine(termWidth, 6)}</Text>
       </Box>
 
       {/* Options */}

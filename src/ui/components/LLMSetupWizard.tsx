@@ -23,9 +23,10 @@ interface FormData {
   modelId: string;
   modelName: string;
   maxContextLength: string;
+  supportsVision: boolean;
 }
 
-type FormField = 'name' | 'baseUrl' | 'apiKey' | 'modelId' | 'modelName' | 'maxContextLength' | 'buttons';
+type FormField = 'name' | 'baseUrl' | 'apiKey' | 'modelId' | 'modelName' | 'maxContextLength' | 'supportsVision' | 'buttons';
 
 export const LLMSetupWizard: React.FC<LLMSetupWizardProps> = ({ onComplete, onSkip }) => {
   const [formData, setFormData] = useState<FormData>({
@@ -35,6 +36,7 @@ export const LLMSetupWizard: React.FC<LLMSetupWizardProps> = ({ onComplete, onSk
     modelId: '',
     modelName: '',
     maxContextLength: '128000',
+    supportsVision: false,
   });
   const [formField, setFormField] = useState<FormField>('name');
   const [formButtonIndex, setFormButtonIndex] = useState(0);
@@ -44,7 +46,7 @@ export const LLMSetupWizard: React.FC<LLMSetupWizardProps> = ({ onComplete, onSk
   // Handle form field navigation with Tab and Arrow keys
   const handleFormNavigation = useCallback(
     (key: { tab?: boolean; shift?: boolean; upArrow?: boolean; downArrow?: boolean }) => {
-      const fields: FormField[] = ['name', 'baseUrl', 'apiKey', 'modelId', 'modelName', 'maxContextLength', 'buttons'];
+      const fields: FormField[] = ['name', 'baseUrl', 'apiKey', 'modelId', 'modelName', 'maxContextLength', 'supportsVision', 'buttons'];
       const currentIndex = fields.indexOf(formField);
 
       if (key.tab) {
@@ -139,6 +141,7 @@ export const LLMSetupWizard: React.FC<LLMSetupWizardProps> = ({ onComplete, onSk
             enabled: true,
             healthStatus: 'healthy',
             lastHealthCheck: new Date(),
+            supportsVision: formData.supportsVision,
           },
         ],
         createdAt: new Date(),
@@ -146,6 +149,11 @@ export const LLMSetupWizard: React.FC<LLMSetupWizardProps> = ({ onComplete, onSk
       };
 
       await configManager.createInitialEndpoint(newEndpoint);
+
+      // Sync vision tool state after saving endpoint with supportsVision
+      const { syncVisionToolState } = await import('../../tools/registry.js');
+      await syncVisionToolState();
+
       setIsTesting(false);
       onComplete();
     } catch (err) {
@@ -155,7 +163,13 @@ export const LLMSetupWizard: React.FC<LLMSetupWizardProps> = ({ onComplete, onSk
   }, [formData, formButtonIndex, onComplete, onSkip]);
 
   // Keyboard handling
-  useInput((_inputChar, key) => {
+  useInput((inputChar, key) => {
+    // Toggle supportsVision with Space or Enter
+    if (formField === 'supportsVision' && (inputChar === ' ' || key.return)) {
+      setFormData((prev) => ({ ...prev, supportsVision: !prev.supportsVision }));
+      return;
+    }
+
     if (key.tab) {
       handleFormNavigation({ tab: true, shift: key.shift });
     } else if (key.upArrow || key.downArrow) {
@@ -279,6 +293,19 @@ export const LLMSetupWizard: React.FC<LLMSetupWizardProps> = ({ onComplete, onSk
             />
           ) : (
             <Text> {formData.maxContextLength || '128000'}</Text>
+          )}
+        </Box>
+
+        {/* Vision Support Toggle */}
+        <Box>
+          <Text color={formField === 'supportsVision' ? 'cyan' : 'yellow'}>
+            {formField === 'supportsVision' ? '> ' : '  '}Vision (VL):
+          </Text>
+          <Text color={formData.supportsVision ? 'green' : 'gray'}>
+            {formData.supportsVision ? ' [ON] ' : ' [OFF]'}
+          </Text>
+          {formField === 'supportsVision' && (
+            <Text color="gray" dimColor> (Space/Enter to toggle)</Text>
           )}
         </Box>
       </Box>
