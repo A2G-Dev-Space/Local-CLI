@@ -117,10 +117,12 @@ const EXCEL_RENAME_SHEET_DEFINITION: ToolDefinition = {
 
 async function executeExcelRenameSheet(args: Record<string, unknown>): Promise<ToolResult> {
   try {
-    const response = await excelClient.excelRenameSheet(
-      args['old_name'] as string,
-      args['new_name'] as string
-    );
+    const oldName = typeof args['old_name'] === 'string' ? args['old_name'].trim() : '';
+    const newName = typeof args['new_name'] === 'string' ? args['new_name'].trim() : '';
+    if (!oldName || !newName) {
+      return { success: false, error: 'Missing required arguments: old_name and new_name are required' };
+    }
+    const response = await excelClient.excelRenameSheet(oldName, newName);
     if (response.success) {
       return { success: true, result: `Sheet renamed: ${args['old_name']} → ${args['new_name']}` };
     }

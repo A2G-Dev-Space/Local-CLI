@@ -42,8 +42,12 @@ Use cell references like "A1", "B2", "C10", etc.
 
 async function executeExcelWriteCell(args: Record<string, unknown>): Promise<ToolResult> {
   try {
+    const cell = typeof args['cell'] === 'string' ? args['cell'].trim() : '';
+    if (!cell) {
+      return { success: false, error: 'Missing required argument: cell (e.g., "A1")' };
+    }
     const response = await excelClient.excelWriteCell(
-      args['cell'] as string,
+      cell,
       args['value'],
       args['sheet'] as string | undefined,
       {
