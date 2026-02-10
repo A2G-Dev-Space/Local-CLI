@@ -329,7 +329,8 @@ export const CustomTextInput: React.FC<CustomTextInputProps> = ({
     // Show collapsed view only when isCollapsedView is true (set after paste, cleared on edit)
     if (lineCount > MULTILINE_COLLAPSE_THRESHOLD && isCollapsedView) {
       const firstLine = lines[0] || '';
-      const truncatedFirstLine = firstLine.length > 40 ? firstLine.slice(0, 40) + '...' : firstLine;
+      const previewMax = Math.min((process.stdout.columns || 80) - 20, 60);
+      const truncatedFirstLine = firstLine.length > previewMax ? firstLine.slice(0, previewMax) + '...' : firstLine;
       return (
         <Box>
           <Text color="cyan">{lineCount} lines pasted</Text>

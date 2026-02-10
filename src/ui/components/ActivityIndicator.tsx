@@ -13,6 +13,7 @@ import React, { useState, useEffect } from 'react';
 import { Box, Text } from 'ink';
 import Spinner from 'ink-spinner';
 import { logger } from '../../utils/logger.js';
+import { useTerminalWidth, clampText } from '../hooks/useTerminalWidth.js';
 
 // Activity types
 export type ActivityType =
@@ -115,6 +116,7 @@ export const ActivityIndicator: React.FC<ActivityIndicatorProps> = ({
   totalSteps,
   stepName,
 }) => {
+  const termWidth = useTerminalWidth();
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   // Log component lifecycle
@@ -191,14 +193,14 @@ export const ActivityIndicator: React.FC<ActivityIndicatorProps> = ({
       {/* Detail line */}
       {detail && (
         <Box marginLeft={2}>
-          <Text color="gray" dimColor>{detail}</Text>
+          <Text color="gray" dimColor>{clampText(detail, Math.max(20, termWidth - 4))}</Text>
         </Box>
       )}
 
       {/* Step info for planning/executing */}
       {stepName && (
         <Box marginLeft={2}>
-          <Text color="gray" dimColor>{currentStep}/{totalSteps}: {stepName}</Text>
+          <Text color="gray" dimColor>{currentStep}/{totalSteps}: {clampText(stepName, Math.max(20, termWidth - 12))}</Text>
         </Box>
       )}
 
@@ -211,7 +213,7 @@ export const ActivityIndicator: React.FC<ActivityIndicatorProps> = ({
               <Box key={idx}>
                 {getStatusIcon(sub.status)}
                 <Text color="gray" dimColor> {subInfo.label}</Text>
-                {sub.detail && <Text color="gray" dimColor>: {sub.detail}</Text>}
+                {sub.detail && <Text color="gray" dimColor>: {clampText(sub.detail, Math.max(20, termWidth - 16))}</Text>}
               </Box>
             );
           })}

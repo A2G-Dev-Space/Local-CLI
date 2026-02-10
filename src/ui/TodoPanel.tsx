@@ -14,6 +14,7 @@ import { Box, Text } from 'ink';
 import Spinner from 'ink-spinner';
 import { TodoItem } from '../types/index.js';
 import { logger } from '../utils/logger.js';
+import { useTerminalWidth, clampText } from './hooks/useTerminalWidth.js';
 
 interface TodoPanelProps {
   todos: TodoItem[];
@@ -60,6 +61,7 @@ export const TodoPanel: React.FC<TodoPanelProps> = React.memo(({
   currentTodoId,
   isProcessing = false,
 }) => {
+  const termWidth = useTerminalWidth();
   const [elapsedTime, setElapsedTime] = useState(0);
   const [startTime] = useState(Date.now());
 
@@ -144,7 +146,7 @@ export const TodoPanel: React.FC<TodoPanelProps> = React.memo(({
                   dimColor={isCompleted}
                   strikethrough={isCompleted}
                 >
-                  {todo.title}
+                  {clampText(todo.title, Math.max(20, termWidth - 8))}
                 </Text>
 
                 {/* Current indicator */}
@@ -156,7 +158,7 @@ export const TodoPanel: React.FC<TodoPanelProps> = React.memo(({
               {/* Error message */}
               {todo.error && (
                 <Box marginLeft={2}>
-                  <Text color="red" dimColor>⚠ {todo.error}</Text>
+                  <Text color="red" dimColor>⚠ {clampText(todo.error, Math.max(20, termWidth - 6))}</Text>
                 </Box>
               )}
             </Box>
@@ -196,6 +198,8 @@ export const TodoPanel: React.FC<TodoPanelProps> = React.memo(({
  * Memoized to prevent unnecessary re-renders
  */
 export const TodoStatusBar: React.FC<{ todos: TodoItem[] }> = React.memo(({ todos }) => {
+  const termWidth = useTerminalWidth();
+
   // Log component render
   useEffect(() => {
     logger.debug('TodoStatusBar rendered', { todoCount: todos.length });
@@ -210,6 +214,9 @@ export const TodoStatusBar: React.FC<{ todos: TodoItem[] }> = React.memo(({ todo
   const currentTodo = todos.find(t => t.status === 'in_progress');
   const percentage = Math.round((completedCount / todos.length) * 100);
 
+  // Dynamic max length for current todo title (reserve space for progress bar + counters)
+  const todoTitleMax = Math.max(10, Math.min(termWidth - 30, 60));
+
   return (
     <Box>
       {/* Notion-style inline progress */}
@@ -223,7 +230,7 @@ export const TodoStatusBar: React.FC<{ todos: TodoItem[] }> = React.memo(({ todo
           <Text color="blueBright">
             <Spinner type="dots" />
           </Text>
-          <Text color="white"> {currentTodo.title.slice(0, 30)}{currentTodo.title.length > 30 ? '...' : ''}</Text>
+          <Text color="white"> {clampText(currentTodo.title, todoTitleMax)}</Text>
         </>
       )}
 

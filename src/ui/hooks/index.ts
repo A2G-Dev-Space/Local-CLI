@@ -9,3 +9,4 @@ export * from './useFileBrowserState.js';
 export * from './useCommandBrowserState.js';
 export * from './usePlanExecution.js';
 export * from './useInputHistory.js';
+export * from './useTerminalWidth.js';
