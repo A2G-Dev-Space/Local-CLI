@@ -149,6 +149,11 @@ export const LLMSetupWizard: React.FC<LLMSetupWizardProps> = ({ onComplete, onSk
       };
 
       await configManager.createInitialEndpoint(newEndpoint);
+
+      // Sync vision tool state after saving endpoint with supportsVision
+      const { syncVisionToolState } = await import('../../tools/registry.js');
+      await syncVisionToolState();
+
       setIsTesting(false);
       onComplete();
     } catch (err) {
