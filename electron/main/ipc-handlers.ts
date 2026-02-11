@@ -256,6 +256,17 @@ export function setupIpcHandlers(): void {
     return true;
   });
 
+  // 최근 디렉토리 추가 (lastOpenedDirectory + recentDirectories 동시 갱신)
+  ipcMain.handle('config:addRecentDirectory', async (_event, directory: string) => {
+    try {
+      await configManager.addRecentDirectory(directory);
+      return { success: true };
+    } catch (error) {
+      logger.error('Failed to add recent directory', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
   // 테마 설정
   ipcMain.handle('config:setTheme', async (_event, theme: 'light' | 'dark' | 'system') => {
     await configManager.setTheme(theme);
