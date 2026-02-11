@@ -110,6 +110,7 @@ const ChatApp: React.FC = () => {
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [endpoints, setEndpoints] = useState<EndpointConfig[]>([]);
   const [currentEndpointId, setCurrentEndpointId] = useState<string | null>(null);
+  const [currentModelId, setCurrentModelId] = useState<string | null>(null);
   const modelDropdownRef = useRef<HTMLDivElement>(null);
   const chatPanelRef = useRef<ChatPanelRef>(null);
 
@@ -277,6 +278,7 @@ const ChatApp: React.FC = () => {
         if (result.success && result.endpoints) {
           setEndpoints(result.endpoints);
           setCurrentEndpointId(result.currentEndpointId || null);
+          setCurrentModelId(result.currentModelId || null);
         }
       } catch (err) {
         window.electronAPI?.log?.error('[ChatApp] Failed to load endpoints', {
@@ -302,13 +304,23 @@ const ChatApp: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isModelDropdownOpen]);
 
-  // Handle model selection
-  const handleSelectModel = useCallback(async (endpointId: string) => {
+  // Handle model selection (endpoint 내 개별 모델 선택)
+  const handleSelectModel = useCallback(async (endpointId: string, modelId?: string) => {
     if (!window.electronAPI?.llm) return;
     try {
-      const result = await window.electronAPI.llm.setCurrentEndpoint(endpointId);
-      if (result.success) {
-        setCurrentEndpointId(endpointId);
+      // endpoint가 다르면 먼저 endpoint 변경
+      if (endpointId !== currentEndpointId) {
+        const epResult = await window.electronAPI.llm.setCurrentEndpoint(endpointId);
+        if (epResult.success) {
+          setCurrentEndpointId(endpointId);
+        }
+      }
+      // 모델 선택
+      if (modelId) {
+        const result = await window.electronAPI.llm.setCurrentModel(modelId);
+        if (result.success) {
+          setCurrentModelId(modelId);
+        }
       }
     } catch (err) {
       window.electronAPI?.log?.error('[ChatApp] Failed to set model', {
@@ -316,7 +328,7 @@ const ChatApp: React.FC = () => {
       });
     }
     setIsModelDropdownOpen(false);
-  }, []);
+  }, [currentEndpointId]);
 
   // Create a new session
   const handleNewSession = useCallback(async () => {
@@ -649,6 +661,7 @@ const ChatApp: React.FC = () => {
           allowAllPermissions={allowAllPermissions}
           endpoints={endpoints}
           currentEndpointId={currentEndpointId}
+          currentModelId={currentModelId}
           isModelDropdownOpen={isModelDropdownOpen}
           modelDropdownRef={modelDropdownRef}
           chatPanelRef={chatPanelRef}

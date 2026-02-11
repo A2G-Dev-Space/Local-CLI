@@ -449,7 +449,7 @@ const electronAPI = {
 
   // ============ LLM ============
   llm: {
-    getEndpoints: (): Promise<{ success: boolean; endpoints?: EndpointConfig[]; currentEndpointId?: string; error?: string }> => {
+    getEndpoints: (): Promise<{ success: boolean; endpoints?: EndpointConfig[]; currentEndpointId?: string; currentModelId?: string; error?: string }> => {
       return ipcRenderer.invoke('llm:getEndpoints');
     },
 
@@ -467,6 +467,10 @@ const electronAPI = {
 
     setCurrentEndpoint: (endpointId: string): Promise<{ success: boolean; error?: string }> => {
       return ipcRenderer.invoke('llm:setCurrentEndpoint', endpointId);
+    },
+
+    setCurrentModel: (modelId: string): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke('llm:setCurrentModel', modelId);
     },
 
     testConnection: (baseUrl: string, apiKey: string | undefined, modelId: string): Promise<{ success: boolean; error?: string; latency?: number }> => {
