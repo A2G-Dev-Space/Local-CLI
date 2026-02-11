@@ -12,14 +12,28 @@ export class WordClient extends OfficeClientBase {
   // Microsoft Word Operations
   // ===========================================================================
 
+  async wordLaunch(): Promise<OfficeResponse> {
+    return this.executePowerShell(`
+try {
+  $word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
+  $word.Visible = $true
+  @{ success = $true; message = "Connected to existing Word instance" } | ConvertTo-Json -Compress
+} catch {
+  $word = New-Object -ComObject Word.Application
+  $word.Visible = $true
+  @{ success = $true; message = "Launched new Word instance" } | ConvertTo-Json -Compress
+}
+`);
+  }
+
   async wordCreate(): Promise<OfficeResponse> {
     return this.executePowerShell(`
 try {
   $word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
 } catch {
   $word = New-Object -ComObject Word.Application
-  $word.Visible = $true
 }
+$word.Visible = $true
 $doc = $word.Documents.Add()
 @{ success = $true; message = "Created new document"; document_name = $doc.Name } | ConvertTo-Json -Compress
 `);
@@ -118,8 +132,8 @@ try {
   $word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
 } catch {
   $word = New-Object -ComObject Word.Application
-  $word.Visible = $true
 }
+$word.Visible = $true
 $doc = $word.Documents.Open('${windowsPath}')
 @{ success = $true; message = "Document opened"; document_name = $doc.Name; path = $doc.FullName } | ConvertTo-Json -Compress
 `);

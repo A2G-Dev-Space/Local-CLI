@@ -12,10 +12,11 @@ export class PowerPointClient extends OfficeClientBase {
     return this.executePowerShell(`
 try {
   $ppt = [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application")
+  $ppt.Visible = [Microsoft.Office.Core.MsoTriState]::msoTrue
   @{ success = $true; message = "Connected to existing PowerPoint instance" } | ConvertTo-Json -Compress
 } catch {
   $ppt = New-Object -ComObject PowerPoint.Application
-  # PowerPoint needs a presentation to be visible
+  $ppt.Visible = [Microsoft.Office.Core.MsoTriState]::msoTrue
   @{ success = $true; message = "Launched new PowerPoint instance" } | ConvertTo-Json -Compress
 }
 `);
@@ -28,6 +29,7 @@ try {
 } catch {
   $ppt = New-Object -ComObject PowerPoint.Application
 }
+$ppt.Visible = [Microsoft.Office.Core.MsoTriState]::msoTrue
 # Add presentation with window (msoTrue = -1)
 $presentation = $ppt.Presentations.Add(-1)
 @{ success = $true; message = "Created new presentation"; presentation_name = $presentation.Name } | ConvertTo-Json -Compress
@@ -42,6 +44,7 @@ try {
 } catch {
   $ppt = New-Object -ComObject PowerPoint.Application
 }
+$ppt.Visible = [Microsoft.Office.Core.MsoTriState]::msoTrue
 $presentation = $ppt.Presentations.Open('${windowsPath}')
 @{ success = $true; message = "Presentation opened"; presentation_name = $presentation.Name; path = $presentation.FullName } | ConvertTo-Json -Compress
 `);
