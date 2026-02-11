@@ -412,8 +412,20 @@ async function _executeEditFile(args: Record<string, unknown>): Promise<ToolResu
     // Read current content
     const originalContent = await fs.readFile(resolvedPath, 'utf-8');
 
+    // Normalize line endings: match old_string/new_string to the file's style
+    const hasCRLF = originalContent.includes('\r\n');
+    let normalizedOldString = oldString;
+    let normalizedNewString = newString;
+    if (hasCRLF && !oldString.includes('\r\n')) {
+      normalizedOldString = oldString.replace(/\n/g, '\r\n');
+      normalizedNewString = newString.replace(/\n/g, '\r\n');
+    } else if (!hasCRLF && oldString.includes('\r\n')) {
+      normalizedOldString = oldString.replace(/\r\n/g, '\n');
+      normalizedNewString = newString.replace(/\r\n/g, '\n');
+    }
+
     // Check if old_string exists in the file
-    if (!originalContent.includes(oldString)) {
+    if (!originalContent.includes(normalizedOldString)) {
       // Try to provide helpful context
       const lines = originalContent.split('\n');
       const preview = lines.slice(0, 20).map((l, i) => `${i + 1}: ${l}`).join('\n');
@@ -424,7 +436,7 @@ async function _executeEditFile(args: Record<string, unknown>): Promise<ToolResu
     }
 
     // Count occurrences
-    const occurrences = originalContent.split(oldString).length - 1;
+    const occurrences = originalContent.split(normalizedOldString).length - 1;
 
     // If not replace_all, old_string must be unique
     if (!replaceAll && occurrences > 1) {
@@ -434,13 +446,12 @@ async function _executeEditFile(args: Record<string, unknown>): Promise<ToolResu
       };
     }
 
-    // Perform replacement
+    // Perform replacement (using normalized strings to preserve file's line ending style)
     let newContent: string;
     if (replaceAll) {
-      newContent = originalContent.split(oldString).join(newString);
+      newContent = originalContent.split(normalizedOldString).join(normalizedNewString);
     } else {
-      // Replace only first occurrence (which should be unique)
-      newContent = originalContent.replace(oldString, newString);
+      newContent = originalContent.replace(normalizedOldString, normalizedNewString);
     }
 
     // Write the modified content
