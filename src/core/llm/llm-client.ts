@@ -908,7 +908,6 @@ export class LLMClient {
 
           try {
             toolArgs = JSON.parse(toolCall.function.arguments) as Record<string, unknown>;
-            consecutiveParseFailures = 0; // 성공 시 리셋
           } catch (parseError) {
             consecutiveParseFailures++;
             parseFailureToolCallIds.add(toolCall.id);
@@ -983,6 +982,72 @@ Do NOT use XML tags like <arg_key> or <arg_value>. Retry with valid JSON.`;
 
             continue;
           }
+
+          // Schema validation: required 파라미터 누락 및 타입 불일치 검증
+          const toolDef = tools.find(t => t.function.name === toolName);
+          if (toolDef?.function.parameters) {
+            const schema = toolDef.function.parameters;
+            const schemaErrors: string[] = [];
+
+            // 1. required 파라미터 누락 체크
+            if (schema.required) {
+              for (const req of schema.required) {
+                if (toolArgs[req] === undefined || toolArgs[req] === null) {
+                  const propDef = schema.properties[req] as { type?: string } | undefined;
+                  schemaErrors.push(`Missing required parameter: "${req}" (expected: ${propDef?.type || 'unknown'})`);
+                }
+              }
+            }
+
+            // 2. 제공된 파라미터 타입 불일치 체크
+            for (const [key, value] of Object.entries(toolArgs)) {
+              const propDef = schema.properties[key] as { type?: string } | undefined;
+              if (propDef?.type && value !== null && value !== undefined) {
+                const actualType = Array.isArray(value) ? 'array' : typeof value;
+                if (actualType !== propDef.type) {
+                  schemaErrors.push(`"${key}": expected ${propDef.type}, got ${actualType} (${JSON.stringify(value).substring(0, 50)})`);
+                }
+              }
+            }
+
+            if (schemaErrors.length > 0) {
+              consecutiveParseFailures++;
+              parseFailureToolCallIds.add(toolCall.id);
+
+              // 3회 연속 실패 시 abort
+              if (consecutiveParseFailures >= MAX_CONSECUTIVE_PARSE_FAILURES) {
+                const abortMsg = 'Cannot generate valid tool arguments. Please try a different model.';
+                addMessage({ role: 'tool', content: schemaErrors.join('\n'), tool_call_id: toolCall.id });
+                return {
+                  message: { role: 'assistant', content: abortMsg },
+                  toolCalls: toolCallHistory,
+                  allMessages: getAllMessages(),
+                };
+              }
+
+              // 구체적 피드백: 어떤 파라미터가 잘못됐는지 + 올바른 스키마 안내
+              const requiredList = (schema.required || [])
+                .map(r => {
+                  const p = schema.properties[r] as { type?: string } | undefined;
+                  return `  "${r}": ${p?.type || 'unknown'}`;
+                })
+                .join('\n');
+              const hintMsg = `Error: Schema validation failed for "${toolName}".
+
+${schemaErrors.join('\n')}
+
+Required parameters:
+${requiredList}
+
+Retry with correct parameter names and types.`;
+              addMessage({ role: 'tool', content: hintMsg, tool_call_id: toolCall.id });
+              toolCallHistory.push({ tool: toolName, args: toolArgs, result: 'Error: Schema validation failed' });
+              continue;
+            }
+          }
+
+          // JSON parse + schema validation 모두 통과 → 연속 실패 카운터 리셋
+          consecutiveParseFailures = 0;
 
           // Tool 실행
           const { executeFileTool, requestToolApproval } = await import('../../tools/llm/simple/file-tools.js');
