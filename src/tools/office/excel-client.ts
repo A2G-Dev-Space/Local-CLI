@@ -52,8 +52,8 @@ try {
   $excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
 } catch {
   $excel = New-Object -ComObject Excel.Application
-  $excel.Visible = $true
 }
+$excel.Visible = $true
 $workbook = $excel.Workbooks.Add()
 @{ success = $true; message = "Created new workbook"; workbook_name = $workbook.Name } | ConvertTo-Json -Compress
 `);
@@ -66,8 +66,8 @@ try {
   $excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
 } catch {
   $excel = New-Object -ComObject Excel.Application
-  $excel.Visible = $true
 }
+$excel.Visible = $true
 $workbook = $excel.Workbooks.Open('${windowsPath}')
 @{ success = $true; message = "Workbook opened"; workbook_name = $workbook.Name; path = $workbook.FullName } | ConvertTo-Json -Compress
 `);
