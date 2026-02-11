@@ -835,9 +835,27 @@ export class LLMClient {
           logger.warn(`[MULTI-TOOL DETECTED] LLM returned ${assistantMessage.tool_calls.length} tools: ${toolNames}`);
         }
 
-        // Tool calls 실행 (parallel_tool_calls: false로 API에서 단일 tool만 호출됨)
-        for (const toolCall of assistantMessage.tool_calls) {
-          const toolName = toolCall.function.name;
+        // Tool call 실행 (single tool per turn enforced)
+        for (const toolCall of assistantMessage.tool_calls!) {
+          // Sanitize tool name: strip <|...|> special tokens and trailing garbage
+          const rawToolName = toolCall.function.name;
+          const toolName =
+            rawToolName.replace(/<\|.*$/, '').replace(/[^a-zA-Z0-9_-]+$/, '').trim() || rawToolName;
+          if (toolName !== rawToolName) {
+            logger.warn('Tool name sanitized (model leaked special tokens)', {
+              original: rawToolName,
+              sanitized: toolName,
+              model: this.model,
+            });
+            toolCall.function.name = toolName;
+            reportError(new Error(`Tool name contaminated: ${rawToolName}`), {
+              type: 'toolNameContamination',
+              original: rawToolName,
+              sanitized: toolName,
+              modelId: this.model,
+              modelName: this.modelName,
+            }).catch(() => {});
+          }
           let toolArgs: Record<string, unknown>;
 
           try {
