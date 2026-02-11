@@ -23,6 +23,7 @@ export {
   buildPlanExecutePrompt,
   SIMPLE_CHAT_SYSTEM_PROMPT,
   buildSimpleChatPrompt,
+  CRITICAL_REMINDERS,
 } from './system/plan-execute';
 export { COMPACT_SYSTEM_PROMPT } from './system/compact';
 

@@ -32,7 +32,7 @@ import {
 import { setReasoningCallback, setToolApprovalCallback, requestToolApproval } from '../tools/llm/simple/simple-tool-executor';
 import type { ToolApprovalResult } from '../tools/llm/simple/simple-tool-executor';
 import { ContextLengthError } from '../errors';
-import { PLAN_EXECUTE_SYSTEM_PROMPT, buildPlanExecutePrompt } from '../prompts';
+import { PLAN_EXECUTE_SYSTEM_PROMPT, buildPlanExecutePrompt, CRITICAL_REMINDERS } from '../prompts';
 import { GIT_COMMIT_RULES } from '../prompts/shared/git-rules';
 import { PlanningLLM } from '../agents/planner';
 import { contextTracker, getContextTracker } from '../core/compact';
@@ -492,7 +492,7 @@ export async function runAgent(
     if (historyText) {
       userContent += `<CONVERSATION_HISTORY>\n${historyText}\n</CONVERSATION_HISTORY>\n\n`;
     }
-    userContent += `<CURRENT_REQUEST>\n${userMessage}\n</CURRENT_REQUEST>`;
+    userContent += `<CURRENT_REQUEST>\n${userMessage}\n</CURRENT_REQUEST>\n\n${CRITICAL_REMINDERS}`;
 
     return [
       { role: 'system' as const, content: systemPrompt },
@@ -699,7 +699,6 @@ export async function runAgent(
 
           try {
             toolArgs = parseToolArguments(toolCall.function.arguments);
-            consecutiveParseFailures = 0;
           } catch (parseError) {
             consecutiveParseFailures++;
             parseFailureToolCallIds.add(toolCall.id);
@@ -784,6 +783,77 @@ Do NOT use XML tags like <arg_key> or <arg_value>. Retry with valid JSON.`;
 
             continue;
           }
+
+          // Schema validation: required 파라미터 누락 및 타입 불일치 검증
+          const toolDef = tools.find(t => t.function.name === toolName);
+          const schema = toolDef?.function.parameters as { properties: Record<string, unknown>; required?: string[] } | undefined;
+          if (schema?.properties) {
+            const schemaErrors: string[] = [];
+
+            // 1. required 파라미터 누락 체크
+            if (schema.required) {
+              for (const req of schema.required) {
+                if (toolArgs[req] === undefined || toolArgs[req] === null) {
+                  const propDef = schema.properties[req] as { type?: string } | undefined;
+                  schemaErrors.push(`Missing required parameter: "${req}" (expected: ${propDef?.type || 'unknown'})`);
+                }
+              }
+            }
+
+            // 2. 제공된 파라미터 타입 불일치 체크
+            for (const [key, value] of Object.entries(toolArgs)) {
+              const propDef = schema.properties[key] as { type?: string } | undefined;
+              if (propDef?.type && value !== null && value !== undefined) {
+                const actualType = Array.isArray(value) ? 'array' : typeof value;
+                if (actualType !== propDef.type) {
+                  schemaErrors.push(`"${key}": expected ${propDef.type}, got ${actualType} (${JSON.stringify(value).substring(0, 50)})`);
+                }
+              }
+            }
+
+            if (schemaErrors.length > 0) {
+              consecutiveParseFailures++;
+              parseFailureToolCallIds.add(toolCall.id);
+
+              // 3회 연속 실패 시 abort
+              if (consecutiveParseFailures >= MAX_CONSECUTIVE_PARSE_FAILURES) {
+                const abortMsg = '현재 모델이 올바른 tool arguments를 생성하지 못하고 있습니다. 다른 모델로 변경해 주세요.';
+                addMessage({ role: 'tool', content: schemaErrors.join('\n'), tool_call_id: toolCall.id });
+                broadcastToWindows('agent:message', { role: 'assistant', content: abortMsg });
+                toolLoopMessages.push({ role: 'assistant' as const, content: abortMsg });
+                const abortReturnMessages = stripParseFailures(toolLoopMessages);
+                return {
+                  success: false,
+                  response: abortMsg,
+                  messages: [...validMessages, { role: 'user' as const, content: userMessage }, ...abortReturnMessages],
+                  toolCalls: toolCallHistory,
+                  iterations,
+                };
+              }
+
+              // 구체적 피드백: 어떤 파라미터가 잘못됐는지 + 올바른 스키마 안내
+              const requiredList = (schema.required || [])
+                .map(r => {
+                  const p = schema.properties[r] as { type?: string } | undefined;
+                  return `  "${r}": ${p?.type || 'unknown'}`;
+                })
+                .join('\n');
+              const hintMsg = `Error: Schema validation failed for "${toolName}".
+
+${schemaErrors.join('\n')}
+
+Required parameters:
+${requiredList}
+
+Retry with correct parameter names and types.`;
+              addMessage({ role: 'tool', content: hintMsg, tool_call_id: toolCall.id });
+              toolCallHistory.push({ tool: toolName, args: toolArgs, result: 'Error: Schema validation failed', success: false });
+              continue;
+            }
+          }
+
+          // JSON parse + schema validation 모두 통과 → 연속 실패 카운터 리셋
+          consecutiveParseFailures = 0;
 
           logger.info(`Executing tool: ${toolName}`, { args: JSON.stringify(toolArgs).substring(0, 200) });
 

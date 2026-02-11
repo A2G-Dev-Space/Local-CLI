@@ -37,7 +37,7 @@ import {
   emitAssistantResponse,
 } from '../tools/llm/simple/file-tools.js';
 import { toolRegistry } from '../tools/registry.js';
-import { PLAN_EXECUTE_SYSTEM_PROMPT as PLAN_PROMPT } from '../prompts/system/plan-execute.js';
+import { PLAN_EXECUTE_SYSTEM_PROMPT as PLAN_PROMPT, CRITICAL_REMINDERS } from '../prompts/system/plan-execute.js';
 import { GIT_COMMIT_RULES } from '../prompts/shared/git-rules.js';
 import { logger } from '../utils/logger.js';
 import { getStreamLogger } from '../utils/json-stream-logger.js';
@@ -243,7 +243,7 @@ export class PlanExecutor {
         if (historyText) {
           userContent += `<CONVERSATION_HISTORY>\n${historyText}\n</CONVERSATION_HISTORY>\n\n`;
         }
-        userContent += `<CURRENT_REQUEST>\n${userMessage}\n</CURRENT_REQUEST>`;
+        userContent += `<CURRENT_REQUEST>\n${userMessage}\n</CURRENT_REQUEST>\n\n${CRITICAL_REMINDERS}`;
 
         return [
           { role: 'system' as const, content: systemPrompt },
@@ -393,7 +393,7 @@ export class PlanExecutor {
         if (historyText) {
           userContent += `<CONVERSATION_HISTORY>\n${historyText}\n</CONVERSATION_HISTORY>\n\n`;
         }
-        userContent += `<CURRENT_REQUEST>\n${userMessage}\n</CURRENT_REQUEST>`;
+        userContent += `<CURRENT_REQUEST>\n${userMessage}\n</CURRENT_REQUEST>\n\n${CRITICAL_REMINDERS}`;
 
         return [
           { role: 'system' as const, content: systemPrompt },

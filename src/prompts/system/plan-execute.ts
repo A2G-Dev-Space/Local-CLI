@@ -94,4 +94,17 @@ Do NOT re-execute tools from history. Do NOT confuse tools used in history with 
 4. ❌ Do NOT leave TODOs as "in_progress" when moving to the next — update status first
 `;
 
+/**
+ * Critical Reminders — 약한 모델의 instruction-following 강화용
+ * rebuildMessages에서 <CURRENT_REQUEST> 뒤에 배치하여 LLM 생성 직전 위치에 놓음
+ * (Prompt Repetition 기법: 핵심 규칙을 context 끝에 반복하여 recency bias 활용)
+ */
+export const CRITICAL_REMINDERS = `## REMEMBER
+1. Tool arguments = valid JSON. All required parameters must be included.
+2. Use exact tool names only: read_file, create_file, edit_file, bash, write_todos, final_response, etc.
+3. Update TODO status IMMEDIATELY when starting or finishing a task.
+4. DO NOT explain — USE the tool. Action, not description.
+5. Use tell_to_user to report progress between tasks — the user should know what you're doing.
+6. Call final_response ONLY when ALL TODOs are completed or failed.`;
+
 export default PLAN_EXECUTE_SYSTEM_PROMPT;
