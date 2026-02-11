@@ -13,61 +13,15 @@ import { OFFICE_SCREENSHOT_PATH_DESC, OFFICE_CATEGORIES } from '../common/consta
 import { logger } from '../../../utils/logger';
 
 // =============================================================================
-// PowerPoint Launch
-// =============================================================================
-
-const POWERPOINT_LAUNCH_DEFINITION: ToolDefinition = {
-  type: 'function',
-  function: {
-    name: 'powerpoint_launch',
-    description: `Launch Microsoft PowerPoint for presentation editing.
-Use this tool to start PowerPoint before working with presentations.
-The PowerPoint window will be visible so you can see the changes in real-time.`,
-    parameters: {
-      type: 'object',
-      properties: {
-        reason: { type: 'string', description: 'Explanation of why you are launching PowerPoint' },
-      },
-      required: ['reason'],
-    },
-  },
-};
-
-async function executePowerPointLaunch(_args: Record<string, unknown>): Promise<ToolResult> {
-  const startTime = Date.now();
-  logger.toolStart('powerpoint_launch', _args);
-  try {
-    const response = await powerpointClient.powerpointLaunch();
-    if (response.success) {
-      // Wait for PowerPoint to fully load before LLM proceeds
-      await delay(APP_LAUNCH_DELAY_MS);
-      logger.toolSuccess('powerpoint_launch', _args, { message: response.message }, Date.now() - startTime);
-      return { success: true, result: response.message || 'PowerPoint launched successfully' };
-    }
-    logger.toolError('powerpoint_launch', _args, new Error(response.error || 'Failed to launch PowerPoint'), Date.now() - startTime);
-    return { success: false, error: response.error || 'Failed to launch PowerPoint' };
-  } catch (error) {
-    logger.toolError('powerpoint_launch', _args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
-    return { success: false, error: `Failed to launch PowerPoint: ${error instanceof Error ? error.message : String(error)}` };
-  }
-}
-
-export const powerpointLaunchTool: LLMSimpleTool = {
-  definition: POWERPOINT_LAUNCH_DEFINITION,
-  execute: executePowerPointLaunch,
-  categories: OFFICE_CATEGORIES,
-  description: 'Launch Microsoft PowerPoint',
-};
-
-// =============================================================================
-// PowerPoint Create
+// PowerPoint Create (auto-launches PowerPoint if not running)
 // =============================================================================
 
 const POWERPOINT_CREATE_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'powerpoint_create',
-    description: `Create a new PowerPoint presentation.`,
+    description: `Create a new PowerPoint presentation. Automatically launches PowerPoint if it is not already running.
+Use this tool to start working with a new presentation.`,
     parameters: {
       type: 'object',
       properties: {
@@ -291,7 +245,6 @@ export const powerpointQuitTool: LLMSimpleTool = {
 // =============================================================================
 
 export const launchTools: LLMSimpleTool[] = [
-  powerpointLaunchTool,
   powerpointCreateTool,
   powerpointOpenTool,
   powerpointScreenshotTool,

@@ -32,20 +32,6 @@ function columnNumberToLetter(num: number): string {
 }
 
 export class ExcelClient extends OfficeClientBase {
-  async excelLaunch(): Promise<OfficeResponse> {
-    return this.executePowerShell(`
-try {
-  $excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
-  $excel.Visible = $true
-  @{ success = $true; message = "Connected to existing Excel instance" } | ConvertTo-Json -Compress
-} catch {
-  $excel = New-Object -ComObject Excel.Application
-  $excel.Visible = $true
-  @{ success = $true; message = "Launched new Excel instance" } | ConvertTo-Json -Compress
-}
-`);
-  }
-
   async excelCreate(): Promise<OfficeResponse> {
     return this.executePowerShell(`
 try {

@@ -8,19 +8,6 @@
 import { OfficeClientBase, OfficeResponse, ScreenshotResponse } from './office-client-base';
 
 export class PowerPointClient extends OfficeClientBase {
-  async powerpointLaunch(): Promise<OfficeResponse> {
-    return this.executePowerShell(`
-try {
-  $ppt = [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application")
-  @{ success = $true; message = "Connected to existing PowerPoint instance" } | ConvertTo-Json -Compress
-} catch {
-  $ppt = New-Object -ComObject PowerPoint.Application
-  # PowerPoint needs a presentation to be visible
-  @{ success = $true; message = "Launched new PowerPoint instance" } | ConvertTo-Json -Compress
-}
-`);
-  }
-
   async powerpointCreate(): Promise<OfficeResponse> {
     return this.executePowerShell(`
 try {
