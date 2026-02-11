@@ -14,6 +14,7 @@ import path from 'path';
 import os from 'os';
 import { app } from 'electron';
 import { logger } from '../../utils/logger';
+import { reportError } from '../telemetry/error-reporter';
 
 // =============================================================================
 // Types (CLI parity)
@@ -196,6 +197,7 @@ class ConfigManager {
       }
     } catch (error) {
       logger.error('Failed to load config (sync)', error);
+      reportError(error, { type: 'config', method: 'loadSync' }).catch(() => {});
       this.config = { ...DEFAULT_CONFIG };
     }
   }
@@ -236,6 +238,7 @@ class ConfigManager {
       logger.debug('Config saved');
     } catch (error) {
       logger.error('Failed to save config', error);
+      reportError(error, { type: 'config', method: 'save' }).catch(() => {});
     }
   }
 
@@ -307,10 +310,11 @@ class ConfigManager {
   /**
    * Get all endpoints
    */
-  getEndpoints(): { endpoints: EndpointConfig[]; currentEndpointId?: string } {
+  getEndpoints(): { endpoints: EndpointConfig[]; currentEndpointId?: string; currentModelId?: string } {
     return {
       endpoints: this.config.endpoints || [],
       currentEndpointId: this.config.currentEndpoint,
+      currentModelId: this.config.currentModel,
     };
   }
 

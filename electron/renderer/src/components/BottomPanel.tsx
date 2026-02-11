@@ -55,7 +55,8 @@ interface BottomPanelProps {
   onLoadSession: () => void;
   onAllowAllPermissionsChange: (value: boolean) => void;
   onModelDropdownToggle: () => void;
-  onSelectModel: (id: string) => void;
+  currentModelId: string | null;
+  onSelectModel: (endpointId: string, modelId?: string) => void;
   autoFileView: boolean;
   onAutoFileViewChange: (value: boolean) => void;
   onCommandPalette: () => void;
@@ -87,6 +88,7 @@ const BottomPanel: React.FC<BottomPanelProps> = ({
   onNewSession,
   onLoadSession,
   onAllowAllPermissionsChange,
+  currentModelId,
   onModelDropdownToggle,
   onSelectModel,
   autoFileView,
@@ -114,7 +116,8 @@ const BottomPanel: React.FC<BottomPanelProps> = ({
   if (!isOpen) return null;
 
   const currentEndpoint = endpoints.find(e => e.id === currentEndpointId);
-  const currentModelName = currentEndpoint?.models?.[0]?.name || currentEndpoint?.name || t('model.noModel');
+  const currentModel = currentEndpoint?.models?.find(m => m.id === currentModelId) || currentEndpoint?.models?.[0];
+  const currentModelName = currentModel?.name || currentEndpoint?.name || t('model.noModel');
 
   // Check if any VL model exists across all endpoints
   const hasVisionModel = endpoints.some(ep =>
@@ -206,20 +209,22 @@ const BottomPanel: React.FC<BottomPanelProps> = ({
                             </button>
                           </div>
                         ) : (
-                          endpoints.map(endpoint => (
-                            <button
-                              key={endpoint.id}
-                              className={`panel-model-item ${endpoint.id === currentEndpointId ? 'active' : ''}`}
-                              onClick={() => onSelectModel(endpoint.id)}
-                            >
-                              <span>{endpoint.models[0]?.name || endpoint.name}</span>
-                              {endpoint.id === currentEndpointId && (
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-                                </svg>
-                              )}
-                            </button>
-                          ))
+                          endpoints.flatMap(endpoint =>
+                            endpoint.models.map(model => (
+                              <button
+                                key={`${endpoint.id}-${model.id}`}
+                                className={`panel-model-item ${endpoint.id === currentEndpointId && model.id === currentModelId ? 'active' : ''}`}
+                                onClick={() => onSelectModel(endpoint.id, model.id)}
+                              >
+                                <span>{model.name}</span>
+                                {endpoint.id === currentEndpointId && model.id === currentModelId && (
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                                  </svg>
+                                )}
+                              </button>
+                            ))
+                          )
                         )}
                       </div>
                     )}
