@@ -440,9 +440,46 @@ async function _executeEditFile(args: Record<string, unknown>): Promise<ToolResu
 
     // If not replace_all, old_string must be unique
     if (!replaceAll && occurrences > 1) {
+      // Find line numbers for each occurrence
+      const fileLines = originalContent.split('\n');
+      const occurrenceLineNums: number[] = [];
+      let searchFrom = 0;
+      for (let i = 0; i < occurrences; i++) {
+        const idx = originalContent.indexOf(normalizedOldString, searchFrom);
+        if (idx === -1) break;
+        const lineNum = originalContent.substring(0, idx).split('\n').length;
+        occurrenceLineNums.push(lineNum);
+        searchFrom = idx + 1;
+      }
+
+      // Build context preview (max 5 to keep message concise)
+      const maxPreview = 5;
+      const occurrenceDetails = occurrenceLineNums
+        .slice(0, maxPreview)
+        .map((lineNum, i) => {
+          const ctxStart = Math.max(0, lineNum - 2);
+          const ctxEnd = Math.min(fileLines.length, lineNum + 1);
+          const ctxLines = fileLines
+            .slice(ctxStart, ctxEnd)
+            .map((l, j) => {
+              const num = ctxStart + j + 1;
+              const marker = num === lineNum ? '>>' : '  ';
+              const trimmed = l.trimEnd();
+              const display = trimmed.length > 120 ? trimmed.substring(0, 120) + '...' : trimmed;
+              return `    ${marker} ${num}: ${display}`;
+            })
+            .join('\n');
+          return `  #${i + 1} (line ${lineNum}):\n${ctxLines}`;
+        })
+        .join('\n\n');
+
+      const linesList = occurrenceLineNums.join(', ');
+      const truncNote =
+        occurrences > maxPreview ? `\n\n  ... and ${occurrences - maxPreview} more occurrences.` : '';
+
       return {
         success: false,
-        error: `old_string appears ${occurrences} times in the file. Either:\n1. Make old_string more specific (include more context)\n2. Use replace_all: true to replace all occurrences\n\n💡 Include surrounding lines to make the match unique.`,
+        error: `old_string appears ${occurrences} times in the file (at lines ${linesList}). Make old_string more specific by including surrounding lines for unique context, or use replace_all: true.\n\nOccurrences:\n${occurrenceDetails}${truncNote}`,
       };
     }
 
