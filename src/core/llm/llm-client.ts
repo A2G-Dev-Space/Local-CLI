@@ -705,6 +705,8 @@ export class LLMClient {
       clearPendingMessage?: () => void;
       /** 매 iteration마다 messages를 재구성하는 콜백. tool loop 내 메시지를 받아 [system, user] 형태로 반환 */
       rebuildMessages?: (toolLoopMessages: Message[]) => Message[];
+      /** 매 tool 실행 후 호출. auto-compact 등 후처리 수행. toolLoopMessages를 in-place 수정 가능 */
+      onAfterToolExecution?: (toolLoopMessages: Message[]) => Promise<void>;
     }
   ): Promise<{
     message: Message;
@@ -1177,6 +1179,11 @@ Retry with correct parameter names and types.`;
             logger.flow('Interrupt detected after tool execution - stopping');
             throw new Error('INTERRUPTED');
           }
+        }
+
+        // Auto-compact check after tool execution (Electron parity)
+        if (options?.onAfterToolExecution) {
+          await options.onAfterToolExecution(toolLoopMessages);
         }
 
         // Tool 실행 완료 - 계속해서 LLM 호출 (continue)

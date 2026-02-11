@@ -481,8 +481,16 @@ export async function runAgent(
   // rebuildMessages: reconstruct [system, user] from scratch every iteration
   // CLI parity: captures state.currentTodos LIVE (always reads latest value)
   const rebuildMessages = (loopMessages: Message[]): Message[] => {
-    const fullHistory = [...baseHistory, ...loopMessages];
-    const historyText = flattenMessagesToHistory(fullHistory);
+    // userMessage를 history 흐름에 포함 (원래 요청이 사라지지 않도록)
+    const allMessages = [...baseHistory, { role: 'user' as const, content: userMessage }, ...loopMessages];
+
+    // HISTORY = 마지막 메시지 제외, CURRENT_REQUEST = 마지막 메시지
+    const historyMessages = allMessages.slice(0, -1);
+    const lastMsg = allMessages[allMessages.length - 1];
+    const lastContent = typeof lastMsg.content === 'string' ? lastMsg.content : JSON.stringify(lastMsg.content);
+    const lastTag = lastMsg.role === 'tool' ? '[TOOL_RESULT]' : lastMsg.role === 'user' ? '[USER]' : `[${lastMsg.role.toUpperCase()}]`;
+
+    const historyText = flattenMessagesToHistory(historyMessages);
     const todoContext = buildTodoContext(state.currentTodos); // 매 호출마다 최신 TODO 상태
 
     let userContent = '';
@@ -492,7 +500,7 @@ export async function runAgent(
     if (historyText) {
       userContent += `<CONVERSATION_HISTORY>\n${historyText}\n</CONVERSATION_HISTORY>\n\n`;
     }
-    userContent += `<CURRENT_REQUEST>\n${userMessage}\n</CURRENT_REQUEST>\n\n${CRITICAL_REMINDERS}`;
+    userContent += `<CURRENT_REQUEST>\n${lastTag}: ${lastContent}\n</CURRENT_REQUEST>\n\n${CRITICAL_REMINDERS}`;
 
     return [
       { role: 'system' as const, content: systemPrompt },
@@ -1169,8 +1177,8 @@ Retry with correct parameter names and types.`;
         broadcastToWindows('agent:tellUser', `컨텍스트 ${usage.usagePercentage}% 사용 - 자동 압축을 실행합니다...`);
 
         // Compact the full conversation (baseHistory + toolLoopMessages)
-        const fullMessagesToCompact = [...baseHistory, ...toolLoopMessages];
-        const compactResult = await compactConversation(fullMessagesToCompact, { workingDirectory });
+        const fullMessages = [...baseHistory, ...toolLoopMessages];
+        const compactResult = await compactConversation(fullMessages, { workingDirectory });
 
         if (compactResult.success && compactResult.compactedMessages) {
           logger.info('Preventative auto-compact successful', {
@@ -1178,12 +1186,14 @@ Retry with correct parameter names and types.`;
             newCount: compactResult.newMessageCount,
           });
 
-          // Update return value references (compacted replaces original history)
-          validMessages = [...compactResult.compactedMessages];
+          // CLI parity: preserve last 2 messages verbatim (usually assistant+tool_calls, tool_result)
+          const lastTwoMessages = fullMessages.slice(-2);
 
-          // Compacted content becomes the new base history for subsequent rebuilds
-          // Without this, rebuildMessages would produce empty CONVERSATION_HISTORY
-          baseHistory = [...compactResult.compactedMessages];
+          // Update return value references (compacted + preserved messages)
+          validMessages = [...compactResult.compactedMessages, ...lastTwoMessages];
+
+          // Compacted content + last 2 messages becomes the new base history
+          baseHistory = [...compactResult.compactedMessages, ...lastTwoMessages];
           toolLoopMessages.length = 0;
 
           // Reset context tracker with estimated token count

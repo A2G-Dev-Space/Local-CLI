@@ -229,11 +229,19 @@ export class PlanExecutor {
       // Build rebuildMessages callback for per-iteration message reconstruction
       // 매 LLM 호출마다 [system, user(<CURRENT_TASK> + <CONVERSATION_HISTORY> + <CURRENT_REQUEST>)] 형태로 재구성
       const systemPrompt = buildSystemPrompt();
-      const baseHistory: Message[] = [...historyBeforeExecution, { role: 'assistant' as const, content: planMessage }];
+      let baseHistory: Message[] = [...historyBeforeExecution, { role: 'assistant' as const, content: planMessage }];
 
       const rebuildMessages = (toolLoopMessages: Message[]): Message[] => {
-        const fullHistory = [...baseHistory, ...toolLoopMessages];
-        const historyText = flattenMessagesToHistory(fullHistory);
+        // userMessage를 history 흐름에 포함 (원래 요청이 사라지지 않도록)
+        const allMessages = [...baseHistory, { role: 'user' as const, content: userMessage }, ...toolLoopMessages];
+
+        // HISTORY = 마지막 메시지 제외, CURRENT_REQUEST = 마지막 메시지
+        const historyMessages = allMessages.slice(0, -1);
+        const lastMsg = allMessages[allMessages.length - 1]!; // allMessages always has at least userMessage
+        const lastContent = typeof lastMsg.content === 'string' ? lastMsg.content : JSON.stringify(lastMsg.content);
+        const lastTag = lastMsg.role === 'tool' ? '[TOOL_RESULT]' : lastMsg.role === 'user' ? '[USER]' : `[${lastMsg.role.toUpperCase()}]`;
+
+        const historyText = flattenMessagesToHistory(historyMessages);
         const todoContext = buildTodoContext(currentTodos); // 항상 최신 TODO 상태
 
         let userContent = '';
@@ -243,7 +251,7 @@ export class PlanExecutor {
         if (historyText) {
           userContent += `<CONVERSATION_HISTORY>\n${historyText}\n</CONVERSATION_HISTORY>\n\n`;
         }
-        userContent += `<CURRENT_REQUEST>\n${userMessage}\n</CURRENT_REQUEST>\n\n${CRITICAL_REMINDERS}`;
+        userContent += `<CURRENT_REQUEST>\n${lastTag}: ${lastContent}\n</CURRENT_REQUEST>\n\n${CRITICAL_REMINDERS}`;
 
         return [
           { role: 'system' as const, content: systemPrompt },
@@ -260,6 +268,52 @@ export class PlanExecutor {
         getPendingMessage: callbacks.getPendingMessage,
         clearPendingMessage: callbacks.clearPendingMessage,
         rebuildMessages,
+        onAfterToolExecution: async (loopMessages) => {
+          // Electron parity: proactive auto-compact at 70% threshold inside tool loop
+          const model = configManager.getCurrentModel();
+          const maxTokens = model?.maxTokens || 128000;
+          if (!contextTracker.shouldTriggerAutoCompact(maxTokens)) return;
+
+          const usage = contextTracker.getContextUsage(maxTokens);
+          logger.flow('Auto-compact triggered during tool loop', { usagePercentage: usage.usagePercentage });
+          callbacks.setExecutionPhase('compacting');
+          callbacks.setCurrentActivity('Compacting context');
+
+          const fullMessages = [...baseHistory, ...loopMessages];
+          const compactManager = new CompactManager(llmClient);
+          const compactResult = await compactManager.compact(fullMessages, {
+            todos: currentTodos,
+            workingDirectory: process.cwd(),
+          });
+
+          if (compactResult.success && compactResult.compactedSummary) {
+            const lastTwo = fullMessages.slice(-2);
+            const compactedBase = buildCompactedMessages(compactResult.compactedSummary, {
+              workingDirectory: process.cwd(),
+            });
+
+            // Update baseHistory for rebuildMessages closure
+            baseHistory = [...compactedBase, ...lastTwo];
+            loopMessages.length = 0;
+
+            // Update currentMessages for session storage
+            currentMessages = [...compactedBase, ...lastTwo, { role: 'user' as const, content: userMessage }];
+            callbacks.setMessages([...currentMessages]);
+            sessionManager.autoSaveCurrentSession(currentMessages);
+
+            // Reset context tracker with estimated token count
+            const preview = rebuildMessages(loopMessages);
+            const totalContent = preview
+              .map(m => typeof m.content === 'string' ? m.content : JSON.stringify(m.content))
+              .join('');
+            contextTracker.reset(contextTracker.estimateTokens(totalContent));
+
+            emitCompact(compactResult.originalMessageCount, compactResult.newMessageCount);
+            logger.flow('Auto-compact completed in tool loop', { preservedMessages: 2 });
+          }
+
+          callbacks.setExecutionPhase('executing');
+        },
       });
 
       // allMessages now contains only tool loop messages (no system/user prefix)
@@ -268,7 +322,7 @@ export class PlanExecutor {
       callbacks.setMessages([...currentMessages]);
       sessionManager.autoSaveCurrentSession(currentMessages);
 
-      // Check for auto-compact after completion
+      // Check for auto-compact after completion (fallback if threshold wasn't hit during loop)
       await this.checkAndPerformAutoCompact(
         llmClient,
         currentMessages,
@@ -379,11 +433,19 @@ export class PlanExecutor {
 
       // Build rebuildMessages callback for per-iteration message reconstruction
       const systemPrompt = buildSystemPrompt();
-      const baseHistory: Message[] = [...messages]; // messages param = history without current userMessage
+      let baseHistory: Message[] = [...messages]; // messages param = history without current userMessage
 
       const rebuildMessages = (toolLoopMessages: Message[]): Message[] => {
-        const fullHistory = [...baseHistory, ...toolLoopMessages];
-        const historyText = flattenMessagesToHistory(fullHistory);
+        // userMessage를 history 흐름에 포함 (원래 요청이 사라지지 않도록)
+        const allMessages = [...baseHistory, { role: 'user' as const, content: userMessage }, ...toolLoopMessages];
+
+        // HISTORY = 마지막 메시지 제외, CURRENT_REQUEST = 마지막 메시지
+        const historyMessages = allMessages.slice(0, -1);
+        const lastMsg = allMessages[allMessages.length - 1]!; // allMessages always has at least userMessage
+        const lastContent = typeof lastMsg.content === 'string' ? lastMsg.content : JSON.stringify(lastMsg.content);
+        const lastTag = lastMsg.role === 'tool' ? '[TOOL_RESULT]' : lastMsg.role === 'user' ? '[USER]' : `[${lastMsg.role.toUpperCase()}]`;
+
+        const historyText = flattenMessagesToHistory(historyMessages);
         const todoContext = buildTodoContext(currentTodos); // 항상 최신 TODO 상태
 
         let userContent = '';
@@ -393,7 +455,7 @@ export class PlanExecutor {
         if (historyText) {
           userContent += `<CONVERSATION_HISTORY>\n${historyText}\n</CONVERSATION_HISTORY>\n\n`;
         }
-        userContent += `<CURRENT_REQUEST>\n${userMessage}\n</CURRENT_REQUEST>\n\n${CRITICAL_REMINDERS}`;
+        userContent += `<CURRENT_REQUEST>\n${lastTag}: ${lastContent}\n</CURRENT_REQUEST>\n\n${CRITICAL_REMINDERS}`;
 
         return [
           { role: 'system' as const, content: systemPrompt },
@@ -409,6 +471,49 @@ export class PlanExecutor {
         getPendingMessage: callbacks.getPendingMessage,
         clearPendingMessage: callbacks.clearPendingMessage,
         rebuildMessages,
+        onAfterToolExecution: async (loopMessages) => {
+          // Electron parity: proactive auto-compact at 70% threshold inside tool loop
+          const model = configManager.getCurrentModel();
+          const maxTokens = model?.maxTokens || 128000;
+          if (!contextTracker.shouldTriggerAutoCompact(maxTokens)) return;
+
+          const usage = contextTracker.getContextUsage(maxTokens);
+          logger.flow('Auto-compact triggered during resume tool loop', { usagePercentage: usage.usagePercentage });
+          callbacks.setExecutionPhase('compacting');
+          callbacks.setCurrentActivity('Compacting context');
+
+          const fullMessages = [...baseHistory, ...loopMessages];
+          const compactManager = new CompactManager(llmClient);
+          const compactResult = await compactManager.compact(fullMessages, {
+            todos: currentTodos,
+            workingDirectory: process.cwd(),
+          });
+
+          if (compactResult.success && compactResult.compactedSummary) {
+            const lastTwo = fullMessages.slice(-2);
+            const compactedBase = buildCompactedMessages(compactResult.compactedSummary, {
+              workingDirectory: process.cwd(),
+            });
+
+            baseHistory = [...compactedBase, ...lastTwo];
+            loopMessages.length = 0;
+
+            currentMessages = [...compactedBase, ...lastTwo, { role: 'user' as const, content: userMessage }];
+            callbacks.setMessages([...currentMessages]);
+            sessionManager.autoSaveCurrentSession(currentMessages);
+
+            const preview = rebuildMessages(loopMessages);
+            const totalContent = preview
+              .map(m => typeof m.content === 'string' ? m.content : JSON.stringify(m.content))
+              .join('');
+            contextTracker.reset(contextTracker.estimateTokens(totalContent));
+
+            emitCompact(compactResult.originalMessageCount, compactResult.newMessageCount);
+            logger.flow('Auto-compact completed in resume tool loop', { preservedMessages: 2 });
+          }
+
+          callbacks.setExecutionPhase('executing');
+        },
       });
 
       // allMessages now contains only tool loop messages (no system/user prefix)
@@ -417,7 +522,7 @@ export class PlanExecutor {
       callbacks.setMessages([...currentMessages]);
       sessionManager.autoSaveCurrentSession(currentMessages);
 
-      // Check for auto-compact
+      // Check for auto-compact after completion (fallback if threshold wasn't hit during loop)
       await this.checkAndPerformAutoCompact(
         llmClient,
         currentMessages,
