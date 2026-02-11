@@ -471,27 +471,44 @@ export async function runAgent(
   validMessages = truncateMessages(validMessages, 100);
   validMessages = validMessages.filter((m) => m.role !== 'system');
 
-  const historyText = flattenMessagesToHistory(validMessages);
-  const todoContext = buildTodoContext(state.currentTodos);
+  // Base history for flatten (snapshot of existing conversation, excludes tool loop messages)
+  let baseHistory: Message[] = [...validMessages];
 
-  let userContent = '';
-  if (historyText) {
-    userContent += `<CONVERSATION_HISTORY>\n${historyText}\n</CONVERSATION_HISTORY>\n\n`;
-  }
-  if (todoContext) {
-    userContent += `<CURRENT_TASK>\n${todoContext}\n</CURRENT_TASK>\n\n`;
-  }
-  userContent += `<CURRENT_REQUEST>\n${userMessage}\n</CURRENT_REQUEST>`;
+  // toolLoopMessages: tracks only messages generated within the while loop
+  // CLI parity: matches chatCompletionWithTools's toolLoopMessages pattern
+  const toolLoopMessages: Message[] = [];
 
-  // LLM sees only system + single user message (flatten structure)
-  let messages: Message[] = [
-    { role: 'system', content: systemPrompt },
-    { role: 'user', content: userContent },
-  ];
+  // rebuildMessages: reconstruct [system, user] from scratch every iteration
+  // CLI parity: captures state.currentTodos LIVE (always reads latest value)
+  const rebuildMessages = (loopMessages: Message[]): Message[] => {
+    const fullHistory = [...baseHistory, ...loopMessages];
+    const historyText = flattenMessagesToHistory(fullHistory);
+    const todoContext = buildTodoContext(state.currentTodos); // 매 호출마다 최신 TODO 상태
 
-  // Track where tool loop messages start (for return value reconstruction)
-  // Return value must contain ORIGINAL history format, not the synthetic flattened message
-  let toolLoopStartIdx = messages.length; // = 2 (system + flattenedUser)
+    let userContent = '';
+    if (todoContext) {
+      userContent += `<CURRENT_TASK>\n${todoContext}\n</CURRENT_TASK>\n\n`;
+    }
+    if (historyText) {
+      userContent += `<CONVERSATION_HISTORY>\n${historyText}\n</CONVERSATION_HISTORY>\n\n`;
+    }
+    userContent += `<CURRENT_REQUEST>\n${userMessage}\n</CURRENT_REQUEST>`;
+
+    return [
+      { role: 'system' as const, content: systemPrompt },
+      { role: 'user' as const, content: userContent },
+    ];
+  };
+
+  // Initial messages (same as rebuildMessages([]))
+  let messages: Message[] = rebuildMessages([]);
+
+  // addMessage: pushes to both working messages AND toolLoopMessages
+  // CLI parity: matches chatCompletionWithTools's addMessage helper
+  const addMessage = (msg: Message) => {
+    messages.push(msg);
+    toolLoopMessages.push(msg);
+  };
 
   // Chat 로그: 사용자 입력
   logger.info('[CHAT] User message', { content: userMessage.substring(0, 500) });
@@ -548,6 +565,10 @@ export async function runAgent(
     while (state.isRunning) {
       iterations++;
 
+      // rebuildMessages 모드: 매 iteration마다 messages 재구성
+      // CLI parity: 최신 TODO 상태, 전체 대화 history + tool loop messages를 포함
+      messages = rebuildMessages(toolLoopMessages);
+
       logger.info(`Agent iteration ${iterations}`, { messagesCount: messages.length });
 
       // [DEBUG] Log last 4 messages before LLM call to diagnose repeated tool calls
@@ -578,7 +599,7 @@ export async function runAgent(
       if (iterations === SOFT_ITERATION_LIMIT && !softLimitWarned) {
         softLimitWarned = true;
         logger.warn(`Reached ${SOFT_ITERATION_LIMIT} iterations (informational)`);
-        messages.push({
+        addMessage({
           role: 'user',
           content: `You have made ${SOFT_ITERATION_LIMIT} tool calls. Please wrap up and call final_response soon to deliver your results.`,
         });
@@ -599,41 +620,27 @@ export async function runAgent(
         });
       } catch (llmError) {
         if (llmError instanceof ContextLengthError && !contextCompactRetried) {
-          logger.warn('Context length exceeded - attempting auto-compact');
           contextCompactRetried = true;
+          logger.warn('Context length exceeded - rolling back last tool group');
 
           if (callbacks.onTellUser) {
-            callbacks.onTellUser('컨텍스트 길이 초과로 자동 압축을 시도합니다...');
+            callbacks.onTellUser('컨텍스트 길이 초과 - 마지막 도구 실행을 롤백하고 재시도합니다...');
           }
-          broadcastToWindows('agent:tellUser', '컨텍스트 길이 초과로 자동 압축을 시도합니다...');
+          broadcastToWindows('agent:tellUser', '컨텍스트 길이 초과 - 마지막 도구 실행을 롤백하고 재시도합니다...');
 
-          const compactResult = await compactConversation(messages, { workingDirectory });
-
-          if (compactResult.success && compactResult.compactedMessages) {
-            logger.info('Auto-compact successful', {
-              originalCount: compactResult.originalMessageCount,
-              newCount: compactResult.newMessageCount,
-            });
-
-            const systemMessage = messages.find(m => m.role === 'system');
-            messages = systemMessage
-              ? [systemMessage, ...compactResult.compactedMessages]
-              : compactResult.compactedMessages;
-
-            // Update return value references after compact
-            // Compacted messages replace original history; toolLoopStartIdx resets
-            validMessages = [...compactResult.compactedMessages];
-            toolLoopStartIdx = messages.length;
-
-            response = await llmClient.chatCompletion({
-              messages,
-              tools,
-              temperature: 0.7,
-            });
-          } else {
-            logger.error('Auto-compact failed', { error: compactResult.error });
-            throw llmError;
+          // CLI parity: rollback toolLoopMessages instead of compacting
+          // Remove last tool group (assistant with tool_calls + tool results)
+          let rollbackIdx = toolLoopMessages.length - 1;
+          while (rollbackIdx >= 0 && toolLoopMessages[rollbackIdx]?.role === 'tool') {
+            rollbackIdx--;
           }
+          if (rollbackIdx >= 0 && toolLoopMessages[rollbackIdx]?.tool_calls) {
+            toolLoopMessages.length = rollbackIdx;
+            logger.debug('Rolled back toolLoopMessages', { newLength: toolLoopMessages.length });
+          }
+
+          // Next iteration's rebuildMessages() will produce smaller context naturally
+          continue;
         } else {
           throw llmError;
         }
@@ -651,7 +658,7 @@ export async function runAgent(
         throw new Error('No response from LLM');
       }
 
-      messages.push(assistantMessage);
+      addMessage(assistantMessage);
 
       // Chat 로그: 어시스턴트 응답
       logger.info('[CHAT] Assistant message', {
@@ -715,7 +722,7 @@ export async function runAgent(
             if (consecutiveParseFailures >= MAX_CONSECUTIVE_PARSE_FAILURES) {
               logger.error('[ABORT] Tool argument parse failed 3 times consecutively. Model may not support JSON function calling.');
               const abortMsg = '현재 모델이 올바른 JSON tool arguments를 생성하지 못하고 있습니다. 다른 모델로 변경해 주세요.';
-              messages.push({
+              addMessage({
                 role: 'tool',
                 content: errorMessage,
                 tool_call_id: toolCall.id,
@@ -726,10 +733,12 @@ export async function runAgent(
                 role: 'assistant',
                 content: abortMsg,
               });
+              toolLoopMessages.push({ role: 'assistant' as const, content: abortMsg });
+              const abortReturnMessages = stripParseFailures(toolLoopMessages);
               return {
                 success: false,
                 response: abortMsg,
-                messages: stripParseFailures([...messages, { role: 'assistant' as const, content: abortMsg }]),
+                messages: [...validMessages, { role: 'user' as const, content: userMessage }, ...abortReturnMessages],
                 toolCalls: toolCallHistory,
                 iterations,
               };
@@ -760,7 +769,7 @@ Correct format example:
 \`\`\`
 
 Do NOT use XML tags like <arg_key> or <arg_value>. Retry with valid JSON.`;
-            messages.push({
+            addMessage({
               role: 'tool',
               content: hintMsg,
               tool_call_id: toolCall.id,
@@ -839,7 +848,7 @@ Do NOT use XML tags like <arg_key> or <arg_value>. Retry with valid JSON.`;
               const rejectMessage = `Tool execution rejected by user: ${approvalResult.comment || 'No reason provided'}`;
               logger.info('[Supervised] Tool rejected', { toolName, comment: approvalResult.comment });
 
-              messages.push({
+              addMessage({
                 role: 'tool',
                 content: rejectMessage,
                 tool_call_id: toolCall.id,
@@ -890,7 +899,7 @@ Do NOT use XML tags like <arg_key> or <arg_value>. Retry with valid JSON.`;
               logger.flow('final_response tool executed successfully - returning');
               finalResponse = result.result || '';
 
-              messages.push({
+              addMessage({
                 role: 'tool',
                 content: toolResultContent,
                 tool_call_id: toolCall.id,
@@ -922,8 +931,8 @@ Do NOT use XML tags like <arg_key> or <arg_value>. Retry with valid JSON.`;
               broadcastToWindows('agent:complete', { response: '' });
 
               // Return original history + user message + tool loop messages (not synthetic flatten)
-              const finalToolLoopMessages = stripParseFailures(messages.slice(toolLoopStartIdx));
-              const finalReturnMessages = [...validMessages, { role: 'user' as const, content: userMessage }, ...finalToolLoopMessages];
+              const finalReturnToolLoopMessages = stripParseFailures(toolLoopMessages);
+              const finalReturnMessages = [...validMessages, { role: 'user' as const, content: userMessage }, ...finalReturnToolLoopMessages];
 
               return {
                 success: true,
@@ -940,7 +949,7 @@ Do NOT use XML tags like <arg_key> or <arg_value>. Retry with valid JSON.`;
                 logger.warn('Max final_response failures exceeded - forcing completion');
                 const fallbackMessage = (toolArgs['message'] as string) || 'Task completed with incomplete TODOs.';
 
-                messages.push({
+                addMessage({
                   role: 'tool',
                   content: fallbackMessage,
                   tool_call_id: toolCall.id,
@@ -976,8 +985,8 @@ Do NOT use XML tags like <arg_key> or <arg_value>. Retry with valid JSON.`;
                 broadcastToWindows('agent:complete', { response: fallbackMessage });
 
                 // Return original history + user message + tool loop messages (not synthetic flatten)
-                const fbToolLoopMessages = stripParseFailures(messages.slice(toolLoopStartIdx));
-                const fbReturnMessages = [...validMessages, { role: 'user' as const, content: userMessage }, ...fbToolLoopMessages];
+                const fbReturnToolLoopMessages = stripParseFailures(toolLoopMessages);
+                const fbReturnMessages = [...validMessages, { role: 'user' as const, content: userMessage }, ...fbReturnToolLoopMessages];
 
                 return {
                   success: true,
@@ -990,7 +999,7 @@ Do NOT use XML tags like <arg_key> or <arg_value>. Retry with valid JSON.`;
             }
           }
 
-          messages.push({
+          addMessage({
             role: 'tool',
             content: toolResultContent,
             tool_call_id: toolCall.id,
@@ -1053,7 +1062,7 @@ Do NOT use XML tags like <arg_key> or <arg_value>. Retry with valid JSON.`;
           });
         }
 
-        messages.push({
+        addMessage({
           role: 'user',
           content: retryMessage,
         });
@@ -1089,7 +1098,9 @@ Do NOT use XML tags like <arg_key> or <arg_value>. Retry with valid JSON.`;
         }
         broadcastToWindows('agent:tellUser', `컨텍스트 ${usage.usagePercentage}% 사용 - 자동 압축을 실행합니다...`);
 
-        const compactResult = await compactConversation(messages, { workingDirectory });
+        // Compact the full conversation (baseHistory + toolLoopMessages)
+        const fullMessagesToCompact = [...baseHistory, ...toolLoopMessages];
+        const compactResult = await compactConversation(fullMessagesToCompact, { workingDirectory });
 
         if (compactResult.success && compactResult.compactedMessages) {
           logger.info('Preventative auto-compact successful', {
@@ -1097,19 +1108,17 @@ Do NOT use XML tags like <arg_key> or <arg_value>. Retry with valid JSON.`;
             newCount: compactResult.newMessageCount,
           });
 
-          // Preserve system prompt, replace rest with compacted messages
-          const systemMessage = messages.find(m => m.role === 'system');
-          messages = systemMessage
-            ? [systemMessage, ...compactResult.compactedMessages]
-            : compactResult.compactedMessages;
-
-          // Update return value references after compact
-          // Compacted messages replace original history; toolLoopStartIdx resets
+          // Update return value references (compacted replaces original history)
           validMessages = [...compactResult.compactedMessages];
-          toolLoopStartIdx = messages.length;
+
+          // Compacted content becomes the new base history for subsequent rebuilds
+          // Without this, rebuildMessages would produce empty CONVERSATION_HISTORY
+          baseHistory = [...compactResult.compactedMessages];
+          toolLoopMessages.length = 0;
 
           // Reset context tracker with estimated token count
-          const totalContent = messages
+          const rebuildPreview = rebuildMessages(toolLoopMessages);
+          const totalContent = rebuildPreview
             .map(m => typeof m.content === 'string' ? m.content : JSON.stringify(m.content))
             .join('');
           const estimatedTokens = contextTracker.estimateTokens(totalContent);
@@ -1137,8 +1146,8 @@ Do NOT use XML tags like <arg_key> or <arg_value>. Retry with valid JSON.`;
 
     // Return original history + user message + tool loop messages (not the synthetic flattened message)
     // CLI parity: system prompt and synthetic flatten message are excluded from stored history
-    const toolLoopMessages = stripParseFailures(messages.slice(toolLoopStartIdx));
-    const returnMessages = [...validMessages, { role: 'user' as const, content: userMessage }, ...toolLoopMessages];
+    const returnToolLoopMessages = stripParseFailures(toolLoopMessages);
+    const returnMessages = [...validMessages, { role: 'user' as const, content: userMessage }, ...returnToolLoopMessages];
 
     return {
       success: true,
@@ -1168,8 +1177,8 @@ Do NOT use XML tags like <arg_key> or <arg_value>. Retry with valid JSON.`;
     }
 
     // Return original history + user message + tool loop messages (not the synthetic flattened message)
-    const toolLoopMessages = stripParseFailures(messages.slice(toolLoopStartIdx));
-    const returnMessages = [...validMessages, { role: 'user' as const, content: userMessage }, ...toolLoopMessages];
+    const errorReturnToolLoopMessages = stripParseFailures(toolLoopMessages);
+    const returnMessages = [...validMessages, { role: 'user' as const, content: userMessage }, ...errorReturnToolLoopMessages];
 
     return {
       success: isAbort, // Abort is not a failure - messages are still valid
