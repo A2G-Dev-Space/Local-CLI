@@ -127,28 +127,58 @@ export class LLMClient {
    * Preprocess messages for model-specific requirements
    *
    * Handles:
-   * 1. reasoning_content → content conversion (for reasoning LLM responses)
-   * 2. Harmony format for gpt-oss models
+   * 1. Strip reasoning traces from PAST assistant messages (token savings)
+   *    - reasoning_content field (DeepSeek, etc.)
+   *    - reasoning field
+   *    - <think>...</think> tags in content (Qwen, DeepSeek-R1, etc.)
+   * 2. reasoning_content → content conversion for LATEST assistant (if content empty)
+   * 3. Harmony format for gpt-oss models
    */
   private preprocessMessages(messages: Message[], modelId: string): Message[] {
-    return messages.map((msg) => {
+    // Find the index of the last assistant message (only this one keeps reasoning)
+    let lastAssistantIdx = -1;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i]!.role === 'assistant') {
+        lastAssistantIdx = i;
+        break;
+      }
+    }
+
+    return messages.map((msg, index) => {
       // Skip non-assistant messages
       if (msg.role !== 'assistant') {
         return msg;
       }
 
       const msgAny = msg as any;
-      let processedMsg = { ...msg };
+      const processedMsg = { ...msg };
+      const isLatestAssistant = index === lastAssistantIdx;
 
-      // Handle reasoning_content from reasoning LLMs (DeepSeek-V3, etc.)
-      // When switching between reasoning LLM and regular LLM, content field is required
-      if (msgAny.reasoning_content && (!msg.content || msg.content.trim() === '')) {
-        processedMsg.content = msgAny.reasoning_content;
-        // Remove reasoning_content to avoid confusion
+      // 1. Strip reasoning traces from PAST assistant messages (token savings)
+      //    Past reasoning is not needed — only the final content/tool_calls matter.
+      //    The latest assistant message keeps reasoning for current-turn reference.
+      if (!isLatestAssistant) {
+        if (msgAny.reasoning_content) {
+          delete (processedMsg as any).reasoning_content;
+        }
+        if (msgAny.reasoning) {
+          delete (processedMsg as any).reasoning;
+        }
+        // Strip <think>...</think> tags from content
+        if (processedMsg.content) {
+          processedMsg.content = processedMsg.content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+        }
+      }
+
+      // 2. reasoning_content → content conversion (when content is empty)
+      //    For latest assistant: use reasoning as content (model switching support)
+      //    For past assistants: discard reasoning (already stripped above)
+      if (msgAny.reasoning_content && (!processedMsg.content || processedMsg.content.trim() === '')) {
+        processedMsg.content = isLatestAssistant ? msgAny.reasoning_content : '';
         delete (processedMsg as any).reasoning_content;
       }
 
-      // gpt-oss-120b / gpt-oss-20b: Harmony format handling
+      // 3. gpt-oss-120b / gpt-oss-20b: Harmony format handling
       // These models require content field even when tool_calls are present
       if (/^gpt-oss-(120b|20b)$/i.test(modelId)) {
         if (msg.tool_calls && msg.tool_calls.length > 0) {
@@ -159,7 +189,7 @@ export class LLMClient {
         }
       }
 
-      // Ensure content is at least empty string for assistant messages
+      // 4. Ensure content is at least empty string for assistant messages
       if (processedMsg.content === undefined || processedMsg.content === null) {
         processedMsg.content = '';
       }
@@ -690,6 +720,19 @@ export class LLMClient {
     const MAX_FINAL_RESPONSE_FAILURES = 3;  // Max retries for final_response failures
     const MAX_CONSECUTIVE_PARSE_FAILURES = 3;  // Max retries for arg parse failures
 
+    // Track parse failure tool_call_ids — stripped from returned history
+    // Parse error hints are only useful for immediate retry, not for future sessions
+    const parseFailureToolCallIds = new Set<string>();
+    const stripParseFailures = (msgs: Message[]): Message[] => {
+      if (parseFailureToolCallIds.size === 0) return msgs;
+      return msgs.filter(msg => {
+        if (msg.role === 'tool' && msg.tool_call_id && parseFailureToolCallIds.has(msg.tool_call_id)) return false;
+        if (msg.role === 'assistant' && msg.tool_calls && msg.tool_calls.length > 0 &&
+            msg.tool_calls.every(tc => parseFailureToolCallIds.has(tc.id))) return false;
+        return true;
+      });
+    };
+
     while (true) {
       // Check for interrupt at start of each iteration
       if (this.isInterrupted) {
@@ -802,6 +845,7 @@ export class LLMClient {
             consecutiveParseFailures = 0; // 성공 시 리셋
           } catch (parseError) {
             consecutiveParseFailures++;
+            parseFailureToolCallIds.add(toolCall.id);
             const errorMsg = `Tool argument parsing failed for ${toolName}: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`;
             logger.error('Tool argument parse error', {
               toolName,
@@ -830,12 +874,35 @@ export class LLMClient {
               return {
                 message: { role: 'assistant', content: abortMsg },
                 toolCalls: toolCallHistory,
-                allMessages: workingMessages,
+                allMessages: stripParseFailures(workingMessages),
               };
             }
 
-            // LLM에게 JSON 형식 안내 포함
-            const hintMsg = `Error: Failed to parse tool arguments - ${parseError instanceof Error ? parseError.message : 'Unknown error'}\n\nIMPORTANT: Tool arguments MUST be valid JSON. Example: {"reason": "...", "cell": "A1", "value": "hello"}. Do NOT use XML tags like <arg_key> or <arg_value>.`;
+            // LLM에게 구체적 피드백 — raw input + 실패 원인 + 올바른 형식 안내
+            const rawArgs = toolCall.function.arguments;
+            const rawPreview = typeof rawArgs === 'string' ? rawArgs.substring(0, 300) : String(rawArgs);
+            const hintMsg = `Error: Failed to parse tool arguments for "${toolName}".
+
+Parse error: ${parseError instanceof Error ? parseError.message : 'Unknown error'}
+
+Your raw input was:
+\`\`\`
+${rawPreview}
+\`\`\`
+
+Fix the following issues:
+1. Arguments MUST be valid JSON (not XML, not plain text)
+2. All strings must use double quotes ("), not single quotes (')
+3. No trailing commas after the last property
+4. No comments inside JSON
+5. Escape special characters in strings (\\n, \\", \\\\)
+
+Correct format example:
+\`\`\`json
+{"reason": "description", "file_path": "src/index.ts"}
+\`\`\`
+
+Do NOT use XML tags like <arg_key> or <arg_value>. Retry with valid JSON.`;
             workingMessages.push({
               role: 'tool',
               content: hintMsg,
@@ -921,7 +988,7 @@ export class LLMClient {
                     content: result.result || '',
                   },
                   toolCalls: toolCallHistory,
-                  allMessages: workingMessages,
+                  allMessages: stripParseFailures(workingMessages),
                 };
               } else {
                 // Failure - track attempts to prevent infinite loop
@@ -939,7 +1006,7 @@ export class LLMClient {
                   return {
                     message: { role: 'assistant' as const, content: fallbackMessage },
                     toolCalls: toolCallHistory,
-                    allMessages: workingMessages,
+                    allMessages: stripParseFailures(workingMessages),
                   };
                 }
               }
@@ -1002,7 +1069,7 @@ export class LLMClient {
           return {
             message: { role: 'assistant' as const, content: fallbackContent },
             toolCalls: toolCallHistory,
-            allMessages: workingMessages,
+            allMessages: stripParseFailures(workingMessages),
           };
         }
 

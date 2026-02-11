@@ -192,7 +192,21 @@ Choose one of your 3 tools now.`,
             } catch (error) {
               logger.warn('Failed to parse tool arguments', { args: toolCall.function?.arguments, error });
               lastError = error as Error;
-              continue; // Retry
+              // Feed back the parse error to LLM so it can correct itself
+              const rawPreview = typeof toolCall.function?.arguments === 'string'
+                ? toolCall.function.arguments.substring(0, 300) : '(empty)';
+              // Only include the failed tool_call (not all) to avoid orphaned tool_calls
+              messages.push({
+                role: 'assistant',
+                content: message?.content || '',
+                tool_calls: [toolCall],
+              } as Message);
+              messages.push({
+                role: 'tool',
+                content: `Error: Failed to parse tool arguments. ${error instanceof Error ? error.message : 'Invalid JSON'}\nYour raw input: ${rawPreview}\nRetry with valid JSON: {"question": "...", "options": ["A", "B"]}`,
+                tool_call_id: toolCall.id,
+              } as Message);
+              continue; // Retry with feedback
             }
 
             // Handle ask_to_user - clarify requirements before planning

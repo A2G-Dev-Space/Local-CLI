@@ -140,11 +140,24 @@ class LLMClient {
    * Preprocess messages for model-specific requirements (CLI parity)
    *
    * Handles:
-   * 1. reasoning_content → content conversion (for reasoning LLM responses)
-   * 2. Harmony format for gpt-oss models
+   * 1. Strip reasoning traces from PAST assistant messages (token savings)
+   *    - reasoning_content field (DeepSeek, etc.)
+   *    - reasoning field
+   *    - <think>...</think> tags in content (Qwen, DeepSeek-R1, etc.)
+   * 2. reasoning_content → content conversion for LATEST assistant (if content empty)
+   * 3. Harmony format for gpt-oss models
    */
   private preprocessMessages(messages: Message[], modelId: string): Message[] {
-    return messages.map((msg) => {
+    // Find the index of the last assistant message (only this one keeps reasoning)
+    let lastAssistantIdx = -1;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i]!.role === 'assistant') {
+        lastAssistantIdx = i;
+        break;
+      }
+    }
+
+    return messages.map((msg, index) => {
       // Skip non-assistant messages
       if (msg.role !== 'assistant') {
         return msg;
@@ -152,16 +165,33 @@ class LLMClient {
 
       const msgAny = msg as any;
       const processedMsg = { ...msg };
+      const isLatestAssistant = index === lastAssistantIdx;
 
-      // Handle reasoning_content from reasoning LLMs (DeepSeek-V3, etc.)
-      // When switching between reasoning LLM and regular LLM, content field is required
-      if (msgAny.reasoning_content && (!msg.content || msg.content.trim() === '')) {
-        processedMsg.content = msgAny.reasoning_content;
-        // Remove reasoning_content to avoid confusion
+      // 1. Strip reasoning traces from PAST assistant messages (token savings)
+      //    Past reasoning is not needed — only the final content/tool_calls matter.
+      //    The latest assistant message keeps reasoning for current-turn reference.
+      if (!isLatestAssistant) {
+        if (msgAny.reasoning_content) {
+          delete (processedMsg as any).reasoning_content;
+        }
+        if (msgAny.reasoning) {
+          delete (processedMsg as any).reasoning;
+        }
+        // Strip <think>...</think> tags from content
+        if (processedMsg.content) {
+          processedMsg.content = processedMsg.content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+        }
+      }
+
+      // 2. reasoning_content → content conversion (when content is empty)
+      //    For latest assistant: use reasoning as content (model switching support)
+      //    For past assistants: discard reasoning (already stripped above)
+      if (msgAny.reasoning_content && (!processedMsg.content || processedMsg.content.trim() === '')) {
+        processedMsg.content = isLatestAssistant ? msgAny.reasoning_content : '';
         delete (processedMsg as any).reasoning_content;
       }
 
-      // gpt-oss-120b / gpt-oss-20b: Harmony format handling
+      // 3. gpt-oss-120b / gpt-oss-20b: Harmony format handling
       // These models require content field even when tool_calls are present
       if (/^gpt-oss-(120b|20b)$/i.test(modelId)) {
         if (msg.tool_calls && msg.tool_calls.length > 0) {
@@ -172,7 +202,7 @@ class LLMClient {
         }
       }
 
-      // Ensure content is at least empty string for assistant messages
+      // 4. Ensure content is at least empty string for assistant messages
       if (processedMsg.content === undefined || processedMsg.content === null) {
         processedMsg.content = '';
       }
@@ -786,305 +816,6 @@ class LLMClient {
         content: assistantMessage?.content || '',
         message: assistantMessage || { role: 'assistant', content: '' },
       };
-    }
-  }
-
-  // NOTE: chatCompletionWithTools()는 Electron에서 사용되지 않음 (dead code)
-  // Electron에서는 ipc-agent.ts가 직접 tool loop를 관리함
-
-  async chatCompletionWithTools(
-    messages: Message[],
-    tools: ToolDefinition[],
-    options?: {
-      getPendingMessage?: () => string | null;
-      clearPendingMessage?: () => void;
-    }
-  ): Promise<{
-    message: Message;
-    toolCalls: Array<{ tool: string; args: unknown; result: string }>;
-    allMessages: Message[];
-  }> {
-    const { executeFileTool, requestToolApproval, emitAssistantResponse } = await import(
-      '../../tools/llm/simple/simple-tool-executor'
-    );
-
-    let workingMessages = [...messages];
-    const toolCallHistory: Array<{ tool: string; args: unknown; result: string }> = [];
-    let contextLengthRecoveryAttempted = false;
-    let noToolCallRetries = 0;
-    let finalResponseFailures = 0;
-    let consecutiveParseFailures = 0;
-    const MAX_NO_TOOL_CALL_RETRIES = 3;
-    const MAX_FINAL_RESPONSE_FAILURES = 3;
-    const MAX_CONSECUTIVE_PARSE_FAILURES = 3;
-
-    while (true) {
-      // Check for interrupt at start of each iteration
-      if (this.isInterrupted) {
-        logger.flow('Interrupt detected - stopping tool loop');
-        throw new Error('INTERRUPTED');
-      }
-
-      // Check for pending user message and inject it
-      if (options?.getPendingMessage && options?.clearPendingMessage) {
-        const pendingMsg = options.getPendingMessage();
-        if (pendingMsg) {
-          logger.flow('Injecting pending user message into conversation');
-          workingMessages.push({ role: 'user', content: pendingMsg });
-          options.clearPendingMessage();
-        }
-      }
-
-      // LLM call with ContextLengthError recovery
-      let response: LLMResponse;
-      try {
-        response = await this.chatCompletion({
-          messages: workingMessages,
-          tools,
-          tool_choice: 'required',
-        });
-      } catch (error) {
-        // ContextLengthError recovery: rollback last tool + compact + retry
-        if (error instanceof ContextLengthError && !contextLengthRecoveryAttempted) {
-          contextLengthRecoveryAttempted = true;
-          logger.flow('ContextLengthError detected - attempting recovery with compact');
-
-          // Rollback: remove last tool results and assistant message with tool_calls
-          let rollbackIdx = workingMessages.length - 1;
-          while (rollbackIdx >= 0 && workingMessages[rollbackIdx]?.role === 'tool') {
-            rollbackIdx--;
-          }
-          if (rollbackIdx >= 0 && workingMessages[rollbackIdx]?.tool_calls) {
-            workingMessages = workingMessages.slice(0, rollbackIdx);
-            logger.debug('Rolled back messages to before last tool execution', {
-              removedCount: messages.length - rollbackIdx,
-            });
-          }
-
-          // Execute compact
-          const { compactConversation } = await import('../../core/compact');
-          const compactResult = await compactConversation(workingMessages, {});
-
-          if (compactResult.success && compactResult.compactedMessages) {
-            workingMessages = [...compactResult.compactedMessages];
-            logger.flow('Compact completed, retrying with reduced context', {
-              originalCount: compactResult.originalMessageCount,
-              newCount: compactResult.newMessageCount,
-            });
-            continue;
-          } else {
-            logger.error('Compact failed during recovery', { error: compactResult.error });
-            throw error;
-          }
-        }
-        throw error;
-      }
-
-      // Check for interrupt after LLM call
-      if (this.isInterrupted) {
-        logger.flow('Interrupt detected after LLM call - stopping');
-        throw new Error('INTERRUPTED');
-      }
-
-      const choice = response.choices[0];
-      if (!choice) {
-        throw new Error('No choice in LLM response');
-      }
-
-      const assistantMessage = choice.message;
-      workingMessages.push(assistantMessage);
-
-      // Tool calls processing
-      if (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
-        // Multi-tool detection logging
-        if (assistantMessage.tool_calls.length > 1) {
-          const toolNames = assistantMessage.tool_calls.map(tc => tc.function.name).join(', ');
-          logger.warn(`[MULTI-TOOL DETECTED] LLM returned ${assistantMessage.tool_calls.length} tools: ${toolNames}`);
-        }
-
-        for (const toolCall of assistantMessage.tool_calls) {
-          const toolName = toolCall.function.name;
-          let toolArgs: Record<string, unknown>;
-
-          try {
-            toolArgs = JSON.parse(toolCall.function.arguments) as Record<string, unknown>;
-            consecutiveParseFailures = 0; // 성공 시 리셋
-          } catch (parseError) {
-            consecutiveParseFailures++;
-            const errorMsg = `Error parsing tool arguments: Failed to parse tool arguments: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`;
-            logger.error('Tool argument parse error', {
-              toolName,
-              error: errorMsg,
-              consecutiveFailures: consecutiveParseFailures,
-            });
-            reportError(parseError, {
-              type: 'toolArgParsing',
-              tool: toolName,
-              consecutiveFailures: consecutiveParseFailures,
-            }).catch(() => {});
-
-            // 3회 연속 parse 실패 시 강제 종료
-            if (consecutiveParseFailures >= MAX_CONSECUTIVE_PARSE_FAILURES) {
-              logger.error('[ABORT] Tool argument parse failed 3 times consecutively. Model may not support JSON function calling.');
-              const abortMsg = 'I cannot generate valid JSON tool arguments. Please try a different model that supports JSON function calling.';
-              workingMessages.push({
-                role: 'tool',
-                content: errorMsg,
-                tool_call_id: toolCall.id,
-              });
-              return {
-                message: { role: 'assistant', content: abortMsg },
-                toolCalls: toolCallHistory,
-                allMessages: workingMessages,
-              };
-            }
-
-            // LLM에게 JSON 형식 안내 포함
-            const hintMsg = `${errorMsg}\n\nIMPORTANT: Tool arguments MUST be valid JSON. Example: {"reason": "...", "cell": "A1", "value": "hello"}. Do NOT use XML tags like <arg_key> or <arg_value>.`;
-            workingMessages.push({
-              role: 'tool',
-              content: hintMsg,
-              tool_call_id: toolCall.id,
-            });
-            toolCallHistory.push({
-              tool: toolName,
-              args: { raw: toolCall.function.arguments },
-              result: errorMsg,
-            });
-            continue;
-          }
-
-          // Supervised Mode: Request user approval before tool execution
-          const approvalResult = await requestToolApproval(toolName, toolArgs);
-          if (approvalResult && typeof approvalResult === 'object' && approvalResult.reject) {
-            logger.flow(`Tool rejected by user: ${toolName}`);
-            const rejectMessage = approvalResult.comment
-              ? `Tool execution rejected by user. Reason: ${approvalResult.comment}`
-              : 'Tool execution rejected by user.';
-
-            workingMessages.push({
-              role: 'tool',
-              content: rejectMessage,
-              tool_call_id: toolCall.id,
-            });
-            toolCallHistory.push({ tool: toolName, args: toolArgs, result: rejectMessage });
-            continue;
-          }
-
-          logger.debug(`Executing tool: ${toolName}`, toolArgs);
-
-          let result: { success: boolean; result?: string; error?: string; metadata?: Record<string, unknown> };
-
-          try {
-            result = await executeFileTool(toolName, toolArgs);
-            logger.llmToolResult(toolName, result.result || '', result.success);
-
-            // Handle final_response tool
-            if (toolName === 'final_response') {
-              if (result.success && result.metadata?.['isFinalResponse']) {
-                logger.flow('final_response tool executed successfully - returning');
-                workingMessages.push({
-                  role: 'tool',
-                  content: result.result || '',
-                  tool_call_id: toolCall.id,
-                });
-                toolCallHistory.push({
-                  tool: toolName,
-                  args: toolArgs,
-                  result: result.result || '',
-                });
-
-                return {
-                  message: { role: 'assistant', content: result.result || '' },
-                  toolCalls: toolCallHistory,
-                  allMessages: workingMessages,
-                };
-              } else {
-                finalResponseFailures++;
-                logger.flow(`final_response failed (attempt ${finalResponseFailures}/${MAX_FINAL_RESPONSE_FAILURES}): ${result.error}`);
-
-                if (finalResponseFailures >= MAX_FINAL_RESPONSE_FAILURES) {
-                  logger.warn('Max final_response failures exceeded - forcing completion');
-                  const fallbackMessage = (toolArgs['message'] as string) || 'Task completed with incomplete TODOs.';
-                  emitAssistantResponse(fallbackMessage);
-
-                  return {
-                    message: { role: 'assistant', content: fallbackMessage },
-                    toolCalls: toolCallHistory,
-                    allMessages: workingMessages,
-                  };
-                }
-              }
-            }
-          } catch (toolError) {
-            logger.llmToolResult(toolName, `Error: ${toolError instanceof Error ? toolError.message : String(toolError)}`, false);
-            reportError(toolError, { type: 'toolExecution', tool: toolName }).catch(() => {});
-            result = {
-              success: false,
-              error: toolError instanceof Error ? toolError.message : String(toolError),
-            };
-          }
-
-          // Add result to messages
-          workingMessages.push({
-            role: 'tool',
-            content: result.success ? result.result || '' : `Error: ${result.error}`,
-            tool_call_id: toolCall.id,
-          });
-          toolCallHistory.push({
-            tool: toolName,
-            args: toolArgs,
-            result: result.success ? result.result || '' : `Error: ${result.error}`,
-          });
-
-          // Check for interrupt after tool execution
-          if (this.isInterrupted) {
-            logger.flow('Interrupt detected after tool execution - stopping');
-            throw new Error('INTERRUPTED');
-          }
-        }
-        continue;
-      } else {
-        // No tool call - enforce tool usage
-        noToolCallRetries++;
-        logger.flow(`No tool call - enforcing tool usage (attempt ${noToolCallRetries}/${MAX_NO_TOOL_CALL_RETRIES})`);
-
-        if (noToolCallRetries > MAX_NO_TOOL_CALL_RETRIES) {
-          logger.warn('Max no-tool-call retries exceeded - returning content as final response');
-          const fallbackContent = assistantMessage.content || 'Task completed.';
-          emitAssistantResponse(fallbackContent);
-
-          return {
-            message: { role: 'assistant', content: fallbackContent },
-            toolCalls: toolCallHistory,
-            allMessages: workingMessages,
-          };
-        }
-
-        // Check for malformed tool call patterns
-        const hasMalformedToolCall = assistantMessage.content &&
-          (/<tool_call>/i.test(assistantMessage.content) ||
-           /<arg_key>/i.test(assistantMessage.content) ||
-           /<arg_value>/i.test(assistantMessage.content) ||
-           /<\/tool_call>/i.test(assistantMessage.content) ||
-           /bash<arg_key>/i.test(assistantMessage.content) ||
-           /<xai:function_call/i.test(assistantMessage.content) ||
-           /<\/xai:function_call>/i.test(assistantMessage.content) ||
-           /<parameter\s+name=/i.test(assistantMessage.content));
-
-        const retryMessage = hasMalformedToolCall
-          ? 'Your previous response contained a malformed tool call (XML tags in content). You MUST use the proper tool_calls API format. Use final_response tool to deliver your message to the user.'
-          : 'You must use tools for all actions. Use final_response tool to deliver your final message to the user after completing all tasks.';
-
-        if (hasMalformedToolCall) {
-          logger.warn('Malformed tool call detected in content', {
-            contentSnippet: assistantMessage.content?.substring(0, 200),
-          });
-        }
-
-        workingMessages.push({ role: 'user', content: retryMessage });
-        continue;
-      }
     }
   }
 
