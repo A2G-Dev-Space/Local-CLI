@@ -703,6 +703,8 @@ export class LLMClient {
     options?: {
       getPendingMessage?: () => string | null;
       clearPendingMessage?: () => void;
+      /** 매 iteration마다 messages를 재구성하는 콜백. tool loop 내 메시지를 받아 [system, user] 형태로 반환 */
+      rebuildMessages?: (toolLoopMessages: Message[]) => Message[];
     }
   ): Promise<{
     message: Message;
@@ -710,6 +712,7 @@ export class LLMClient {
     allMessages: Message[];
   }> {
     let workingMessages = [...messages];
+    const toolLoopMessages: Message[] = []; // Tool loop에서 생긴 메시지 추적 (rebuildMessages 모드용)
     const toolCallHistory: Array<{ tool: string; args: unknown; result: string }> = [];
     let iterations = 0;
     let contextLengthRecoveryAttempted = false;  // Prevent infinite recovery loop
@@ -733,6 +736,21 @@ export class LLMClient {
       });
     };
 
+    // Helper: workingMessages와 toolLoopMessages에 동시 추가
+    const addMessage = (msg: Message) => {
+      workingMessages.push(msg);
+      if (options?.rebuildMessages) {
+        toolLoopMessages.push(msg);
+      }
+    };
+
+    // Helper: 반환용 allMessages 선택 (rebuildMessages 모드면 loop 메시지만, 아니면 전체)
+    const getAllMessages = () => {
+      return options?.rebuildMessages
+        ? stripParseFailures(toolLoopMessages)
+        : stripParseFailures(workingMessages);
+    };
+
     while (true) {
       // Check for interrupt at start of each iteration
       if (this.isInterrupted) {
@@ -742,12 +760,24 @@ export class LLMClient {
 
       iterations++;
 
+      // rebuildMessages 모드: 매 iteration마다 messages 재구성
+      // 최신 TODO 상태, 전체 대화 history + tool loop messages를 포함
+      if (options?.rebuildMessages) {
+        workingMessages = options.rebuildMessages(toolLoopMessages);
+      }
+
       // Check for pending user message and inject it
       if (options?.getPendingMessage && options?.clearPendingMessage) {
         const pendingMsg = options.getPendingMessage();
         if (pendingMsg) {
           logger.flow('Injecting pending user message into conversation');
-          workingMessages.push({ role: 'user' as const, content: pendingMsg });
+          if (options?.rebuildMessages) {
+            // rebuildMessages 모드: toolLoopMessages에 추가 후 다시 rebuild
+            toolLoopMessages.push({ role: 'user' as const, content: pendingMsg });
+            workingMessages = options.rebuildMessages(toolLoopMessages);
+          } else {
+            workingMessages.push({ role: 'user' as const, content: pendingMsg });
+          }
           options.clearPendingMessage();
         }
       }
@@ -765,7 +795,25 @@ export class LLMClient {
         // ContextLengthError recovery: rollback last tool + compact + retry
         if (error instanceof ContextLengthError && !contextLengthRecoveryAttempted) {
           contextLengthRecoveryAttempted = true;
-          logger.flow('ContextLengthError detected - attempting recovery with compact');
+          logger.flow('ContextLengthError detected - attempting recovery');
+
+          if (options?.rebuildMessages) {
+            // rebuildMessages 모드: toolLoopMessages에서 마지막 tool group 롤백
+            // 다음 iteration에서 rebuild 시 자연스럽게 context가 줄어듦
+            let rollbackIdx = toolLoopMessages.length - 1;
+            while (rollbackIdx >= 0 && toolLoopMessages[rollbackIdx]?.role === 'tool') {
+              rollbackIdx--;
+            }
+            if (rollbackIdx >= 0 && toolLoopMessages[rollbackIdx]?.tool_calls) {
+              toolLoopMessages.length = rollbackIdx;
+              logger.debug('Rolled back toolLoopMessages', { newLength: toolLoopMessages.length });
+            }
+            // 다음 iteration에서 rebuild로 재시도
+            continue;
+          }
+
+          // 기존 모드: workingMessages rollback + compact
+          logger.flow('Attempting recovery with compact');
 
           // Rollback: remove last tool results and assistant message with tool_calls
           let rollbackIdx = workingMessages.length - 1;
@@ -825,7 +873,7 @@ export class LLMClient {
       }
 
       const assistantMessage = choice.message;
-      workingMessages.push(assistantMessage);
+      addMessage(assistantMessage);
 
       // Tool calls 확인
       if (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
@@ -884,7 +932,7 @@ export class LLMClient {
             if (consecutiveParseFailures >= MAX_CONSECUTIVE_PARSE_FAILURES) {
               logger.error('[ABORT] Tool argument parse failed 3 times consecutively. Model may not support JSON function calling.');
               const abortMsg = 'I cannot generate valid JSON tool arguments. Please try a different model that supports JSON function calling.';
-              workingMessages.push({
+              addMessage({
                 role: 'tool',
                 content: errorMsg,
                 tool_call_id: toolCall.id,
@@ -892,7 +940,7 @@ export class LLMClient {
               return {
                 message: { role: 'assistant', content: abortMsg },
                 toolCalls: toolCallHistory,
-                allMessages: stripParseFailures(workingMessages),
+                allMessages: getAllMessages(),
               };
             }
 
@@ -921,7 +969,7 @@ Correct format example:
 \`\`\`
 
 Do NOT use XML tags like <arg_key> or <arg_value>. Retry with valid JSON.`;
-            workingMessages.push({
+            addMessage({
               role: 'tool',
               content: hintMsg,
               tool_call_id: toolCall.id,
@@ -950,7 +998,7 @@ Do NOT use XML tags like <arg_key> or <arg_value>. Retry with valid JSON.`;
               ? `Tool execution rejected by user. Reason: ${approvalResult.comment}`
               : 'Tool execution rejected by user.';
 
-            workingMessages.push({
+            addMessage({
               role: 'tool',
               content: rejectMessage,
               tool_call_id: toolCall.id,
@@ -986,7 +1034,7 @@ Do NOT use XML tags like <arg_key> or <arg_value>. Retry with valid JSON.`;
                 logger.flow('final_response tool executed successfully - returning');
 
                 // Add tool result to messages for completeness
-                workingMessages.push({
+                addMessage({
                   role: 'tool',
                   content: result.result || '',
                   tool_call_id: toolCall.id,
@@ -1006,7 +1054,7 @@ Do NOT use XML tags like <arg_key> or <arg_value>. Retry with valid JSON.`;
                     content: result.result || '',
                   },
                   toolCalls: toolCallHistory,
-                  allMessages: stripParseFailures(workingMessages),
+                  allMessages: getAllMessages(),
                 };
               } else {
                 // Failure - track attempts to prevent infinite loop
@@ -1024,7 +1072,7 @@ Do NOT use XML tags like <arg_key> or <arg_value>. Retry with valid JSON.`;
                   return {
                     message: { role: 'assistant' as const, content: fallbackMessage },
                     toolCalls: toolCallHistory,
-                    allMessages: stripParseFailures(workingMessages),
+                    allMessages: getAllMessages(),
                   };
                 }
               }
@@ -1046,7 +1094,7 @@ Do NOT use XML tags like <arg_key> or <arg_value>. Retry with valid JSON.`;
           }
 
           // 결과를 메시지에 추가
-          workingMessages.push({
+          addMessage({
             role: 'tool',
             content: result.success ? result.result || '' : `Error: ${result.error}`,
             tool_call_id: toolCall.id,
@@ -1087,7 +1135,7 @@ Do NOT use XML tags like <arg_key> or <arg_value>. Retry with valid JSON.`;
           return {
             message: { role: 'assistant' as const, content: fallbackContent },
             toolCalls: toolCallHistory,
-            allMessages: stripParseFailures(workingMessages),
+            allMessages: getAllMessages(),
           };
         }
 
@@ -1104,7 +1152,7 @@ Do NOT use XML tags like <arg_key> or <arg_value>. Retry with valid JSON.`;
           : 'You must use tools for all actions. Use final_response tool to deliver your final message to the user after completing all tasks.';
 
         // Add assistant message (to preserve context) and retry instruction
-        workingMessages.push({
+        addMessage({
           role: 'user',
           content: retryMessage,
         });

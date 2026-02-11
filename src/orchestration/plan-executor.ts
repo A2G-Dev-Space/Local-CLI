@@ -226,37 +226,44 @@ export class PlanExecutor {
       const activeTodo = findActiveTodo(currentTodos);
       callbacks.setCurrentActivity(activeTodo?.title || 'Working on tasks');
 
-      // Flatten history (exclude current userMessage - it goes in CURRENT_REQUEST)
-      // Include planMessage to give LLM context that planning happened
-      const historyText = flattenMessagesToHistory([...historyBeforeExecution, { role: 'assistant' as const, content: planMessage }]);
-      const todoContext = buildTodoContext(currentTodos);
+      // Build rebuildMessages callback for per-iteration message reconstruction
+      // 매 LLM 호출마다 [system, user(<CURRENT_TASK> + <CONVERSATION_HISTORY> + <CURRENT_REQUEST>)] 형태로 재구성
+      const systemPrompt = buildSystemPrompt();
+      const baseHistory: Message[] = [...historyBeforeExecution, { role: 'assistant' as const, content: planMessage }];
 
-      let userContent = '';
-      if (historyText) {
-        userContent += `<CONVERSATION_HISTORY>\n${historyText}\n</CONVERSATION_HISTORY>\n\n`;
-      }
-      if (todoContext) {
-        userContent += `<CURRENT_TASK>\n${todoContext}\n</CURRENT_TASK>\n\n`;
-      }
-      userContent += `<CURRENT_REQUEST>\n${userMessage}\n</CURRENT_REQUEST>`;
+      const rebuildMessages = (toolLoopMessages: Message[]): Message[] => {
+        const fullHistory = [...baseHistory, ...toolLoopMessages];
+        const historyText = flattenMessagesToHistory(fullHistory);
+        const todoContext = buildTodoContext(currentTodos); // 항상 최신 TODO 상태
 
-      // LLM sees only system + single user message (flatten structure)
-      const messagesForLLM: Message[] = [
-        { role: 'system' as const, content: buildSystemPrompt() },
-        { role: 'user' as const, content: userContent },
-      ];
+        let userContent = '';
+        if (todoContext) {
+          userContent += `<CURRENT_TASK>\n${todoContext}\n</CURRENT_TASK>\n\n`;
+        }
+        if (historyText) {
+          userContent += `<CONVERSATION_HISTORY>\n${historyText}\n</CONVERSATION_HISTORY>\n\n`;
+        }
+        userContent += `<CURRENT_REQUEST>\n${userMessage}\n</CURRENT_REQUEST>`;
 
-      // Single LLM call - continues internally until finish_reason: stop
-      // Pass pending message callbacks for mid-execution user input injection
+        return [
+          { role: 'system' as const, content: systemPrompt },
+          { role: 'user' as const, content: userContent },
+        ];
+      };
+
+      // Initial messages (same as rebuildMessages([]))
+      const messagesForLLM = rebuildMessages([]);
+
+      // LLM call with per-iteration message rebuilding
+      // 매 tool loop iteration마다 rebuildMessages가 호출되어 최신 TODO + history로 재구성
       const result = await llmClient.chatCompletionWithTools(messagesForLLM, tools, {
         getPendingMessage: callbacks.getPendingMessage,
         clearPendingMessage: callbacks.clearPendingMessage,
+        rebuildMessages,
       });
 
-      // Update messages (skip system + flattened user message, keep new tool loop messages)
-      const newMessages = result.allMessages
-        .slice(2)  // system + flattened user message
-        .filter(m => m.role !== 'system');
+      // allMessages now contains only tool loop messages (no system/user prefix)
+      const newMessages = result.allMessages.filter(m => m.role !== 'system');
       currentMessages = [...currentMessages, ...newMessages];
       callbacks.setMessages([...currentMessages]);
       sessionManager.autoSaveCurrentSession(currentMessages);
@@ -370,37 +377,42 @@ export class PlanExecutor {
       const activeTodo = findActiveTodo(currentTodos);
       callbacks.setCurrentActivity(activeTodo?.title || 'Working on tasks');
 
-      // Flatten history (exclude current userMessage - it goes in CURRENT_REQUEST)
-      // Use `messages` param (without current userMessage) to match Electron behavior
-      const historyText = flattenMessagesToHistory(messages);
-      const todoContext = buildTodoContext(currentTodos);
+      // Build rebuildMessages callback for per-iteration message reconstruction
+      const systemPrompt = buildSystemPrompt();
+      const baseHistory: Message[] = [...messages]; // messages param = history without current userMessage
 
-      let userContent = '';
-      if (historyText) {
-        userContent += `<CONVERSATION_HISTORY>\n${historyText}\n</CONVERSATION_HISTORY>\n\n`;
-      }
-      if (todoContext) {
-        userContent += `<CURRENT_TASK>\n${todoContext}\n</CURRENT_TASK>\n\n`;
-      }
-      userContent += `<CURRENT_REQUEST>\n${userMessage}\n</CURRENT_REQUEST>`;
+      const rebuildMessages = (toolLoopMessages: Message[]): Message[] => {
+        const fullHistory = [...baseHistory, ...toolLoopMessages];
+        const historyText = flattenMessagesToHistory(fullHistory);
+        const todoContext = buildTodoContext(currentTodos); // 항상 최신 TODO 상태
 
-      // LLM sees only system + single user message (flatten structure)
-      const messagesForLLM: Message[] = [
-        { role: 'system' as const, content: buildSystemPrompt() },
-        { role: 'user' as const, content: userContent },
-      ];
+        let userContent = '';
+        if (todoContext) {
+          userContent += `<CURRENT_TASK>\n${todoContext}\n</CURRENT_TASK>\n\n`;
+        }
+        if (historyText) {
+          userContent += `<CONVERSATION_HISTORY>\n${historyText}\n</CONVERSATION_HISTORY>\n\n`;
+        }
+        userContent += `<CURRENT_REQUEST>\n${userMessage}\n</CURRENT_REQUEST>`;
 
-      // Single LLM call - continues internally until finish_reason: stop
-      // Pass pending message callbacks for mid-execution user input injection
+        return [
+          { role: 'system' as const, content: systemPrompt },
+          { role: 'user' as const, content: userContent },
+        ];
+      };
+
+      // Initial messages (same as rebuildMessages([]))
+      const messagesForLLM = rebuildMessages([]);
+
+      // LLM call with per-iteration message rebuilding
       const result = await llmClient.chatCompletionWithTools(messagesForLLM, tools, {
         getPendingMessage: callbacks.getPendingMessage,
         clearPendingMessage: callbacks.clearPendingMessage,
+        rebuildMessages,
       });
 
-      // Update messages (skip system + flattened user message, keep new tool loop messages)
-      const newMessages = result.allMessages
-        .slice(2)  // system + flattened user message
-        .filter(m => m.role !== 'system');
+      // allMessages now contains only tool loop messages (no system/user prefix)
+      const newMessages = result.allMessages.filter(m => m.role !== 'system');
       currentMessages = [...currentMessages, ...newMessages];
       callbacks.setMessages([...currentMessages]);
       sessionManager.autoSaveCurrentSession(currentMessages);
