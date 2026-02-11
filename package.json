@@ -29,7 +29,7 @@
   },
   "build": {
     "appId": "com.local-cli.powershell-ui",
-    "productName": "LOCAL-CLI PowerShell UI",
+    "productName": "LOCAL-CLI-UI",
     "directories": {
       "output": "release"
     },

@@ -1,5 +1,5 @@
 /**
- * LOCAL-CLI PowerShell UI - Entry Point
+ * LOCAL-CLI-UI - Entry Point
  * Modern Electron React application
  */
 
