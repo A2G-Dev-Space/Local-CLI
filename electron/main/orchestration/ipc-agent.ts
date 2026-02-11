@@ -394,7 +394,7 @@ export async function runAgent(
         };
       });
 
-      const planningResult = await planningLLM.generateTODOListWithDocsDecision(
+      const planningResult = await planningLLM.generateTODOList(
         userMessage,
         existingMessages
       );
@@ -452,12 +452,12 @@ export async function runAgent(
         logger.info('Planning complete', {
           todoCount: planningResult.todos.length,
           complexity: planningResult.complexity,
-          docsSearchNeeded: planningResult.docsSearchNeeded,
+
         });
       }
     } catch (planningError) {
       logger.error('Planning failed, falling back to direct execution', planningError as Error);
-      reportError(planningError, { type: 'planning', method: 'generateTODOListWithDocsDecision', ...errorContext }).catch(() => {});
+      reportError(planningError, { type: 'planning', method: 'generateTODOList', ...errorContext }).catch(() => {});
     }
   }
 

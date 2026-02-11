@@ -48,12 +48,7 @@ export type {
 // Agent types
 export type {
   PlanningResult,
-  PlanningWithDocsResult,
 } from '../agents/planner';
-
-export type {
-  DocsSearchResult,
-} from '../agents/docs-search';
 
 // Tool types
 export type {

@@ -17,18 +17,7 @@ export {
 // Planning agent
 export {
   PlanningLLM,
-  type PlanningWithDocsResult,
   type PlanningResult,
   type TodoItem,
 } from './planner';
 
-// Documentation search agent
-export {
-  DocsSearchAgent,
-  createDocsSearchAgent,
-  executeDocsSearchAgent,
-  initializeDocsDirectory,
-  addDocumentationFile,
-  setDocsSearchProgressCallback,
-  type DocsSearchProgressCallback,
-} from './docs-search';

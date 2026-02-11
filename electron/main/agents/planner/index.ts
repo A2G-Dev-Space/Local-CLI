@@ -4,23 +4,14 @@
  * System Planning Agent with full PowerShell access.
  * - Clarify requirements with ask_to_user
  * - Create comprehensive TODO lists for Execution LLM
- * - Supports parallel docs search decision
  *
  * NOTE: This is Windows/PowerShell based (NOT bash/WSL)
  */
 
-import * as fs from 'fs/promises';
-import * as path from 'path';
-import * as os from 'os';
 import { logger } from '../../utils/logger';
 import { reportError } from '../../core/telemetry/error-reporter';
 import type { Message, ToolDefinition } from '../../core/llm';
 import { flattenMessagesToHistory } from '../../orchestration/utils';
-import {
-  buildDocsSearchDecisionPrompt,
-  parseDocsSearchDecision,
-  DOCS_SEARCH_DECISION_RETRY_PROMPT,
-} from '../../prompts/agents/docs-search-decision';
 import { buildPlanningSystemPrompt } from '../../prompts/agents/planning';
 import { PLANNING_TOOLS } from '../../tools/llm/simple/planning-tools';
 import {
@@ -48,9 +39,6 @@ export interface PlanningResult {
   clarificationMessages?: Message[];
 }
 
-export interface PlanningWithDocsResult extends PlanningResult {
-  docsSearchNeeded: boolean;
-}
 
 // =============================================================================
 // Planning LLM Class
@@ -130,7 +118,7 @@ export class PlanningLLM {
    * Supports ask_to_user for requirement clarification (loops until final decision)
    * Returns clarificationMessages for caller to inject into conversation history
    * @param userRequest The user's request
-   * @param contextMessages Optional context messages (e.g., docs search results)
+   * @param contextMessages Optional context messages (e.g., conversation history)
    */
   async generateTODOList(
     userRequest: string,
@@ -443,173 +431,6 @@ Choose one of your 3 tools now.`,
     };
   }
 
-  /**
-   * Generate TODO list with parallel docs search decision
-   * Runs planning and docs decision in parallel, then injects docs search TODO if needed
-   */
-  async generateTODOListWithDocsDecision(
-    userRequest: string,
-    contextMessages?: Message[]
-  ): Promise<PlanningWithDocsResult> {
-    logger.enter('PlanningLLM.generateTODOListWithDocsDecision', {
-      requestLength: userRequest.length,
-    });
-    logger.startTimer('parallel-planning');
-
-    // Run planning and docs decision in parallel
-    const [planningResult, docsSearchNeeded] = await Promise.all([
-      this.generateTODOList(userRequest, contextMessages),
-      this.shouldSearchDocs(userRequest),
-    ]);
-
-    logger.vars(
-      { name: 'todoCount', value: planningResult.todos.length },
-      { name: 'docsSearchNeeded', value: docsSearchNeeded }
-    );
-
-    // If docs search is needed and we have todos, prepend docs search TODO
-    if (docsSearchNeeded && planningResult.todos.length > 0) {
-      const docsSearchTodo: TodoItem = {
-        id: `todo-docs-${Date.now()}`,
-        title: 'Search local documentation (use call_docs_search_agent)',
-        status: 'pending',
-      };
-
-      logger.flow('Prepended docs search TODO');
-      logger.endTimer('parallel-planning');
-      logger.exit('PlanningLLM.generateTODOListWithDocsDecision', { docsSearchNeeded: true });
-
-      return {
-        ...planningResult,
-        todos: [docsSearchTodo, ...planningResult.todos],
-        docsSearchNeeded: true,
-      };
-    }
-
-    logger.endTimer('parallel-planning');
-    logger.exit('PlanningLLM.generateTODOListWithDocsDecision', { docsSearchNeeded: false });
-
-    return {
-      ...planningResult,
-      docsSearchNeeded: false,
-    };
-  }
-
-  /**
-   * Check if docs search is needed for the given request
-   * Based on available documentation structure (same as CLI)
-   */
-  private async shouldSearchDocs(userMessage: string): Promise<boolean> {
-    logger.enter('PlanningLLM.shouldSearchDocs', { messageLength: userMessage.length });
-
-    // Get folder structure
-    const folderStructure = await this.getDocsFolderStructure();
-
-    // If no docs available, skip search
-    if (
-      folderStructure.includes('empty') ||
-      folderStructure.includes('does not exist')
-    ) {
-      logger.flow('No docs available, skipping search decision');
-      logger.exit('PlanningLLM.shouldSearchDocs', { decision: false, reason: 'no-docs' });
-      return false;
-    }
-
-    // Build prompt using shared prompt builder
-    const prompt = buildDocsSearchDecisionPrompt(folderStructure, userMessage);
-
-    const messages: Message[] = [
-      { role: 'user', content: prompt },
-    ];
-
-    let retries = 0;
-    const MAX_RETRIES = 2;
-
-    while (retries <= MAX_RETRIES) {
-      logger.flow(`Asking LLM for docs search decision (attempt ${retries + 1})`);
-
-      try {
-        const response = await this.llmClient.chatCompletion({
-          messages,
-          temperature: 0.1,
-        });
-
-        const content = response.choices[0]?.message?.content || '';
-        logger.debug('LLM decision response', { content });
-
-        const decision = parseDocsSearchDecision(content);
-
-        if (decision !== null) {
-          logger.exit('PlanningLLM.shouldSearchDocs', { decision, attempts: retries + 1 });
-          return decision;
-        }
-
-        // Invalid response, retry
-        retries++;
-        if (retries <= MAX_RETRIES) {
-          messages.push({ role: 'assistant', content });
-          messages.push({ role: 'user', content: DOCS_SEARCH_DECISION_RETRY_PROMPT });
-          logger.warn('Invalid decision response, retrying', { response: content });
-        }
-      } catch (error) {
-        logger.warn('LLM call failed for docs search decision', error as Error);
-        retries++;
-      }
-    }
-
-    // Default to false if all retries failed
-    logger.warn('All decision retries failed, defaulting to no search');
-    logger.exit('PlanningLLM.shouldSearchDocs', { decision: false, reason: 'retries-exhausted' });
-    return false;
-  }
-
-  /**
-   * Get folder structure of docs directory (depth 1 only: root + immediate subdirs)
-   */
-  private async getDocsFolderStructure(): Promise<string> {
-    const docsBasePath = path.join(os.homedir(), '.hanseol', 'docs');
-
-    try {
-      const entries = await fs.readdir(docsBasePath, { withFileTypes: true });
-
-      const lines: string[] = [];
-
-      for (const entry of entries) {
-        if (entry.isDirectory()) {
-          // Depth 0: Show top-level directory
-          lines.push(`📁 ${entry.name}/`);
-
-          // Depth 1: Show only immediate subdirectory names
-          try {
-            const subPath = path.join(docsBasePath, entry.name);
-            const subEntries = await fs.readdir(subPath, { withFileTypes: true });
-            const subDirs = subEntries.filter(e => e.isDirectory());
-
-            if (subDirs.length > 0) {
-              const subDirNames = subDirs.map(d => d.name).join(', ');
-              lines.push(`   └── [${subDirNames}]`);
-            }
-          } catch (e) {
-            // Log but don't fail on subdirectory read errors
-            logger.warn(`Could not read subdirectory ${subPath}`, e);
-          }
-        }
-        // Skip files at root level - only show directories
-      }
-
-      if (lines.length === 0) {
-        return '(empty - no documentation available)';
-      }
-
-      return lines.join('\n');
-    } catch (error) {
-      const err = error as NodeJS.ErrnoException;
-      if (err.code === 'ENOENT') {
-        return '(docs directory does not exist)';
-      }
-      return '(error reading docs directory)';
-    }
-  }
 }
 
 // =============================================================================

@@ -17,18 +17,5 @@ export {
 // Planning agent
 export {
   PlanningLLM,
-  type PlanningWithDocsResult,
 } from './planner/index.js';
 
-// Documentation search agent
-export {
-  DocsSearchAgent,
-  createDocsSearchAgent,
-  executeDocsSearchAgent,
-  initializeDocsDirectory,
-  addDocumentationFile,
-  setDocsSearchProgressCallback,
-  type DocsSearchProgressCallback,
-} from './docs-search/index.js';
-
-// performDocsSearchIfNeeded removed - docs search now integrated into planning

@@ -137,16 +137,6 @@ export {
 export type { ToolApprovalResult } from './simple-tool-executor';
 
 // =============================================================================
-// Docs Search Agent Tool
-// =============================================================================
-
-export {
-  docsSearchAgentTool,
-  setDocsSearchLLMClientGetter,
-  clearDocsSearchLLMClientGetter,
-} from './docs-search-agent-tool';
-
-// =============================================================================
 // Import for combined exports
 // =============================================================================
 
@@ -156,7 +146,6 @@ import { TODO_TOOLS } from './todo-tools';
 import { USER_TOOLS } from './user-interaction-tools';
 import { finalResponseTool } from './final-response-tool';
 import { PLANNING_TOOLS } from './planning-tools';
-import { docsSearchAgentTool } from './docs-search-agent-tool';
 
 /**
  * Get shell tools based on current platform
@@ -175,7 +164,6 @@ export const ALL_SIMPLE_TOOLS: LLMSimpleTool[] = [
   ...TODO_TOOLS,
   ...USER_TOOLS,
   finalResponseTool,
-  docsSearchAgentTool,
 ];
 
 // Note: PLANNING_TOOLS is already exported at line 100-104
