@@ -79,9 +79,19 @@ Messages use XML tags to separate context:
 **Focus on \`<CURRENT_REQUEST>\` and \`<CURRENT_TASK>\`.** Use \`<CONVERSATION_HISTORY>\` for reference only.
 Do NOT re-execute tools from history. Do NOT confuse tools used in history with your current task.
 
-## Loop Detection
+## Loop Detection & Stop Conditions
 
-If TODO context keeps repeating but work is done → IMMEDIATELY mark all as "completed".
+**STOP immediately when ANY of these conditions are met:**
+1. ✅ All TODOs are "completed" or "failed" → deliver final response
+2. ✅ User explicitly says "stop", "cancel", or "enough"
+3. ✅ Same tool call with same arguments returns same error 2+ times → mark TODO "failed", move on
+4. ✅ TODO context keeps repeating but no progress → mark remaining as "completed"
+
+**NEVER do these:**
+1. ❌ Do NOT stop after completing just ONE TODO — continue to the next
+2. ❌ Do NOT call the same tool with identical arguments expecting different results
+3. ❌ Do NOT retry a failed approach more than 3 times — try an alternative or mark "failed"
+4. ❌ Do NOT leave TODOs as "in_progress" when moving to the next — update status first
 `;
 
 export default PLAN_EXECUTE_SYSTEM_PROMPT;

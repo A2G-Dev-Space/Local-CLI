@@ -521,6 +521,19 @@ export async function runAgent(
   let consecutiveParseFailures = 0;
   const MAX_CONSECUTIVE_PARSE_FAILURES = 3;
 
+  // Track parse failure tool_call_ids — stripped from returned history
+  // Parse error hints are only useful for immediate retry, not for future sessions
+  const parseFailureToolCallIds = new Set<string>();
+  const stripParseFailures = (msgs: Message[]): Message[] => {
+    if (parseFailureToolCallIds.size === 0) return msgs;
+    return msgs.filter(msg => {
+      if (msg.role === 'tool' && msg.tool_call_id && parseFailureToolCallIds.has(msg.tool_call_id)) return false;
+      if (msg.role === 'assistant' && msg.tool_calls && msg.tool_calls.length > 0 &&
+          msg.tool_calls.every(tc => parseFailureToolCallIds.has(tc.id))) return false;
+      return true;
+    });
+  };
+
   // Error telemetry: 현재 모델 정보 (reportError context에 포함)
   const currentModelInfo = configManager.getCurrentModel();
   const errorContext = {
@@ -672,6 +685,7 @@ export async function runAgent(
             consecutiveParseFailures = 0;
           } catch (parseError) {
             consecutiveParseFailures++;
+            parseFailureToolCallIds.add(toolCall.id);
             const errorMessage = `Error parsing tool arguments: ${parseError instanceof Error ? parseError.message : 'Invalid JSON'}`;
             logger.error('Tool argument parse error', {
               toolName,
@@ -703,15 +717,39 @@ export async function runAgent(
                 content: abortMsg,
               });
               return {
-                messages: [...messages, { role: 'assistant' as const, content: abortMsg }],
+                success: false,
+                response: abortMsg,
+                messages: stripParseFailures([...messages, { role: 'assistant' as const, content: abortMsg }]),
                 toolCalls: toolCallHistory,
                 iterations,
-                finalResponse: abortMsg,
               };
             }
 
-            // JSON 형식 힌트를 LLM에게 전달
-            const hintMsg = `${errorMessage}\n\nIMPORTANT: Tool arguments MUST be valid JSON. Example: {"reason": "...", "cell": "A1", "value": "hello"}. Do NOT use XML tags like <arg_key> or <arg_value>.`;
+            // LLM에게 구체적 피드백 — raw input + 실패 원인 + 올바른 형식 안내
+            const rawArgs = toolCall.function.arguments;
+            const rawPreview = typeof rawArgs === 'string' ? rawArgs.substring(0, 300) : String(rawArgs);
+            const hintMsg = `Error: Failed to parse tool arguments for "${toolName}".
+
+Parse error: ${parseError instanceof Error ? parseError.message : 'Invalid JSON'}
+
+Your raw input was:
+\`\`\`
+${rawPreview}
+\`\`\`
+
+Fix the following issues:
+1. Arguments MUST be valid JSON (not XML, not plain text)
+2. All strings must use double quotes ("), not single quotes (')
+3. No trailing commas after the last property
+4. No comments inside JSON
+5. Escape special characters in strings (\\n, \\", \\\\)
+
+Correct format example:
+\`\`\`json
+{"reason": "description", "file_path": "src/index.ts"}
+\`\`\`
+
+Do NOT use XML tags like <arg_key> or <arg_value>. Retry with valid JSON.`;
             messages.push({
               role: 'tool',
               content: hintMsg,
@@ -874,7 +912,7 @@ export async function runAgent(
               broadcastToWindows('agent:complete', { response: '' });
 
               // Return original history + user message + tool loop messages (not synthetic flatten)
-              const finalToolLoopMessages = messages.slice(toolLoopStartIdx);
+              const finalToolLoopMessages = stripParseFailures(messages.slice(toolLoopStartIdx));
               const finalReturnMessages = [...validMessages, { role: 'user' as const, content: userMessage }, ...finalToolLoopMessages];
 
               return {
@@ -928,7 +966,7 @@ export async function runAgent(
                 broadcastToWindows('agent:complete', { response: fallbackMessage });
 
                 // Return original history + user message + tool loop messages (not synthetic flatten)
-                const fbToolLoopMessages = messages.slice(toolLoopStartIdx);
+                const fbToolLoopMessages = stripParseFailures(messages.slice(toolLoopStartIdx));
                 const fbReturnMessages = [...validMessages, { role: 'user' as const, content: userMessage }, ...fbToolLoopMessages];
 
                 return {
@@ -1089,7 +1127,7 @@ export async function runAgent(
 
     // Return original history + user message + tool loop messages (not the synthetic flattened message)
     // CLI parity: system prompt and synthetic flatten message are excluded from stored history
-    const toolLoopMessages = messages.slice(toolLoopStartIdx);
+    const toolLoopMessages = stripParseFailures(messages.slice(toolLoopStartIdx));
     const returnMessages = [...validMessages, { role: 'user' as const, content: userMessage }, ...toolLoopMessages];
 
     return {
@@ -1120,7 +1158,7 @@ export async function runAgent(
     }
 
     // Return original history + user message + tool loop messages (not the synthetic flattened message)
-    const toolLoopMessages = messages.slice(toolLoopStartIdx);
+    const toolLoopMessages = stripParseFailures(messages.slice(toolLoopStartIdx));
     const returnMessages = [...validMessages, { role: 'user' as const, content: userMessage }, ...toolLoopMessages];
 
     return {
