@@ -11,7 +11,6 @@ export { officeClient } from './office-client';
 export {
   WORD_TOOLS,
   // Basic operations
-  wordLaunchTool,
   wordCreateTool,
   wordOpenTool,
   wordQuitTool,
@@ -83,7 +82,6 @@ export {
 export {
   EXCEL_TOOLS,
   // Basic operations
-  excelLaunchTool,
   excelCreateTool,
   excelOpenTool,
   excelQuitTool,
@@ -165,7 +163,6 @@ export {
 export {
   POWERPOINT_TOOLS,
   // Basic operations
-  powerpointLaunchTool,
   powerpointCreateTool,
   powerpointOpenTool,
   powerpointQuitTool,

@@ -12,20 +12,6 @@ export class WordClient extends OfficeClientBase {
   // Microsoft Word Operations
   // ===========================================================================
 
-  async wordLaunch(): Promise<OfficeResponse> {
-    return this.executePowerShell(`
-try {
-  $word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
-  $word.Visible = $true
-  @{ success = $true; message = "Connected to existing Word instance" } | ConvertTo-Json -Compress
-} catch {
-  $word = New-Object -ComObject Word.Application
-  $word.Visible = $true
-  @{ success = $true; message = "Launched new Word instance" } | ConvertTo-Json -Compress
-}
-`);
-  }
-
   async wordCreate(): Promise<OfficeResponse> {
     return this.executePowerShell(`
 try {

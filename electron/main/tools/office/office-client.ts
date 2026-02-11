@@ -46,7 +46,6 @@ class OfficeClient {
   // Word (delegate to WordClient)
   // ===========================================================================
 
-  wordLaunch = () => this.wordClient.wordLaunch();
   wordCreate = () => this.wordClient.wordCreate();
   wordWrite = (text: string, options?: Parameters<WordClient['wordWrite']>[1]) =>
     this.wordClient.wordWrite(text, options);
@@ -129,7 +128,6 @@ class OfficeClient {
   // Excel (delegate to ExcelClient)
   // ===========================================================================
 
-  excelLaunch = () => this.excelClient.excelLaunch();
   excelCreate = () => this.excelClient.excelCreate();
   excelOpen = (filePath: string) => this.excelClient.excelOpen(filePath);
   excelWriteCell = (...args: Parameters<ExcelClient['excelWriteCell']>) =>
@@ -246,7 +244,6 @@ class OfficeClient {
   // PowerPoint (delegate to PowerPointClient)
   // ===========================================================================
 
-  powerpointLaunch = () => this.powerpointClient.powerpointLaunch();
   powerpointCreate = () => this.powerpointClient.powerpointCreate();
   powerpointOpen = (filePath: string) => this.powerpointClient.powerpointOpen(filePath);
   powerpointAddSlide = (layout?: number) => this.powerpointClient.powerpointAddSlide(layout);
