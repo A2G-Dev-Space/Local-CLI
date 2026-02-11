@@ -1525,6 +1525,9 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         );
 
       case 'tool_start': {
+        // tell_to_user는 tell_user 로그에서 노란 점으로 표시하므로 도구 헤더 숨김
+        if (entry.content === 'tell_to_user') return null;
+
         // Tool별 아이콘 매핑
         const getToolIcon = (toolName: string): string => {
           // Office 도구 (prefix 매칭)
