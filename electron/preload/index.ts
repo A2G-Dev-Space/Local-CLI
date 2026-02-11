@@ -371,6 +371,10 @@ const electronAPI = {
       return ipcRenderer.invoke('config:update', updates);
     },
 
+    addRecentDirectory: (directory: string): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke('config:addRecentDirectory', directory);
+    },
+
     setTheme: (theme: 'light' | 'dark' | 'system'): Promise<boolean> => {
       return ipcRenderer.invoke('config:setTheme', theme);
     },

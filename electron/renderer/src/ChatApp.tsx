@@ -157,7 +157,19 @@ const ChatApp: React.FC = () => {
 
         setIsMaximized(maximized);
 
-        if (dirResult.success && dirResult.directory) {
+        let directoryRestored = false;
+        if (configAny?.lastOpenedDirectory && typeof configAny.lastOpenedDirectory === 'string') {
+          try {
+            const exists = await window.electronAPI.fs?.exists(configAny.lastOpenedDirectory as string);
+            if (exists) {
+              setCurrentDirectory(configAny.lastOpenedDirectory as string);
+              directoryRestored = true;
+            }
+          } catch {
+            // fs.exists 실패 시 fallback
+          }
+        }
+        if (!directoryRestored && dirResult.success && dirResult.directory) {
           setCurrentDirectory(dirResult.directory);
         }
       } catch (error) {
@@ -358,6 +370,7 @@ const ChatApp: React.FC = () => {
       });
       if (result.success && result.filePath) {
         setCurrentDirectory(result.filePath);
+        window.electronAPI?.config?.addRecentDirectory?.(result.filePath).catch(() => {});
       }
     } catch (error) {
       window.electronAPI?.log?.error('[ChatApp] Failed to change directory', {
