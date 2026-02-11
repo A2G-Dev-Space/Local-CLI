@@ -7,7 +7,7 @@
  */
 
 import { LANGUAGE_PRIORITY_RULE } from '../shared/language-rules';
-import { TOOL_REASON_GUIDE } from '../shared/tool-usage';
+import { TOOL_REASON_GUIDE, TOOL_CALL_FORMAT_GUIDE } from '../shared/tool-usage';
 import { CODEBASE_FIRST_RULE } from '../shared/codebase-rules';
 import { WINDOWS_POWERSHELL_RULES } from '../shared/windows-rules';
 
@@ -32,6 +32,8 @@ ${LANGUAGE_PRIORITY_RULE}
 - Call \`write_todos\` FREQUENTLY, not just at the end
 
 ${TOOL_REASON_GUIDE}
+
+${TOOL_CALL_FORMAT_GUIDE}
 
 ## Execution Rules
 

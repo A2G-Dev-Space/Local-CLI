@@ -63,9 +63,46 @@ export const FILE_MODIFICATION_RULES = `
 - For EXISTING files: First use read_file to see content, then use edit_file with exact text matches
 `.trim();
 
+/**
+ * Tool call format guide - prevents tool name corruption from LLMs
+ */
+export const TOOL_CALL_FORMAT_GUIDE = `
+## CRITICAL - Tool Call Format
+
+Every response MUST be a tool call. Plain text without a tool call is REJECTED.
+
+Rules:
+1. **Tool name = EXACT registered name only** (e.g. \`read_file\`, \`edit_file\`, \`powershell\`)
+2. **No suffixes or tokens** - NEVER append \`<|channel|>\`, \`<|end|>\`, \`|reasoning\`, etc.
+3. **Arguments = valid JSON** matching the tool schema
+
+❌ \`powershell<|channel|>commentary\` → ✅ \`powershell\`
+❌ \`edit_file<|end|>\` → ✅ \`edit_file\`
+❌ \`read_file|reasoning\` → ✅ \`read_file\`
+❌ Plain text without tool call → ✅ Always call a tool
+
+### Correct tool call examples:
+
+Reading a file:
+\`\`\`json
+{"name": "read_file", "arguments": {"reason": "기존 코드 확인", "file_path": "src/index.ts"}}
+\`\`\`
+
+Running a command:
+\`\`\`json
+{"name": "powershell", "arguments": {"reason": "프로젝트 빌드", "command": "npm run build"}}
+\`\`\`
+
+Editing a file:
+\`\`\`json
+{"name": "edit_file", "arguments": {"reason": "버그 수정", "file_path": "src/app.ts", "old_string": "const x = 1;", "new_string": "const x = 2;"}}
+\`\`\`
+`.trim();
+
 export default {
   AVAILABLE_TOOLS,
   AVAILABLE_TOOLS_WITH_TODO,
   TOOL_REASON_GUIDE,
+  TOOL_CALL_FORMAT_GUIDE,
   FILE_MODIFICATION_RULES,
 };

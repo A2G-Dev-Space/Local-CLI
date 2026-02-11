@@ -4,7 +4,7 @@
  */
 
 import { LANGUAGE_PRIORITY_RULE } from '../shared/language-rules.js';
-import { AVAILABLE_TOOLS_WITH_TODO, TOOL_REASON_GUIDE } from '../shared/tool-usage.js';
+import { AVAILABLE_TOOLS_WITH_TODO, TOOL_REASON_GUIDE, TOOL_CALL_FORMAT_GUIDE } from '../shared/tool-usage.js';
 import { CODEBASE_FIRST_RULE } from '../shared/codebase-rules.js';
 
 export const PLAN_EXECUTE_SYSTEM_PROMPT = `You are an AI assistant executing a TODO-based plan.
@@ -26,6 +26,8 @@ ${LANGUAGE_PRIORITY_RULE}
 ${AVAILABLE_TOOLS_WITH_TODO}
 
 ${TOOL_REASON_GUIDE}
+
+${TOOL_CALL_FORMAT_GUIDE}
 
 ## Execution Rules
 
