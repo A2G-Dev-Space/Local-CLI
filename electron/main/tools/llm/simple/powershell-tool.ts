@@ -80,6 +80,25 @@ function resolvePath(filePath: string): string {
 }
 
 // =============================================================================
+// PowerShell Command Preprocessing
+// =============================================================================
+
+/**
+ * Preprocess PowerShell command to fix common alias issues
+ * - curl → curl.exe (PowerShell aliases curl to Invoke-WebRequest)
+ * - wget → wget.exe (same alias issue)
+ */
+function preprocessPowerShellCommand(command: string): string {
+  let processed = command;
+  // curl → curl.exe only in command position (line start, after pipe/semicolon/operators/assignment/block)
+  // Case-insensitive + preserve original casing via $2 capture group
+  processed = processed.replace(/(^|[|;&(={]\s*)(curl)\b(?!\.)/gim, '$1$2.exe');
+  // wget → wget.exe (same alias issue)
+  processed = processed.replace(/(^|[|;&(={]\s*)(wget)\b(?!\.)/gim, '$1$2.exe');
+  return processed;
+}
+
+// =============================================================================
 // powershell Tool
 // =============================================================================
 
@@ -93,7 +112,11 @@ IMPORTANT:
 - Do NOT use for file reading/writing - use read_file, create_file, edit_file instead
 - Commands have a 30 second timeout by default
 - Dangerous commands are blocked for safety
-- Output is truncated if too long`,
+- Output is truncated if too long
+- PowerShell 7 (pwsh) is used if available, otherwise PowerShell 5.1
+- IMPORTANT: Use \`curl.exe\` instead of \`curl\` (PowerShell aliases curl to Invoke-WebRequest)
+- IMPORTANT: Use \`wget.exe\` instead of \`wget\` (same alias issue)
+- IMPORTANT: \`Invoke-WebRequest -Form\` is PowerShell 7+ only. Most PCs have PS 5.1.`,
     parameters: {
       type: 'object',
       properties: {
@@ -144,7 +167,11 @@ async function executePowerShell(args: Record<string, unknown>): Promise<ToolRes
 
   try {
     const workingDir = cwd ? resolvePath(cwd) : currentWorkingDirectory;
-    const result = await powerShellManager.executeOnce(command, workingDir);
+    const processedCommand = preprocessPowerShellCommand(command);
+    if (processedCommand !== command) {
+      logger.info('PowerShell command preprocessed', { original: command, processed: processedCommand });
+    }
+    const result = await powerShellManager.executeOnce(processedCommand, workingDir);
 
     let output = '';
     if (result.stdout) {
@@ -265,7 +292,11 @@ async function executePowerShellBackgroundStart(args: Record<string, unknown>): 
           : 'powershell.exe')
       : 'pwsh';
 
-    const childProcess = spawn(psPath, ['-NoProfile', '-Command', command], {
+    const processedCommand = preprocessPowerShellCommand(command);
+    if (processedCommand !== command) {
+      logger.info('PowerShell background command preprocessed', { original: command, processed: processedCommand });
+    }
+    const childProcess = spawn(psPath, ['-NoProfile', '-Command', processedCommand], {
       cwd: workingDir,
       env: { ...process.env },
     });
