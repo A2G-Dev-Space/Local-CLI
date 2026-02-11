@@ -28,16 +28,6 @@ export { COMPACT_SYSTEM_PROMPT } from './system/compact';
 
 // Agent prompts
 export { PLANNING_SYSTEM_PROMPT, buildPlanningSystemPrompt } from './agents/planning';
-export {
-  DOCS_SEARCH_DECISION_PROMPT,
-  DOCS_SEARCH_DECISION_RETRY_PROMPT,
-  buildDocsSearchDecisionPrompt,
-  parseDocsSearchDecision,
-} from './agents/docs-search-decision';
-export {
-  DOCS_SEARCH_SYSTEM_PROMPT,
-  buildDocsSearchUserMessage,
-} from './agents/docs-search';
 
 // TODO context builder (for backwards compatibility)
 export interface TodoItem {

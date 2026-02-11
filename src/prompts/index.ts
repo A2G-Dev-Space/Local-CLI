@@ -22,10 +22,3 @@ export { COMPACT_SYSTEM_PROMPT } from './system/compact.js';
 // Agent prompts
 export { PLANNING_SYSTEM_PROMPT } from './agents/planning.js';
 // CLASSIFIER_SYSTEM_PROMPT removed - classification no longer used
-export { DOCS_SEARCH_SYSTEM_PROMPT, buildDocsSearchUserMessage } from './agents/docs-search.js';
-export {
-  DOCS_SEARCH_DECISION_PROMPT,
-  DOCS_SEARCH_DECISION_RETRY_PROMPT,
-  buildDocsSearchDecisionPrompt,
-  parseDocsSearchDecision,
-} from './agents/docs-search-decision.js';

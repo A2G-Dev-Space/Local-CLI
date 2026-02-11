@@ -3,7 +3,6 @@
  *
  * Unified component for displaying various AI activities:
  * - Thinking/Generating
- * - Local RAG (docs search)
  * - Tool execution (file read/write, etc.)
  * - Planning/Executing
  * - Token usage and performance metrics
@@ -20,7 +19,6 @@ export type ActivityType =
   | 'thinking'
   | 'planning'
   | 'executing'
-  | 'docs_search'
   | 'file_read'
   | 'file_write'
   | 'file_search'
@@ -40,7 +38,6 @@ const ACTIVITY_INFO: Record<ActivityType, ActivityInfo> = {
   thinking: { icon: '💭', label: 'Thinking', color: 'magenta', spinnerType: 'dots' },
   planning: { icon: '💭', label: 'Thinking', color: 'blue', spinnerType: 'dots' },
   executing: { icon: '⚡', label: 'Executing', color: 'green', spinnerType: 'line' },
-  docs_search: { icon: '📚', label: 'Searching docs', color: 'yellow', spinnerType: 'dots' },
   file_read: { icon: '📖', label: 'Reading file', color: 'cyan', spinnerType: 'pipe' },
   file_write: { icon: '✏️', label: 'Writing file', color: 'green', spinnerType: 'pipe' },
   file_search: { icon: '🔍', label: 'Searching files', color: 'yellow', spinnerType: 'dots' },

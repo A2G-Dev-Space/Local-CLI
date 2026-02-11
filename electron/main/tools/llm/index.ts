@@ -6,6 +6,3 @@
 
 // Simple tools (no sub-LLM)
 export * from './simple';
-
-// Agent tools (uses sub-LLM)
-export * from './agents';

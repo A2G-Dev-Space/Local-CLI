@@ -29,10 +29,6 @@ import {
   clearFinalResponseCallbacks,
 } from '../tools/llm/simple/final-response-tool.js';
 import {
-  setDocsSearchLLMClientGetter,
-  clearDocsSearchLLMClientGetter,
-} from '../tools/llm/simple/docs-search-agent-tool.js';
-import {
   emitPlanCreated,
   emitTodoStart,
   emitTodoComplete,
@@ -70,7 +66,7 @@ function buildSystemPrompt(): string {
  * chatCompletionWithTools가 내부적으로 tool loop를 처리하므로 외부 루프 불필요
  */
 export class PlanExecutor {
-  private currentLLMClient: LLMClient | null = null;
+
 
   constructor() {
     // No configuration needed - chatCompletionWithTools handles the loop internally
@@ -101,10 +97,6 @@ export class PlanExecutor {
       model: configManager.getCurrentModel()?.name,
     });
 
-    // Store LLM client for docs search agent tool
-    this.currentLLMClient = llmClient;
-    setDocsSearchLLMClientGetter(() => this.currentLLMClient);
-
     // Reset state - clear previous TODOs when starting new planning
     isInterruptedRef.current = false;
     callbacks.setIsInterrupted(false);
@@ -122,7 +114,7 @@ export class PlanExecutor {
 
       let currentMessages = messages;
 
-      // 1. Generate TODO list with parallel docs search decision
+      // 1. Generate TODO list
       callbacks.setCurrentActivity('Thinking');
       const planningLLM = new PlanningLLM(llmClient);
 
@@ -131,7 +123,7 @@ export class PlanExecutor {
         planningLLM.setAskUserCallback(callbacks.askUser);
       }
 
-      const planResult = await planningLLM.generateTODOListWithDocsDecision(userMessage, currentMessages);
+      const planResult = await planningLLM.generateTODOList(userMessage, currentMessages);
 
       // Add clarification messages to history (ask_to_user Q&A from planning phase)
       if (planResult.clarificationMessages?.length) {
@@ -183,17 +175,14 @@ export class PlanExecutor {
       );
 
       logger.vars(
-        { name: 'todoCount', value: currentTodos.length },
-        { name: 'docsSearchNeeded', value: planResult.docsSearchNeeded }
+        { name: 'todoCount', value: currentTodos.length }
       );
 
       // Update UI with TODOs
       callbacks.setTodos(currentTodos);
       emitPlanCreated(currentTodos.map(t => t.title));
 
-      const planMessage = planResult.docsSearchNeeded
-        ? `📋 Created ${currentTodos.length} tasks (including docs search). Starting execution...`
-        : `📋 Created ${currentTodos.length} tasks. Starting execution...`;
+      const planMessage = `📋 Created ${currentTodos.length} tasks. Starting execution...`;
       // Save history before adding userMessage + planMessage (for flatten without duplication)
       const historyBeforeExecution = [...currentMessages];
       // Check if last message is already the same user request (avoid duplicate)
@@ -317,8 +306,8 @@ export class PlanExecutor {
       callbacks.setExecutionPhase('idle');
       clearTodoCallbacks();
       clearFinalResponseCallbacks();
-      clearDocsSearchLLMClientGetter();
-      this.currentLLMClient = null;
+
+
     }
   }
 
@@ -339,9 +328,7 @@ export class PlanExecutor {
     const streamLogger = getStreamLogger();
     streamLogger?.logUserInput(userMessage);
 
-    // Store LLM client for docs search agent tool
-    this.currentLLMClient = llmClient;
-    setDocsSearchLLMClientGetter(() => this.currentLLMClient);
+
 
     // Reset state
     isInterruptedRef.current = false;
@@ -448,8 +435,8 @@ export class PlanExecutor {
       callbacks.setExecutionPhase('idle');
       clearTodoCallbacks();
       clearFinalResponseCallbacks();
-      clearDocsSearchLLMClientGetter();
-      this.currentLLMClient = null;
+
+
     }
   }
 

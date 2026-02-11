@@ -34,7 +34,6 @@ export const AVAILABLE_TOOLS_WITH_TODO = `
 - **tell_to_user**: Send status updates to the user
 - **ask_to_user**: Ask user a question with multiple choice options
 - **write_todos**: Update entire TODO list (replaces current list)
-- **call_docs_search_agent**: Search local documentation (~/.local-cli/docs)
 `.trim();
 
 /**

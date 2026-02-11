@@ -32,10 +32,7 @@ import {
   USER_TOOLS,
   finalResponseTool,
   PLANNING_TOOLS,
-  docsSearchAgentTool,
 } from './llm/simple';
-
-import { LLM_AGENT_TOOLS } from './llm/agents';
 
 // Import Optional Tools (CLI parity: tools/browser, tools/office)
 import { BROWSER_TOOLS } from './browser';
@@ -399,7 +396,7 @@ class ToolRegistry {
       stats[category] = names.size;
     }
 
-    const coreCount = FILE_TOOLS.length + POWERSHELL_TOOLS.length + TODO_TOOLS.length + USER_TOOLS.length + 2; // +2 for final_response and docs_search
+    const coreCount = FILE_TOOLS.length + POWERSHELL_TOOLS.length + TODO_TOOLS.length + USER_TOOLS.length + 1; // +1 for final_response
     const optionalCount = this.enabledOptionalTools.size;
 
     return {
@@ -444,14 +441,8 @@ export function initializeToolRegistry(): void {
   // LLM Simple Tools - Final response
   toolRegistry.register(finalResponseTool);
 
-  // LLM Simple Tools - Docs search agent
-  toolRegistry.register(docsSearchAgentTool);
-
   // LLM Planning Tools
   toolRegistry.registerAll(PLANNING_TOOLS);
-
-  // LLM Agent Tools
-  toolRegistry.registerAll(LLM_AGENT_TOOLS);
 }
 
 /**
