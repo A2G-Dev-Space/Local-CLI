@@ -8,6 +8,8 @@
 import { OfficeClientBase, OfficeResponse, ScreenshotResponse } from './office-client-base';
 
 export class WordClient extends OfficeClientBase {
+  protected override comProgId = 'Word.Application';
+
   // ===========================================================================
   // Microsoft Word Operations
   // ===========================================================================
@@ -33,8 +35,10 @@ try {
 } catch {
   $word = New-Object -ComObject Word.Application
 }
+$word.DisplayAlerts = 0
 $word.Visible = $true
 $doc = $word.Documents.Add()
+$word.DisplayAlerts = -1
 @{ success = $true; message = "Created new document"; document_name = $doc.Name } | ConvertTo-Json -Compress
 `);
   }
@@ -133,8 +137,10 @@ try {
 } catch {
   $word = New-Object -ComObject Word.Application
 }
+$word.DisplayAlerts = 0
 $word.Visible = $true
 $doc = $word.Documents.Open('${windowsPath}')
+$word.DisplayAlerts = -1
 @{ success = $true; message = "Document opened"; document_name = $doc.Name; path = $doc.FullName } | ConvertTo-Json -Compress
 `);
   }

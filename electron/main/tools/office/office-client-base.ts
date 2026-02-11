@@ -38,6 +38,8 @@ export interface ScreenshotResponse extends OfficeResponse {
 
 export class OfficeClientBase {
   protected commandTimeout = 30000;
+  /** COM ProgID for DisplayAlerts auto-suppression (set by subclass) */
+  protected comProgId: string = '';
   protected screenshotDir: string;
 
   constructor() {
@@ -70,11 +72,24 @@ export class OfficeClientBase {
    */
   protected async executePowerShell(script: string): Promise<OfficeResponse> {
     return new Promise((resolve) => {
+      // Auto-suppress DisplayAlerts if comProgId is set (prevents blocking dialogs)
+      // Uses try/finally so DisplayAlerts is restored even when script errors
+      let actualScript = script;
+      if (this.comProgId) {
+        actualScript = `$__comApp = $null
+try { $__comApp = [Runtime.InteropServices.Marshal]::GetActiveObject("${this.comProgId}"); $__savedDA = $__comApp.DisplayAlerts; $__comApp.DisplayAlerts = $false } catch {}
+try {
+${script}
+} finally {
+  if ($__comApp) { try { $__comApp.DisplayAlerts = $__savedDA } catch {} }
+}`;
+      }
+
       const wrappedScript = `
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $ErrorActionPreference = "Stop"
 try {
-${script}
+${actualScript}
 } catch {
   @{
     success = $false

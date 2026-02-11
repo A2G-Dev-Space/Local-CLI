@@ -8,6 +8,8 @@
 import { OfficeClientBase, OfficeResponse, ScreenshotResponse } from './office-client-base.js';
 
 export class PowerPointClient extends OfficeClientBase {
+  protected override comProgId = 'PowerPoint.Application';
+
   async powerpointLaunch(): Promise<OfficeResponse> {
     return this.executePowerShell(`
 try {
@@ -29,9 +31,11 @@ try {
 } catch {
   $ppt = New-Object -ComObject PowerPoint.Application
 }
+$ppt.DisplayAlerts = $false
 $ppt.Visible = [Microsoft.Office.Core.MsoTriState]::msoTrue
 # Add presentation with window (msoTrue = -1)
 $presentation = $ppt.Presentations.Add(-1)
+$ppt.DisplayAlerts = $true
 @{ success = $true; message = "Created new presentation"; presentation_name = $presentation.Name } | ConvertTo-Json -Compress
 `);
   }
@@ -44,8 +48,10 @@ try {
 } catch {
   $ppt = New-Object -ComObject PowerPoint.Application
 }
+$ppt.DisplayAlerts = $false
 $ppt.Visible = [Microsoft.Office.Core.MsoTriState]::msoTrue
 $presentation = $ppt.Presentations.Open('${windowsPath}')
+$ppt.DisplayAlerts = $true
 @{ success = $true; message = "Presentation opened"; presentation_name = $presentation.Name; path = $presentation.FullName } | ConvertTo-Json -Compress
 `);
   }

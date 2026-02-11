@@ -32,6 +32,8 @@ function columnNumberToLetter(num: number): string {
 }
 
 export class ExcelClient extends OfficeClientBase {
+  protected override comProgId = 'Excel.Application';
+
   async excelLaunch(): Promise<OfficeResponse> {
     return this.executePowerShell(`
 try {
@@ -53,8 +55,10 @@ try {
 } catch {
   $excel = New-Object -ComObject Excel.Application
 }
+$excel.DisplayAlerts = $false
 $excel.Visible = $true
 $workbook = $excel.Workbooks.Add()
+$excel.DisplayAlerts = $true
 @{ success = $true; message = "Created new workbook"; workbook_name = $workbook.Name } | ConvertTo-Json -Compress
 `);
   }
@@ -67,8 +71,10 @@ try {
 } catch {
   $excel = New-Object -ComObject Excel.Application
 }
+$excel.DisplayAlerts = $false
 $excel.Visible = $true
 $workbook = $excel.Workbooks.Open('${windowsPath}')
+$excel.DisplayAlerts = $true
 @{ success = $true; message = "Workbook opened"; workbook_name = $workbook.Name; path = $workbook.FullName } | ConvertTo-Json -Compress
 `);
   }
@@ -438,9 +444,7 @@ ${escapedName ? `$newSheet.Name = '${escapedName}'` : ''}
     return this.executePowerShell(`
 $excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
 $workbook = $excel.ActiveWorkbook
-$excel.DisplayAlerts = $false
 $workbook.Sheets('${escapedName}').Delete()
-$excel.DisplayAlerts = $true
 @{ success = $true; message = "Sheet '${escapedName}' deleted" } | ConvertTo-Json -Compress
 `);
   }

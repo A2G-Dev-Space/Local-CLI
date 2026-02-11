@@ -34,6 +34,8 @@ export class OfficeClientBase {
   protected platform: Platform;
   protected powerShellPath: string = '';
   protected commandTimeout: number = 30000; // 30 seconds
+  /** COM ProgID for DisplayAlerts auto-suppression (set by subclass) */
+  protected comProgId: string = '';
 
   constructor() {
     this.platform = getPlatform();
@@ -122,6 +124,19 @@ export class OfficeClientBase {
    */
   protected async executePowerShell(script: string): Promise<OfficeResponse> {
     return new Promise((resolve) => {
+      // Auto-suppress DisplayAlerts if comProgId is set (prevents blocking dialogs)
+      // Uses try/finally so DisplayAlerts is restored even when script errors
+      let actualScript = script;
+      if (this.comProgId) {
+        actualScript = `$__comApp = $null
+try { $__comApp = [Runtime.InteropServices.Marshal]::GetActiveObject("${this.comProgId}"); $__savedDA = $__comApp.DisplayAlerts; $__comApp.DisplayAlerts = $false } catch {}
+try {
+${script}
+} finally {
+  if ($__comApp) { try { $__comApp.DisplayAlerts = $__savedDA } catch {} }
+}`;
+      }
+
       // Wrap script with JSON error handling and comprehensive UTF-8 encoding
       // This ensures Korean/CJK text is handled correctly
       const wrappedScript = `
@@ -130,7 +145,7 @@ export class OfficeClientBase {
 $OutputEncoding = [System.Text.Encoding]::UTF8
 $ErrorActionPreference = "Stop"
 try {
-${script}
+${actualScript}
 } catch {
   @{
     success = $false
