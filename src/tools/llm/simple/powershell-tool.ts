@@ -16,6 +16,21 @@ import {
 } from '../../../utils/platform-utils.js';
 
 /**
+ * Preprocess PowerShell command to fix common alias issues
+ * - curl → curl.exe (PowerShell aliases curl to Invoke-WebRequest)
+ * - wget → wget.exe (same alias issue)
+ */
+function preprocessPowerShellCommand(command: string): string {
+  let processed = command;
+  // curl → curl.exe only in command position (line start, after pipe/semicolon/operators/assignment/block)
+  // Case-insensitive + preserve original casing via $2 capture group
+  processed = processed.replace(/(^|[|;&(={]\s*)(curl)\b(?!\.)/gim, '$1$2.exe');
+  // wget → wget.exe (same alias issue)
+  processed = processed.replace(/(^|[|;&(={]\s*)(wget)\b(?!\.)/gim, '$1$2.exe');
+  return processed;
+}
+
+/**
  * Execute PowerShell command
  */
 async function executePowerShell(
@@ -85,7 +100,10 @@ IMPORTANT:
 - Commands have a 30 second timeout by default
 - Dangerous commands (Remove-Item -Recurse -Force C:\\, Stop-Computer, etc.) are blocked
 - Output is truncated if too long
-- PowerShell 7 (pwsh) is used if available, otherwise PowerShell 5.1`,
+- PowerShell 7 (pwsh) is used if available, otherwise PowerShell 5.1
+- IMPORTANT: Use \`curl.exe\` instead of \`curl\` (PowerShell aliases curl to Invoke-WebRequest)
+- IMPORTANT: Use \`wget.exe\` instead of \`wget\` (same alias issue)
+- IMPORTANT: \`Invoke-WebRequest -Form\` is PowerShell 7+ only. Most PCs have PS 5.1.`,
     parameters: {
       type: 'object',
       properties: {
@@ -157,7 +175,11 @@ export const powershellTool: LLMSimpleTool = {
     }
 
     try {
-      const execResult = await executePowerShell(command, cwd, timeout);
+      const processedCommand = preprocessPowerShellCommand(command);
+      if (processedCommand !== command) {
+        logger.info('PowerShell command preprocessed', { original: command, processed: processedCommand });
+      }
+      const execResult = await executePowerShell(processedCommand, cwd, timeout);
 
       // Combine output
       let output = '';
