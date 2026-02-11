@@ -677,7 +677,17 @@ export async function runAgent(
             throw new Error('Agent aborted');
           }
 
-          const toolName = toolCall.function.name;
+          // Sanitize tool name: strip <|...|> special tokens and trailing garbage
+          const rawToolName = toolCall.function.name;
+          const toolName =
+            rawToolName.replace(/<\|.*$/, '').replace(/[^a-zA-Z0-9_-]+$/, '').trim() || rawToolName;
+          if (toolName !== rawToolName) {
+            logger.warn('Tool name sanitized (model leaked special tokens)', {
+              original: rawToolName,
+              sanitized: toolName,
+            });
+            toolCall.function.name = toolName;
+          }
           let toolArgs: Record<string, unknown>;
 
           try {
