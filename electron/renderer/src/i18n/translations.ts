@@ -52,6 +52,8 @@ const translations: Record<Language, Record<string, string>> = {
     'chat.inputHint': 'Enter: 전송, Shift+Enter: 줄바꿈',
     'chat.chatCleared': '대화가 초기화되었습니다. 무엇을 도와드릴까요?',
     'chat.aborted': '에이전트 실행이 중단되었습니다.',
+    'chat.attachImage': '이미지 첨부 (Ctrl+V로 붙여넣기 가능)',
+    'chat.removeImage': '이미지 제거',
     'chat.compacting': '대화 압축 중...',
     'chat.noDirectory': '디렉토리가 선택되지 않았습니다',
     'chat.loadingLogs': '로그 로딩 중...',
@@ -192,6 +194,7 @@ const translations: Record<Language, Record<string, string>> = {
     'task.title': '작업',
     'task.emptyLine1': '에이전트가 작업을 시작하면',
     'task.emptyLine2': '여기에 진행상황이 표시됩니다',
+    'task.waitingForUser': '사용자 입력 대기 중 — 채팅 창에서 답해주세요',
 
     // SessionBrowser
     'session.title': '세션 목록',
@@ -324,6 +327,8 @@ const translations: Record<Language, Record<string, string>> = {
     'chat.inputHint': 'Enter to submit, Shift+Enter for newline',
     'chat.chatCleared': 'Chat cleared. How can I help you?',
     'chat.aborted': 'Agent execution aborted.',
+    'chat.attachImage': 'Attach image (or paste with Ctrl+V)',
+    'chat.removeImage': 'Remove image',
     'chat.compacting': 'Compacting conversation...',
     'chat.noDirectory': 'No directory selected',
     'chat.loadingLogs': 'Loading logs...',
@@ -464,6 +469,7 @@ const translations: Record<Language, Record<string, string>> = {
     'task.title': 'Tasks',
     'task.emptyLine1': 'When the agent starts working,',
     'task.emptyLine2': 'progress will appear here',
+    'task.waitingForUser': 'Waiting for user input — please answer in the chat window',
 
     // SessionBrowser
     'session.title': 'Sessions',

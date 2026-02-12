@@ -9,6 +9,9 @@
 
 import { ipcMain, dialog, shell, app, BrowserWindow, nativeTheme } from 'electron';
 import fs from 'fs';
+import path from 'path';
+import os from 'os';
+import crypto from 'crypto';
 import { logger, LogLevel } from './utils/logger';
 import { powerShellManager, PowerShellOutput, SessionInfo } from './powershell-manager';
 import { configManager, AppConfig, EndpointConfig } from './core/config';
@@ -735,6 +738,45 @@ export function setupIpcHandlers(): void {
   ipcMain.handle('shell:openExternal', async (_event, url: string) => {
     await shell.openExternal(url);
     return { success: true };
+  });
+
+  // ============ Image Attachment ============
+
+  ipcMain.handle('image:saveFromClipboard', async (_event, base64Data: string, mimeType: string) => {
+    try {
+      const ext = mimeType === 'image/jpeg' ? '.jpg' :
+                  mimeType === 'image/gif' ? '.gif' :
+                  mimeType === 'image/webp' ? '.webp' : '.png';
+
+      const tempDir = path.join(os.tmpdir(), 'hanseol-images');
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
+
+      const fileName = `clipboard-${Date.now()}-${crypto.randomBytes(4).toString('hex')}${ext}`;
+      const filePath = path.join(tempDir, fileName);
+      const buffer = Buffer.from(base64Data, 'base64');
+      fs.writeFileSync(filePath, buffer);
+
+      return { success: true, filePath, size: buffer.length };
+    } catch (error) {
+      logger.errorSilent('Failed to save clipboard image', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('image:selectFile', async () => {
+    if (!chatWindow) return { success: false };
+    const result = await dialog.showOpenDialog(chatWindow, {
+      title: 'Select Image',
+      filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] }],
+      properties: ['openFile'],
+    });
+
+    if (result.canceled || result.filePaths.length === 0) {
+      return { success: false, canceled: true };
+    }
+    return { success: true, filePath: result.filePaths[0] };
   });
 
   // ============ VSCode Integration ============
@@ -1683,8 +1725,16 @@ export function setupIpcHandlers(): void {
       // Setup callbacks for IPC communication
       const callbacks: AgentCallbacks = {
         onAskUser: async (request: AskUserRequest): Promise<AskUserResponse> => {
-          // Send question to renderer
-          chatWindow?.webContents.send('agent:askUser', request);
+          // Send question to both windows (task window shows waiting indicator)
+          broadcastToAll('agent:askUser', request);
+
+          // Flash taskbar for attention when window is not focused
+          if (chatWindow && !chatWindow.isDestroyed() && !chatWindow.isFocused()) {
+            chatWindow.flashFrame(true);
+          }
+          if (taskWindow && !taskWindow.isDestroyed() && !taskWindow.isFocused()) {
+            taskWindow.flashFrame(true);
+          }
 
           // Wait for user response
           return new Promise((resolve) => {
@@ -1707,7 +1757,14 @@ export function setupIpcHandlers(): void {
   // Agent 중단
   ipcMain.handle('agent:abort', () => {
     try {
+      // Resolve pending ask_to_user promise BEFORE aborting
+      // to prevent agent.run() from hanging forever on unresolved promise
+      if (pendingAskUserResolve) {
+        pendingAskUserResolve({ selectedOption: '', isOther: false, customText: 'User aborted' });
+        pendingAskUserResolve = null;
+      }
       abortAgent();
+      broadcastToAll('agent:askUserResolved');
       return { success: true };
     } catch (error) {
       return {
@@ -1733,6 +1790,12 @@ export function setupIpcHandlers(): void {
     // Supervised Mode 승인 목록 초기화
     clearAlwaysApprovedTools();
 
+    // Pending ask_to_user 해제 (resolve to prevent hanging promise)
+    if (pendingAskUserResolve) {
+      pendingAskUserResolve({ selectedOption: '', isOther: false, customText: 'Chat cleared' });
+      pendingAskUserResolve = null;
+    }
+
     // 모든 윈도우에 초기화 브로드캐스트
     broadcastToAll('agent:contextUpdate', {
       usagePercentage: 0,
@@ -1740,6 +1803,7 @@ export function setupIpcHandlers(): void {
       maxTokens: 128000,
     });
     broadcastToAll('agent:todoUpdate', []);
+    broadcastToAll('agent:askUserResolved');
 
     logger.info('Agent state cleared (clear chat)');
     return { success: true };
@@ -1812,6 +1876,9 @@ export function setupIpcHandlers(): void {
 
       pendingAskUserResolve(normalizedResponse);
       pendingAskUserResolve = null;
+
+      // Notify task window that question was resolved
+      broadcastToAll('agent:askUserResolved');
     }
     return { success: true };
   });
@@ -1835,7 +1902,7 @@ export function setupIpcHandlers(): void {
   ipcMain.on('agent:askUserQuestion', (_event, request: AskUserRequest) => {
     // 이 이벤트는 agent에서 직접 발생시키지 않음
     // askUserCallback에서 IPC를 통해 renderer에 질문을 보냄
-    chatWindow?.webContents.send('agent:askUser', request);
+    broadcastToAll('agent:askUser', request);
   });
 
   // ============ Documentation ============

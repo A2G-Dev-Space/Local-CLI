@@ -465,10 +465,8 @@
   border-radius: var(--radius-lg);
   resize: none;
   outline: none;
-  max-height: 80px;
   min-height: 40px;
   line-height: 1.5;
-  overflow-y: hidden;
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
 }
@@ -492,20 +490,19 @@
   cursor: not-allowed;
 }
 
+.chat-input.has-attach {
+  padding-right: 80px;
+}
+
 .chat-input-icon {
   position: absolute;
   left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
+  bottom: 10px;
   color: var(--color-text-muted);
   pointer-events: none;
 }
 
 .chat-send-btn {
-  position: absolute;
-  right: 6px;
-  top: 50%;
-  transform: translateY(-50%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -517,6 +514,9 @@
   transition: all var(--transition-fast);
   flex-shrink: 0;
   box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+  cursor: pointer;
+  border: none;
+  padding: 0;
 }
 
 .chat-send-btn:hover:not(:disabled) {
@@ -919,4 +919,184 @@
 
 .show-earlier-btn svg {
   opacity: 0.7;
+}
+
+/* =====================================================
+   Markdown Table Styles
+   ===================================================== */
+
+.md-table-wrapper {
+  overflow-x: auto;
+  margin: 8px 0;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(203, 213, 225, 0.5);
+}
+
+[data-theme="dark"] .md-table-wrapper {
+  border-color: rgba(71, 85, 105, 0.4);
+}
+
+.md-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.md-table th,
+.md-table td {
+  padding: 6px 12px;
+  text-align: left;
+  border-bottom: 1px solid rgba(203, 213, 225, 0.4);
+}
+
+.md-table th {
+  background: rgba(248, 250, 252, 0.8);
+  font-weight: 600;
+  font-size: 0.85em;
+  letter-spacing: 0.02em;
+}
+
+[data-theme="dark"] .md-table th {
+  background: rgba(30, 41, 59, 0.6);
+}
+
+[data-theme="dark"] .md-table td {
+  border-bottom-color: rgba(71, 85, 105, 0.3);
+}
+
+.md-table tbody tr:hover {
+  background: rgba(59, 130, 246, 0.04);
+}
+
+[data-theme="dark"] .md-table tbody tr:hover {
+  background: rgba(59, 130, 246, 0.08);
+}
+
+/* ===== Image Preview Thumbnails ===== */
+.chat-image-previews {
+  display: flex;
+  gap: 8px;
+  padding: 8px 12px 4px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.chat-image-previews::-webkit-scrollbar {
+  height: 4px;
+}
+
+.chat-image-previews::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 2px;
+}
+
+.image-preview-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.image-preview-thumb {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(203, 213, 225, 0.5);
+  background: rgba(0, 0, 0, 0.02);
+}
+
+[data-theme="dark"] .image-preview-thumb {
+  border-color: rgba(71, 85, 105, 0.5);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.image-preview-placeholder {
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  border: 1px dashed rgba(203, 213, 225, 0.6);
+  background: rgba(0, 0, 0, 0.02);
+  color: var(--color-text-muted);
+}
+
+[data-theme="dark"] .image-preview-placeholder {
+  border-color: rgba(71, 85, 105, 0.5);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.image-preview-name {
+  font-size: 9px;
+  color: var(--color-text-muted);
+  max-width: 60px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.image-preview-remove {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #EF4444;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: 2px solid white;
+  padding: 0;
+  transition: transform var(--transition-fast);
+}
+
+[data-theme="dark"] .image-preview-remove {
+  border-color: var(--color-bg-primary);
+}
+
+.image-preview-remove:hover {
+  transform: scale(1.15);
+}
+
+/* ===== Attach Button ===== */
+.chat-input-actions-right {
+  position: absolute;
+  right: 6px;
+  bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.chat-attach-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  color: var(--color-text-muted);
+  background: transparent;
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+  cursor: pointer;
+  border: none;
+  padding: 0;
+}
+
+.chat-attach-btn:hover:not(:disabled) {
+  color: var(--color-accent-primary);
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.chat-attach-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }

@@ -38,6 +38,7 @@ const TaskApp: React.FC = () => {
 
   // Task state
   const [todos, setTodos] = useState<TodoItem[]>([]);
+  const [isWaitingForUser, setIsWaitingForUser] = useState(false);
 
   // Handle appearance change from Settings (Chat Window → broadcast → Task Window)
   const handleAppearanceChange = useCallback((data: { key: string; value: unknown }) => {
@@ -138,12 +139,27 @@ const TaskApp: React.FC = () => {
       setTodos(newTodos);
     });
 
+    // ask_to_user waiting indicator
+    const unsubAskUser = window.electronAPI.agent.onAskUser?.(() => {
+      setIsWaitingForUser(true);
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const unsubAskUserResolved = (window.electronAPI.agent as any)?.onAskUserResolved?.(() => {
+      setIsWaitingForUser(false);
+    });
+    const unsubComplete = window.electronAPI.agent.onComplete?.(() => {
+      setIsWaitingForUser(false);
+    });
+
     return () => {
       unsubMaximize();
       unsubFocus();
       unsubTheme();
       unsubAppearance?.();
       unsubTodo?.();
+      unsubAskUser?.();
+      unsubAskUserResolved?.();
+      unsubComplete?.();
     };
   }, [handleAppearanceChange]);
 
@@ -166,6 +182,12 @@ const TaskApp: React.FC = () => {
         onPinToggle={handlePinToggle}
       />
       <div className="task-content">
+        {isWaitingForUser && (
+          <div className="task-waiting-banner">
+            <div className="task-waiting-pulse" />
+            <span>{t('task.waitingForUser')}</span>
+          </div>
+        )}
         {todos.length > 0 ? (
           <TodoPanel todos={todos} />
         ) : (

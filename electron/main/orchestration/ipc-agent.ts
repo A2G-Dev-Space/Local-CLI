@@ -153,6 +153,16 @@ function broadcastToWindows(channel: string, ...args: unknown[]): void {
     state.taskWindow.webContents.send(channel, ...args);
   }
 }
+
+// Flash taskbar on both windows for user attention
+function flashAllWindows(): void {
+  if (state.chatWindow && !state.chatWindow.isDestroyed() && !state.chatWindow.isFocused()) {
+    state.chatWindow.flashFrame(true);
+  }
+  if (state.taskWindow && !state.taskWindow.isDestroyed() && !state.taskWindow.isFocused()) {
+    state.taskWindow.flashFrame(true);
+  }
+}
 const NO_APPROVAL_TOOLS = new Set([
   'tell_to_user',
   'ask_to_user',
@@ -420,6 +430,7 @@ export async function runAgent(
         broadcastToWindows('agent:complete', {
           response: planningResult.directResponse,
         });
+        flashAllWindows();
 
         state.isRunning = false;
         state.abortController = null;
@@ -1007,6 +1018,7 @@ Retry with correct parameter names and types.`;
                 callbacks.onComplete(finalResponse);
               }
               broadcastToWindows('agent:complete', { response: '' });
+              flashAllWindows();
 
               // Return original history + user message + tool loop messages (not synthetic flatten)
               const finalReturnToolLoopMessages = stripParseFailures(toolLoopMessages);
@@ -1061,6 +1073,7 @@ Retry with correct parameter names and types.`;
                   callbacks.onComplete(fallbackMessage);
                 }
                 broadcastToWindows('agent:complete', { response: fallbackMessage });
+                flashAllWindows();
 
                 // Return original history + user message + tool loop messages (not synthetic flatten)
                 const fbReturnToolLoopMessages = stripParseFailures(toolLoopMessages);
@@ -1223,6 +1236,7 @@ Retry with correct parameter names and types.`;
       callbacks.onComplete(finalResponse);
     }
     broadcastToWindows('agent:complete', { response: finalResponse });
+    flashAllWindows();
 
     // Return original history + user message + tool loop messages (not the synthetic flattened message)
     // CLI parity: system prompt and synthetic flatten message are excluded from stored history

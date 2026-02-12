@@ -360,6 +360,7 @@ const BottomPanel: React.FC<BottomPanelProps> = ({
               onChangeDirectory={onChangeDirectory}
               allowAllPermissions={allowAllPermissions}
               onAllowAllPermissionsChange={onAllowAllPermissionsChange}
+              hasVisionModel={hasVisionModel}
             />
           </div>
           <div className="panel-tab-content" style={{ display: layout === 'logs' ? 'flex' : 'none' }}>

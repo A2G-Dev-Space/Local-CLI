@@ -262,6 +262,36 @@ export interface ElectronAPI {
   devTools: {
     toggle: () => Promise<{ success: boolean }>;
   };
+
+  // Image (Vision 첨부)
+  image: {
+    saveFromClipboard: (base64: string, mimeType: string) => Promise<{
+      success: boolean;
+      filePath?: string;
+      error?: string;
+    }>;
+    selectFile: () => Promise<{
+      success: boolean;
+      filePath?: string;
+      error?: string;
+    }>;
+  };
+
+  // Auth (Dashboard 인증)
+  auth: {
+    getCredentials: () => Promise<{
+      success: boolean;
+      credentials?: {
+        email: string | null;
+        displayName: string | null;
+        provider: string | null;
+        plan?: { name: string; displayName: string; tier: string } | null;
+        expiresAt: string;
+      } | null;
+      error?: string;
+    }>;
+    logout: () => Promise<{ success: boolean; error?: string }>;
+  };
 }
 
 // ============ 전역 타입 선언 ============

@@ -130,6 +130,7 @@ export interface AppConfig {
   recentDirectories: string[];
   sidebarWidth: number;
   bottomPanelHeight: number;
+  autoFileView?: boolean;
   windowBounds?: {
     x: number;
     y: number;
@@ -809,6 +810,12 @@ const electronAPI = {
       return () => ipcRenderer.removeListener('agent:askUser', handler);
     },
 
+    onAskUserResolved: (callback: () => void): (() => void) => {
+      const handler = () => callback();
+      ipcRenderer.on('agent:askUserResolved', handler);
+      return () => ipcRenderer.removeListener('agent:askUserResolved', handler);
+    },
+
     onContextUpdate: (callback: (data: { usagePercentage: number; currentTokens: number; maxTokens: number }) => void): (() => void) => {
       const handler = (_event: IpcRendererEvent, data: { usagePercentage: number; currentTokens: number; maxTokens: number }) => callback(data);
       ipcRenderer.on('agent:contextUpdate', handler);
@@ -964,6 +971,20 @@ const electronAPI = {
 
     openExternal: (url: string): Promise<{ success: boolean }> => {
       return ipcRenderer.invoke('shell:openExternal', url);
+    },
+  },
+
+  // ============ Image Attachment ============
+  image: {
+    saveFromClipboard: (base64Data: string, mimeType: string): Promise<{
+      success: boolean; filePath?: string; size?: number; error?: string;
+    }> => {
+      return ipcRenderer.invoke('image:saveFromClipboard', base64Data, mimeType);
+    },
+    selectFile: (): Promise<{
+      success: boolean; filePath?: string; canceled?: boolean;
+    }> => {
+      return ipcRenderer.invoke('image:selectFile');
     },
   },
 

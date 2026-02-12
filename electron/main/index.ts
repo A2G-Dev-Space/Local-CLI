@@ -213,6 +213,7 @@ async function createChatWindow(): Promise<void> {
   chatWindow.on('focus', () => {
     logger.windowFocus({ windowId: chatWindow?.id });
     chatWindow?.webContents.send('window:focus', true);
+    chatWindow?.flashFrame(false);
   });
 
   chatWindow.on('blur', () => {
@@ -325,6 +326,7 @@ async function createTaskWindow(): Promise<void> {
 
   taskWindow.on('focus', () => {
     taskWindow?.webContents.send('window:focus', true);
+    taskWindow?.flashFrame(false);
   });
 
   taskWindow.on('blur', () => {
@@ -517,6 +519,16 @@ app.on('before-quit', async () => {
 
   // IPC 핸들러 정리
   cleanupIpcHandlers();
+
+  // 이미지 임시 파일 정리
+  try {
+    const tempImageDir = path.join(os.tmpdir(), 'hanseol-images');
+    if (fs.existsSync(tempImageDir)) {
+      fs.rmSync(tempImageDir, { recursive: true, force: true });
+    }
+  } catch (err) {
+    logger.errorSilent('Failed to clean up temp image directory', err);
+  }
 
   // 로거 종료
   await logger.shutdown();

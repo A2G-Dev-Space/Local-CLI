@@ -86,12 +86,47 @@ export const parseInlineMarkdown = (text: string, key: number): React.ReactNode 
   return React.createElement('span', { key }, elements);
 };
 
+/**
+ * Convert HTML table string to markdown table format.
+ * Used for paste handling: user copies table from Excel/web → markdown in textarea.
+ */
+export const htmlTableToMarkdown = (html: string): string | null => {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  const table = doc.querySelector('table');
+  if (!table) return null;
+
+  const rows: string[][] = [];
+  table.querySelectorAll('tr').forEach(tr => {
+    const cells: string[] = [];
+    tr.querySelectorAll('td, th').forEach(cell => {
+      cells.push((cell.textContent || '').trim().replace(/\|/g, '\\|'));
+    });
+    if (cells.length > 0) rows.push(cells);
+  });
+
+  if (rows.length === 0) return null;
+
+  const colCount = Math.max(...rows.map(r => r.length));
+  const padded = rows.map(r => {
+    while (r.length < colCount) r.push('');
+    return r;
+  });
+
+  const header = `| ${padded[0].join(' | ')} |`;
+  const separator = `| ${padded[0].map(() => '---').join(' | ')} |`;
+  const body = padded.slice(1).map(row => `| ${row.join(' | ')} |`);
+
+  return [header, separator, ...body].join('\n');
+};
+
 // Parsed markdown node for Web Worker communication
 export interface ParsedMarkdownNode {
-  type: 'text' | 'heading' | 'paragraph' | 'code' | 'list' | 'listItem' | 'blockquote' | 'hr' | 'inline';
+  type: 'text' | 'heading' | 'paragraph' | 'code' | 'list' | 'listItem' | 'blockquote' | 'hr' | 'inline' | 'table' | 'tableRow' | 'tableCell';
   content?: string;
   level?: number;
   language?: string;
+  isHeader?: boolean;
   ordered?: boolean;
   children?: ParsedMarkdownNode[];
 }
@@ -185,6 +220,44 @@ export const parseMarkdownToAST = (text: string): ParsedMarkdownNode[] => {
         i++;
       }
       nodes.push({ type: 'blockquote', children: quoteLines });
+      continue;
+    }
+
+    // Table (pipe-separated lines)
+    if (line.includes('|') && line.trim().startsWith('|')) {
+      const tableRows: ParsedMarkdownNode[] = [];
+      let isFirstDataRow = true;
+
+      while (i < lines.length && lines[i] !== undefined && lines[i].includes('|') && lines[i].trim().startsWith('|')) {
+        const rowLine = lines[i].trim();
+        // Remove leading/trailing pipes and split
+        const inner = rowLine.startsWith('|') ? rowLine.slice(1) : rowLine;
+        const trimmedInner = inner.endsWith('|') ? inner.slice(0, -1) : inner;
+
+        // Skip separator row (| --- | --- |)
+        if (/^[\s\-|:]+$/.test(trimmedInner)) {
+          i++;
+          continue;
+        }
+
+        const cells = trimmedInner.split('|').map(cell => cell.trim());
+        tableRows.push({
+          type: 'tableRow',
+          isHeader: isFirstDataRow,
+          children: cells.map(cell => ({
+            type: 'tableCell' as const,
+            content: cell,
+            isHeader: isFirstDataRow,
+          })),
+        });
+
+        isFirstDataRow = false;
+        i++;
+      }
+
+      if (tableRows.length > 0) {
+        nodes.push({ type: 'table', children: tableRows });
+      }
       continue;
     }
 
