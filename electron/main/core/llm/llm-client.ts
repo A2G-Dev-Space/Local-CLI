@@ -421,6 +421,8 @@ class LLMClient {
       temperature: options.temperature ?? 0.7,
       max_tokens: options.max_tokens ?? model.maxTokens,
       stream: false,
+      // GPT-OSS reasoning models: always use high reasoning effort
+      ...(/^gpt-oss-(120b|20b)$/i.test(modelId) && { reasoning_effort: 'high' }),
       ...(options.tools && {
         tools: options.tools,
         parallel_tool_calls: false,  // Enforce one tool at a time (CLI parity)
@@ -607,6 +609,8 @@ class LLMClient {
       temperature: options.temperature ?? 0.7,
       max_tokens: options.max_tokens ?? model.maxTokens,
       stream: true,
+      // GPT-OSS reasoning models: always use high reasoning effort
+      ...(/^gpt-oss-(120b|20b)$/i.test(modelId) && { reasoning_effort: 'high' }),
       ...(options.tools && {
         tools: options.tools,
         parallel_tool_calls: false,
