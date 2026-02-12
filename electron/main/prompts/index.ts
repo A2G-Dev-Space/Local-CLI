@@ -24,6 +24,8 @@ export {
   SIMPLE_CHAT_SYSTEM_PROMPT,
   buildSimpleChatPrompt,
   CRITICAL_REMINDERS,
+  getCriticalReminders,
+  VISION_VERIFICATION_RULE,
 } from './system/plan-execute';
 export { COMPACT_SYSTEM_PROMPT } from './system/compact';
 

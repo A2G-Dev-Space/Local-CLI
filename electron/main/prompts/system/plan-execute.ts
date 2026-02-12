@@ -87,6 +87,14 @@ Messages use XML tags to separate context:
 **Focus on \`<CURRENT_REQUEST>\` and \`<CURRENT_TASK>\`.** Use \`<CONVERSATION_HISTORY>\` for reference only.
 Do NOT re-execute tools from history. Do NOT confuse tools used in history with your current task.
 
+## CRITICAL: Verification
+
+**Every request MUST be verified before completion.**
+- Before marking a TODO as "completed", check if there is ANY way to verify the result
+- Run the code, check the output, read the modified file, test the function — do whatever it takes
+- If the result is verifiable, you MUST verify it. Never assume correctness without evidence.
+- Unverified work is unfinished work. Bugs in delivered work are unacceptable.
+
 ## Loop Detection & Stop Conditions
 
 **STOP immediately when ANY of these conditions are met:**
@@ -103,17 +111,43 @@ Do NOT re-execute tools from history. Do NOT confuse tools used in history with 
 `;
 
 /**
+ * Vision 모델용 시스템 프롬프트 추가 규칙
+ * buildSystemPrompt에서 vision 가용 시 조건부 추가
+ */
+export const VISION_VERIFICATION_RULE = `## CRITICAL: Screenshot Verification
+
+**When the result is visually verifiable (UI, web page, chart, document, etc.), you MUST take a screenshot of the final result and verify it visually.**
+- Use \`read_image\` tool to capture and verify screenshots
+- Do NOT assume the visual output is correct — always confirm with your own eyes
+- This applies to: web pages, generated images, UI components, documents, charts, diagrams`;
+
+/**
  * Critical Reminders — 약한 모델의 instruction-following 강화용
  * rebuildMessages에서 <CURRENT_REQUEST> 뒤에 배치하여 LLM 생성 직전 위치에 놓음
  * (Prompt Repetition 기법: 핵심 규칙을 context 끝에 반복하여 recency bias 활용)
+ *
+ * @param hasVision - vision 모델 사용 가능 여부. true면 스크린샷 검증 항목 추가
  */
-export const CRITICAL_REMINDERS = `## REMEMBER
-1. Tool arguments = valid JSON. All required parameters must be included.
-2. Use exact tool names only: read_file, create_file, edit_file, bash, write_todos, final_response, etc.
-3. Update TODO status IMMEDIATELY when starting or finishing a task.
-4. DO NOT explain — USE the tool. Action, not description.
-5. Use tell_to_user to report progress between tasks — the user should know what you're doing.
-6. Call final_response ONLY when ALL TODOs are completed or failed.`;
+export function getCriticalReminders(hasVision: boolean): string {
+  const items = [
+    '1. Tool arguments = valid JSON. All required parameters must be included.',
+    '2. Use exact tool names only: read_file, create_file, edit_file, bash, write_todos, final_response, etc.',
+    '3. Update TODO status IMMEDIATELY when starting or finishing a task.',
+    '4. DO NOT explain — USE the tool. Action, not description.',
+    '5. Use tell_to_user to report progress between tasks — the user should know what you\'re doing.',
+    '6. Call final_response ONLY when ALL TODOs are completed or failed.',
+    '7. VERIFY every result before marking complete. Run, test, read — never assume correctness.',
+  ];
+
+  if (hasVision) {
+    items.push('8. If the result is visually verifiable, TAKE A SCREENSHOT and confirm it with your eyes.');
+  }
+
+  return `## REMEMBER\n${items.join('\n')}`;
+}
+
+/** @deprecated Use getCriticalReminders(hasVision) instead */
+export const CRITICAL_REMINDERS = getCriticalReminders(false);
 
 /**
  * Build Plan & Execute system prompt with tool summary and working directory

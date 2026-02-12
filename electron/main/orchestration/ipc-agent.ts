@@ -32,7 +32,7 @@ import {
 import { setReasoningCallback, setToolApprovalCallback, requestToolApproval } from '../tools/llm/simple/simple-tool-executor';
 import type { ToolApprovalResult } from '../tools/llm/simple/simple-tool-executor';
 import { ContextLengthError } from '../errors';
-import { PLAN_EXECUTE_SYSTEM_PROMPT, buildPlanExecutePrompt, CRITICAL_REMINDERS } from '../prompts';
+import { PLAN_EXECUTE_SYSTEM_PROMPT, buildPlanExecutePrompt, getCriticalReminders, VISION_VERIFICATION_RULE } from '../prompts';
 import { GIT_COMMIT_RULES } from '../prompts/shared/git-rules';
 import { PlanningLLM } from '../agents/planner';
 import { contextTracker, getContextTracker } from '../core/compact';
@@ -72,6 +72,7 @@ export interface AgentConfig {
  */
 function buildSystemPrompt(workingDirectory: string): string {
   const isGitRepo = detectGitRepo(workingDirectory);
+  const hasVision = toolRegistry.isToolGroupEnabled('vision');
 
   // Build base prompt with tool summary and working directory
   const toolSummary = toolRegistry.getToolSummaryForPlanning();
@@ -81,6 +82,12 @@ function buildSystemPrompt(workingDirectory: string): string {
   if (isGitRepo) {
     prompt += `\n\n${GIT_COMMIT_RULES}`;
     logger.debug('Git repo detected - added GIT_COMMIT_RULES to prompt');
+  }
+
+  // Add vision verification rules conditionally
+  if (hasVision) {
+    prompt += `\n\n${VISION_VERIFICATION_RULE}`;
+    logger.debug('Vision model available - added VISION_VERIFICATION_RULE to prompt');
   }
 
   return prompt;
@@ -491,6 +498,8 @@ export async function runAgent(
 
   // rebuildMessages: reconstruct [system, user] from scratch every iteration
   // CLI parity: captures state.currentTodos LIVE (always reads latest value)
+  const hasVision = toolRegistry.isToolGroupEnabled('vision');
+  const criticalReminders = getCriticalReminders(hasVision);
   const rebuildMessages = (loopMessages: Message[]): Message[] => {
     // userMessage를 history 흐름에 포함 (원래 요청이 사라지지 않도록)
     const allMessages = [...baseHistory, { role: 'user' as const, content: userMessage }, ...loopMessages];
@@ -511,7 +520,7 @@ export async function runAgent(
     if (historyText) {
       userContent += `<CONVERSATION_HISTORY>\n${historyText}\n</CONVERSATION_HISTORY>\n\n`;
     }
-    userContent += `<CURRENT_REQUEST>\n${lastTag}: ${lastContent}\n</CURRENT_REQUEST>\n\n${CRITICAL_REMINDERS}`;
+    userContent += `<CURRENT_REQUEST>\n${lastTag}: ${lastContent}\n</CURRENT_REQUEST>\n\n${criticalReminders}`;
 
     return [
       { role: 'system' as const, content: systemPrompt },
