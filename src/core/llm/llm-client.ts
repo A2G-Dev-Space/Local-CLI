@@ -1316,12 +1316,16 @@ Retry with correct parameter names and types.`;
 
         logger.httpResponse(status, axiosError.response.statusText, data);
 
-        // Context length exceeded (common OpenAI error)
+        // Context length exceeded (OpenAI standard + Dashboard proxy format)
+        // errorType 조건을 제거: Dashboard 프록시가 비표준 포맷을 반환할 수 있음
+        // (error가 object가 아닌 string이면 errorType이 'unknown'이 됨)
         if (
-          errorType === 'invalid_request_error' &&
+          status === 400 &&
           (errorMessage.includes('context_length_exceeded') ||
            errorMessage.includes('maximum context length') ||
-           errorCode === 'context_length_exceeded')
+           errorMessage.includes('Input too long') ||
+           errorCode === 'context_length_exceeded' ||
+           (typeof data?.error === 'string' && data.error.includes('Input too long')))
         ) {
           const maxLength = data?.error?.param?.max_tokens || 'unknown';
           logger.error('Context Length Exceeded', {
