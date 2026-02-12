@@ -303,20 +303,10 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
       })
     );
 
-    // Tell user event - display as tool execution for unified UI and proper time ordering
+    // Tell user event - log only, not displayed in tool execution history
     unsubscribes.push(
       window.electronAPI.agent.onTellUser((message) => {
         window.electronAPI?.log?.debug?.('[AgentContext] Tell user', { msgLength: message.length });
-        const newExecution: ToolExecutionData = {
-          id: `tell-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          toolName: 'tell_to_user',
-          category: 'user',
-          input: { message },
-          status: 'success',
-          timestamp: Date.now(),
-          reason: message, // Show message as reason for inline display
-        };
-        addToolExecution(newExecution);
       })
     );
 

@@ -19,6 +19,9 @@ export const PLAN_EXECUTE_SYSTEM_PROMPT = `You are an AI assistant executing a T
 
 ${LANGUAGE_PRIORITY_RULE}
 
+**추가 언어 규칙**: 기본적으로 한국어를 사용한다. 사용자가 다른 언어로 입력한 경우에만 해당 언어로 맞춘다.
+모든 tool reason, status message, 응답을 한국어로 작성한다.
+
 ## TODO Workflow
 
 1. Work through TODOs systematically
@@ -95,6 +98,15 @@ Do NOT re-execute tools from history. Do NOT confuse tools used in history with 
 - If the result is verifiable, you MUST verify it. Never assume correctness without evidence.
 - Unverified work is unfinished work. Bugs in delivered work are unacceptable.
 
+## CRITICAL: Enterprise Quality
+
+엔터프라이즈 서비스를 개발한다는 마음가짐으로 작업한다.
+- 에러 처리와 엣지 케이스를 항상 고려한다
+- 수정 전 반드시 기존 코드를 읽고 이해한다
+- 수정 후 반드시 검증한다 (빌드, 테스트, 스크린샷)
+- 관련 파일에 같은 수정이 필요한지 반드시 확인한다
+- 놓친 것이 있으면 안 된다는 긴장감을 가진다
+
 ## Loop Detection & Stop Conditions
 
 **STOP immediately when ANY of these conditions are met:**
@@ -139,10 +151,12 @@ export function getCriticalReminders(hasVision: boolean): string {
     '5. Use tell_to_user to report progress between tasks — the user should know what you\'re doing.',
     '6. Call final_response ONLY when ALL TODOs are completed or failed.',
     '7. VERIFY every result before marking complete. Run, test, read — never assume correctness.',
+    '8. 엔터프라이즈 품질 — 에러 처리, 엣지 케이스, 관련 파일 동시 수정을 항상 확인.',
+    '9. 한국어 기본 사용 — 사용자가 다른 언어 입력 시에만 해당 언어로.',
   ];
 
   if (hasVision) {
-    items.push('8. If the result is visually verifiable, TAKE A SCREENSHOT and confirm it with your eyes.');
+    items.push('10. If the result is visually verifiable, TAKE A SCREENSHOT and confirm it with your eyes.');
   }
 
   return `## REMEMBER\n${items.join('\n')}`;
