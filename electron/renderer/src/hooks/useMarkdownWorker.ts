@@ -127,6 +127,32 @@ function astToReact(nodes: ParsedMarkdownNode[]): React.ReactNode[] {
       case 'hr':
         return React.createElement('hr', { key });
 
+      case 'table':
+        return React.createElement('div', { key, className: 'md-table-wrapper' },
+          React.createElement('table', { className: 'md-table' },
+            React.createElement('thead', null,
+              ...(node.children || []).filter(row => row.isHeader).map((row, rIdx) =>
+                React.createElement('tr', { key: `th-r-${rIdx}` },
+                  ...(row.children || []).map((cell, cIdx) =>
+                    React.createElement('th', { key: `th-${cIdx}` },
+                      parseInlineMarkdown(cell.content || '', cIdx))
+                  )
+                )
+              )
+            ),
+            React.createElement('tbody', null,
+              ...(node.children || []).filter(row => !row.isHeader).map((row, rIdx) =>
+                React.createElement('tr', { key: `tb-r-${rIdx}` },
+                  ...(row.children || []).map((cell, cIdx) =>
+                    React.createElement('td', { key: `td-${cIdx}` },
+                      parseInlineMarkdown(cell.content || '', cIdx))
+                  )
+                )
+              )
+            )
+          )
+        );
+
       default:
         return React.createElement('p', { key }, node.content);
     }

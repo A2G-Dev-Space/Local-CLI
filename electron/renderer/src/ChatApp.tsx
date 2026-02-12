@@ -154,6 +154,9 @@ const ChatApp: React.FC = () => {
               : `'${configAny.fontFamily}', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`,
           );
         }
+        if (typeof configAny?.autoFileView === 'boolean') {
+          setAutoFileView(configAny.autoFileView);
+        }
 
         setIsMaximized(maximized);
 
@@ -691,7 +694,10 @@ const ChatApp: React.FC = () => {
           onModelDropdownToggle={() => setIsModelDropdownOpen(prev => !prev)}
           onSelectModel={handleSelectModel}
           autoFileView={autoFileView}
-          onAutoFileViewChange={setAutoFileView}
+          onAutoFileViewChange={(value: boolean) => {
+            setAutoFileView(value);
+            window.electronAPI?.config?.set?.('autoFileView', value).catch(() => {});
+          }}
           onCommandPalette={() => setIsCommandPaletteOpen(true)}
           onToggleTaskWindow={() => window.electronAPI?.taskWindow?.toggle()}
           onChangeDirectory={handleChangeDirectory}

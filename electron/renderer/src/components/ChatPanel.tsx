@@ -17,6 +17,7 @@ import type {
 
 // Import optimized markdown hook
 import { useMarkdownWorker } from '../hooks/useMarkdownWorker';
+import { htmlTableToMarkdown } from '../utils/markdown-parser';
 
 // Import AgentContext
 import { useAgent } from '../contexts/AgentContext';
@@ -50,6 +51,12 @@ import './UserQuestion.css';
 import './ProgressMessage.css';
 import './ToolExecution.css';
 
+interface AttachedImage {
+  path: string;
+  preview: string; // data URL for thumbnail
+  name: string;
+}
+
 interface ChatPanelProps {
   session?: Session | null;
   onSessionChange?: (session: Session | null) => void;
@@ -58,6 +65,7 @@ interface ChatPanelProps {
   onChangeDirectory?: () => void;
   allowAllPermissions?: boolean;
   onAllowAllPermissionsChange?: (value: boolean) => void;
+  hasVisionModel?: boolean;
 }
 
 // Memoized markdown content component - uses optimized hook
@@ -165,11 +173,13 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
   onChangeDirectory,
   allowAllPermissions = true,
   onAllowAllPermissionsChange,
+  hasVisionModel = false,
 }, ref) => {
   const { t, language } = useTranslation();
   const [messages, setMessages] = useState<ChatMessage[]>([{ ...DEFAULT_WELCOME_MESSAGE, content: '' }]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [attachedImages, setAttachedImages] = useState<AttachedImage[]>([]);
 
   // Track if we're doing a batch load (for animation disabling)
   const [isBatchLoad, setIsBatchLoad] = useState(true);
@@ -335,8 +345,10 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
       // New or empty session: reset to welcome
       setMessages([{ ...DEFAULT_WELCOME_MESSAGE, content: t('chat.welcome') }]);
     }
-    // Reset windowing state when session changes
+    // Reset windowing state and attached images when session changes
     setShowAllMessages(false);
+    setAttachedImages([]);
+    setInput('');
 
     // Re-enable animation after batch load completes
     const timer = setTimeout(() => setIsBatchLoad(false), 100);
@@ -454,17 +466,34 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
     scrollToBottom();
   }, [messages.length, isLoading, toolExecutions.length, todos.length, progressMessages.length, scrollToBottom]);
 
+  // Dynamic max input height (50% of window height)
+  const [maxInputHeight, setMaxInputHeight] = useState(() => Math.floor(window.innerHeight * 0.5));
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const handleResize = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => setMaxInputHeight(Math.floor(window.innerHeight * 0.5)), 100);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
+
   // Auto-resize textarea
   useEffect(() => {
     if (inputRef.current) {
       inputRef.current.style.height = 'auto';
-      inputRef.current.style.height = `${Math.min(inputRef.current.scrollHeight, 150)}px`;
+      const newHeight = Math.min(inputRef.current.scrollHeight, maxInputHeight);
+      inputRef.current.style.height = `${newHeight}px`;
+      inputRef.current.style.overflowY = inputRef.current.scrollHeight > maxInputHeight ? 'auto' : 'hidden';
     }
-  }, [input]);
+  }, [input, maxInputHeight]);
 
   // Send message using agent
   const sendMessage = useCallback(async () => {
-    if (!input.trim() || isLoading) return;
+    if ((!input.trim() && attachedImages.length === 0) || isLoading) return;
 
     window.electronAPI?.log?.info?.('[ChatPanel] sendMessage START', {
       inputLength: input.trim().length,
@@ -476,10 +505,20 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
     // Mark to skip session load effect (prevents user message from disappearing)
     skipSessionLoadRef.current = true;
 
+    // Build message content with attached images
+    let messageContent = input.trim();
+    if (attachedImages.length > 0) {
+      const imagePaths = attachedImages.map(img => img.path).join(', ');
+      const imageInstruction = `[Attached Images: ${imagePaths}]\nPlease analyze the attached images using read_image tool.`;
+      messageContent = messageContent
+        ? `${messageContent}\n\n${imageInstruction}`
+        : imageInstruction;
+    }
+
     const userMessage: ChatMessage = {
       id: `user-${Date.now()}`,
       role: 'user',
-      content: input.trim(),
+      content: messageContent,
       timestamp: Date.now(),
     };
 
@@ -496,6 +535,7 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
     setHistoryIndex(-1);
 
     setInput('');
+    setAttachedImages([]);
     setIsLoading(true);
     setIsExecuting(true);
 
@@ -630,7 +670,7 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
       window.electronAPI?.log?.debug?.('[ChatPanel] sendMessage FINALLY - resetting skipSessionLoadRef');
       skipSessionLoadRef.current = false;
     }
-  }, [input, isLoading, messages, saveMessageToSession, currentDirectory, allowAllPermissions, clearProgressMessages, setIsExecuting]);
+  }, [input, isLoading, messages, saveMessageToSession, currentDirectory, allowAllPermissions, clearProgressMessages, setIsExecuting, attachedImages]);
 
   // Abort message state
   const [abortMessage, setAbortMessage] = useState<string | null>(null);
@@ -666,6 +706,77 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
       handleAbort();
     }
   }, [sendMessage, isExecuting, handleAbort]);
+
+  // Handle paste (HTML table → markdown, image → attachment)
+  const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    // 1) HTML table → markdown table
+    const htmlData = e.clipboardData.getData('text/html');
+    if (htmlData && (htmlData.includes('<table') || htmlData.includes('<TABLE'))) {
+      const markdownTable = htmlTableToMarkdown(htmlData);
+      if (markdownTable) {
+        e.preventDefault();
+        const textarea = e.currentTarget;
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const before = input.slice(0, start);
+        const after = input.slice(end);
+        const prefix = before.length > 0 && !before.endsWith('\n') ? '\n' : '';
+        const suffix = after.length > 0 && !after.startsWith('\n') ? '\n' : '';
+        setInput(before + prefix + markdownTable + suffix + after);
+        return;
+      }
+    }
+
+    // 2) Image paste (only when vision model available)
+    if (!hasVisionModel) return;
+    const items = e.clipboardData.items;
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const blob = item.getAsFile();
+        if (!blob) return;
+
+        const reader = new FileReader();
+        reader.onload = async () => {
+          try {
+            const dataUrl = reader.result as string;
+            const base64 = dataUrl.split(',')[1];
+            const result = await window.electronAPI?.image?.saveFromClipboard(base64, item.type);
+            if (result?.success && result.filePath) {
+              setAttachedImages(prev => [...prev, {
+                path: result.filePath!,
+                preview: dataUrl,
+                name: `image.${item.type.split('/')[1] || 'png'}`,
+              }]);
+            } else {
+              window.electronAPI?.log?.error?.('[ChatPanel] Image paste save failed', { error: result?.error });
+            }
+          } catch (err) {
+            window.electronAPI?.log?.error?.('[ChatPanel] Image paste error', { error: err instanceof Error ? err.message : String(err) });
+          }
+        };
+        reader.readAsDataURL(blob);
+        return;
+      }
+    }
+  }, [input, hasVisionModel]);
+
+  // Handle image attachment via file picker
+  const handleImageAttach = useCallback(async () => {
+    try {
+      const result = await window.electronAPI?.image?.selectFile();
+      if (result?.success && result.filePath) {
+        setAttachedImages(prev => [...prev, {
+          path: result.filePath!,
+          preview: '', // No preview for file picker images
+          name: result.filePath!.split(/[/\\]/).pop() || 'image',
+        }]);
+      }
+    } catch (err) {
+      window.electronAPI?.log?.error?.('[ChatPanel] Image file select error', { error: err instanceof Error ? err.message : String(err) });
+    }
+  }, []);
 
   // Retry failed tool execution
   const handleToolRetry = useCallback((id: string) => {
@@ -801,6 +912,7 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
     clearToolExecutions();
     setIsExecuting(false);
     setIsLoading(false);
+    setAttachedImages([]);
 
     if (session && onSessionChange) {
       const clearedSession: Session = {
@@ -969,6 +1081,34 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
 
       {/* Chat Input */}
       <div className="chat-input-container" role="form" aria-label="Message input">
+        {/* Image Preview Thumbnails */}
+        {attachedImages.length > 0 && (
+          <div className="chat-image-previews">
+            {attachedImages.map((img, idx) => (
+              <div key={idx} className="image-preview-item">
+                {img.preview ? (
+                  <img src={img.preview} alt={img.name} className="image-preview-thumb" />
+                ) : (
+                  <div className="image-preview-placeholder">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+                    </svg>
+                  </div>
+                )}
+                <span className="image-preview-name" title={img.name}>{img.name}</span>
+                <button
+                  className="image-preview-remove"
+                  onClick={() => setAttachedImages(prev => prev.filter((_, i) => i !== idx))}
+                  title={t('chat.removeImage')}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                  </svg>
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="chat-input-wrapper">
           <span className="chat-input-icon">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
@@ -977,10 +1117,11 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
           </span>
           <textarea
             ref={inputRef}
-            className="chat-input"
+            className={`chat-input${hasVisionModel ? ' has-attach' : ''}`}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             placeholder={t('chat.inputPlaceholder')}
             rows={1}
             disabled={isLoading}
@@ -988,28 +1129,42 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
             aria-describedby="chat-input-hint"
           />
           <span id="chat-input-hint" className="sr-only">{t('chat.inputHint')}</span>
-          {isExecuting ? (
-            <button
-              className="chat-send-btn chat-abort-btn"
-              onClick={handleAbort}
-              title={t('chat.stop')}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M6 6h12v12H6z"/>
-              </svg>
-            </button>
-          ) : (
-            <button
-              className="chat-send-btn"
-              onClick={sendMessage}
-              disabled={!input.trim() || isLoading}
-              title={t('chat.send')}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z"/>
-              </svg>
-            </button>
-          )}
+          <div className="chat-input-actions-right">
+            {hasVisionModel && (
+              <button
+                className="chat-attach-btn"
+                onClick={handleImageAttach}
+                disabled={isLoading}
+                title={t('chat.attachImage')}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/>
+                </svg>
+              </button>
+            )}
+            {isExecuting ? (
+              <button
+                className="chat-send-btn chat-abort-btn"
+                onClick={handleAbort}
+                title={t('chat.stop')}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M6 6h12v12H6z"/>
+                </svg>
+              </button>
+            ) : (
+              <button
+                className="chat-send-btn"
+                onClick={sendMessage}
+                disabled={(!input.trim() && attachedImages.length === 0) || isLoading}
+                title={t('chat.send')}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z"/>
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
         <div className="chat-input-hints">
           <span className="chat-input-hint">{t('chat.inputHint')}</span>
