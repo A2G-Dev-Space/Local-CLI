@@ -496,6 +496,21 @@ class LLMClient {
 
       const data = await response.json() as LLMResponse;
 
+      // Validate response structure (CLI parity)
+      // 502 Bad Gateway: LLM 서버가 유효하지 않은 응답을 반환한 경우 (retry 대상)
+      if (!data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
+        logger.errorSilent('Invalid response structure - missing or empty choices array', {
+          hasChoices: !!data.choices,
+          isArray: Array.isArray(data.choices),
+          rawKeys: Object.keys(data || {}),
+        });
+        throw new APIError(
+          'LLM 응답 형식이 올바르지 않습니다. choices 배열이 없거나 비어있습니다.',
+          502,
+          url
+        );
+      }
+
       logger.httpResponse(200, 'OK', {
         model: data.model,
         choices: data.choices.length,
@@ -714,7 +729,7 @@ class LLMClient {
             try {
               const jsonStr = trimmed.slice(6);
               const chunk = JSON.parse(jsonStr) as LLMStreamChunk;
-              const content = chunk.choices[0]?.delta?.content;
+              const content = chunk.choices?.[0]?.delta?.content;
 
               if (content) {
                 fullContent += content;
@@ -722,7 +737,7 @@ class LLMClient {
               }
 
               // Emit reasoning delta if present (CLI parity - extended thinking)
-              const reasoningDelta = chunk.choices[0]?.delta?.reasoning;
+              const reasoningDelta = chunk.choices?.[0]?.delta?.reasoning;
               if (reasoningDelta && !isInternalCall) {
                 emitReasoning(reasoningDelta, true);
               }
