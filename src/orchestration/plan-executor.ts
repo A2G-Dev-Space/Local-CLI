@@ -37,7 +37,7 @@ import {
   emitAssistantResponse,
 } from '../tools/llm/simple/file-tools.js';
 import { toolRegistry } from '../tools/registry.js';
-import { PLAN_EXECUTE_SYSTEM_PROMPT as PLAN_PROMPT, CRITICAL_REMINDERS } from '../prompts/system/plan-execute.js';
+import { PLAN_EXECUTE_SYSTEM_PROMPT as PLAN_PROMPT, getCriticalReminders, VISION_VERIFICATION_RULE } from '../prompts/system/plan-execute.js';
 import { GIT_COMMIT_RULES } from '../prompts/shared/git-rules.js';
 import { logger } from '../utils/logger.js';
 import { getStreamLogger } from '../utils/json-stream-logger.js';
@@ -53,10 +53,15 @@ import { reportError } from '../core/telemetry/error-reporter.js';
  */
 function buildSystemPrompt(): string {
   const isGitRepo = detectGitRepo();
+  const hasVision = toolRegistry.isToolGroupEnabled('vision');
+  let prompt = PLAN_PROMPT;
   if (isGitRepo) {
-    return `${PLAN_PROMPT}\n\n${GIT_COMMIT_RULES}`;
+    prompt += `\n\n${GIT_COMMIT_RULES}`;
   }
-  return PLAN_PROMPT;
+  if (hasVision) {
+    prompt += `\n\n${VISION_VERIFICATION_RULE}`;
+  }
+  return prompt;
 }
 
 /**
@@ -229,6 +234,8 @@ export class PlanExecutor {
       // Build rebuildMessages callback for per-iteration message reconstruction
       // 매 LLM 호출마다 [system, user(<CURRENT_TASK> + <CONVERSATION_HISTORY> + <CURRENT_REQUEST>)] 형태로 재구성
       const systemPrompt = buildSystemPrompt();
+      const hasVision = toolRegistry.isToolGroupEnabled('vision');
+      const criticalReminders = getCriticalReminders(hasVision);
       let baseHistory: Message[] = [...historyBeforeExecution, { role: 'assistant' as const, content: planMessage }];
 
       const rebuildMessages = (toolLoopMessages: Message[]): Message[] => {
@@ -251,7 +258,7 @@ export class PlanExecutor {
         if (historyText) {
           userContent += `<CONVERSATION_HISTORY>\n${historyText}\n</CONVERSATION_HISTORY>\n\n`;
         }
-        userContent += `<CURRENT_REQUEST>\n${lastTag}: ${lastContent}\n</CURRENT_REQUEST>\n\n${CRITICAL_REMINDERS}`;
+        userContent += `<CURRENT_REQUEST>\n${lastTag}: ${lastContent}\n</CURRENT_REQUEST>\n\n${criticalReminders}`;
 
         return [
           { role: 'system' as const, content: systemPrompt },
@@ -433,6 +440,8 @@ export class PlanExecutor {
 
       // Build rebuildMessages callback for per-iteration message reconstruction
       const systemPrompt = buildSystemPrompt();
+      const hasVision = toolRegistry.isToolGroupEnabled('vision');
+      const criticalReminders = getCriticalReminders(hasVision);
       let baseHistory: Message[] = [...messages]; // messages param = history without current userMessage
 
       const rebuildMessages = (toolLoopMessages: Message[]): Message[] => {
@@ -455,7 +464,7 @@ export class PlanExecutor {
         if (historyText) {
           userContent += `<CONVERSATION_HISTORY>\n${historyText}\n</CONVERSATION_HISTORY>\n\n`;
         }
-        userContent += `<CURRENT_REQUEST>\n${lastTag}: ${lastContent}\n</CURRENT_REQUEST>\n\n${CRITICAL_REMINDERS}`;
+        userContent += `<CURRENT_REQUEST>\n${lastTag}: ${lastContent}\n</CURRENT_REQUEST>\n\n${criticalReminders}`;
 
         return [
           { role: 'system' as const, content: systemPrompt },

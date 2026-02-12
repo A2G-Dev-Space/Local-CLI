@@ -16,7 +16,12 @@ export { CODEBASE_FIRST_RULE, CODEBASE_FIRST_SHORT } from './shared/codebase-rul
 export { GIT_COMMIT_RULES } from './shared/git-rules.js';
 
 // System prompts
-export { PLAN_EXECUTE_SYSTEM_PROMPT } from './system/plan-execute.js';
+export {
+  PLAN_EXECUTE_SYSTEM_PROMPT,
+  CRITICAL_REMINDERS,
+  getCriticalReminders,
+  VISION_VERIFICATION_RULE,
+} from './system/plan-execute.js';
 export { COMPACT_SYSTEM_PROMPT } from './system/compact.js';
 
 // Agent prompts
