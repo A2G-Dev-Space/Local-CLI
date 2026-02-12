@@ -517,8 +517,8 @@ app.on('before-quit', async () => {
   // PowerShell 세션 종료
   await powerShellManager.terminate();
 
-  // IPC 핸들러 정리
-  cleanupIpcHandlers();
+  // IPC 핸들러 정리 (await 필수: 내부 async cleanup 완료 전 logger.shutdown() 방지)
+  await cleanupIpcHandlers();
 
   // 이미지 임시 파일 정리
   try {
