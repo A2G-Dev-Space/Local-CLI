@@ -1191,7 +1191,7 @@ Retry with correct parameter names and types.`;
 
         // Compact the full conversation (baseHistory + toolLoopMessages)
         const fullMessages = [...baseHistory, ...toolLoopMessages];
-        const compactResult = await compactConversation(fullMessages, { workingDirectory });
+        const compactResult = await compactConversation(fullMessages, { workingDirectory, todos: state.currentTodos });
 
         if (compactResult.success && compactResult.compactedMessages) {
           logger.info('Preventative auto-compact successful', {

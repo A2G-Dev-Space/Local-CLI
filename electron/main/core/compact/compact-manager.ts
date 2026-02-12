@@ -37,7 +37,7 @@ export interface CompactResult {
 /**
  * Minimum messages required for compact
  */
-const MIN_MESSAGES_FOR_COMPACT = 5;
+const MIN_MESSAGES_FOR_COMPACT = 1;
 
 /**
  * Compact Manager Class

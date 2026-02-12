@@ -45,7 +45,7 @@ import type { CompactResult } from './compact-manager';
 // Standalone functions (for ipc-handlers.ts compatibility)
 // =============================================================================
 
-const MIN_MESSAGES_FOR_COMPACT = 5;
+const MIN_MESSAGES_FOR_COMPACT = 1;
 
 /**
  * Execute conversation compaction
