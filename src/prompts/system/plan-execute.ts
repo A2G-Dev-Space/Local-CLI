@@ -109,7 +109,9 @@ Do NOT re-execute tools from history. Do NOT confuse tools used in history with 
 export const VISION_VERIFICATION_RULE = `## CRITICAL: Screenshot Verification
 
 **When the result is visually verifiable (UI, web page, chart, document, etc.), you MUST take a screenshot of the final result and verify it visually.**
-- Use \`read_image\` tool to capture and verify screenshots
+- Use the appropriate screenshot tool (e.g., \`excel_screenshot\`, \`word_screenshot\`, \`browser_screenshot\`)
+- The screenshot tool returns the saved file path — use that EXACT path as \`file_path\` in \`read_image\`
+- Do NOT search for or guess the screenshot path — always use the path returned by the screenshot tool
 - Do NOT assume the visual output is correct — always confirm with your own eyes
 - This applies to: web pages, generated images, UI components, documents, charts, diagrams`;
 

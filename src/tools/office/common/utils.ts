@@ -6,19 +6,19 @@
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { OFFICE_SCREENSHOT_DIR } from './constants.js';
 
 /**
- * Save a base64-encoded screenshot to the office screenshots directory
+ * Save a base64-encoded screenshot to the current working directory
+ * LLM이 경로를 쉽게 찾을 수 있도록 working directory에 직접 저장
+ *
  * @param base64Image - Base64 encoded image data
  * @param appName - Application name (e.g., 'word', 'excel', 'powerpoint')
  * @returns The full path to the saved screenshot file
  */
 export async function saveScreenshot(base64Image: string, appName: string): Promise<string> {
-  await fs.mkdir(OFFICE_SCREENSHOT_DIR, { recursive: true });
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const filename = `${appName}_${timestamp}.png`;
-  const filePath = path.join(OFFICE_SCREENSHOT_DIR, filename);
+  const filename = `${appName}_screenshot_${timestamp}.png`;
+  const filePath = path.join(process.cwd(), filename);
   const buffer = Buffer.from(base64Image, 'base64');
   await fs.writeFile(filePath, buffer);
   return filePath;

@@ -7,12 +7,12 @@
  * This is much simpler than the CLI version since we're running natively on Windows.
  */
 
-import { spawn, ChildProcess, execSync } from 'child_process';
+import { execSync } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
-import * as os from 'os';
 import WebSocket from 'ws';
 import { logger } from '../../utils/logger';
+import { getWorkingDirectory } from '../llm/simple/file-tools';
 
 // =============================================================================
 // Types
@@ -159,18 +159,12 @@ class CDPConnection {
 
 class BrowserClient {
   private cdp: CDPConnection | null = null;
-  private browserProcess: ChildProcess | null = null;
   private cdpPort = 9222;
   private browserType: 'chrome' | 'edge' = 'chrome';
-  private screenshotDir: string;
+  // screenshotDir removed — screenshots saved to getWorkingDirectory() directly
 
   constructor() {
-    // Create screenshot directory
-    const appDataDir = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
-    this.screenshotDir = path.join(appDataDir, 'LOCAL-CLI-UI', 'screenshots', 'browser');
-    if (!fs.existsSync(this.screenshotDir)) {
-      fs.mkdirSync(this.screenshotDir, { recursive: true });
-    }
+    // No initialization needed — screenshots saved to getWorkingDirectory() at capture time
   }
 
   // ===========================================================================
@@ -561,11 +555,24 @@ class BrowserClient {
 
       const result = await this.cdp.send('Page.captureScreenshot', params) as { data: string };
 
-      // Save to file
+      // Save to working directory for easy LLM access
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const filename = `browser_${timestamp}.png`;
-      const filepath = path.join(this.screenshotDir, filename);
+      const filename = `browser_screenshot_${timestamp}.png`;
+      const filepath = path.join(getWorkingDirectory(), filename);
       fs.writeFileSync(filepath, Buffer.from(result.data, 'base64'));
+
+      // Get page info for context (matches CLI behavior)
+      let url = '';
+      let title = '';
+      try {
+        const evalResult = await this.cdp.send('Runtime.evaluate', {
+          expression: 'JSON.stringify({ url: window.location.href, title: document.title })',
+          returnByValue: true,
+        }) as { result: { value: string } };
+        const pageInfo = JSON.parse(evalResult.result.value);
+        url = pageInfo.url;
+        title = pageInfo.title;
+      } catch { /* non-critical */ }
 
       return {
         success: true,
@@ -574,6 +581,8 @@ class BrowserClient {
         filepath,
         format: 'png',
         encoding: 'base64',
+        url,
+        title,
       };
     } catch (error) {
       return {

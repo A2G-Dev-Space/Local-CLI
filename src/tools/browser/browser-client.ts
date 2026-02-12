@@ -12,7 +12,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import WebSocket from 'ws';
 import { logger } from '../../utils/logger.js';
-import { LOCAL_HOME_DIR } from '../../constants.js';
+
 import {
   getPlatform,
   getPowerShellPath,
@@ -230,8 +230,6 @@ class BrowserClient {
   private platform: Platform;
   private cdpPort: number = 9222;
   private browserType: 'chrome' | 'edge' = 'chrome';
-  private screenshotDir: string;
-
   // Console/Network 로그 수집
   private consoleLogs: ConsoleLogEntry[] = [];
   private networkLogs: NetworkLogEntry[] = [];
@@ -239,13 +237,6 @@ class BrowserClient {
   constructor() {
     this.platform = getPlatform();
     logger.debug('[BrowserClient] constructor: platform = ' + this.platform);
-
-    // Create screenshot directory
-    this.screenshotDir = path.join(LOCAL_HOME_DIR, 'screenshots', 'browser');
-    if (!fs.existsSync(this.screenshotDir)) {
-      fs.mkdirSync(this.screenshotDir, { recursive: true });
-    }
-
     logger.debug('[BrowserClient] constructor: CDP URL = ' + this.getCDPUrl());
   }
 
@@ -256,12 +247,6 @@ class BrowserClient {
     return `http://localhost:${this.cdpPort}`;
   }
 
-  /**
-   * Get screenshot directory path
-   */
-  getScreenshotDir(): string {
-    return this.screenshotDir;
-  }
 
   /**
    * Find browser executable path based on platform
@@ -1333,8 +1318,8 @@ class BrowserClient {
    */
   saveScreenshot(base64Image: string, prefix: string = 'browser'): string {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const filename = `${prefix}_${timestamp}.png`;
-    const filepath = path.join(this.screenshotDir, filename);
+    const filename = `${prefix}_screenshot_${timestamp}.png`;
+    const filepath = path.join(process.cwd(), filename);
 
     const imageBuffer = Buffer.from(base64Image, 'base64');
     fs.writeFileSync(filepath, imageBuffer);

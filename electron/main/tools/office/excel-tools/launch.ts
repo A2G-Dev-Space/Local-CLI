@@ -9,7 +9,7 @@ import { ToolDefinition } from '../../../types/index';
 import { LLMSimpleTool, ToolResult } from '../../types';
 import { excelClient } from '../excel-client';
 import { saveScreenshot, delay, APP_LAUNCH_DELAY_MS } from '../common/utils';
-import { OFFICE_SCREENSHOT_PATH_DESC, OFFICE_CATEGORIES } from '../common/constants';
+import { OFFICE_CATEGORIES } from '../common/constants';
 import { logger } from '../../../utils/logger';
 
 // =============================================================================
@@ -157,7 +157,7 @@ const EXCEL_SCREENSHOT_DEFINITION: ToolDefinition = {
   function: {
     name: 'excel_screenshot',
     description: `Take a screenshot of the current Excel worksheet.
-Captures the used range and saves to ${OFFICE_SCREENSHOT_PATH_DESC}.`,
+Captures the used range and saves to the current working directory.`,
     parameters: {
       type: 'object',
       properties: {
@@ -178,7 +178,7 @@ async function executeExcelScreenshot(_args: Record<string, unknown>): Promise<T
       logger.toolSuccess('excel_screenshot', _args, { filePath }, Date.now() - startTime);
       return {
         success: true,
-        result: `Excel screenshot saved to: ${filePath}`,
+        result: `Excel screenshot saved to: ${filePath}\n\nTo verify this screenshot, call read_image with file_path="${filePath}"`,
       };
     }
     logger.toolError('excel_screenshot', _args, new Error(response.error || 'Failed to capture screenshot'), Date.now() - startTime);

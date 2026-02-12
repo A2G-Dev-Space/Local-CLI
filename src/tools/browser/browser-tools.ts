@@ -180,7 +180,7 @@ const BROWSER_SCREENSHOT_DEFINITION: ToolDefinition = {
     name: 'browser_screenshot',
     description: `Take a screenshot of the current browser page.
 Returns a base64-encoded PNG image that you can analyze to understand the page state.
-Screenshots are also saved to ~/.local-cli/screenshots/browser/
+Screenshots are saved to the current working directory.
 Use this to verify that pages loaded correctly or to check UI elements.`,
     parameters: {
       type: 'object',
@@ -229,7 +229,7 @@ async function executeBrowserScreenshot(args: Record<string, unknown>): Promise<
     logger.toolSuccess('browser_screenshot', args, { savedPath, url: response.url, title: response.title }, 0);
     return {
       success: true,
-      result: `Screenshot captured of "${response.title}" (${response.url})\nSaved to: ${savedPath}`,
+      result: `Screenshot captured of "${response.title}" (${response.url})\nSaved to: ${savedPath}\n\nTo verify this screenshot, call read_image with file_path="${savedPath}"`,
       metadata: {
         image: response.image,
         imageType: 'image/png',

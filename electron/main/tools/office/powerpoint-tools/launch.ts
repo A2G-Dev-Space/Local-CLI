@@ -9,7 +9,7 @@ import { ToolDefinition } from '../../../types/index';
 import { LLMSimpleTool, ToolResult } from '../../types';
 import { powerpointClient } from '../powerpoint-client';
 import { saveScreenshot, delay, APP_LAUNCH_DELAY_MS } from '../common/utils';
-import { OFFICE_SCREENSHOT_PATH_DESC, OFFICE_CATEGORIES } from '../common/constants';
+import { OFFICE_CATEGORIES } from '../common/constants';
 import { logger } from '../../../utils/logger';
 
 // =============================================================================
@@ -113,7 +113,7 @@ const POWERPOINT_SCREENSHOT_DEFINITION: ToolDefinition = {
   function: {
     name: 'powerpoint_screenshot',
     description: `Take a screenshot of the current slide.
-Saves to ${OFFICE_SCREENSHOT_PATH_DESC}.`,
+Saves to the current working directory.`,
     parameters: {
       type: 'object',
       properties: {
@@ -134,7 +134,7 @@ async function executePowerPointScreenshot(_args: Record<string, unknown>): Prom
       logger.toolSuccess('powerpoint_screenshot', _args, { filePath }, Date.now() - startTime);
       return {
         success: true,
-        result: `PowerPoint screenshot saved to: ${filePath}`,
+        result: `PowerPoint screenshot saved to: ${filePath}\n\nTo verify this screenshot, call read_image with file_path="${filePath}"`,
       };
     }
     logger.toolError('powerpoint_screenshot', _args, new Error(response.error || 'Failed to capture screenshot'), Date.now() - startTime);
