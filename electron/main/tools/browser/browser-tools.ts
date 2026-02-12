@@ -273,8 +273,10 @@ const BROWSER_SCREENSHOT_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'browser_screenshot',
-    description: `Take a screenshot of the current page.
-Returns base64 encoded PNG image and saves to file.`,
+    description: `Take a screenshot of the current browser page.
+Returns a base64-encoded PNG image that you can analyze to understand the page state.
+Screenshots are saved to the current working directory.
+Use this to verify that pages loaded correctly or to check UI elements.`,
     parameters: {
       type: 'object',
       properties: {
@@ -292,11 +294,19 @@ async function executeBrowserScreenshot(args: Record<string, unknown>): Promise<
   try {
     const response = await browserClient.screenshot(args['full_page'] === true);
     if (response.success) {
-      logger.toolSuccess('browser_screenshot', args, { filepath: response['filepath'] }, Date.now() - startTime);
+      const filepath = response['filepath'] as string;
+      logger.toolSuccess('browser_screenshot', args, { filepath }, Date.now() - startTime);
       return {
         success: true,
-        result: `Screenshot saved to: ${response['filepath']}`,
-        metadata: { filepath: response['filepath'] as string },
+        result: `Screenshot captured${response['title'] ? ` of "${response['title']}"` : ''}${response['url'] ? ` (${response['url']})` : ''}\nSaved to: ${filepath}\n\nTo verify this screenshot, call read_image with file_path="${filepath}"`,
+        metadata: {
+          image: response['image'] as string,
+          imageType: 'image/png',
+          encoding: 'base64',
+          url: response['url'] as string,
+          title: response['title'] as string,
+          savedPath: filepath,
+        },
       };
     }
     logger.toolError('browser_screenshot', args, new Error(response.error || 'Failed to take screenshot'), Date.now() - startTime);

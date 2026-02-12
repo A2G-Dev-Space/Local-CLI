@@ -9,7 +9,7 @@ import { ToolDefinition } from '../../../types/index.js';
 import { LLMSimpleTool, ToolResult } from '../../types.js';
 import { powerpointClient } from '../powerpoint-client.js';
 import { saveScreenshot } from '../common/utils.js';
-import { OFFICE_SCREENSHOT_PATH_DESC, OFFICE_CATEGORIES } from '../common/constants.js';
+import { OFFICE_CATEGORIES } from '../common/constants.js';
 
 // =============================================================================
 // PowerPoint Launch
@@ -137,7 +137,7 @@ const POWERPOINT_SCREENSHOT_DEFINITION: ToolDefinition = {
   function: {
     name: 'powerpoint_screenshot',
     description: `Take a screenshot of the current slide.
-Saves to ${OFFICE_SCREENSHOT_PATH_DESC}.`,
+Saves to the current working directory.`,
     parameters: {
       type: 'object',
       properties: {
@@ -155,7 +155,7 @@ async function executePowerPointScreenshot(_args: Record<string, unknown>): Prom
       const filePath = await saveScreenshot(response.image, 'powerpoint');
       return {
         success: true,
-        result: `PowerPoint screenshot saved to: ${filePath}`,
+        result: `PowerPoint screenshot saved to: ${filePath}\n\nTo verify this screenshot, call read_image with file_path="${filePath}"`,
       };
     }
     return { success: false, error: response.error || 'Failed to capture screenshot' };

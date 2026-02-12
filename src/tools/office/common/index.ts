@@ -25,9 +25,6 @@ export {
 // =============================================================================
 
 export {
-  // Directory constants
-  OFFICE_SCREENSHOT_DIR,
-  OFFICE_SCREENSHOT_PATH_DESC,
   OFFICE_CATEGORIES,
 
   // Word alignment constants

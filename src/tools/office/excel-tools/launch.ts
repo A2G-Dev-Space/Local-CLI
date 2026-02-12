@@ -9,7 +9,7 @@ import { ToolDefinition } from '../../../types/index.js';
 import { LLMSimpleTool, ToolResult } from '../../types.js';
 import { excelClient } from '../excel-client.js';
 import { saveScreenshot } from '../common/utils.js';
-import { OFFICE_SCREENSHOT_PATH_DESC, OFFICE_CATEGORIES } from '../common/constants.js';
+import { OFFICE_CATEGORIES } from '../common/constants.js';
 
 // =============================================================================
 // Excel Launch
@@ -176,7 +176,7 @@ const EXCEL_SCREENSHOT_DEFINITION: ToolDefinition = {
   function: {
     name: 'excel_screenshot',
     description: `Take a screenshot of the current Excel worksheet.
-Captures the used range and saves to ${OFFICE_SCREENSHOT_PATH_DESC}.`,
+Captures the used range and saves to the current working directory.`,
     parameters: {
       type: 'object',
       properties: {
@@ -194,7 +194,7 @@ async function executeExcelScreenshot(_args: Record<string, unknown>): Promise<T
       const filePath = await saveScreenshot(response.image, 'excel');
       return {
         success: true,
-        result: `Excel screenshot saved to: ${filePath}`,
+        result: `Excel screenshot saved to: ${filePath}\n\nTo verify this screenshot, call read_image with file_path="${filePath}"`,
       };
     }
     return { success: false, error: response.error || 'Failed to capture screenshot' };

@@ -4,23 +4,7 @@
  * Shared constants for Office tools (Word, Excel, PowerPoint)
  */
 
-import * as path from 'path';
-import { LOCAL_HOME_DIR } from '../../../constants';
 import { ToolCategory } from '../../types';
-
-// =============================================================================
-// Directory Constants
-// =============================================================================
-
-/**
- * Directory for storing Office screenshots
- */
-export const OFFICE_SCREENSHOT_DIR = path.join(LOCAL_HOME_DIR, 'screenshots', 'office');
-
-/**
- * User-friendly path description for screenshots
- */
-export const OFFICE_SCREENSHOT_PATH_DESC = '~/.local-cli/screenshots/office/';
 
 // =============================================================================
 // Tool Category Constants

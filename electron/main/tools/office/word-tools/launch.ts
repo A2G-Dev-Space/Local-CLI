@@ -8,7 +8,7 @@ import { ToolDefinition } from '../../../types/index';
 import { LLMSimpleTool, ToolResult } from '../../types';
 import { wordClient } from '../word-client';
 import { saveScreenshot, delay, APP_LAUNCH_DELAY_MS } from '../common/utils';
-import { OFFICE_SCREENSHOT_PATH_DESC, OFFICE_CATEGORIES } from '../common/constants';
+import { OFFICE_CATEGORIES } from '../common/constants';
 import { logger } from '../../../utils/logger';
 
 // =============================================================================
@@ -159,7 +159,7 @@ const WORD_SCREENSHOT_DEFINITION: ToolDefinition = {
   function: {
     name: 'word_screenshot',
     description: `Take a screenshot of the current Word document.
-Captures the document content and saves to ${OFFICE_SCREENSHOT_PATH_DESC}.
+Captures the document content and saves to the current working directory.
 Use this to verify document formatting or show the user what the document looks like.`,
     parameters: {
       type: 'object',
@@ -181,7 +181,7 @@ async function executeWordScreenshot(_args: Record<string, unknown>): Promise<To
       logger.toolSuccess('word_screenshot', _args, { filePath }, Date.now() - startTime);
       return {
         success: true,
-        result: `Word screenshot saved to: ${filePath}\n\nYou can view this image using read_file tool if your LLM supports vision.`,
+        result: `Word screenshot saved to: ${filePath}\n\nTo verify this screenshot, call read_image with file_path="${filePath}"`,
       };
     }
     logger.toolError('word_screenshot', _args, new Error(response.error || 'Failed to capture screenshot'), Date.now() - startTime);

@@ -9,8 +9,6 @@
 
 import { spawn } from 'child_process';
 import * as path from 'path';
-import * as fs from 'fs';
-import * as os from 'os';
 import { logger } from '../../utils/logger';
 
 // =============================================================================
@@ -40,14 +38,9 @@ export class OfficeClientBase {
   protected commandTimeout = 30000;
   /** COM ProgID for DisplayAlerts auto-suppression (set by subclass) */
   protected comProgId: string = '';
-  protected screenshotDir: string;
 
   constructor() {
-    const appDataDir = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
-    this.screenshotDir = path.join(appDataDir, 'LOCAL-CLI-UI', 'screenshots', 'office');
-    if (!fs.existsSync(this.screenshotDir)) {
-      fs.mkdirSync(this.screenshotDir, { recursive: true });
-    }
+    // No initialization needed — screenshots saved to getWorkingDirectory() via common/utils.ts
   }
 
   /**
@@ -175,13 +168,6 @@ ${actualScript}
   }
 
   /**
-   * Get screenshot directory
-   */
-  getScreenshotDir(): string {
-    return this.screenshotDir;
-  }
-
-  /**
    * Convert path (no-op on Windows native, just absolute path)
    */
   protected toWindowsPath(filePath: string): string {
@@ -201,33 +187,4 @@ ${actualScript}
     };
   }
 
-  /**
-   * Take screenshot of active window
-   */
-  async takeScreenshot(appName: string): Promise<ScreenshotResponse> {
-    const timestamp = Date.now();
-    const filename = `${appName.toLowerCase()}_${timestamp}.png`;
-    const screenshotPath = path.join(this.screenshotDir, filename);
-
-    const result = await this.executePowerShell(`
-Add-Type -AssemblyName System.Windows.Forms
-Add-Type -AssemblyName System.Drawing
-
-$screen = [System.Windows.Forms.Screen]::PrimaryScreen
-$bitmap = New-Object System.Drawing.Bitmap($screen.Bounds.Width, $screen.Bounds.Height)
-$graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-$graphics.CopyFromScreen($screen.Bounds.Location, [System.Drawing.Point]::Empty, $screen.Bounds.Size)
-$bitmap.Save("${screenshotPath.replace(/\\/g, '\\\\')}")
-$graphics.Dispose()
-$bitmap.Dispose()
-
-@{
-  success = $true
-  message = "Screenshot saved"
-  path = "${screenshotPath.replace(/\\/g, '\\\\')}"
-} | ConvertTo-Json -Compress
-`);
-
-    return result as ScreenshotResponse;
-  }
 }
