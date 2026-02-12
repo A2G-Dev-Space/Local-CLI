@@ -107,7 +107,7 @@ export class PlanningLLM {
     // Get Planning tool definitions (ask_to_user, create_todos, respond_to_user)
     const planningTools = toolRegistry.getLLMPlanningToolDefinitions();
 
-    const MAX_RETRIES = 3;
+    const MAX_RETRIES = 5;
     const MAX_ASK_ITERATIONS = 5;
     let askIterations = 0;
     let lastError: Error | null = null;
@@ -327,8 +327,38 @@ Choose one of your 3 tools now.`,
           }
 
           // No tool call - this should not happen with tool_choice: "required"
+          // Some models (e.g. gpt-oss-120b via vLLM) ignore tool_choice and embed tool calls in content
           const contentOnly = message?.content;
           if (contentOnly) {
+            // Fallback: try to extract tool call JSON from plain text content
+            const extracted = this.extractToolCallFromContent(contentOnly);
+            if (extracted) {
+              logger.info(`Extracted tool call from plain text content (attempt ${attempt}/${MAX_RETRIES})`, {
+                toolName: extracted.name,
+              });
+              // Directly handle extracted tool call
+              if (extracted.name === 'create_todos' && Array.isArray(extracted.arguments?.todos)) {
+                const todos: TodoItem[] = extracted.arguments.todos.map((todo: any, index: number) => ({
+                  id: todo.id || `todo-${Date.now()}-${index}`,
+                  title: todo.title || 'Untitled task',
+                  status: (index === 0 ? 'in_progress' : 'pending') as TodoStatus,
+                }));
+                return {
+                  todos,
+                  complexity: extracted.arguments.complexity || 'moderate',
+                  clarificationMessages: clarificationMessages.length > 0 ? clarificationMessages : undefined,
+                };
+              }
+              if (extracted.name === 'respond_to_user' && extracted.arguments?.response) {
+                return {
+                  todos: [],
+                  complexity: 'simple',
+                  directResponse: extracted.arguments.response,
+                  clarificationMessages: clarificationMessages.length > 0 ? clarificationMessages : undefined,
+                };
+              }
+            }
+
             logger.warn(`Planning LLM returned content without tool call (attempt ${attempt}/${MAX_RETRIES})`, {
               contentPreview: contentOnly.substring(0, 100),
             });
@@ -357,7 +387,7 @@ Choose one of your 3 tools now.`,
       break;
     }
 
-    // All retries exhausted - use fallback
+    // All retries exhausted (MAX_RETRIES=${MAX_RETRIES}) - use fallback
     logger.warn('All planning retries exhausted, using fallback TODO', { lastError: lastError?.message });
     if (lastError) {
       const cm = configManager.getCurrentModel();
@@ -376,6 +406,57 @@ Choose one of your 3 tools now.`,
     };
   }
 
+  /**
+   * Extract tool call from plain text content.
+   * Some models (e.g. gpt-oss-120b via vLLM) ignore tool_choice: 'required'
+   * and embed tool calls as JSON within their text response.
+   */
+  private extractToolCallFromContent(content: string): { name: string; arguments: any } | null {
+    const toolNames = ['create_todos', 'respond_to_user', 'ask_to_user'];
+
+    for (const toolName of toolNames) {
+      // Pattern 1: {"name": "create_todos", "arguments": {...}}
+      const funcPattern = new RegExp(
+        `\\{[^{}]*"name"\\s*:\\s*"${toolName}"[^{}]*"arguments"\\s*:\\s*(\\{[\\s\\S]*?\\})\\s*\\}`,
+      );
+      const funcMatch = content.match(funcPattern);
+      if (funcMatch?.[1]) {
+        try {
+          const args = JSON.parse(funcMatch[1]);
+          logger.debug(`Extracted tool call via function pattern: ${toolName}`);
+          return { name: toolName, arguments: args };
+        } catch { /* continue */ }
+      }
+
+      // Pattern 2: Tool name followed by a JSON block: create_todos({...}) or create_todos: {...}
+      const directPattern = new RegExp(
+        `${toolName}\\s*[:(\\[]\\s*(\\{[\\s\\S]*?\\})`,
+      );
+      const directMatch = content.match(directPattern);
+      if (directMatch?.[1]) {
+        try {
+          const args = JSON.parse(directMatch[1]);
+          logger.debug(`Extracted tool call via direct pattern: ${toolName}`);
+          return { name: toolName, arguments: args };
+        } catch { /* continue */ }
+      }
+    }
+
+    // Pattern 3: Any JSON block containing "todos" array (likely create_todos)
+    const todosPattern = /\{[\s\S]*?"todos"\s*:\s*\[[\s\S]*?\][\s\S]*?\}/;
+    const todosMatch = content.match(todosPattern);
+    if (todosMatch?.[0]) {
+      try {
+        const parsed = JSON.parse(todosMatch[0]);
+        if (Array.isArray(parsed.todos)) {
+          logger.debug('Extracted create_todos from raw JSON block with todos array');
+          return { name: 'create_todos', arguments: parsed };
+        }
+      } catch { /* continue */ }
+    }
+
+    return null;
+  }
 }
 
 export default PlanningLLM;

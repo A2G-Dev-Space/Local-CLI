@@ -659,14 +659,27 @@ class Logger {
    * 로거 종료
    */
   async shutdown(): Promise<void> {
-    if (this.writeStream) {
-      return new Promise((resolve) => {
-        this.writeStream?.end(() => {
-          this.writeStream = null;
+    // shutdown 이후 log() 호출 시 write 방지
+    this.initialized = false;
+
+    const closeStream = (stream: fs.WriteStream | null): Promise<void> =>
+      new Promise((resolve) => {
+        if (stream && !stream.destroyed) {
+          stream.end(() => resolve());
+        } else {
           resolve();
-        });
+        }
       });
-    }
+
+    await Promise.all([
+      closeStream(this.writeStream),
+      closeStream(this.currentRunWriteStream),
+      closeStream(this.sessionWriteStream),
+    ]);
+
+    this.writeStream = null;
+    this.currentRunWriteStream = null;
+    this.sessionWriteStream = null;
   }
 
   /**
