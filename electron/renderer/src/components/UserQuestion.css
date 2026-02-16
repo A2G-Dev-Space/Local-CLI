@@ -53,8 +53,12 @@
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-4);
-  background: linear-gradient(135deg, rgba(56, 189, 248, 0.15), rgba(14, 165, 233, 0.1));
+  background: linear-gradient(135deg, #EDF9FE, #F0FAFF);
   border-bottom: 1px solid var(--color-border-muted);
+}
+
+[data-theme="dark"] .user-question-header {
+  background: linear-gradient(135deg, #0F1D2D, #0D1926);
 }
 
 .question-icon {
@@ -113,8 +117,12 @@
 }
 
 .question-option.selected {
-  background-color: rgba(56, 189, 248, 0.15);
+  background-color: #EDF9FE;
   border-color: var(--color-accent-primary);
+}
+
+[data-theme="dark"] .question-option.selected {
+  background-color: #0F1D2D;
 }
 
 .question-option.custom {

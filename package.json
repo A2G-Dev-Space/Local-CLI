@@ -1,6 +1,6 @@
 {
   "name": "local-cli",
-  "version": "4.5.1",
+  "version": "4.5.2",
   "description": "LOCAL-CLI - OpenAI-Compatible Local CLI Coding Agent",
   "type": "module",
   "main": "dist/index.js",
@@ -23,7 +23,8 @@
     "prepr": "npm run lint && npm run build",
     "bun:build": "node scripts/inject-version.js && npm run build && bun build dist/cli.js --compile --outfile bin/lcli && cp node_modules/yoga-wasm-web/dist/yoga.wasm bin/",
     "electron:dev": "electron-vite dev",
-    "electron:build": "electron-vite build",
+    "electron:build": "electron-vite build && npm run electron:build-worker",
+    "electron:build-worker": "npx esbuild electron/main/workers/agent-worker.ts --bundle --platform=node --format=cjs --outfile=dist-electron/main/agent-worker.cjs --alias:electron=./electron/main/workers/electron-shim.ts --external:worker_threads --external:better-sqlite3 --external:original-fs --tsconfig=tsconfig.electron.json",
     "electron:preview": "electron-vite preview",
     "electron:package": "electron-builder --win portable"
   },

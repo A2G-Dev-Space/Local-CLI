@@ -5,12 +5,14 @@
  * and quick-access toolbar buttons (tools, usage, settings, help, info).
  */
 
-import React, { memo, Suspense, lazy } from 'react';
+import React, { memo, Suspense, lazy, useState, useEffect, useCallback } from 'react';
 import type { Session, EndpointConfig } from '../../../preload/index';
 import type { ChatPanelRef } from './ChatPanel';
+import { useAgent } from '../contexts/AgentContext';
 import ResizablePanel from './ResizablePanel';
 import Terminal from './Terminal';
 import ChatPanel from './ChatPanel';
+import SessionTabBar, { type TabInfo } from './SessionTabBar';
 import { useTranslation } from '../i18n/LanguageContext';
 
 // Lazy loaded
@@ -62,6 +64,21 @@ interface BottomPanelProps {
   onCommandPalette: () => void;
   onToggleTaskWindow: () => void;
   onChangeDirectory: () => void;
+  // Multi-tab props
+  openTabs?: Array<{
+    sessionId: string;
+    session: Session;
+    name: string;
+    isRunning: boolean;
+    hasUnread: boolean;
+    chatPanelRef: React.RefObject<ChatPanelRef | null>;
+  }>;
+  activeTabId?: string | null;
+  tabInfos?: TabInfo[];
+  onSwitchTab?: (sessionId: string) => void;
+  onCloseTab?: (sessionId: string) => void;
+  onRenameTab?: (sessionId: string, name: string) => void;
+  onClearTab?: (sessionId: string) => void;
 }
 
 const BottomPanel: React.FC<BottomPanelProps> = ({
@@ -96,8 +113,23 @@ const BottomPanel: React.FC<BottomPanelProps> = ({
   onCommandPalette,
   onToggleTaskWindow,
   onChangeDirectory,
+  // Multi-tab
+  openTabs,
+  activeTabId,
+  tabInfos,
+  onSwitchTab,
+  onCloseTab,
+  onRenameTab,
+  onClearTab,
 }) => {
   const { t } = useTranslation();
+  const { clearSessionCache } = useAgent();
+
+  // Wrap onCloseTab to also clear AgentContext cache for the closed session
+  const handleCloseTabWithCleanup = useCallback((sessionId: string) => {
+    clearSessionCache(sessionId);
+    onCloseTab?.(sessionId);
+  }, [clearSessionCache, onCloseTab]);
 
   // Context usage from agent IPC
   const [contextUsage, setContextUsage] = useState<number>(0);
@@ -292,27 +324,41 @@ const BottomPanel: React.FC<BottomPanelProps> = ({
               </div>
             </div>
 
-            {/* Row 2: Session Controls (left) + Toolbar (right) - Chat tab only */}
+            {/* Row 2: Session Tabs (left) + Toolbar (right) - Chat tab only */}
             {layout === 'chat' && (
               <div className="panel-header-row2">
-                {/* Left: Session controls */}
-                <div className="panel-toolbar-group">
-                  <button className="panel-toolbar-btn" onClick={onNewSession} data-tooltip={t('toolbar.newSession')}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-                    </svg>
-                  </button>
-                  <button className="panel-toolbar-btn" onClick={onLoadSession} data-tooltip={t('toolbar.loadSession')}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>
-                    </svg>
-                  </button>
-                  <button className="panel-toolbar-btn" onClick={onClearSession} data-tooltip={t('toolbar.clearChat')}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
-                    </svg>
-                  </button>
-                </div>
+                {/* Left: Session Tab Bar */}
+                {tabInfos && onSwitchTab && onCloseTab && onRenameTab && onClearTab ? (
+                  <SessionTabBar
+                    tabs={tabInfos}
+                    activeTabId={activeTabId ?? null}
+                    onSwitchTab={onSwitchTab}
+                    onNewTab={onNewSession}
+                    onCloseTab={handleCloseTabWithCleanup}
+                    onRenameTab={onRenameTab}
+                    onLoadSession={onLoadSession}
+                    onClearTab={onClearTab}
+                  />
+                ) : (
+                  /* Fallback: old-style buttons if no multi-tab props */
+                  <div className="panel-toolbar-group">
+                    <button className="panel-toolbar-btn" onClick={onNewSession} data-tooltip={t('toolbar.newSession')}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                      </svg>
+                    </button>
+                    <button className="panel-toolbar-btn" onClick={onLoadSession} data-tooltip={t('toolbar.loadSession')}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>
+                      </svg>
+                    </button>
+                    <button className="panel-toolbar-btn" onClick={onClearSession} data-tooltip={t('toolbar.clearChat')}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+                      </svg>
+                    </button>
+                  </div>
+                )}
 
                 <div className="panel-toolbar-spacer" />
 
@@ -351,17 +397,45 @@ const BottomPanel: React.FC<BottomPanelProps> = ({
             <Terminal currentDirectory={currentDirectory} />
           </div>
           <div className="panel-tab-content" style={{ display: layout === 'chat' ? 'flex' : 'none' }}>
-            <ChatPanel
-              ref={chatPanelRef}
-              session={currentSession}
-              onSessionChange={onSessionChange}
-              onClearSession={onClearSession}
-              currentDirectory={currentDirectory}
-              onChangeDirectory={onChangeDirectory}
-              allowAllPermissions={allowAllPermissions}
-              onAllowAllPermissionsChange={onAllowAllPermissionsChange}
-              hasVisionModel={hasVisionModel}
-            />
+            {openTabs && openTabs.length > 0 ? (
+              /* Multi-tab: render all ChatPanels, hide inactive ones */
+              openTabs.map(tab => (
+                <div
+                  key={tab.sessionId}
+                  className="session-chat-wrapper"
+                  style={{ display: tab.sessionId === activeTabId ? 'flex' : 'none', flex: 1, minHeight: 0 }}
+                >
+                  <ChatPanel
+                    ref={tab.chatPanelRef}
+                    session={tab.session}
+                    sessionId={tab.sessionId}
+                    isActive={tab.sessionId === activeTabId}
+                    onSessionChange={(session) => {
+                      if (session) onSessionChange(session);
+                    }}
+                    onClearSession={onClearSession}
+                    currentDirectory={currentDirectory}
+                    onChangeDirectory={onChangeDirectory}
+                    allowAllPermissions={allowAllPermissions}
+                    onAllowAllPermissionsChange={onAllowAllPermissionsChange}
+                    hasVisionModel={hasVisionModel}
+                  />
+                </div>
+              ))
+            ) : (
+              /* Single ChatPanel fallback */
+              <ChatPanel
+                ref={chatPanelRef}
+                session={currentSession}
+                onSessionChange={onSessionChange}
+                onClearSession={onClearSession}
+                currentDirectory={currentDirectory}
+                onChangeDirectory={onChangeDirectory}
+                allowAllPermissions={allowAllPermissions}
+                onAllowAllPermissionsChange={onAllowAllPermissionsChange}
+                hasVisionModel={hasVisionModel}
+              />
+            )}
           </div>
           <div className="panel-tab-content" style={{ display: layout === 'logs' ? 'flex' : 'none' }}>
             <Suspense fallback={<div className="loading-fallback">{t('chat.loadingLogs')}</div>}>

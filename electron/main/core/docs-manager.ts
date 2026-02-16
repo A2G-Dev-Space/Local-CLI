@@ -17,8 +17,25 @@ import * as fsSync from 'fs';
 import * as path from 'path';
 import * as https from 'https';
 import * as http from 'http';
-import { app, shell } from 'electron';
+import os from 'os';
 import { logger } from '../utils/logger';
+
+// Dynamic electron imports for worker_threads compatibility
+function getElectronApp(): { getPath(name: string): string } | null {
+  try {
+    return require('electron').app;
+  } catch {
+    return null;
+  }
+}
+
+function getElectronShell(): { openPath(path: string): Promise<string> } | null {
+  try {
+    return require('electron').shell;
+  } catch {
+    return null;
+  }
+}
 
 // =============================================================================
 // Constants
@@ -26,7 +43,16 @@ import { logger } from '../utils/logger';
 
 // IMPORTANT: Use same path as CLI for consistency
 // UI downloads docs here, so agent must search the same location
-const DOCS_DIR = path.join(app.getPath('home'), '.local-cli', 'docs');
+// Lazy initialization: avoid calling app.getPath() at module load (crashes in worker_threads)
+let _docsDir: string | null = null;
+function getDocsDir(): string {
+  if (!_docsDir) {
+    const electronApp = getElectronApp();
+    const homeDir = electronApp ? electronApp.getPath('home') : os.homedir();
+    _docsDir = path.join(homeDir, '.local-cli', 'docs');
+  }
+  return _docsDir;
+}
 const CONCURRENT_DOWNLOADS = 20;
 const MAX_RETRIES = 3;
 
@@ -285,12 +311,12 @@ export async function getDocsInfo(): Promise<DocsInfo> {
   logger.enter('getDocsInfo');
 
   try {
-    const exists = fsSync.existsSync(DOCS_DIR);
+    const exists = fsSync.existsSync(getDocsDir());
 
     if (!exists) {
       logger.exit('getDocsInfo', { exists: false });
       return {
-        path: DOCS_DIR,
+        path: getDocsDir(),
         exists: false,
         totalFiles: 0,
         totalSize: '0 B',
@@ -303,7 +329,7 @@ export async function getDocsInfo(): Promise<DocsInfo> {
     const installedSources: string[] = [];
 
     for (const source of AVAILABLE_SOURCES) {
-      const sourcePath = path.join(DOCS_DIR, source.targetDir);
+      const sourcePath = path.join(getDocsDir(), source.targetDir);
       if (fsSync.existsSync(sourcePath)) {
         installedSources.push(source.id);
       }
@@ -323,10 +349,10 @@ export async function getDocsInfo(): Promise<DocsInfo> {
       }
     };
 
-    scanDirectory(DOCS_DIR);
+    scanDirectory(getDocsDir());
 
     const result = {
-      path: DOCS_DIR,
+      path: getDocsDir(),
       exists: true,
       totalFiles,
       totalSize: formatSize(totalBytes),
@@ -338,7 +364,7 @@ export async function getDocsInfo(): Promise<DocsInfo> {
   } catch (error) {
     logger.error('Failed to get docs info', error as Error);
     return {
-      path: DOCS_DIR,
+      path: getDocsDir(),
       exists: false,
       totalFiles: 0,
       totalSize: '0 B',
@@ -390,7 +416,7 @@ export async function downloadDocsFromSource(
     }
 
     // 3. Create directories
-    const targetPath = path.join(DOCS_DIR, source.targetDir);
+    const targetPath = path.join(getDocsDir(), source.targetDir);
     const categories = new Set(entries.map(e => e.category));
 
     for (const category of categories) {
@@ -533,7 +559,7 @@ ${content}`;
  * Get docs directory path
  */
 export function getDocsPath(): string {
-  return DOCS_DIR;
+  return getDocsDir();
 }
 
 /**
@@ -586,14 +612,14 @@ export interface IpcDocsInfo {
  */
 export async function getDocsInfoForIpc(): Promise<{ success: boolean; info?: IpcDocsInfo; error?: string }> {
   try {
-    const exists = fsSync.existsSync(DOCS_DIR);
+    const exists = fsSync.existsSync(getDocsDir());
 
     let totalFiles = 0;
     let totalBytes = 0;
     const sources: IpcDocsSource[] = [];
 
     for (const source of AVAILABLE_SOURCES) {
-      const sourcePath = path.join(DOCS_DIR, source.targetDir);
+      const sourcePath = path.join(getDocsDir(), source.targetDir);
       const installed = fsSync.existsSync(sourcePath);
       let fileCount: number | undefined;
       let size: string | undefined;
@@ -640,7 +666,7 @@ export async function getDocsInfoForIpc(): Promise<{ success: boolean; info?: Ip
     return {
       success: true,
       info: {
-        path: DOCS_DIR,
+        path: getDocsDir(),
         exists,
         totalFiles,
         totalSize: formatSize(totalBytes),
@@ -704,7 +730,7 @@ export async function deleteDocs(
       return { success: false, error: `Unknown source: ${sourceId}` };
     }
 
-    const targetPath = path.join(DOCS_DIR, source.targetDir);
+    const targetPath = path.join(getDocsDir(), source.targetDir);
 
     if (!fsSync.existsSync(targetPath)) {
       return { success: false, error: 'Documentation not installed' };
@@ -729,11 +755,14 @@ export async function deleteDocs(
 export async function openDocsFolder(): Promise<{ success: boolean; error?: string }> {
   try {
     // Create directory if it doesn't exist
-    if (!fsSync.existsSync(DOCS_DIR)) {
-      await fs.mkdir(DOCS_DIR, { recursive: true });
+    if (!fsSync.existsSync(getDocsDir())) {
+      await fs.mkdir(getDocsDir(), { recursive: true });
     }
 
-    shell.openPath(DOCS_DIR);
+    const electronShell = getElectronShell();
+    if (electronShell) {
+      electronShell.openPath(getDocsDir());
+    }
     return { success: true };
   } catch (error) {
     logger.error('Failed to open docs folder', error as Error);

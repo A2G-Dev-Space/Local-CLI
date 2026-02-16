@@ -44,6 +44,7 @@ import {
   openDocsFolder,
   DownloadProgress,
 } from './core/docs-manager';
+import { workerManager } from './workers/worker-manager';
 
 // 파일 필터 타입
 interface FileFilter {
@@ -298,18 +299,10 @@ export function setupIpcHandlers(): void {
       const session = await sessionManager.createSession(name, workingDirectory);
       logger.sessionStart({ sessionId: session.id, name: session.name, workingDirectory });
 
-      // Reset context tracker for fresh session (prevents stale context from leaking)
-      contextTracker.reset();
-
-      // Clear always-approved tools for new session (Supervised Mode)
-      clearAlwaysApprovedTools();
-
-      // Notify renderer that context is reset
-      broadcastToAll('agent:contextUpdate', {
-        usagePercentage: 0,
-        currentTokens: 0,
-        maxTokens: 128000,
-      });
+      // NOTE: Do NOT reset global contextTracker, alwaysApprovedTools, or broadcast
+      // agent:contextUpdate here. In multi-tab mode, each Worker has its own isolated state.
+      // Resetting global state would corrupt other running sessions' context.
+      // Each Worker's contextTracker is reset when the worker is created.
 
       return { success: true, session };
     } catch (error) {
@@ -1644,7 +1637,11 @@ export function setupIpcHandlers(): void {
   // 도구 그룹 활성화
   ipcMain.handle('tools:enable', async (_event, groupId: string) => {
     try {
-      return await toolManager.enableToolGroup(groupId);
+      const result = await toolManager.enableToolGroup(groupId);
+      if (result.success) {
+        workerManager.broadcastToolGroupChange(groupId, true);
+      }
+      return result;
     } catch (error) {
       logger.error('Failed to enable tool group', { groupId, error });
       return {
@@ -1657,7 +1654,11 @@ export function setupIpcHandlers(): void {
   // 도구 그룹 비활성화
   ipcMain.handle('tools:disable', async (_event, groupId: string) => {
     try {
-      return await toolManager.disableToolGroup(groupId);
+      const result = await toolManager.disableToolGroup(groupId);
+      if (result.success) {
+        workerManager.broadcastToolGroupChange(groupId, false);
+      }
+      return result;
     } catch (error) {
       logger.error('Failed to disable tool group', { groupId, error });
       return {
@@ -1670,7 +1671,11 @@ export function setupIpcHandlers(): void {
   // 도구 그룹 토글
   ipcMain.handle('tools:toggle', async (_event, groupId: string) => {
     try {
-      return await toolManager.toggleToolGroup(groupId);
+      const result = await toolManager.toggleToolGroup(groupId);
+      if (result.success) {
+        workerManager.broadcastToolGroupChange(groupId, result.enabled ?? false);
+      }
+      return result;
     } catch (error) {
       logger.error('Failed to toggle tool group', { groupId, error });
       return {
@@ -1703,16 +1708,25 @@ export function setupIpcHandlers(): void {
   // Pending ask user resolver
   let pendingAskUserResolve: ((response: AskUserResponse) => void) | null = null;
 
-  // Agent 실행
+  // Agent 실행 (sessionId optional - when provided and worker exists, routes to worker)
   ipcMain.handle('agent:run', async (
     _event,
     userMessage: string,
     existingMessages: Message[],
-    config: AgentConfig
+    config: AgentConfig,
+    sessionId?: string
   ) => {
-    logger.ipcHandle('agent:run', { messageLength: userMessage.length, existingMessagesCount: existingMessages.length, config });
+    logger.ipcHandle('agent:run', { messageLength: userMessage.length, existingMessagesCount: existingMessages.length, config, sessionId });
     try {
-      // Set main window for agent IPC
+      // Worker-based execution: route to WorkerManager
+      if (sessionId && workerManager.hasWorker(sessionId)) {
+        workerManager.setChatWindow(chatWindow);
+        workerManager.setTaskWindow(taskWindow);
+        const result = await workerManager.runAgent(sessionId, userMessage, existingMessages, config);
+        return { ...result, success: result.success };
+      }
+
+      // Legacy direct execution (no sessionId or no worker)
       setAgentMainWindow(chatWindow);
       setAgentTaskWindow(taskWindow);
 
@@ -1725,10 +1739,8 @@ export function setupIpcHandlers(): void {
       // Setup callbacks for IPC communication
       const callbacks: AgentCallbacks = {
         onAskUser: async (request: AskUserRequest): Promise<AskUserResponse> => {
-          // Send question to both windows (task window shows waiting indicator)
           broadcastToAll('agent:askUser', request);
 
-          // Flash taskbar for attention when window is not focused
           if (chatWindow && !chatWindow.isDestroyed() && !chatWindow.isFocused()) {
             chatWindow.flashFrame(true);
           }
@@ -1736,7 +1748,6 @@ export function setupIpcHandlers(): void {
             taskWindow.flashFrame(true);
           }
 
-          // Wait for user response
           return new Promise((resolve) => {
             pendingAskUserResolve = resolve;
           });
@@ -1754,11 +1765,15 @@ export function setupIpcHandlers(): void {
     }
   });
 
-  // Agent 중단
-  ipcMain.handle('agent:abort', () => {
+  // Agent 중단 (sessionId optional)
+  ipcMain.handle('agent:abort', (_event, sessionId?: string) => {
     try {
-      // Resolve pending ask_to_user promise BEFORE aborting
-      // to prevent agent.run() from hanging forever on unresolved promise
+      if (sessionId && workerManager.hasWorker(sessionId)) {
+        workerManager.abortAgent(sessionId);
+        return { success: true };
+      }
+
+      // Legacy direct execution
       if (pendingAskUserResolve) {
         pendingAskUserResolve({ selectedOption: '', isOther: false, customText: 'User aborted' });
         pendingAskUserResolve = null;
@@ -1779,24 +1794,32 @@ export function setupIpcHandlers(): void {
     return isAgentRunning();
   });
 
-  // 에이전트 상태 초기화 (Clear Chat 시 호출)
-  ipcMain.handle('agent:clearState', () => {
-    // Context tracker 초기화
+  // 에이전트 상태 초기화 (Clear Chat 시 호출, sessionId optional)
+  ipcMain.handle('agent:clearState', (_event, sessionId?: string) => {
+    if (sessionId && workerManager.hasWorker(sessionId)) {
+      workerManager.clearState(sessionId);
+      // Broadcast empty context/askUser resolved to both windows (task window needs these)
+      broadcastToAll('agent:contextUpdate', {
+        sessionId,
+        usagePercentage: 0,
+        currentTokens: 0,
+        maxTokens: 128000,
+      });
+      broadcastToAll('agent:askUserResolved', { sessionId });
+      logger.info('Agent state cleared via worker', { sessionId });
+      return { success: true };
+    }
+
+    // Legacy direct execution
     contextTracker.reset();
-
-    // TODO 초기화
     setCurrentTodos([]);
-
-    // Supervised Mode 승인 목록 초기화
     clearAlwaysApprovedTools();
 
-    // Pending ask_to_user 해제 (resolve to prevent hanging promise)
     if (pendingAskUserResolve) {
       pendingAskUserResolve({ selectedOption: '', isOther: false, customText: 'Chat cleared' });
       pendingAskUserResolve = null;
     }
 
-    // 모든 윈도우에 초기화 브로드캐스트
     broadcastToAll('agent:contextUpdate', {
       usagePercentage: 0,
       currentTokens: 0,
@@ -1847,28 +1870,38 @@ export function setupIpcHandlers(): void {
     }
   });
 
-  // 사용자 질문 응답 (ask_to_user 도구 응답)
-  // NOTE: renderer sends selectedOption as { label, value } object but main expects string
-  ipcMain.handle('agent:respondToQuestion', (_event, response: unknown) => {
+  // 사용자 질문 응답 (ask_to_user 도구 응답, sessionId optional)
+  ipcMain.handle('agent:respondToQuestion', (_event, response: unknown, sessionId?: string) => {
+    // Normalize response: convert object format to string format
+    const rawResponse = response as {
+      selectedOption: string | { label?: string; value?: string };
+      isOther: boolean;
+      customText?: string;
+      sessionId?: string;
+      reqId?: string;
+    };
+
+    const normalizedResponse: AskUserResponse = {
+      selectedOption:
+        typeof rawResponse.selectedOption === 'string'
+          ? rawResponse.selectedOption
+          : rawResponse.selectedOption?.value ||
+            rawResponse.selectedOption?.label ||
+            '',
+      isOther: rawResponse.isOther,
+      customText: rawResponse.customText,
+    };
+
+    const effectiveSessionId = sessionId || rawResponse.sessionId;
+
+    // Worker-based: forward to worker
+    if (effectiveSessionId && rawResponse.reqId && workerManager.hasWorker(effectiveSessionId)) {
+      workerManager.forwardAskUserResponse(effectiveSessionId, rawResponse.reqId, normalizedResponse);
+      return { success: true };
+    }
+
+    // Legacy direct execution
     if (pendingAskUserResolve) {
-      // Normalize response: convert object format to string format
-      const rawResponse = response as {
-        selectedOption: string | { label?: string; value?: string };
-        isOther: boolean;
-        customText?: string;
-      };
-
-      const normalizedResponse: AskUserResponse = {
-        selectedOption:
-          typeof rawResponse.selectedOption === 'string'
-            ? rawResponse.selectedOption
-            : rawResponse.selectedOption?.value ||
-              rawResponse.selectedOption?.label ||
-              '',
-        isOther: rawResponse.isOther,
-        customText: rawResponse.customText,
-      };
-
       logger.debug('Ask user response normalized', {
         original: rawResponse.selectedOption,
         normalized: normalizedResponse.selectedOption,
@@ -1876,33 +1909,84 @@ export function setupIpcHandlers(): void {
 
       pendingAskUserResolve(normalizedResponse);
       pendingAskUserResolve = null;
-
-      // Notify task window that question was resolved
       broadcastToAll('agent:askUserResolved');
     }
     return { success: true };
   });
 
-  // Tool approval 응답 (Supervised Mode)
+  // Tool approval 응답 (Supervised Mode, sessionId optional)
   ipcMain.handle('agent:respondToApproval', (_event, response: {
     id: string;
     result: 'approve' | 'always' | { reject: true; comment: string };
+    sessionId?: string;
   }) => {
-    logger.ipcHandle('agent:respondToApproval', { requestId: response.id, result: response.result });
+    logger.ipcHandle('agent:respondToApproval', { requestId: response.id, result: response.result, sessionId: response.sessionId });
 
-    // Pass through the result as-is:
-    // - 'approve': single approval
-    // - 'always': remember for session (don't convert to null!)
-    // - { reject: true, comment }: rejection
+    // Worker-based: forward to worker
+    if (response.sessionId && workerManager.hasWorker(response.sessionId)) {
+      workerManager.forwardApprovalResponse(response.sessionId, response.id, response.result);
+      return { success: true };
+    }
+
+    // Legacy direct execution
     handleToolApprovalResponse(response.id, response.result);
     return { success: true };
   });
 
   // 내부적으로 ask_to_user가 호출될 때 사용하는 이벤트
   ipcMain.on('agent:askUserQuestion', (_event, request: AskUserRequest) => {
-    // 이 이벤트는 agent에서 직접 발생시키지 않음
-    // askUserCallback에서 IPC를 통해 renderer에 질문을 보냄
     broadcastToAll('agent:askUser', request);
+  });
+
+  // ============ Worker Management (Multi-Session) ============
+
+  // Worker 생성 (새 탭 열 때)
+  ipcMain.handle('worker:create', (_event, sessionId: string) => {
+    try {
+      workerManager.setChatWindow(chatWindow);
+      workerManager.setTaskWindow(taskWindow);
+      // Pass currently enabled tool groups so worker initializes its registry
+      const enabledGroups = toolManager.getEnabledToolGroups().map(g => g.id);
+      workerManager.createWorker(sessionId, enabledGroups);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // Worker 종료 (탭 닫을 때)
+  ipcMain.handle('worker:terminate', async (_event, sessionId: string) => {
+    try {
+      await workerManager.terminateWorker(sessionId);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // Worker 존재 여부
+  ipcMain.handle('worker:exists', (_event, sessionId: string) => {
+    return workerManager.hasWorker(sessionId);
+  });
+
+  // Worker 수
+  ipcMain.handle('worker:count', () => {
+    return workerManager.getWorkerCount();
+  });
+
+  // ============ Task Window Active Session ============
+
+  // Notify task window of active session change (for per-session TODO display)
+  ipcMain.handle('taskWindow:setActiveSession', (_event, sessionId: string) => {
+    try {
+      if (taskWindow && !taskWindow.isDestroyed()) {
+        const todos = workerManager.getSessionTodos(sessionId);
+        taskWindow.webContents.send('taskWindow:activeSessionChanged', sessionId, todos);
+      }
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
   });
 
   // ============ Documentation ============

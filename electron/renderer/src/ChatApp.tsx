@@ -5,7 +5,7 @@
  * Closing this window terminates the app.
  */
 
-import React, { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense, createRef } from 'react';
 import type { ElectronAPI, Theme, Session, EndpointConfig } from '../../preload/index';
 import './styles/global.css';
 import './styles/App.css';
@@ -19,6 +19,7 @@ import TitleBar from './components/TitleBar';
 import type { ChatPanelRef } from './components/ChatPanel';
 import CommandPalette, { createDefaultCommands, type CommandItem } from './components/CommandPalette';
 import BottomPanel from './components/BottomPanel';
+import type { TabInfo } from './components/SessionTabBar';
 
 // Lazy-loaded components (dialogs/panels not needed on initial render)
 const SessionBrowser = lazy(() => import('./components/SessionBrowser'));
@@ -70,8 +71,34 @@ const ChatApp: React.FC = () => {
   // Working directory
   const [currentDirectory, setCurrentDirectory] = useState<string>('');
 
-  // Chat session state
-  const [currentSession, setCurrentSession] = useState<Session | null>(null);
+  // Multi-tab session state
+  interface OpenTab {
+    sessionId: string;
+    session: Session;
+    name: string;
+    isRunning: boolean;
+    hasUnread: boolean;
+    chatPanelRef: React.RefObject<ChatPanelRef | null>;
+  }
+  const [openTabs, setOpenTabs] = useState<OpenTab[]>([]);
+  const [activeTabId, setActiveTabId] = useState<string | null>(null);
+  const MAX_TABS = 8;
+
+  // Derived: active tab's session for backward compatibility
+  const activeTab = useMemo(() => openTabs.find(t => t.sessionId === activeTabId), [openTabs, activeTabId]);
+  const currentSession = activeTab?.session ?? null;
+  const chatPanelRef = activeTab?.chatPanelRef ?? { current: null };
+
+  // Update session by matching session.id (NOT activeTabId)
+  // This ensures async callbacks (e.g. agent.run completing after tab switch)
+  // update the correct tab regardless of which tab is currently active.
+  const setCurrentSession = useCallback((session: Session | null) => {
+    if (!session) return;
+    setOpenTabs(prev => prev.map(tab =>
+      tab.sessionId === session.id ? { ...tab, session } : tab
+    ));
+  }, []);
+
   const [isSessionBrowserOpen, setIsSessionBrowserOpen] = useState(false);
 
   // Settings state
@@ -112,7 +139,6 @@ const ChatApp: React.FC = () => {
   const [currentEndpointId, setCurrentEndpointId] = useState<string | null>(null);
   const [currentModelId, setCurrentModelId] = useState<string | null>(null);
   const modelDropdownRef = useRef<HTMLDivElement>(null);
-  const chatPanelRef = useRef<ChatPanelRef>(null);
 
   // Initialize app
   useEffect(() => {
@@ -345,23 +371,53 @@ const ChatApp: React.FC = () => {
     setIsModelDropdownOpen(false);
   }, [currentEndpointId]);
 
-  // Create a new session
+  // Create a new tab with session + worker
   const handleNewSession = useCallback(async () => {
     if (!window.electronAPI?.session) return;
+    if (openTabs.length >= MAX_TABS) {
+      window.electronAPI?.log?.warn('[ChatApp] Max tabs reached', { max: MAX_TABS });
+      return;
+    }
+
     try {
       const result = await window.electronAPI.session.create(
         undefined,
         currentDirectory || undefined
       );
       if (result.success && result.session) {
-        setCurrentSession(result.session);
+        const sessionId = result.session.id;
+
+        // Create worker for this session
+        await window.electronAPI.worker?.create(sessionId);
+
+        const newTab: OpenTab = {
+          sessionId,
+          session: result.session,
+          name: t('sessionTab.defaultName'),
+          isRunning: false,
+          hasUnread: false,
+          chatPanelRef: createRef<ChatPanelRef>(),
+        };
+
+        setOpenTabs(prev => [...prev, newTab]);
+        setActiveTabId(sessionId);
+        // Notify task window of the active session
+        window.electronAPI?.taskWindow?.setActiveSession?.(sessionId);
       }
     } catch (error) {
-      window.electronAPI?.log?.error('[ChatApp] Failed to create session', {
+      window.electronAPI?.log?.error('[ChatApp] Failed to create session/tab', {
         error: error instanceof Error ? error.message : String(error),
       });
     }
-  }, [currentDirectory]);
+  }, [currentDirectory, openTabs.length, t]);
+
+  // Auto-create first tab on startup
+  const initTabCreated = useRef(false);
+  useEffect(() => {
+    if (initTabCreated.current || openTabs.length > 0) return;
+    initTabCreated.current = true;
+    handleNewSession();
+  }, [handleNewSession, openTabs.length]);
 
   // Change working directory via folder picker
   const handleChangeDirectory = useCallback(async () => {
@@ -387,35 +443,230 @@ const ChatApp: React.FC = () => {
     setIsSessionBrowserOpen(true);
   }, []);
 
-  // Handle session load from browser
+  // Handle session load from browser — opens in a new tab
   const handleSessionLoad = useCallback(async (sessionId: string) => {
     if (!window.electronAPI?.session) return;
+
+    // Check if session is already open in a tab
+    const existingTab = openTabs.find(t => t.sessionId === sessionId);
+    if (existingTab) {
+      setActiveTabId(sessionId);
+      return;
+    }
+
+    if (openTabs.length >= MAX_TABS) {
+      window.electronAPI?.log?.warn('[ChatApp] Max tabs reached');
+      return;
+    }
+
     try {
       const result = await window.electronAPI.session.load(sessionId);
       if (result.success && result.session) {
-        setCurrentSession(result.session);
+        // Create worker for this session
+        await window.electronAPI.worker?.create(sessionId);
+
+        const newTab: OpenTab = {
+          sessionId,
+          session: result.session,
+          name: result.session.name || t('sessionTab.defaultName'),
+          isRunning: false,
+          hasUnread: false,
+          chatPanelRef: createRef<ChatPanelRef>(),
+        };
+
+        setOpenTabs(prev => [...prev, newTab]);
+        setActiveTabId(sessionId);
       }
     } catch (error) {
       window.electronAPI?.log?.error('[ChatApp] Failed to load session', {
         error: error instanceof Error ? error.message : String(error),
       });
     }
-  }, []);
+  }, [openTabs, t]);
 
-  // Clear session
+  // Ref to always access the active tab's chatPanel (avoids stale closure)
+  const activeChatPanelRef = useRef<ChatPanelRef | null>(null);
+  useEffect(() => {
+    activeChatPanelRef.current = activeTab?.chatPanelRef.current ?? null;
+  }, [activeTab]);
+
+  // Clear active tab's session
   const handleClearSession = useCallback(async () => {
-    await chatPanelRef.current?.clear();
+    await activeChatPanelRef.current?.clear();
   }, []);
 
   // Handle delete current session (from SessionBrowser)
   const handleDeleteCurrentSession = useCallback(() => {
-    setCurrentSession(null);
+    if (!activeTabId) return;
+    setOpenTabs(prev => {
+      const remaining = prev.filter(t => t.sessionId !== activeTabId);
+      // Activate adjacent tab (or null if none left)
+      if (remaining.length > 0) {
+        const closedIdx = prev.findIndex(t => t.sessionId === activeTabId);
+        const newActiveIdx = Math.min(closedIdx, remaining.length - 1);
+        setActiveTabId(remaining[newActiveIdx].sessionId);
+      } else {
+        setActiveTabId(null);
+      }
+      return remaining;
+    });
+  }, [activeTabId]);
+
+  // Switch tab
+  const handleSwitchTab = useCallback((sessionId: string) => {
+    // Mark as read when switching to it (short-circuit if already not unread)
+    setOpenTabs(prev => {
+      const tab = prev.find(t => t.sessionId === sessionId);
+      if (!tab || !tab.hasUnread) return prev; // Already read → skip re-render
+      return prev.map(t =>
+        t.sessionId === sessionId ? { ...t, hasUnread: false } : t
+      );
+    });
+    setActiveTabId(sessionId);
+    // Notify task window so it shows the correct session's TODOs
+    window.electronAPI?.taskWindow?.setActiveSession?.(sessionId);
   }, []);
+
+  // Close tab
+  const handleCloseTab = useCallback(async (sessionId: string) => {
+    const tab = openTabs.find(t => t.sessionId === sessionId);
+    if (!tab) return;
+
+    // If running, ask confirmation (via window.confirm for simplicity)
+    if (tab.isRunning) {
+      const confirmed = window.confirm(t('sessionTab.closeConfirm'));
+      if (!confirmed) return;
+    }
+
+    // Terminate worker
+    await window.electronAPI?.worker?.terminate(sessionId);
+
+    setOpenTabs(prev => {
+      const remaining = prev.filter(t => t.sessionId !== sessionId);
+      // If closing active tab, switch to adjacent tab
+      if (sessionId === activeTabId && remaining.length > 0) {
+        const closedIdx = prev.findIndex(t => t.sessionId === sessionId);
+        const newActiveIdx = Math.min(closedIdx, remaining.length - 1);
+        setActiveTabId(remaining[newActiveIdx].sessionId);
+      } else if (remaining.length === 0) {
+        setActiveTabId(null);
+        // Auto-create a new tab
+        setTimeout(() => handleNewSession(), 0);
+      }
+      return remaining;
+    });
+  }, [openTabs, activeTabId, t, handleNewSession]);
+
+  // Rename tab
+  const handleRenameTab = useCallback((sessionId: string, name: string) => {
+    setOpenTabs(prev => prev.map(t =>
+      t.sessionId === sessionId ? { ...t, name } : t
+    ));
+    // Also update session name in backend
+    window.electronAPI?.session?.rename?.(sessionId, name).catch(() => {});
+  }, []);
+
+  // Clear specific tab
+  const handleClearTab = useCallback(async (sessionId: string) => {
+    const tab = openTabs.find(t => t.sessionId === sessionId);
+    if (tab) {
+      await tab.chatPanelRef.current?.clear();
+    }
+  }, [openTabs]);
+
+  // Mark tab as running/not running (called from agent events)
+  // CRITICAL: Short-circuit when value hasn't changed. Without this, every tool call
+  // triggers setOpenTabs → new array → ChatApp re-render → BottomPanel re-render
+  // → ALL ChatPanels re-render → Korean IME composition breaks ("입력 분할").
+  const setTabRunning = useCallback((sessionId: string, isRunning: boolean) => {
+    setOpenTabs(prev => {
+      const tab = prev.find(t => t.sessionId === sessionId);
+      if (!tab || tab.isRunning === isRunning) return prev; // No change → skip re-render
+      return prev.map(t =>
+        t.sessionId === sessionId ? { ...t, isRunning } : t
+      );
+    });
+  }, []);
+
+  // Mark tab as having unread activity
+  const activeTabIdRef = useRef(activeTabId);
+  useEffect(() => { activeTabIdRef.current = activeTabId; }, [activeTabId]);
+
+  // Mark tab as having unread activity
+  // CRITICAL: Short-circuit when already unread or when it's the active tab.
+  // Same reasoning as setTabRunning — prevents unnecessary re-renders.
+  const setTabUnread = useCallback((sessionId: string) => {
+    setOpenTabs(prev => {
+      const tab = prev.find(t => t.sessionId === sessionId);
+      // Skip if: not found, already unread, or it's the active tab
+      if (!tab || tab.hasUnread || sessionId === activeTabIdRef.current) return prev;
+      return prev.map(t =>
+        t.sessionId === sessionId ? { ...t, hasUnread: true } : t
+      );
+    });
+  }, []);
+
+  // Track tab running/unread state via agent events
+  useEffect(() => {
+    if (!window.electronAPI?.agent) return;
+
+    const unsubscribes: Array<() => void> = [];
+
+    // When tool call arrives → tab is running
+    unsubscribes.push(
+      window.electronAPI.agent.onToolCall((data: { toolName: string; args: Record<string, unknown>; sessionId?: string }) => {
+        const sid = (data as any).sessionId;
+        if (sid) {
+          setTabRunning(sid, true);
+          if (sid !== activeTabIdRef.current) {
+            setTabUnread(sid);
+          }
+        }
+      })
+    );
+
+    // When agent completes → tab is no longer running
+    unsubscribes.push(
+      window.electronAPI.agent.onComplete((data: { response: string; sessionId?: string }) => {
+        const sid = (data as any).sessionId;
+        if (sid) {
+          setTabRunning(sid, false);
+          if (sid !== activeTabIdRef.current) {
+            setTabUnread(sid);
+          }
+        }
+      })
+    );
+
+    // When agent errors → tab is no longer running
+    unsubscribes.push(
+      window.electronAPI.agent.onError((data: { error: string; sessionId?: string }) => {
+        const sid = (data as any).sessionId;
+        if (sid) {
+          setTabRunning(sid, false);
+        }
+      })
+    );
+
+    return () => {
+      unsubscribes.forEach(unsub => unsub());
+    };
+  }, [setTabRunning, setTabUnread]);
+
+  // Build TabInfo array for SessionTabBar
+  const tabInfos: TabInfo[] = useMemo(() =>
+    openTabs.map(t => ({
+      sessionId: t.sessionId,
+      name: t.name,
+      isRunning: t.isRunning,
+      hasUnread: t.hasUnread,
+    })),
+  [openTabs]);
 
   // Command handlers for slash commands, command palette, and BottomPanel toolbar
   const commandHandlers = useMemo(() => ({
     onClear: async () => {
-      await chatPanelRef.current?.clear();
+      await activeChatPanelRef.current?.clear();
     },
     onSettings: () => {
       setIsSettingsOpen(true);
@@ -436,7 +687,7 @@ const ChatApp: React.FC = () => {
       setIsSessionBrowserOpen(true);
     },
     onCompact: async () => {
-      await chatPanelRef.current?.compact();
+      await activeChatPanelRef.current?.compact();
     },
     onExit: () => {
       window.electronAPI?.window.close();
@@ -511,10 +762,49 @@ const ChatApp: React.FC = () => {
         return;
       }
 
-      // New Session: Ctrl+N
-      if (e.ctrlKey && e.key === 'n') {
+      // New Tab: Ctrl+T or Ctrl+N
+      if (e.ctrlKey && (e.key === 't' || e.key === 'n')) {
         e.preventDefault();
         handleNewSession();
+        return;
+      }
+
+      // Close Tab: Ctrl+W
+      if (e.ctrlKey && e.key === 'w') {
+        e.preventDefault();
+        if (activeTabId) handleCloseTab(activeTabId);
+        return;
+      }
+
+      // Next Tab: Ctrl+Tab
+      if (e.ctrlKey && e.key === 'Tab' && !e.shiftKey) {
+        e.preventDefault();
+        if (openTabs.length > 1 && activeTabId) {
+          const idx = openTabs.findIndex(t => t.sessionId === activeTabId);
+          const nextIdx = (idx + 1) % openTabs.length;
+          handleSwitchTab(openTabs[nextIdx].sessionId);
+        }
+        return;
+      }
+
+      // Previous Tab: Ctrl+Shift+Tab
+      if (e.ctrlKey && e.shiftKey && e.key === 'Tab') {
+        e.preventDefault();
+        if (openTabs.length > 1 && activeTabId) {
+          const idx = openTabs.findIndex(t => t.sessionId === activeTabId);
+          const prevIdx = (idx - 1 + openTabs.length) % openTabs.length;
+          handleSwitchTab(openTabs[prevIdx].sessionId);
+        }
+        return;
+      }
+
+      // Tab by number: Ctrl+1~8
+      if (e.ctrlKey && e.key >= '1' && e.key <= '8') {
+        e.preventDefault();
+        const tabIdx = parseInt(e.key) - 1;
+        if (tabIdx < openTabs.length) {
+          handleSwitchTab(openTabs[tabIdx].sessionId);
+        }
         return;
       }
 
@@ -542,7 +832,7 @@ const ChatApp: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [commandHandlers, handleNewSession, isCommandPaletteOpen, isInfoOpen]);
+  }, [commandHandlers, handleNewSession, handleCloseTab, handleSwitchTab, isCommandPaletteOpen, isInfoOpen, activeTabId, openTabs]);
 
   // Update modal handlers
   const handleUpdateInstall = useCallback(() => {
@@ -586,7 +876,7 @@ const ChatApp: React.FC = () => {
             onClose={() => setIsSessionBrowserOpen(false)}
             onLoadSession={handleSessionLoad}
             onDeleteCurrentSession={handleDeleteCurrentSession}
-            currentSessionId={currentSession?.id}
+            currentSessionId={activeTabId || undefined}
           />
         </Suspense>
       )}
@@ -701,6 +991,14 @@ const ChatApp: React.FC = () => {
           onCommandPalette={() => setIsCommandPaletteOpen(true)}
           onToggleTaskWindow={() => window.electronAPI?.taskWindow?.toggle()}
           onChangeDirectory={handleChangeDirectory}
+          // Multi-tab props
+          openTabs={openTabs}
+          activeTabId={activeTabId}
+          tabInfos={tabInfos}
+          onSwitchTab={handleSwitchTab}
+          onCloseTab={handleCloseTab}
+          onRenameTab={handleRenameTab}
+          onClearTab={handleClearTab}
         />
       </div>
 

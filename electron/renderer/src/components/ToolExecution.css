@@ -14,9 +14,9 @@
 
 /* ============ Execution Item ============ */
 .tool-execution {
-  background: rgba(255, 255, 255, 0.95);
+  background: #FFFFFF;
   /* backdrop-filter removed for performance */
-  border: 1px solid rgba(226, 232, 240, 0.6);
+  border: 1px solid #E2E8F0;
   border-radius: var(--radius-lg);
   overflow: hidden;
   transition: all var(--transition-fast);
@@ -27,8 +27,8 @@
 }
 
 [data-theme="dark"] .tool-execution {
-  background: rgba(30, 41, 59, 0.6);
-  border-color: rgba(71, 85, 105, 0.4);
+  background: #1E293B;
+  border-color: #475569;
 }
 
 .tool-execution:hover {
@@ -64,11 +64,11 @@
 }
 
 .tool-execution-header:hover {
-  background: rgba(0, 0, 0, 0.02);
+  background: #FAFAFA;
 }
 
 [data-theme="dark"] .tool-execution-header:hover {
-  background: rgba(255, 255, 255, 0.02);
+  background: #1F2A3C;
 }
 
 .tool-info {
@@ -271,12 +271,12 @@
 .tool-execution-details {
   padding: var(--space-3);
   border-top: 1px solid var(--glass-border-subtle);
-  background: rgba(248, 250, 252, 0.8);
+  background: #F8FAFC;
   animation: slideDown var(--transition-fast);
 }
 
 [data-theme="dark"] .tool-execution-details {
-  background: rgba(15, 23, 42, 0.8);
+  background: #0F172A;
 }
 
 @keyframes slideDown {
@@ -312,8 +312,8 @@
   font-family: var(--font-mono);
   font-size: var(--font-size-xs);
   color: var(--color-text-secondary);
-  background: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(226, 232, 240, 0.6);
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
   overflow-x: auto;
@@ -325,8 +325,8 @@
 }
 
 [data-theme="dark"] .section-content {
-  background: rgba(15, 23, 42, 0.8);
-  border-color: rgba(71, 85, 105, 0.4);
+  background: #0F172A;
+  border-color: #475569;
 }
 
 .section-content.output {
@@ -335,8 +335,13 @@
 
 .tool-section.error .section-content {
   color: #EF4444;
-  background: rgba(239, 68, 68, 0.1);
-  border-color: rgba(239, 68, 68, 0.3);
+  background: #FEF2F2;
+  border-color: #FCA5A5;
+}
+
+[data-theme="dark"] .tool-section.error .section-content {
+  background: #2D1B1F;
+  border-color: #7F1D1D;
 }
 
 /* ============ Retry Button ============ */
@@ -359,5 +364,9 @@
 .retry-btn:hover {
   color: var(--color-accent-primary);
   border-color: var(--color-accent-primary);
-  background: rgba(59, 130, 246, 0.1);
+  background: #EFF6FF;
+}
+
+[data-theme="dark"] .retry-btn:hover {
+  background: #1E3A5F;
 }

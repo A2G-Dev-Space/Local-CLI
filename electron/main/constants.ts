@@ -46,4 +46,10 @@ export const PROJECTS_DIR = path.join(LOCAL_HOME_DIR, 'projects');
  * Application version (injected from package.json)
  * CLI parity: src/constants.ts
  */
-export const APP_VERSION = '4.4.0';
+export const APP_VERSION = '4.5.1';
+
+/**
+ * Credentials 파일 경로 (CLI와 공유)
+ * ~/.local-cli/credentials.json
+ */
+export const CREDENTIALS_FILE_PATH = path.join(LOCAL_HOME_DIR, 'credentials.json');

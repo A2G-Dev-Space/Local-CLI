@@ -12,8 +12,16 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { app } from 'electron';
 import { logger } from '../../utils/logger';
+
+// Dynamic electron import for worker_threads compatibility
+function getElectronApp(): { getVersion(): string } | null {
+  try {
+    return require('electron').app;
+  } catch {
+    return null;
+  }
+}
 import { reportError } from '../telemetry/error-reporter';
 
 // =============================================================================
@@ -564,7 +572,7 @@ class ConfigManager {
     const model = this.getCurrentModel();
 
     return {
-      version: app.getVersion(),
+      version: getElectronApp()?.getVersion() ?? 'unknown',
       sessionId: this.currentSessionId || 'No active session',
       workingDir: process.cwd(),
       endpointUrl: endpoint?.baseUrl || 'Not configured',

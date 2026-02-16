@@ -1,0 +1,216 @@
+/* ============ Session Tab Bar ============ */
+.session-tab-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  overflow: hidden;
+  contain: layout style;
+}
+
+.session-tabs-scroll {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+  min-width: 0;
+  max-width: calc(100% - 60px);
+  will-change: scroll-position;
+}
+
+.session-tabs-scroll::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}
+
+/* ============ Individual Tab ============ */
+.session-tab {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px 3px 8px;
+  height: 26px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+  transition: all var(--transition-fast);
+  position: relative;
+  user-select: none;
+  flex-shrink: 0;
+  max-width: 180px;
+}
+
+.session-tab:hover {
+  color: var(--color-text-primary);
+  background: var(--color-bg-overlay);
+}
+
+.session-tab.active {
+  color: var(--color-accent-primary);
+  background: #EFF6FF;
+  box-shadow: inset 0 -2px 0 var(--color-accent-primary);
+}
+
+[data-theme="dark"] .session-tab.active {
+  background: #1E3A5F;
+}
+
+/* Tab number badge */
+.session-tab-num {
+  font-size: 9px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-disabled);
+  min-width: 10px;
+  text-align: center;
+}
+
+.session-tab.active .session-tab-num {
+  color: var(--color-accent-primary);
+  opacity: 0.7;
+}
+
+/* Tab name */
+.session-tab-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 120px;
+}
+
+/* Tab edit input */
+.session-tab-edit {
+  width: 100px;
+  height: 18px;
+  padding: 0 4px;
+  font-size: 11px;
+  font-weight: var(--font-weight-medium);
+  border: 1px solid var(--color-accent-primary);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  outline: none;
+}
+
+/* Running spinner */
+.session-tab-spinner {
+  display: flex;
+  align-items: center;
+  animation: session-spin 1s linear infinite;
+  color: var(--color-accent-primary);
+  will-change: transform;
+}
+
+@keyframes session-spin {
+  to { transform: rotate(360deg); }
+}
+
+.session-tab.running {
+  color: var(--color-accent-primary);
+}
+
+/* Unread dot */
+.session-tab-unread {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-accent-primary);
+  flex-shrink: 0;
+  animation: session-pulse 2s ease-in-out infinite;
+  will-change: opacity;
+}
+
+@keyframes session-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Close button */
+.session-tab-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-disabled);
+  opacity: 0;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.session-tab:hover .session-tab-close {
+  opacity: 1;
+}
+
+.session-tab-close:hover {
+  color: var(--color-text-primary);
+  background: #FEF2F2;
+}
+
+[data-theme="dark"] .session-tab-close:hover {
+  background: #2D1B1F;
+}
+
+/* ============ Action Buttons ============ */
+.session-tab-new,
+.session-tab-load {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.session-tab-new:hover,
+.session-tab-load:hover {
+  color: var(--color-text-primary);
+  background: var(--color-bg-overlay);
+}
+
+.session-tab-new:active,
+.session-tab-load:active {
+  transform: scale(0.92);
+}
+
+/* ============ Context Menu ============ */
+.session-tab-context-menu {
+  position: fixed;
+  z-index: var(--z-dropdown);
+  min-width: 140px;
+  padding: 4px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  contain: layout style paint;
+}
+
+.session-tab-context-menu button {
+  display: block;
+  width: 100%;
+  padding: 6px 12px;
+  text-align: left;
+  font-size: 12px;
+  color: var(--color-text-primary);
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+}
+
+.session-tab-context-menu button:hover {
+  background: var(--color-bg-overlay);
+}
+
+.context-menu-divider {
+  height: 1px;
+  background: var(--color-border-muted);
+  margin: 4px 8px;
+}

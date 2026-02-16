@@ -27,14 +27,14 @@
   justify-content: space-between;
   height: 40px;
   padding: 0 var(--space-4);
-  background: rgba(255, 255, 255, 0.3);
+  background: #F8FAFC;
   border-bottom: 1px solid var(--glass-border-subtle);
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   flex-shrink: 0;
 }
 
 [data-theme="dark"] .sidebar-header {
-  background: rgba(30, 41, 59, 0.5);
+  background: #1E293B;
 }
 
 .sidebar-title {

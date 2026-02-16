@@ -1,0 +1,541 @@
+/**
+ * Worker Manager - Manages worker thread lifecycle for multi-session support
+ *
+ * Responsibilities:
+ * - Create/terminate worker threads per session tab
+ * - Route IPC messages between renderer ↔ worker
+ * - Handle worker crashes with error recovery
+ * - Manage shared resource delegation (browser, office, dialog)
+ */
+
+import { Worker } from 'worker_threads';
+import { BrowserWindow } from 'electron';
+import * as path from 'path';
+import { logger } from '../utils/logger';
+import type { AgentConfig, AgentResult } from '../orchestration/agent-engine';
+import type { Message } from '../core/llm';
+import type { ToolApprovalResult } from '../tools/llm/simple/simple-tool-executor';
+import type { AskUserResponse } from '../orchestration/types';
+import type { MainToWorkerMessage, WorkerToMainMessage, WorkerInitData } from './worker-protocol';
+
+// =============================================================================
+// Types
+// =============================================================================
+
+interface WorkerEntry {
+  worker: Worker;
+  sessionId: string;
+  isRunning: boolean;
+  isReady: boolean;
+}
+
+// =============================================================================
+// Worker Manager Class
+// =============================================================================
+
+export class WorkerManager {
+  private workers = new Map<string, WorkerEntry>();
+  private pendingRuns = new Map<string, { resolve: (result: AgentResult) => void; reject: (error: Error) => void }>();
+  private chatWindow: BrowserWindow | null = null;
+  private taskWindow: BrowserWindow | null = null;
+
+  // Max concurrent workers (tabs)
+  private readonly MAX_WORKERS = 8;
+
+  // Per-session TODO cache (updated from worker broadcasts)
+  private sessionTodos = new Map<string, unknown[]>();
+
+  // ==========================================================================
+  // Window Management
+  // ==========================================================================
+
+  setChatWindow(window: BrowserWindow | null): void {
+    this.chatWindow = window;
+  }
+
+  setTaskWindow(window: BrowserWindow | null): void {
+    this.taskWindow = window;
+  }
+
+  // ==========================================================================
+  // Worker Lifecycle
+  // ==========================================================================
+
+  /**
+   * Create a new worker for a session tab
+   */
+  createWorker(sessionId: string, enabledToolGroups: string[] = []): void {
+    if (this.workers.has(sessionId)) {
+      logger.warn('[WorkerManager] Worker already exists for session', { sessionId });
+      return;
+    }
+
+    if (this.workers.size >= this.MAX_WORKERS) {
+      throw new Error(`Maximum worker limit (${this.MAX_WORKERS}) reached`);
+    }
+
+    // Vite bundles worker-manager into chunks/ subfolder, but agent-worker.cjs is at main/ level
+    let workerPath = path.join(__dirname, 'agent-worker.cjs');
+    if (!require('fs').existsSync(workerPath)) {
+      workerPath = path.join(__dirname, '..', 'agent-worker.cjs');
+    }
+    const initData: WorkerInitData = { sessionId, enabledToolGroups };
+
+    const worker = new Worker(workerPath, {
+      workerData: initData,
+    });
+
+    const entry: WorkerEntry = {
+      worker,
+      sessionId,
+      isRunning: false,
+      isReady: false,
+    };
+
+    worker.on('message', (msg: WorkerToMainMessage) => {
+      this.handleWorkerMessage(sessionId, msg);
+    });
+
+    worker.on('error', (err: Error) => {
+      this.handleWorkerError(sessionId, err);
+    });
+
+    worker.on('exit', (code: number) => {
+      this.handleWorkerExit(sessionId, code);
+    });
+
+    this.workers.set(sessionId, entry);
+    logger.info('[WorkerManager] Worker created', { sessionId, workerCount: this.workers.size });
+  }
+
+  /**
+   * Check if a worker exists for the given session
+   */
+  hasWorker(sessionId: string): boolean {
+    return this.workers.has(sessionId);
+  }
+
+  /**
+   * Get count of active workers
+   */
+  getWorkerCount(): number {
+    return this.workers.size;
+  }
+
+  /**
+   * Check if a worker session is running an agent
+   */
+  isSessionRunning(sessionId: string): boolean {
+    return this.workers.get(sessionId)?.isRunning ?? false;
+  }
+
+  // ==========================================================================
+  // Agent Execution
+  // ==========================================================================
+
+  /**
+   * Run agent in a worker (preserves ChatPanel's await pattern)
+   */
+  async runAgent(
+    sessionId: string,
+    userMessage: string,
+    existingMessages: Message[],
+    config: AgentConfig,
+  ): Promise<AgentResult> {
+    const entry = this.workers.get(sessionId);
+    if (!entry) {
+      throw new Error(`No worker found for session ${sessionId}`);
+    }
+
+    if (!entry.isReady) {
+      // Wait for worker to be ready (max 10 seconds)
+      await this.waitForReady(sessionId, 10_000);
+    }
+
+    if (entry.isRunning) {
+      throw new Error(`Worker for session ${sessionId} is already running`);
+    }
+
+    return new Promise((resolve, reject) => {
+      entry.isRunning = true;
+      this.pendingRuns.set(sessionId, { resolve, reject });
+
+      this.sendToWorker(sessionId, {
+        type: 'run',
+        userMessage,
+        existingMessages,
+        config,
+      });
+    });
+  }
+
+  /**
+   * Abort agent in a worker
+   */
+  abortAgent(sessionId: string): void {
+    this.sendToWorker(sessionId, { type: 'abort' });
+  }
+
+  /**
+   * Clear agent state in a worker
+   */
+  clearState(sessionId: string): void {
+    this.sendToWorker(sessionId, { type: 'clearState' });
+    // Clear cached todos and broadcast empty state to task window
+    this.sessionTodos.delete(sessionId);
+    if (this.taskWindow && !this.taskWindow.isDestroyed()) {
+      this.taskWindow.webContents.send('agent:todoUpdate', { sessionId, items: [] });
+    }
+  }
+
+  // ==========================================================================
+  // Message Forwarding (Renderer → Worker)
+  // ==========================================================================
+
+  /**
+   * Forward approval response from renderer to worker
+   */
+  forwardApprovalResponse(sessionId: string, requestId: string, result: ToolApprovalResult | null): void {
+    this.sendToWorker(sessionId, {
+      type: 'approvalResponse',
+      requestId,
+      result: result as ToolApprovalResult,
+    });
+  }
+
+  /**
+   * Forward ask-user response from renderer to worker
+   */
+  forwardAskUserResponse(sessionId: string, reqId: string, response: AskUserResponse): void {
+    this.sendToWorker(sessionId, {
+      type: 'askUserResponse',
+      reqId,
+      response,
+    });
+  }
+
+  /**
+   * Broadcast config change to all workers
+   */
+  broadcastConfigChange(config: { endpoints?: unknown[]; currentEndpoint?: string; currentModel?: string }): void {
+    for (const { worker } of this.workers.values()) {
+      worker.postMessage({ type: 'setConfig', ...config });
+    }
+  }
+
+  /**
+   * Broadcast tool group enable/disable to all workers
+   */
+  broadcastToolGroupChange(groupId: string, enabled: boolean): void {
+    for (const { worker } of this.workers.values()) {
+      worker.postMessage({ type: 'toolGroupChanged', groupId, enabled });
+    }
+    logger.info('[WorkerManager] Tool group change broadcast', { groupId, enabled, workerCount: this.workers.size });
+  }
+
+  /**
+   * Get cached TODOs for a session (for task window session switching)
+   */
+  getSessionTodos(sessionId: string): unknown[] {
+    return this.sessionTodos.get(sessionId) || [];
+  }
+
+  // ==========================================================================
+  // Worker Message Handler
+  // ==========================================================================
+
+  private handleWorkerMessage(sessionId: string, msg: WorkerToMainMessage): void {
+    switch (msg.type) {
+      case 'ready': {
+        const entry = this.workers.get(sessionId);
+        if (entry) {
+          entry.isReady = true;
+        }
+        logger.info('[WorkerManager] Worker ready', { sessionId });
+        break;
+      }
+
+      case 'broadcast': {
+        // Cache TODOs per session for task window session switching
+        if (msg.channel === 'agent:todoUpdate' && Array.isArray(msg.data[0])) {
+          this.sessionTodos.set(sessionId, msg.data[0]);
+        }
+
+        // Forward to renderer with sessionId attached
+        const firstArg = msg.data[0];
+
+        if (firstArg !== null && typeof firstArg === 'object' && !Array.isArray(firstArg)) {
+          // Plain object: spread sessionId in
+          const enriched = { ...firstArg as Record<string, unknown>, sessionId };
+          if (this.chatWindow && !this.chatWindow.isDestroyed()) {
+            this.chatWindow.webContents.send(msg.channel, enriched);
+          }
+          if (this.taskWindow && !this.taskWindow.isDestroyed()) {
+            this.taskWindow.webContents.send(msg.channel, enriched);
+          }
+        } else {
+          // Array, string, etc: send data AND sessionId as separate args
+          // Renderer handlers accept optional second arg for sessionId routing
+          if (this.chatWindow && !this.chatWindow.isDestroyed()) {
+            this.chatWindow.webContents.send(msg.channel, ...msg.data, sessionId);
+          }
+          if (this.taskWindow && !this.taskWindow.isDestroyed()) {
+            this.taskWindow.webContents.send(msg.channel, ...msg.data, sessionId);
+          }
+        }
+        break;
+      }
+
+      case 'complete': {
+        const entry = this.workers.get(sessionId);
+        if (entry) {
+          entry.isRunning = false;
+        }
+
+        // Resolve the pending agent.run() IPC call — ChatPanel's sendMessage() handles
+        // response display and loading state in its finally block.
+        // Note: agent:complete broadcast is already sent by agent-engine via workerIO.broadcast()
+        const pending = this.pendingRuns.get(sessionId);
+        if (pending) {
+          pending.resolve(msg.result);
+          this.pendingRuns.delete(sessionId);
+        }
+        break;
+      }
+
+      case 'error': {
+        const entry = this.workers.get(sessionId);
+        if (entry) {
+          entry.isRunning = false;
+        }
+
+        const pending = this.pendingRuns.get(sessionId);
+        if (pending) {
+          pending.reject(new Error(msg.error));
+          this.pendingRuns.delete(sessionId);
+        }
+
+        // Also notify renderer
+        if (this.chatWindow && !this.chatWindow.isDestroyed()) {
+          this.chatWindow.webContents.send('agent:error', { sessionId, error: msg.error });
+        }
+        break;
+      }
+
+      case 'approvalRequest': {
+        if (this.chatWindow && !this.chatWindow.isDestroyed()) {
+          this.chatWindow.webContents.send('agent:approvalRequest', {
+            sessionId,
+            id: msg.reqId,
+            toolName: msg.toolName,
+            args: msg.args,
+            reason: msg.reason,
+          });
+        }
+        break;
+      }
+
+      case 'askUser': {
+        // Flatten request into top-level so renderer sees { question, options, ..., sessionId, reqId }
+        // Legacy path sends AskUserRequest directly; worker path adds sessionId + reqId
+        if (this.chatWindow && !this.chatWindow.isDestroyed()) {
+          this.chatWindow.webContents.send('agent:askUser', {
+            ...(msg.request as Record<string, unknown>),
+            sessionId,
+            reqId: msg.reqId,
+          });
+        }
+        break;
+      }
+
+      case 'fileEdit': {
+        if (this.chatWindow && !this.chatWindow.isDestroyed()) {
+          this.chatWindow.webContents.send('agent:fileEdit', {
+            sessionId,
+            ...msg.data,
+          });
+        }
+        break;
+      }
+
+      case 'showTaskWindow': {
+        if (this.taskWindow && !this.taskWindow.isDestroyed()) {
+          this.taskWindow.show();
+        }
+        break;
+      }
+
+      case 'flashWindows': {
+        if (this.chatWindow && !this.chatWindow.isDestroyed() && !this.chatWindow.isFocused()) {
+          this.chatWindow.flashFrame(true);
+        }
+        if (this.taskWindow && !this.taskWindow.isDestroyed() && !this.taskWindow.isFocused()) {
+          this.taskWindow.flashFrame(true);
+        }
+        break;
+      }
+
+      case 'delegation': {
+        this.handleDelegation(sessionId, msg);
+        break;
+      }
+    }
+  }
+
+  // ==========================================================================
+  // Worker Error/Exit Handling
+  // ==========================================================================
+
+  private handleWorkerError(sessionId: string, error: Error): void {
+    logger.error('[WorkerManager] Worker error', { sessionId, error: error.message });
+
+    const entry = this.workers.get(sessionId);
+    if (entry) {
+      entry.isRunning = false;
+    }
+
+    // Reject pending run
+    const pending = this.pendingRuns.get(sessionId);
+    if (pending) {
+      pending.reject(error);
+      this.pendingRuns.delete(sessionId);
+    }
+
+    // Notify renderer
+    if (this.chatWindow && !this.chatWindow.isDestroyed()) {
+      this.chatWindow.webContents.send('agent:error', {
+        sessionId,
+        error: `Worker error: ${error.message}`,
+      });
+    }
+  }
+
+  private handleWorkerExit(sessionId: string, code: number): void {
+    logger.info('[WorkerManager] Worker exited', { sessionId, code });
+
+    if (code !== 0) {
+      // Abnormal exit - notify renderer
+      if (this.chatWindow && !this.chatWindow.isDestroyed()) {
+        this.chatWindow.webContents.send('agent:error', {
+          sessionId,
+          error: `Worker crashed (exit code: ${code})`,
+        });
+      }
+
+      // Reject pending run
+      const pending = this.pendingRuns.get(sessionId);
+      if (pending) {
+        pending.reject(new Error(`Worker crashed (exit code: ${code})`));
+        this.pendingRuns.delete(sessionId);
+      }
+    }
+
+    this.workers.delete(sessionId);
+    this.sessionTodos.delete(sessionId);
+  }
+
+  // ==========================================================================
+  // Shared Resource Delegation
+  // ==========================================================================
+
+  private async handleDelegation(sessionId: string, msg: WorkerToMainMessage & { type: 'delegation' }): Promise<void> {
+    // TODO Phase 3+: Implement browser/office/dialog delegation from worker to main
+    // For now, return error indicating delegation is not yet implemented
+    const entry = this.workers.get(sessionId);
+    if (entry) {
+      entry.worker.postMessage({
+        type: 'delegationResult',
+        requestId: msg.requestId,
+        result: null,
+        error: 'Delegation not yet implemented',
+      });
+    }
+  }
+
+  // ==========================================================================
+  // Worker Cleanup
+  // ==========================================================================
+
+  /**
+   * Terminate a specific worker (tab close)
+   */
+  async terminateWorker(sessionId: string): Promise<void> {
+    const entry = this.workers.get(sessionId);
+    if (!entry) return;
+
+    // Abort if running
+    if (entry.isRunning) {
+      this.sendToWorker(sessionId, { type: 'abort' });
+      // Give it a moment to clean up
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+
+    await entry.worker.terminate();
+    this.workers.delete(sessionId);
+    this.sessionTodos.delete(sessionId);
+
+    // Reject any pending run
+    const pending = this.pendingRuns.get(sessionId);
+    if (pending) {
+      pending.reject(new Error('Worker terminated'));
+      this.pendingRuns.delete(sessionId);
+    }
+
+    logger.info('[WorkerManager] Worker terminated', { sessionId, remainingWorkers: this.workers.size });
+  }
+
+  /**
+   * Terminate all workers (app quit)
+   */
+  async terminateAll(): Promise<void> {
+    const sessionIds = [...this.workers.keys()];
+    await Promise.all(sessionIds.map(id => this.terminateWorker(id)));
+    logger.info('[WorkerManager] All workers terminated');
+  }
+
+  // ==========================================================================
+  // Helpers
+  // ==========================================================================
+
+  private sendToWorker(sessionId: string, msg: MainToWorkerMessage): void {
+    const entry = this.workers.get(sessionId);
+    if (entry) {
+      entry.worker.postMessage(msg);
+    } else {
+      logger.warn('[WorkerManager] Cannot send to non-existent worker', { sessionId, msgType: msg.type });
+    }
+  }
+
+  private waitForReady(sessionId: string, timeout: number): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const entry = this.workers.get(sessionId);
+      if (!entry) {
+        reject(new Error(`No worker found for session ${sessionId}`));
+        return;
+      }
+
+      if (entry.isReady) {
+        resolve();
+        return;
+      }
+
+      const timer = setTimeout(() => {
+        reject(new Error(`Worker for session ${sessionId} failed to initialize within ${timeout}ms`));
+      }, timeout);
+
+      const checkReady = () => {
+        if (entry.isReady) {
+          clearTimeout(timer);
+          resolve();
+        } else {
+          setTimeout(checkReady, 100);
+        }
+      };
+
+      checkReady();
+    });
+  }
+}
+
+// Singleton instance
+export const workerManager = new WorkerManager();

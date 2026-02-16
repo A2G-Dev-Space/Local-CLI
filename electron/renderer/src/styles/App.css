@@ -18,7 +18,7 @@
 }
 
 .app-root.unfocused {
-  opacity: 0.97;
+  opacity: 1;
 }
 
 /* ============ Content Area ============ */
@@ -51,13 +51,13 @@
   justify-content: space-between;
   height: 40px;
   padding: 0 var(--space-3) 0 var(--space-4);
-  background: rgba(255, 255, 255, 0.3);
+  background: #F8FAFC;
   border-bottom: 1px solid var(--glass-border-subtle);
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
 }
 
 [data-theme="dark"] .panel-header {
-  background: rgba(30, 41, 59, 0.5);
+  background: #1E293B;
 }
 
 .panel-header h3 {
@@ -93,12 +93,12 @@
 
 .panel-tab.active {
   color: var(--color-accent-primary);
-  background: rgba(59, 130, 246, 0.1);
+  background: #EFF6FF;
   box-shadow: inset 0 -2px 0 var(--color-accent-primary);
 }
 
 [data-theme="dark"] .panel-tab.active {
-  background: rgba(59, 130, 246, 0.2);
+  background: #1E3A5F;
   box-shadow: inset 0 -2px 0 var(--color-accent-primary);
 }
 
@@ -162,11 +162,11 @@
   gap: 2px;
   padding: 3px var(--space-3) 5px;
   border-top: 1px solid var(--glass-border-subtle);
-  background: rgba(248, 250, 252, 0.4);
+  background: #F8FAFC;
 }
 
 [data-theme="dark"] .panel-header-row2 {
-  background: rgba(15, 23, 42, 0.3);
+  background: #0F172A;
 }
 
 .panel-toolbar-group {
@@ -295,11 +295,19 @@
 /* ============ Auto File View Toggle ============ */
 .panel-auto-view-btn.active {
   color: var(--color-accent-primary);
-  background-color: rgba(56, 189, 248, 0.15);
+  background-color: #EDF9FE;
+}
+
+[data-theme="dark"] .panel-auto-view-btn.active {
+  background-color: #0F1D2D;
 }
 
 .panel-auto-view-btn.active:hover {
-  background-color: rgba(56, 189, 248, 0.25);
+  background-color: #D4EFFC;
+}
+
+[data-theme="dark"] .panel-auto-view-btn.active:hover {
+  background-color: #153550;
 }
 
 /* ============ Panel Context Usage ============ */
@@ -441,8 +449,12 @@
 }
 
 .panel-model-item.active {
-  background: rgba(56, 189, 248, 0.1);
+  background: #F0F9FF;
   color: var(--color-accent-primary);
+}
+
+[data-theme="dark"] .panel-model-item.active {
+  background: #0F1D2D;
 }
 
 .panel-model-item svg {
@@ -531,14 +543,14 @@
 
 .bottom-panel-container .resizable-panel-header {
   flex-shrink: 0;
-  background: rgba(255, 255, 255, 0.3);
+  background: #F8FAFC;
   border-bottom: 1px solid var(--glass-border-subtle);
   padding: 0;
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
 }
 
 [data-theme="dark"] .bottom-panel-container .resizable-panel-header {
-  background: rgba(30, 41, 59, 0.5);
+  background: #1E293B;
 }
 
 .bottom-panel-container .panel-content {
@@ -585,7 +597,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(0, 0, 0, 0.7);
   /* backdrop-filter removed for performance */
   
   display: flex;
@@ -612,8 +624,12 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--space-4);
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(147, 51, 234, 0.05) 100%);
+  background: linear-gradient(135deg, #EFF6FF 0%, #FAF5FF 100%);
   border-bottom: 1px solid var(--glass-border-subtle);
+}
+
+[data-theme="dark"] .info-modal-header {
+  background: linear-gradient(135deg, #151D36 0%, #1A1530 100%);
 }
 
 .info-modal-header h2 {
@@ -674,12 +690,12 @@
   display: flex;
   justify-content: flex-end;
   padding: var(--space-3) var(--space-4);
-  background: rgba(248, 250, 252, 0.5);
+  background: #F8FAFC;
   border-top: 1px solid var(--glass-border-subtle);
 }
 
 [data-theme="dark"] .info-modal-footer {
-  background: rgba(15, 23, 42, 0.5);
+  background: #0F172A;
 }
 
 .info-ok-btn {
@@ -804,8 +820,8 @@
   gap: 10px;
   padding: 10px 14px;
   margin: 8px;
-  background: rgba(245, 158, 11, 0.12);
-  border: 1px solid rgba(245, 158, 11, 0.3);
+  background: #FEF3C7;
+  border: 1px solid #FCD34D;
   border-radius: var(--radius-md);
   color: #b45309;
   font-size: 12px;
@@ -814,8 +830,8 @@
 }
 
 [data-theme="dark"] .task-waiting-banner {
-  background: rgba(245, 158, 11, 0.1);
-  border-color: rgba(245, 158, 11, 0.25);
+  background: #422006;
+  border-color: #92400E;
   color: #fbbf24;
 }
 
