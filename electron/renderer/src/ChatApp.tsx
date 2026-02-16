@@ -78,6 +78,7 @@ const ChatApp: React.FC = () => {
     name: string;
     isRunning: boolean;
     hasUnread: boolean;
+    allowAllPermissions: boolean; // per-session auto/supervised mode
     chatPanelRef: React.RefObject<ChatPanelRef | null>;
   }
   const [openTabs, setOpenTabs] = useState<OpenTab[]>([]);
@@ -104,7 +105,8 @@ const ChatApp: React.FC = () => {
   // Settings state
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
-  const [allowAllPermissions, setAllowAllPermissions] = useState(true);
+  // Per-session: auto/supervised mode derived from active tab
+  const allowAllPermissions = activeTab?.allowAllPermissions ?? true;
   const [isUsageStatsOpen, setIsUsageStatsOpen] = useState(false);
   const [isToolSelectorOpen, setIsToolSelectorOpen] = useState(false);
 
@@ -396,6 +398,7 @@ const ChatApp: React.FC = () => {
           name: t('sessionTab.defaultName'),
           isRunning: false,
           hasUnread: false,
+          allowAllPermissions: true, // Default: Auto Mode
           chatPanelRef: createRef<ChatPanelRef>(),
         };
 
@@ -471,6 +474,7 @@ const ChatApp: React.FC = () => {
           name: result.session.name || t('sessionTab.defaultName'),
           isRunning: false,
           hasUnread: false,
+          allowAllPermissions: true, // Default: Auto Mode
           chatPanelRef: createRef<ChatPanelRef>(),
         };
 
@@ -980,7 +984,16 @@ const ChatApp: React.FC = () => {
           onClearSession={handleClearSession}
           onNewSession={handleNewSession}
           onLoadSession={handleLoadSession}
-          onAllowAllPermissionsChange={setAllowAllPermissions}
+          onAllowAllPermissionsChange={(value: boolean) => {
+            if (!activeTabId) return;
+            setOpenTabs(prev => {
+              const tab = prev.find(t => t.sessionId === activeTabId);
+              if (!tab || tab.allowAllPermissions === value) return prev;
+              return prev.map(t =>
+                t.sessionId === activeTabId ? { ...t, allowAllPermissions: value } : t
+              );
+            });
+          }}
           onModelDropdownToggle={() => setIsModelDropdownOpen(prev => !prev)}
           onSelectModel={handleSelectModel}
           autoFileView={autoFileView}

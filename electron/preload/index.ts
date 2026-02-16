@@ -560,7 +560,8 @@ const electronAPI = {
         tool_calls?: Array<{ id: string; type: 'function'; function: { name: string; arguments: string } }>;
         tool_call_id?: string;
       }>,
-      context: { workingDirectory?: string; currentModel?: string }
+      context: { workingDirectory?: string; currentModel?: string },
+      sessionId?: string
     ): Promise<{
       success: boolean;
       originalMessageCount: number;
@@ -569,6 +570,10 @@ const electronAPI = {
       compactedMessages?: Array<{ role: string; content: string }>;
       error?: string;
     }> => {
+      // If sessionId provided, route to worker (new signature: sessionId, messages, context)
+      if (sessionId) {
+        return ipcRenderer.invoke('compact:execute', sessionId, messages, context);
+      }
       return ipcRenderer.invoke('compact:execute', messages, context);
     },
 
@@ -750,14 +755,14 @@ const electronAPI = {
       return ipcRenderer.invoke('agent:abort', sessionId);
     },
 
-    // 에이전트 실행 중 여부
-    isRunning: (): Promise<boolean> => {
-      return ipcRenderer.invoke('agent:isRunning');
+    // 에이전트 실행 중 여부 (per-session)
+    isRunning: (sessionId?: string): Promise<boolean> => {
+      return ipcRenderer.invoke('agent:isRunning', sessionId);
     },
 
-    // 현재 TODO 목록 가져오기
-    getTodos: (): Promise<TodoItem[]> => {
-      return ipcRenderer.invoke('agent:getTodos');
+    // 현재 TODO 목록 가져오기 (per-session)
+    getTodos: (sessionId?: string): Promise<TodoItem[]> => {
+      return ipcRenderer.invoke('agent:getTodos', sessionId);
     },
 
     // TODO 목록 설정
@@ -821,10 +826,16 @@ const electronAPI = {
       return () => ipcRenderer.removeListener('agent:askUser', handler);
     },
 
-    onAskUserResolved: (callback: () => void): (() => void) => {
-      const handler = () => callback();
+    onAskUserResolved: (callback: (data?: { sessionId?: string }) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, data?: { sessionId?: string }) => callback(data);
       ipcRenderer.on('agent:askUserResolved', handler);
       return () => ipcRenderer.removeListener('agent:askUserResolved', handler);
+    },
+
+    onApprovalResolved: (callback: (data?: { sessionId?: string }) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, data?: { sessionId?: string }) => callback(data);
+      ipcRenderer.on('agent:approvalResolved', handler);
+      return () => ipcRenderer.removeListener('agent:approvalResolved', handler);
     },
 
     onContextUpdate: (callback: (data: { usagePercentage: number; currentTokens: number; maxTokens: number }) => void): (() => void) => {
@@ -875,16 +886,6 @@ const electronAPI = {
       sessionId?: string;
     }): Promise<{ success: boolean }> => {
       return ipcRenderer.invoke('agent:respondToApproval', response);
-    },
-
-    // Get supervised mode status
-    isSupervisedMode: (): Promise<boolean> => {
-      return ipcRenderer.invoke('agent:isSupervisedMode');
-    },
-
-    // Set supervised mode
-    setSupervisedMode: (enabled: boolean): Promise<{ success: boolean }> => {
-      return ipcRenderer.invoke('agent:setSupervisedMode', enabled);
     },
 
     // File edit event (for diff view)

@@ -349,7 +349,7 @@ export class PlanExecutor {
         callbacks.setMessages((prev: Message[]) => {
           const updatedMessages: Message[] = [
             ...prev,
-            { role: 'assistant' as const, content: '⚠️ Execution interrupted.' }
+            { role: 'assistant' as const, content: '[ABORTED BY USER]' }
           ];
           sessionManager.autoSaveCurrentSession(updatedMessages);
           return updatedMessages;
@@ -547,6 +547,14 @@ export class PlanExecutor {
     } catch (error) {
       if (error instanceof Error && error.message === 'INTERRUPTED') {
         logger.flow('Resume interrupted by user');
+        callbacks.setMessages((prev: Message[]) => {
+          const updatedMessages: Message[] = [
+            ...prev,
+            { role: 'assistant' as const, content: '[ABORTED BY USER]' }
+          ];
+          sessionManager.autoSaveCurrentSession(updatedMessages);
+          return updatedMessages;
+        });
         return;
       }
 

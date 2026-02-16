@@ -8,6 +8,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { isMainThread } from 'worker_threads';
 import { logger } from '../utils/logger';
 import { contextTracker } from './compact/context-tracker';
 
@@ -112,6 +113,11 @@ class UsageTracker {
   }
 
   private saveData(): void {
+    // Worker threads skip disk writes to avoid race conditions with main process
+    // Workers still track usage in-memory for contextTracker (auto-compact detection)
+    // Server-side quota enforcement handles cross-session limits
+    if (!isMainThread) return;
+
     // Debounce saves
     if (this.saveTimeout) {
       clearTimeout(this.saveTimeout);
