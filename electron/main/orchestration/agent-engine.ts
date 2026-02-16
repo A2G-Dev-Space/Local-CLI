@@ -31,7 +31,7 @@ import {
 } from '../tools';
 import { setReasoningCallback, setToolApprovalCallback, requestToolApproval } from '../tools/llm/simple/simple-tool-executor';
 import type { ToolApprovalResult } from '../tools/llm/simple/simple-tool-executor';
-import { ContextLengthError } from '../errors';
+import { ContextLengthError, QuotaExceededError } from '../errors';
 import { buildPlanExecutePrompt, getCriticalReminders, VISION_VERIFICATION_RULE } from '../prompts';
 import { GIT_COMMIT_RULES } from '../prompts/shared/git-rules';
 import { PlanningLLM } from '../agents/planner';
@@ -557,6 +557,28 @@ export async function runAgentCore(
           }
 
           continue;
+        } else if (llmError instanceof QuotaExceededError) {
+          // Quota exceeded — stop agent gracefully with user-facing message
+          const quotaMsg = llmError.quota
+            ? `사용 한도를 초과했습니다. 시간당: ${llmError.quota.hourly?.timeDisplay || '알 수 없음'} 남음, 주간: ${llmError.quota.weekly?.timeDisplay || '알 수 없음'} 남음`
+            : '서버 사용 한도를 초과했습니다. 잠시 후 다시 시도해주세요.';
+
+          logger.warn('Quota exceeded during agent execution', { quota: llmError.quota });
+          if (callbacks.onTellUser) {
+            callbacks.onTellUser(quotaMsg);
+          }
+          io.broadcast('agent:tellUser', quotaMsg);
+
+          // Return gracefully instead of crashing
+          const errorReturnMessages = stripParseFailures(toolLoopMessages);
+          return {
+            success: false,
+            response: quotaMsg,
+            messages: [...validMessages, { role: 'user' as const, content: userMessage }, ...errorReturnMessages],
+            toolCalls: toolCallHistory,
+            iterations,
+            error: quotaMsg,
+          };
         } else {
           throw llmError;
         }
@@ -1135,6 +1157,9 @@ Retry with correct parameter names and types.`;
     }
 
     const errorReturnToolLoopMessages = stripParseFailures(toolLoopMessages);
+    if (isAbort) {
+      errorReturnToolLoopMessages.push({ role: 'assistant' as const, content: '[ABORTED BY USER]' });
+    }
     const returnMessages = [...validMessages, { role: 'user' as const, content: userMessage }, ...errorReturnToolLoopMessages];
 
     return {

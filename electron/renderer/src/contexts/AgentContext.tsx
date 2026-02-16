@@ -150,10 +150,18 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
   // User question state
   const [currentQuestion, setCurrentQuestion] = useState<UserQuestionData | null>(null);
   const [isQuestionOpen, setIsQuestionOpen] = useState(false);
+  const currentQuestionRef = useRef<UserQuestionData | null>(null);
+  const isQuestionOpenRef = useRef(false);
+  useEffect(() => { currentQuestionRef.current = currentQuestion; }, [currentQuestion]);
+  useEffect(() => { isQuestionOpenRef.current = isQuestionOpen; }, [isQuestionOpen]);
 
   // Approval modal state
   const [approvalRequest, setApprovalRequest] = useState<ApprovalRequest | null>(null);
   const [isApprovalOpen, setIsApprovalOpen] = useState(false);
+  const approvalRequestRef = useRef<ApprovalRequest | null>(null);
+  const isApprovalOpenRef = useRef(false);
+  useEffect(() => { approvalRequestRef.current = approvalRequest; }, [approvalRequest]);
+  useEffect(() => { isApprovalOpenRef.current = isApprovalOpen; }, [isApprovalOpen]);
 
   // Modal queue: When a question/approval arrives while another modal is open,
   // queue it instead of overwriting. Prevents concurrent sessions from losing requests.
@@ -541,10 +549,51 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
       );
     }
 
+    // Worker crash/terminate modal cleanup: dismiss modals belonging to crashed session
+    // and remove queued modals for that session
+    // Worker crash/terminate: dismiss modals belonging to crashed session + clean queue
+    const handleSessionDismiss = (crashedSessionId: string | undefined) => {
+      if (!crashedSessionId) return;
+      // Remove all queued modals for the crashed session
+      pendingModalQueueRef.current = pendingModalQueueRef.current.filter(
+        m => (m.data as { sessionId?: string }).sessionId !== crashedSessionId
+      );
+      // If current question modal belongs to crashed session, close it
+      if (isModalActiveRef.current && isQuestionOpenRef.current) {
+        if (currentQuestionRef.current?.sessionId === crashedSessionId) {
+          setIsQuestionOpen(false);
+          setCurrentQuestion(null);
+          showNextQueuedModal();
+          return;
+        }
+      }
+      // If current approval modal belongs to crashed session, close it
+      if (isModalActiveRef.current && isApprovalOpenRef.current) {
+        if (approvalRequestRef.current?.sessionId === crashedSessionId) {
+          setIsApprovalOpen(false);
+          setApprovalRequest(null);
+          showNextQueuedModal();
+        }
+      }
+    };
+
+    if (window.electronAPI.agent.onAskUserResolved) {
+      unsubscribes.push(
+        window.electronAPI.agent.onAskUserResolved((data) => handleSessionDismiss(data?.sessionId))
+      );
+    }
+    if ((window.electronAPI.agent as any).onApprovalResolved) {
+      unsubscribes.push(
+        (window.electronAPI.agent as any).onApprovalResolved((data?: { sessionId?: string }) =>
+          handleSessionDismiss(data?.sessionId)
+        )
+      );
+    }
+
     return () => {
       unsubscribes.forEach(unsub => unsub());
     };
-  }, [addToolExecution]); // addToolExecution is stable (useCallback with [])
+  }, [addToolExecution, showNextQueuedModal]); // addToolExecution is stable (useCallback with [])
 
   // Kept for backward compatibility but now a no-op (listeners are set up in useEffect above)
   const setupAgentListeners = useCallback(() => {

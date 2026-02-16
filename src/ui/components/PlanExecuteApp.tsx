@@ -1303,7 +1303,9 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         }
       };
 
-      processAndExecute();
+      processAndExecute().catch(err => {
+        logger.errorSilent('Pending message execution error', err as Error);
+      });
     }
   }, [isProcessing, pendingUserMessage, llmClient, messages, planExecutionState, addLog]);
 

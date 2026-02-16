@@ -22,7 +22,8 @@ export type MainToWorkerMessage =
   | { type: 'delegationResult'; requestId: string; result: unknown; error?: string }
   | { type: 'setConfig'; endpoints?: unknown[]; currentEndpoint?: string; currentModel?: string }
   | { type: 'setWorkingDirectory'; directory: string }
-  | { type: 'toolGroupChanged'; groupId: string; enabled: boolean };
+  | { type: 'toolGroupChanged'; groupId: string; enabled: boolean }
+  | { type: 'compact'; messages: Message[]; context: { workingDirectory?: string; todos?: unknown[] } };
 
 // =============================================================================
 // Worker → Main Messages
@@ -39,7 +40,8 @@ export type WorkerToMainMessage =
   | { type: 'showTaskWindow' }
   | { type: 'flashWindows' }
   | { type: 'isTaskWindowVisible'; reqId: string }
-  | { type: 'delegation'; requestId: string; delegationType: 'browser' | 'office' | 'dialog'; action: string; args: unknown };
+  | { type: 'delegation'; requestId: string; delegationType: 'browser' | 'office' | 'dialog'; action: string; args: unknown }
+  | { type: 'compactResult'; result: unknown };
 
 // =============================================================================
 // Worker Init Data (passed via workerData)

@@ -312,6 +312,12 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
+  // Monotonic run counter — incremented on each sendMessage() and handleAbort().
+  // Used to detect stale agent.run() results: if the counter changed while awaiting,
+  // the result is from an aborted/superseded run and must be discarded.
+  // Fixes: (1) duplicate old responses on abort, (2) race condition between concurrent sendMessage calls.
+  const sendRunIdRef = useRef(0);
+
   // Track if we're programmatically updating messages (sending or clearing)
   // This prevents session change effect from overwriting our messages
   const skipSessionLoadRef = useRef(false);
@@ -492,11 +498,17 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
   const sendMessage = useCallback(async () => {
     if ((!input.trim() && attachedImages.length === 0) || isLoading) return;
 
+    // Claim a run ID. If handleAbort() or another sendMessage() increments this
+    // while we're awaiting agent.run(), our result is stale and must be discarded.
+    sendRunIdRef.current++;
+    const myRunId = sendRunIdRef.current;
+
     window.electronAPI?.log?.info?.('[ChatPanel] sendMessage START', {
       inputLength: input.trim().length,
       sessionId: sessionRef.current?.id,
       hasSession: !!sessionRef.current,
       currentMsgCount: messages.length,
+      runId: myRunId,
     });
 
     // Mark to skip session load effect (prevents user message from disappearing)
@@ -606,6 +618,7 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
       window.electronAPI?.log?.info?.('[ChatPanel] agent.run() START', {
         conversationMsgCount: conversationMessages.length,
         autoMode: agentConfig.autoMode,
+        runId: myRunId,
       });
       const result = await window.electronAPI.agent.run(
         userMessage.content,
@@ -613,41 +626,56 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
         agentConfig,
         sessionIdProp
       );
+
+      // === Stale run guard ===
+      // If handleAbort() or another sendMessage() ran while we were awaiting,
+      // this result is from an aborted/superseded run. Discard it entirely:
+      // - Don't add duplicate old responses to UI (fixes Bug 1: abort returning old response)
+      // - Don't save corrupted session state (fixes Bug 2: tool history ordering after abort+resend)
+      // - Don't reset loading state (the new run is still active)
+      if (myRunId !== sendRunIdRef.current) {
+        window.electronAPI?.log?.info?.('[ChatPanel] Discarding superseded agent result', {
+          myRunId,
+          currentRunId: sendRunIdRef.current,
+          sessionId: sessionIdProp,
+          resultMsgCount: result.messages?.length ?? 0,
+        });
+        return;
+      }
+
       window.electronAPI?.log?.info?.('[ChatPanel] agent.run() DONE', {
         success: result.success,
         resultMsgCount: result.messages?.length ?? 0,
         error: result.error,
+        runId: myRunId,
       });
 
-      // Extract last assistant response and add to UI messages
-      // This is per-ChatPanel (session-safe), unlike the old onComplete/onFinalResponse
-      // which were global and broken for multi-session.
-      if (result.messages && result.messages.length > 0) {
-        // Find the last assistant message with content (final response, not tool_calls-only)
-        const lastAssistant = [...result.messages].reverse().find(
-          m => m.role === 'assistant' && m.content && m.content.trim() && !m.tool_calls
-        );
-        if (lastAssistant) {
-          const normalizedContent = lastAssistant.content
-            .replace(/\\n/g, '\n')
-            .replace(/\\t/g, '\t');
-          const assistantMessage: ChatMessage = {
-            id: `assistant-${Date.now()}`,
-            role: 'assistant',
-            content: normalizedContent,
-            timestamp: Date.now(),
-          };
-          setMessages(prev => [...prev, assistantMessage]);
-          window.electronAPI?.log?.info?.('[ChatPanel] Added assistant response to UI', {
-            contentLength: normalizedContent.length,
-            sessionId: sessionIdProp,
-          });
-        }
+      // Display assistant response from result.response (authoritative source).
+      // Previously we scanned result.messages for the last assistant message,
+      // but result.messages includes OLD conversation history — on abort this caused
+      // old responses to be found and duplicated. result.response is always correct:
+      // - Direct response from planning: the LLM's text
+      // - final_response tool: the tool's message output
+      // - Abort: empty string (nothing to display)
+      if (result.response && result.response.trim()) {
+        const normalizedContent = result.response
+          .replace(/\\n/g, '\n')
+          .replace(/\\t/g, '\t');
+        const assistantMessage: ChatMessage = {
+          id: `assistant-${Date.now()}`,
+          role: 'assistant',
+          content: normalizedContent,
+          timestamp: Date.now(),
+        };
+        setMessages(prev => [...prev, assistantMessage]);
+        window.electronAPI?.log?.info?.('[ChatPanel] Added assistant response to UI', {
+          contentLength: normalizedContent.length,
+          sessionId: sessionIdProp,
+        });
       }
 
       // Save all messages (including tool messages) to session for proper compact support
       // result.messages includes: user, assistant (with tool_calls), tool responses
-      // Works for both success AND abort - agent returns accumulated messages in both cases
       // Use refs to avoid stale closure (agent.run can take a long time)
       const currentSession = sessionRef.current;
       const currentOnSessionChange = onSessionChangeRef.current;
@@ -683,6 +711,9 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
         window.electronAPI?.log?.error('[ChatPanel] Agent error', { error: result.error });
       }
     } catch (error) {
+      // Stale run guard for catch block too
+      if (myRunId !== sendRunIdRef.current) return;
+
       window.electronAPI?.log?.error('[ChatPanel] Agent error', { error: error instanceof Error ? error.message : String(error) });
       const errorMessage: ChatMessage = {
         id: `error-${Date.now()}`,
@@ -692,16 +723,19 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
       };
       setMessages(prev => [...prev, errorMessage]);
     } finally {
-      // Always reset loading state
-      setIsLoading(false);
-      setIsExecuting(false);
-      // Delay skipSessionLoadRef reset to allow React to process pending state updates
-      // (setMessages, onSessionChange) before session load effect can run again.
-      // Same pattern as handleClear (line ~988).
-      setTimeout(() => {
-        skipSessionLoadRef.current = false;
-      }, 500);
-      window.electronAPI?.log?.debug?.('[ChatPanel] sendMessage FINALLY - reset loading state');
+      // Only reset loading state if this is still the current run.
+      // If a newer run is active (user sent new message after abort),
+      // resetting here would kill the new run's loading indicator.
+      if (myRunId === sendRunIdRef.current) {
+        setIsLoading(false);
+        setIsExecuting(false);
+        setTimeout(() => {
+          skipSessionLoadRef.current = false;
+        }, 500);
+        window.electronAPI?.log?.debug?.('[ChatPanel] sendMessage FINALLY - reset loading state', { runId: myRunId });
+      } else {
+        window.electronAPI?.log?.debug?.('[ChatPanel] sendMessage FINALLY - skipped (stale run)', { myRunId, currentRunId: sendRunIdRef.current });
+      }
     }
   }, [input, isLoading, messages, saveMessageToSession, currentDirectory, allowAllPermissions, clearProgressMessages, setIsExecuting, attachedImages]);
 
@@ -711,6 +745,12 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
   // Abort agent execution
   const handleAbort = useCallback(async () => {
     window.electronAPI?.log?.info?.('[ChatPanel] handleAbort called', { isLoading, sessionId: sessionIdProp });
+
+    // Invalidate the current sendMessage run so its stale result is discarded.
+    // Without this, the old sendMessage's agent.run() would eventually return
+    // and process its result (adding duplicate responses, saving corrupted session).
+    sendRunIdRef.current++;
+
     if (window.electronAPI?.agent) {
       await window.electronAPI.agent.abort(sessionIdProp);
       window.electronAPI?.log?.info?.('[ChatPanel] Agent aborted, clearing state');
@@ -725,7 +765,7 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
 
       setTimeout(() => setAbortMessage(null), 5000);
     }
-  }, [setIsExecuting, clearTodos, isLoading, t]);
+  }, [setIsExecuting, clearTodos, isLoading, t, sessionIdProp]);
 
   // Handle keyboard events (arrow up/down history disabled for Electron)
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -863,7 +903,8 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
     try {
       const result = await window.electronAPI.compact.execute(
         messagesForCompact,
-        { workingDirectory: currentDirectory }
+        { workingDirectory: currentDirectory },
+        sessionIdProp
       );
 
       if (result.success && result.compactedMessages) {

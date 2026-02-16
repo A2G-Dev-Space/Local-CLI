@@ -93,7 +93,7 @@ const TaskApp: React.FC = () => {
         const [savedTheme, maximized, initialTodos, config, pinned] = await Promise.all([
           window.electronAPI.config.getTheme(),
           window.electronAPI.window.isMaximized(),
-          window.electronAPI.agent.getTodos(),
+          window.electronAPI.agent.getTodos(activeSessionIdRef.current || undefined),
           window.electronAPI.config.getAll(),
           window.electronAPI.taskWindow?.isAlwaysOnTop?.() ?? false,
         ]);

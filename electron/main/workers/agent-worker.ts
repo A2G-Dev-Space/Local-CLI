@@ -17,6 +17,13 @@ import type { AskUserResponse } from '../orchestration/types';
 import type { MainToWorkerMessage, WorkerInitData } from './worker-protocol';
 import { logger } from '../utils/logger';
 import { toolRegistry } from '../tools/registry';
+import {
+  setWorkingDirectory as setFileToolsWorkingDirectory,
+  setPowerShellWorkingDirectory,
+} from '../tools';
+import { configManager } from '../core/config';
+import { llmClient } from '../core/llm';
+import { compactConversation } from '../core/compact';
 
 if (!parentPort) {
   throw new Error('agent-worker must be run as a worker thread');
@@ -144,6 +151,9 @@ port.on('message', async (msg: MainToWorkerMessage) => {
     }
 
     case 'abort': {
+      // Abort LLM HTTP request (sets isInterrupted flag + cancels in-flight fetch)
+      llmClient.abort();
+
       if (agentState.abortController) {
         agentState.abortController.abort();
         agentState.abortController = null;
@@ -170,6 +180,7 @@ port.on('message', async (msg: MainToWorkerMessage) => {
       agentState.currentTodos = [];
       agentState.alwaysApprovedTools.clear();
       agentState.runId = 0;
+      agentState.isRunning = false;
       break;
     }
 
@@ -194,14 +205,43 @@ port.on('message', async (msg: MainToWorkerMessage) => {
     }
 
     case 'setConfig': {
-      // TODO: Update llmClient endpoints/model when worker config hot-reload is needed
-      logger.info('[Worker] Config update received', { sessionId });
+      // Hot-reload config: update configManager for this worker
+      // llmClient reads from configManager on each request, so updating configManager is sufficient
+      try {
+        if (msg.currentEndpoint) {
+          await configManager.setCurrentEndpoint(msg.currentEndpoint);
+        }
+        if (msg.currentModel) {
+          await configManager.setCurrentModel(msg.currentModel);
+        }
+        logger.info('[Worker] Config updated', { sessionId, endpoint: msg.currentEndpoint, model: msg.currentModel });
+      } catch (error) {
+        logger.errorSilent('[Worker] Failed to update config', { error, sessionId });
+      }
       break;
     }
 
     case 'setWorkingDirectory': {
-      // Dynamic working directory change for this worker
+      // Dynamic working directory change for this worker's tools
+      setFileToolsWorkingDirectory(msg.directory);
+      setPowerShellWorkingDirectory(msg.directory);
       logger.info('[Worker] Working directory changed', { directory: msg.directory, sessionId });
+      break;
+    }
+
+    case 'compact': {
+      // Manual compact execution within this worker's llmClient/contextTracker
+      try {
+        const result = await compactConversation(msg.messages, msg.context);
+        port.postMessage({ type: 'compactResult', result });
+      } catch (error) {
+        port.postMessage({ type: 'compactResult', result: {
+          success: false,
+          originalMessageCount: msg.messages.length,
+          newMessageCount: msg.messages.length,
+          error: error instanceof Error ? error.message : String(error),
+        }});
+      }
       break;
     }
 

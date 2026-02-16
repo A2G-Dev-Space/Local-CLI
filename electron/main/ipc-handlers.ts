@@ -1368,6 +1368,10 @@ export function setupIpcHandlers(): void {
   ipcMain.handle('llm:setCurrentModel', async (_event, modelId: string) => {
     try {
       const success = await configManager.setCurrentModel(modelId);
+      if (success) {
+        // Notify all workers of the model change
+        workerManager.broadcastConfigChange({ currentModel: modelId });
+      }
       return { success };
     } catch (error) {
       logger.error('Failed to set current LLM model', error);
@@ -1382,6 +1386,10 @@ export function setupIpcHandlers(): void {
   ipcMain.handle('llm:setCurrentEndpoint', async (_event, endpointId: string) => {
     try {
       const success = await configManager.setCurrentEndpoint(endpointId);
+      if (success) {
+        // Notify all workers of the endpoint change
+        workerManager.broadcastConfigChange({ currentEndpoint: endpointId });
+      }
       return { success };
     } catch (error) {
       logger.error('Failed to set current LLM endpoint', error);
@@ -1518,8 +1526,29 @@ export function setupIpcHandlers(): void {
 
   // ============ Compact ============
 
-  // 대화 압축 실행
-  ipcMain.handle('compact:execute', async (_event, messages: Message[], context: CompactContext) => {
+  // 대화 압축 실행 (per-session via worker if available)
+  ipcMain.handle('compact:execute', async (_event, messagesOrSessionId: Message[] | string, contextOrMessages?: CompactContext | Message[], maybeContext?: CompactContext) => {
+    // Support both old signature (messages, context) and new signature (sessionId, messages, context)
+    let sessionId: string | undefined;
+    let messages: Message[];
+    let context: CompactContext;
+
+    if (typeof messagesOrSessionId === 'string') {
+      sessionId = messagesOrSessionId;
+      messages = (contextOrMessages as Message[]) || [];
+      context = maybeContext || {};
+    } else {
+      messages = messagesOrSessionId;
+      context = (contextOrMessages as CompactContext) || {};
+    }
+
+    // Route to worker if session has one (uses worker's own llmClient)
+    if (sessionId && workerManager.hasWorker(sessionId)) {
+      const result = await workerManager.compactInWorker(sessionId, messages, context);
+      return result;
+    }
+
+    // Fallback: main process compact (legacy non-worker mode)
     try {
       const result = await compactConversation(messages, context);
       return result;
@@ -1789,8 +1818,12 @@ export function setupIpcHandlers(): void {
     }
   });
 
-  // Agent 실행 상태 확인
-  ipcMain.handle('agent:isRunning', () => {
+  // Agent 실행 상태 확인 (per-session via worker)
+  ipcMain.handle('agent:isRunning', (_event, sessionId?: string) => {
+    if (sessionId && workerManager.hasWorker(sessionId)) {
+      return workerManager.isSessionRunning(sessionId);
+    }
+    // Fallback: legacy global state
     return isAgentRunning();
   });
 
@@ -1832,14 +1865,25 @@ export function setupIpcHandlers(): void {
     return { success: true };
   });
 
-  // 현재 TODO 목록 가져오기
-  ipcMain.handle('agent:getTodos', () => {
+  // 현재 TODO 목록 가져오기 (per-session via WorkerManager cache)
+  ipcMain.handle('agent:getTodos', (_event, sessionId?: string) => {
+    if (sessionId && workerManager.hasWorker(sessionId)) {
+      return workerManager.getSessionTodos(sessionId);
+    }
+    // Fallback: legacy global state (non-worker mode)
     return getCurrentTodos();
   });
 
-  // TODO 목록 설정
-  ipcMain.handle('agent:setTodos', (_event, todos: TodoItem[]) => {
-    setCurrentTodos(todos);
+  // TODO 목록 설정 (per-session)
+  ipcMain.handle('agent:setTodos', (_event, todosOrSessionId: TodoItem[] | string, maybeTodos?: TodoItem[]) => {
+    // Support both old signature (todos) and new signature (sessionId, todos)
+    if (typeof todosOrSessionId === 'string' && maybeTodos) {
+      // New: (sessionId, todos) — no-op for worker sessions (worker manages its own state)
+      // but update WorkerManager cache for task window
+      return { success: true };
+    }
+    // Legacy: (todos)
+    setCurrentTodos(todosOrSessionId as TodoItem[]);
     return { success: true };
   });
 

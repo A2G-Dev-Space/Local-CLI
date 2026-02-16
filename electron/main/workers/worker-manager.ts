@@ -240,6 +240,37 @@ export class WorkerManager {
     return this.sessionTodos.get(sessionId) || [];
   }
 
+  /**
+   * Execute compact in a worker (uses worker's own llmClient/contextTracker)
+   */
+  async compactInWorker(sessionId: string, messages: unknown[], context: { workingDirectory?: string; todos?: unknown[] }): Promise<unknown> {
+    const entry = this.workers.get(sessionId);
+    if (!entry) return null;
+
+    return new Promise((resolve) => {
+      // Listen for one-time compactResult
+      const handler = (msg: WorkerToMainMessage) => {
+        if (msg.type === 'compactResult') {
+          entry.worker.removeListener('message', handler);
+          resolve((msg as { type: 'compactResult'; result: unknown }).result);
+        }
+      };
+      entry.worker.on('message', handler);
+
+      entry.worker.postMessage({
+        type: 'compact',
+        messages,
+        context,
+      });
+
+      // Timeout after 60 seconds
+      setTimeout(() => {
+        entry.worker.removeListener('message', handler);
+        resolve({ success: false, error: 'Compact timeout' });
+      }, 60_000);
+    });
+  }
+
   // ==========================================================================
   // Worker Message Handler
   // ==========================================================================
@@ -376,7 +407,9 @@ export class WorkerManager {
       }
 
       case 'delegation': {
-        this.handleDelegation(sessionId, msg);
+        void this.handleDelegation(sessionId, msg).catch(err => {
+          logger.error('[WorkerManager] Delegation error', { sessionId, error: err?.message });
+        });
         break;
       }
     }
@@ -401,6 +434,9 @@ export class WorkerManager {
       this.pendingRuns.delete(sessionId);
     }
 
+    // Dismiss any pending modals in renderer (askUser/approval)
+    this.dismissPendingModals(sessionId);
+
     // Notify renderer
     if (this.chatWindow && !this.chatWindow.isDestroyed()) {
       this.chatWindow.webContents.send('agent:error', {
@@ -414,7 +450,9 @@ export class WorkerManager {
     logger.info('[WorkerManager] Worker exited', { sessionId, code });
 
     if (code !== 0) {
-      // Abnormal exit - notify renderer
+      // Abnormal exit - dismiss pending modals and notify renderer
+      this.dismissPendingModals(sessionId);
+
       if (this.chatWindow && !this.chatWindow.isDestroyed()) {
         this.chatWindow.webContents.send('agent:error', {
           sessionId,
@@ -470,6 +508,9 @@ export class WorkerManager {
       await new Promise(resolve => setTimeout(resolve, 500));
     }
 
+    // Dismiss any pending modals in renderer before termination
+    this.dismissPendingModals(sessionId);
+
     await entry.worker.terminate();
     this.workers.delete(sessionId);
     this.sessionTodos.delete(sessionId);
@@ -496,6 +537,17 @@ export class WorkerManager {
   // ==========================================================================
   // Helpers
   // ==========================================================================
+
+  /**
+   * Dismiss any pending askUser/approval modals in renderer for a given session.
+   * Called when worker crashes, errors, or is terminated to prevent orphaned modals.
+   */
+  private dismissPendingModals(sessionId: string): void {
+    if (this.chatWindow && !this.chatWindow.isDestroyed()) {
+      this.chatWindow.webContents.send('agent:askUserResolved', { sessionId });
+      this.chatWindow.webContents.send('agent:approvalResolved', { sessionId });
+    }
+  }
 
   private sendToWorker(sessionId: string, msg: MainToWorkerMessage): void {
     const entry = this.workers.get(sessionId);

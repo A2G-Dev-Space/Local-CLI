@@ -5,7 +5,7 @@
  * and quick-access toolbar buttons (tools, usage, settings, help, info).
  */
 
-import React, { memo, Suspense, lazy, useState, useEffect, useCallback } from 'react';
+import React, { memo, Suspense, lazy, useState, useEffect, useCallback, useRef } from 'react';
 import type { Session, EndpointConfig } from '../../../preload/index';
 import type { ChatPanelRef } from './ChatPanel';
 import { useAgent } from '../contexts/AgentContext';
@@ -71,6 +71,7 @@ interface BottomPanelProps {
     name: string;
     isRunning: boolean;
     hasUnread: boolean;
+    allowAllPermissions: boolean;
     chatPanelRef: React.RefObject<ChatPanelRef | null>;
   }>;
   activeTabId?: string | null;
@@ -128,21 +129,37 @@ const BottomPanel: React.FC<BottomPanelProps> = ({
   // Wrap onCloseTab to also clear AgentContext cache for the closed session
   const handleCloseTabWithCleanup = useCallback((sessionId: string) => {
     clearSessionCache(sessionId);
+    contextUsageCacheRef.current.delete(sessionId);
     onCloseTab?.(sessionId);
   }, [clearSessionCache, onCloseTab]);
 
-  // Context usage from agent IPC
+  // Context usage from agent IPC — per-session cache
   const [contextUsage, setContextUsage] = useState<number>(0);
+  const contextUsageCacheRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
     if (!window.electronAPI?.agent?.onContextUpdate) return;
 
     const unsub = window.electronAPI.agent.onContextUpdate((data) => {
-      setContextUsage(data.usagePercentage);
+      const eventSessionId = (data as any).sessionId as string | undefined;
+      if (eventSessionId) {
+        contextUsageCacheRef.current.set(eventSessionId, data.usagePercentage);
+      }
+      // Only update displayed value if event is for the active tab (or no sessionId = legacy)
+      if (!eventSessionId || eventSessionId === activeTabId) {
+        setContextUsage(data.usagePercentage);
+      }
     });
 
     return () => unsub();
-  }, []);
+  }, [activeTabId]);
+
+  // Restore cached context usage when switching tabs
+  useEffect(() => {
+    if (activeTabId) {
+      setContextUsage(contextUsageCacheRef.current.get(activeTabId) ?? 0);
+    }
+  }, [activeTabId]);
 
 
   if (!isOpen) return null;
@@ -416,7 +433,7 @@ const BottomPanel: React.FC<BottomPanelProps> = ({
                     onClearSession={onClearSession}
                     currentDirectory={currentDirectory}
                     onChangeDirectory={onChangeDirectory}
-                    allowAllPermissions={allowAllPermissions}
+                    allowAllPermissions={tab.allowAllPermissions}
                     onAllowAllPermissionsChange={onAllowAllPermissionsChange}
                     hasVisionModel={hasVisionModel}
                   />

@@ -12,6 +12,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { isMainThread } from 'worker_threads';
 import { logger } from '../../utils/logger';
 
 // Dynamic electron import for worker_threads compatibility
@@ -233,6 +234,10 @@ class ConfigManager {
    * Save config
    */
   async save(): Promise<void> {
+    // Worker threads must NOT write to config.json to avoid race conditions
+    // Workers only update in-memory config; main process owns the file
+    if (!isMainThread) return;
+
     try {
       const dir = path.dirname(this.configPath);
       if (!fs.existsSync(dir)) {
