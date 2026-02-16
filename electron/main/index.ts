@@ -514,6 +514,14 @@ app.on('window-all-closed', () => {
 app.on('before-quit', async () => {
   logger.appBeforeQuit({ reason: 'user_initiated' });
 
+  // Worker threads 종료 (멀티 세션)
+  try {
+    const { workerManager } = await import('./workers/worker-manager');
+    await workerManager.terminateAll();
+  } catch (err) {
+    logger.errorSilent('Failed to terminate workers', err);
+  }
+
   // PowerShell 세션 종료
   await powerShellManager.terminate();
 

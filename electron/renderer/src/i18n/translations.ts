@@ -276,6 +276,17 @@ const translations: Record<Language, Record<string, string>> = {
     'log.cat.system': '시스템 로그',
     'log.cat.debug': '디버그 로그',
 
+    // SessionTabBar
+    'sessionTab.newTab': '새 탭 (Ctrl+T)',
+    'sessionTab.loadSession': '세션 불러오기',
+    'sessionTab.close': '탭 닫기',
+    'sessionTab.rename': '이름 변경',
+    'sessionTab.clear': '대화 초기화',
+    'sessionTab.closeOthers': '다른 탭 모두 닫기',
+    'sessionTab.closeConfirm': '이 탭에서 에이전트가 실행 중입니다. 닫으시겠습니까?',
+    'sessionTab.defaultName': '새 채팅',
+    'sessionTab.maxTabs': '최대 탭 수({count}개)에 도달했습니다',
+
     // Language names
     'lang.ko': '한국어',
     'lang.en': 'English',
@@ -550,6 +561,17 @@ const translations: Record<Language, Record<string, string>> = {
     'log.cat.ui': 'UI component logs',
     'log.cat.system': 'System logs',
     'log.cat.debug': 'Debug logs',
+
+    // SessionTabBar
+    'sessionTab.newTab': 'New Tab (Ctrl+T)',
+    'sessionTab.loadSession': 'Load Session',
+    'sessionTab.close': 'Close Tab',
+    'sessionTab.rename': 'Rename',
+    'sessionTab.clear': 'Clear Chat',
+    'sessionTab.closeOthers': 'Close Other Tabs',
+    'sessionTab.closeConfirm': 'An agent is running in this tab. Close anyway?',
+    'sessionTab.defaultName': 'New Chat',
+    'sessionTab.maxTabs': 'Maximum tabs ({count}) reached',
 
     // Language names
     'lang.ko': '한국어',

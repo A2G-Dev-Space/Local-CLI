@@ -7,7 +7,26 @@
 
 import fs from 'fs';
 import path from 'path';
-import { app, shell } from 'electron';
+import os from 'os';
+
+// Dynamic electron imports for worker_threads compatibility
+// In main process: require('electron') succeeds → normal behavior
+// In worker thread: require('electron') fails → fallback paths
+function getElectronApp(): { getPath(name: string): string; getVersion(): string } | null {
+  try {
+    return require('electron').app;
+  } catch {
+    return null;
+  }
+}
+
+function getElectronShell(): { showItemInFolder(fullPath: string): void; openPath(path: string): Promise<string> } | null {
+  try {
+    return require('electron').shell;
+  } catch {
+    return null;
+  }
+}
 
 // 로그 레벨 정의 (CLI parity: ERROR=0 가장 높은 우선순위, VERBOSE=4 가장 낮은 우선순위)
 export enum LogLevel {
@@ -86,7 +105,10 @@ class Logger {
 
     // 로그 디렉토리 설정
     if (!this.config.logDir) {
-      this.config.logDir = path.join(app.getPath('userData'), 'logs');
+      const electronApp = getElectronApp();
+      this.config.logDir = electronApp
+        ? path.join(electronApp.getPath('userData'), 'logs')
+        : path.join(os.homedir(), '.local-cli-ui', 'logs'); // Worker fallback
     }
 
     // 로그 디렉토리 생성
@@ -635,8 +657,9 @@ class Logger {
    */
   async openLogFileInExplorer(filePath?: string): Promise<void> {
     const targetPath = filePath || this.currentLogFile;
-    if (targetPath) {
-      shell.showItemInFolder(targetPath);
+    const electronShell = getElectronShell();
+    if (targetPath && electronShell) {
+      electronShell.showItemInFolder(targetPath);
     }
   }
 
@@ -644,7 +667,10 @@ class Logger {
    * 로그 디렉토리 탐색기에서 열기
    */
   async openLogDirectory(): Promise<void> {
-    shell.openPath(this.config.logDir);
+    const electronShell = getElectronShell();
+    if (electronShell) {
+      electronShell.openPath(this.config.logDir);
+    }
   }
 
   /**

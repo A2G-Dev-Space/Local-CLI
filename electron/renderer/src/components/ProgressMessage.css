@@ -51,22 +51,38 @@
 
 .progress-message.success {
   border-left-color: var(--color-success);
-  background-color: rgba(34, 197, 94, 0.08);
+  background-color: #ECFDF5;
 }
 
 .progress-message.warning {
   border-left-color: var(--color-warning);
-  background-color: rgba(245, 158, 11, 0.08);
+  background-color: #FFFBEB;
 }
 
 .progress-message.error {
   border-left-color: var(--color-error);
-  background-color: rgba(239, 68, 68, 0.08);
+  background-color: #FEF2F2;
 }
 
 .progress-message.working {
   border-left-color: var(--color-accent-primary);
-  background-color: rgba(56, 189, 248, 0.08);
+  background-color: #F0F9FF;
+}
+
+[data-theme="dark"] .progress-message.success {
+  background-color: #132E21;
+}
+
+[data-theme="dark"] .progress-message.warning {
+  background-color: #1F1B0E;
+}
+
+[data-theme="dark"] .progress-message.error {
+  background-color: #2D1B1F;
+}
+
+[data-theme="dark"] .progress-message.working {
+  background-color: #0F1D2D;
 }
 
 /* ============ Message Content ============ */

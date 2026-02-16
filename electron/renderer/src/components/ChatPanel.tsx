@@ -59,6 +59,8 @@ interface AttachedImage {
 
 interface ChatPanelProps {
   session?: Session | null;
+  sessionId?: string;
+  isActive?: boolean;
   onSessionChange?: (session: Session | null) => void;
   onClearSession?: () => void;
   currentDirectory?: string;
@@ -167,6 +169,8 @@ const DEFAULT_WELCOME_MESSAGE: ChatMessage = {
 
 const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
   session,
+  sessionId: sessionIdProp,
+  isActive: isActiveProp = true,
   onSessionChange,
   onClearSession,
   currentDirectory,
@@ -225,12 +229,13 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
   const {
     toolExecutions,
     clearToolExecutions,
+    switchSession,
+    clearSessionCache,
     progressMessages,
     dismissProgressMessage,
     clearProgressMessages,
     todos,
     clearTodos,
-    isExecuting,
     setIsExecuting,
     currentQuestion,
     isQuestionOpen,
@@ -240,7 +245,6 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
     isApprovalOpen,
     handleApprovalResponse,
     handleApprovalCancel,
-    setOnFinalResponse,
     setupAgentListeners,
   } = useAgent();
 
@@ -319,9 +323,21 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
   const onSessionChangeRef = useRef(onSessionChange);
   onSessionChangeRef.current = onSessionChange;
 
+  // Sync AgentContext active session when tab becomes active
+  // (switchSession must be called on tab switch, not just session change)
+  useEffect(() => {
+    if (isActiveProp && sessionIdProp) {
+      switchSession(sessionIdProp);
+    }
+  }, [isActiveProp, sessionIdProp, switchSession]);
+
   // Load session messages when session changes
   // Skip if we're programmatically updating messages
   useEffect(() => {
+    // NOTE: switchSession is NOT called here. It is handled by the dedicated Effect above
+    // (line 348-352) which triggers on [isActiveProp, sessionIdProp] changes.
+    // Having switchSession in BOTH effects caused duplicate calls and extra re-renders.
+
     // Don't reset messages during send/clear operations
     if (skipSessionLoadRef.current) {
       window.electronAPI?.log?.debug?.('[ChatPanel] Session load SKIPPED (skipSessionLoadRef=true)', {
@@ -363,7 +379,14 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
   }, [setupAgentListeners]);
 
   // Save message to session (defined early for use in other hooks)
+  // NOTE: In multi-tab mode (sessionIdProp set), this is SKIPPED because
+  // session:addMessage uses sessionManager.currentSession which is ambiguous
+  // with multiple tabs. The full session is saved after agent.run() completes
+  // via session.save(updatedSession) which correctly uses sessionRef.current.
   const saveMessageToSession = useCallback(async (message: ChatMessage) => {
+    // Multi-tab mode: skip — session is fully saved after agent.run() via session.save()
+    if (sessionIdProp) return;
+
     if (!window.electronAPI?.session) return;
 
     try {
@@ -371,78 +394,52 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
     } catch (error) {
       window.electronAPI?.log?.error('[ChatPanel] Failed to save message to session', { error: error instanceof Error ? error.message : String(error) });
     }
-  }, []);
+  }, [sessionIdProp]);
 
-  // Setup final response callback - displays as chat message with markdown
-  useEffect(() => {
-    setOnFinalResponse((message: string) => {
-      window.electronAPI?.log?.info?.('[ChatPanel] Final response received', { length: message.length });
-      // Normalize escaped characters (LLM sometimes sends literal \n instead of newlines)
-      const normalizedMessage = message
-        .replace(/\\n/g, '\n')
-        .replace(/\\t/g, '\t');
-
-      const assistantMessage: ChatMessage = {
-        id: `final-${Date.now()}`,
-        role: 'assistant',
-        content: normalizedMessage,
-        timestamp: Date.now(),
-      };
-      setMessages(prev => {
-        window.electronAPI?.log?.debug?.('[ChatPanel] Adding final response to messages', { prevCount: prev.length });
-        return [...prev, assistantMessage];
-      });
-      saveMessageToSession(assistantMessage);
-    });
-
-    return () => {
-      setOnFinalResponse(null);
-    };
-  }, [setOnFinalResponse, saveMessageToSession]);
+  // NOTE: onFinalResponse removed — it uses a single global ref in AgentContext,
+  // so with multiple ChatPanels only the last-mounted panel receives the callback.
+  // Instead, responses are added to UI in sendMessage() from agent.run() return value.
 
   // Handle agent completion/error (adds messages)
+  // Filter by sessionId when in multi-tab mode
   useEffect(() => {
     if (!window.electronAPI?.agent) return;
 
     const unsubscribes: Array<() => void> = [];
 
-    // Agent complete event
+    // Helper: check if event belongs to this ChatPanel's session
+    const isMyEvent = (data: { sessionId?: string }): boolean => {
+      // If no sessionId in data, it's legacy single-session — always mine
+      if (!data.sessionId) return true;
+      // If no sessionIdProp, this is a single-panel fallback — always mine
+      if (!sessionIdProp) return true;
+      return data.sessionId === sessionIdProp;
+    };
+
+    // Agent complete event — logging only.
+    // Loading state and messages are handled by sendMessage() via agent.run() return/finally.
     unsubscribes.push(
       window.electronAPI.agent.onComplete((data) => {
-        window.electronAPI?.log?.info?.('[ChatPanel] Agent complete', { hasResponse: !!data.response, responseLength: data.response?.length ?? 0 });
-        if (data.response) {
-          const assistantMessage: ChatMessage = {
-            id: `assistant-${Date.now()}`,
-            role: 'assistant',
-            content: data.response,
-            timestamp: Date.now(),
-          };
-          setMessages(prev => [...prev, assistantMessage]);
-          saveMessageToSession(assistantMessage);
-        }
-        setIsLoading(false);
-        setIsExecuting(false);
-
-        // Save session
-        if (window.electronAPI?.session) {
-          window.electronAPI.session.saveCurrent();
-        }
+        if (!isMyEvent(data as any)) return;
+        window.electronAPI?.log?.info?.('[ChatPanel] Agent complete event', {
+          hasResponse: !!data.response,
+          responseLength: data.response?.length ?? 0,
+          sessionId: (data as any).sessionId,
+        });
+        // Note: setIsLoading/setIsExecuting handled in sendMessage() finally block
       })
     );
 
-    // Agent error event
+    // Agent error event — logging only.
+    // Error handling is in sendMessage() catch block.
     unsubscribes.push(
       window.electronAPI.agent.onError((data) => {
-        window.electronAPI?.log?.error?.('[ChatPanel] Agent error event', { error: data.error });
-        const errorMessage: ChatMessage = {
-          id: `error-${Date.now()}`,
-          role: 'system',
-          content: `Error: ${data.error}`,
-          timestamp: Date.now(),
-        };
-        setMessages(prev => [...prev, errorMessage]);
-        setIsLoading(false);
-        setIsExecuting(false);
+        if (!isMyEvent(data as any)) return;
+        window.electronAPI?.log?.error?.('[ChatPanel] Agent error event', {
+          error: data.error,
+          sessionId: (data as any).sessionId,
+        });
+        // Note: Error messages and setIsLoading handled in sendMessage() catch/finally block
       })
     );
 
@@ -452,7 +449,7 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
     return () => {
       unsubscribes.forEach(unsub => unsub());
     };
-  }, [setIsExecuting, saveMessageToSession]);
+  }, [setIsExecuting, saveMessageToSession, sessionIdProp]);
 
   // Auto-scroll to bottom - optimized with throttle
   const scrollToBottom = useCallback(() => {
@@ -481,7 +478,7 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
     };
   }, []);
 
-  // Auto-resize textarea
+  // Auto-resize textarea (also recalculate when tab becomes active via isActiveProp)
   useEffect(() => {
     if (inputRef.current) {
       inputRef.current.style.height = 'auto';
@@ -489,7 +486,7 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
       inputRef.current.style.height = `${newHeight}px`;
       inputRef.current.style.overflowY = inputRef.current.scrollHeight > maxInputHeight ? 'auto' : 'hidden';
     }
-  }, [input, maxInputHeight]);
+  }, [input, maxInputHeight, isActiveProp]);
 
   // Send message using agent
   const sendMessage = useCallback(async () => {
@@ -613,13 +610,40 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
       const result = await window.electronAPI.agent.run(
         userMessage.content,
         conversationMessages,
-        agentConfig
+        agentConfig,
+        sessionIdProp
       );
       window.electronAPI?.log?.info?.('[ChatPanel] agent.run() DONE', {
         success: result.success,
         resultMsgCount: result.messages?.length ?? 0,
         error: result.error,
       });
+
+      // Extract last assistant response and add to UI messages
+      // This is per-ChatPanel (session-safe), unlike the old onComplete/onFinalResponse
+      // which were global and broken for multi-session.
+      if (result.messages && result.messages.length > 0) {
+        // Find the last assistant message with content (final response, not tool_calls-only)
+        const lastAssistant = [...result.messages].reverse().find(
+          m => m.role === 'assistant' && m.content && m.content.trim() && !m.tool_calls
+        );
+        if (lastAssistant) {
+          const normalizedContent = lastAssistant.content
+            .replace(/\\n/g, '\n')
+            .replace(/\\t/g, '\t');
+          const assistantMessage: ChatMessage = {
+            id: `assistant-${Date.now()}`,
+            role: 'assistant',
+            content: normalizedContent,
+            timestamp: Date.now(),
+          };
+          setMessages(prev => [...prev, assistantMessage]);
+          window.electronAPI?.log?.info?.('[ChatPanel] Added assistant response to UI', {
+            contentLength: normalizedContent.length,
+            sessionId: sessionIdProp,
+          });
+        }
+      }
 
       // Save all messages (including tool messages) to session for proper compact support
       // result.messages includes: user, assistant (with tool_calls), tool responses
@@ -628,6 +652,12 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
       const currentSession = sessionRef.current;
       const currentOnSessionChange = onSessionChangeRef.current;
       if (result.messages && result.messages.length > 0 && currentSession && currentOnSessionChange) {
+        const agentStart = userMessage.timestamp;
+        const agentEnd = Date.now();
+        const totalDuration = agentEnd - agentStart;
+        const step = result.messages.length > 1
+          ? totalDuration / (result.messages.length - 1)
+          : 0;
         const updatedMessages: ChatMessage[] = result.messages.map((m, idx) => ({
           id: `msg-${Date.now()}-${idx}`,
           role: m.role as 'user' | 'assistant' | 'system' | 'tool',
@@ -643,11 +673,9 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
           updatedAt: Date.now(),
         };
 
-        // Save to backend AND update React state so compact can access them
         if (window.electronAPI?.session) {
           await window.electronAPI.session.save(updatedSession);
         }
-        // Update session prop so compact handler can read session.messages
         currentOnSessionChange(updatedSession);
       }
 
@@ -663,12 +691,17 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
         timestamp: Date.now(),
       };
       setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      // Always reset loading state
       setIsLoading(false);
       setIsExecuting(false);
-    } finally {
-      // Allow session load effect to run again now that agent is done
-      window.electronAPI?.log?.debug?.('[ChatPanel] sendMessage FINALLY - resetting skipSessionLoadRef');
-      skipSessionLoadRef.current = false;
+      // Delay skipSessionLoadRef reset to allow React to process pending state updates
+      // (setMessages, onSessionChange) before session load effect can run again.
+      // Same pattern as handleClear (line ~988).
+      setTimeout(() => {
+        skipSessionLoadRef.current = false;
+      }, 500);
+      window.electronAPI?.log?.debug?.('[ChatPanel] sendMessage FINALLY - reset loading state');
     }
   }, [input, isLoading, messages, saveMessageToSession, currentDirectory, allowAllPermissions, clearProgressMessages, setIsExecuting, attachedImages]);
 
@@ -677,22 +710,29 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
 
   // Abort agent execution
   const handleAbort = useCallback(async () => {
-    window.electronAPI?.log?.info?.('[ChatPanel] handleAbort called', { isExecuting, isLoading });
+    window.electronAPI?.log?.info?.('[ChatPanel] handleAbort called', { isLoading, sessionId: sessionIdProp });
     if (window.electronAPI?.agent) {
-      await window.electronAPI.agent.abort();
+      await window.electronAPI.agent.abort(sessionIdProp);
       window.electronAPI?.log?.info?.('[ChatPanel] Agent aborted, clearing state');
       setIsLoading(false);
       setIsExecuting(false);
+      // Delay skipSessionLoadRef reset to prevent session load effect from overwriting messages
+      setTimeout(() => {
+        skipSessionLoadRef.current = false;
+      }, 500);
       clearTodos(); // Clear UI todos so next message triggers fresh planning
       setAbortMessage(t('chat.aborted'));
 
       setTimeout(() => setAbortMessage(null), 5000);
     }
-  }, [setIsExecuting, clearTodos, isExecuting, isLoading, t]);
+  }, [setIsExecuting, clearTodos, isLoading, t]);
 
   // Handle keyboard events (arrow up/down history disabled for Electron)
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    // Korean IME guard: Do NOT send during composition (한글 조합 중).
+    // Without this check, pressing Enter during IME composition commits the character
+    // AND sends the message simultaneously, causing "입력 분할" (input splitting).
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       sendMessage();
       return;
@@ -701,11 +741,11 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
     // Arrow up/down history navigation disabled for Electron
     // Users can use normal text editing with arrow keys
 
-    if (e.key === 'Escape' && isExecuting) {
+    if (e.key === 'Escape' && isLoading) {
       e.preventDefault();
       handleAbort();
     }
-  }, [sendMessage, isExecuting, handleAbort]);
+  }, [sendMessage, isLoading, handleAbort]);
 
   // Handle paste (HTML table → markdown, image → attachment)
   const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
@@ -882,10 +922,10 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
 
   // Clear chat
   const handleClear = useCallback(async () => {
-    window.electronAPI?.log?.info?.('[ChatPanel] handleClear called', { isExecuting, sessionId: session?.id, msgCount: messages.length });
-    if (isExecuting && window.electronAPI?.agent) {
+    window.electronAPI?.log?.info?.('[ChatPanel] handleClear called', { isLoading, sessionId: session?.id, msgCount: messages.length });
+    if (isLoading && window.electronAPI?.agent) {
       window.electronAPI?.log?.info?.('[ChatPanel] Aborting agent before clear');
-      await window.electronAPI.agent.abort();
+      await window.electronAPI.agent.abort(sessionIdProp);
     }
 
     // Skip session load effect to prevent overwriting our cleared message
@@ -904,12 +944,18 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
     setTimeout(() => setIsBatchLoad(false), 100);
 
     // Reset main process state (context tracker, todos, approved tools)
-    await window.electronAPI?.agent?.clearState?.();
+    await window.electronAPI?.agent?.clearState?.(sessionIdProp);
 
-    // Clear execution state via context
-    clearTodos();
-    clearProgressMessages();
-    clearToolExecutions();
+    // Clear execution state — use correct method based on whether this is the active tab.
+    // If active tab: clear global state (currently displayed data)
+    // If background tab: clear the session cache (not the displayed data of another tab)
+    if (isActiveProp) {
+      clearTodos();
+      clearProgressMessages();
+      clearToolExecutions();
+    } else if (sessionIdProp) {
+      clearSessionCache(sessionIdProp);
+    }
     setIsExecuting(false);
     setIsLoading(false);
     setAttachedImages([]);
@@ -936,7 +982,7 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
     setTimeout(() => {
       skipSessionLoadRef.current = false;
     }, 500);
-  }, [session, onSessionChange, isExecuting, clearTodos, clearProgressMessages, clearToolExecutions, setIsExecuting, t]);
+  }, [session, onSessionChange, isLoading, clearTodos, clearProgressMessages, clearToolExecutions, clearSessionCache, isActiveProp, sessionIdProp, setIsExecuting, t]);
 
   // Expose methods via ref
   useImperativeHandle(ref, () => ({
@@ -1142,7 +1188,7 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
                 </svg>
               </button>
             )}
-            {isExecuting ? (
+            {isLoading ? (
               <button
                 className="chat-send-btn chat-abort-btn"
                 onClick={handleAbort}

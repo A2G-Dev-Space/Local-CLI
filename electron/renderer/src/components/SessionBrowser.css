@@ -10,7 +10,7 @@
   align-items: center;
   justify-content: center;
   padding: 16px;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: rgba(0, 0, 0, 0.7);
   animation: fadeIn var(--transition-fast);
   overflow: auto;
 }
@@ -163,7 +163,11 @@
 }
 
 .session-item.current {
-  background-color: rgba(56, 189, 248, 0.1);
+  background-color: #F0F9FF;
+}
+
+[data-theme="dark"] .session-item.current {
+  background-color: #0F1D2D;
 }
 
 .session-item-icon {
@@ -204,8 +208,12 @@
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
   color: var(--color-accent-primary);
-  background-color: rgba(56, 189, 248, 0.15);
+  background-color: #EDF9FE;
   border-radius: var(--radius-full);
+}
+
+[data-theme="dark"] .session-item-badge {
+  background-color: #0F1D2D;
 }
 
 .session-item-meta {
@@ -274,7 +282,11 @@
 
 .session-action-btn.delete:hover {
   color: var(--color-error);
-  background-color: rgba(239, 68, 68, 0.1);
+  background-color: #FEF2F2;
+}
+
+[data-theme="dark"] .session-action-btn.delete:hover {
+  background-color: #2D1B1F;
 }
 
 /* ============ Footer ============ */

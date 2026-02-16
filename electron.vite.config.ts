@@ -11,10 +11,12 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve(__dirname, 'electron/main/index.ts'),
+          // agent-worker is built separately via esbuild (see electron:build-worker script)
+          // to avoid vite code-splitting that pulls electron into shared chunks
         },
         output: {
           format: 'cjs',
-          entryFileNames: 'index.cjs',
+          entryFileNames: '[name].cjs',
         },
       },
     },

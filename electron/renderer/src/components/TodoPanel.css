@@ -132,11 +132,11 @@
 }
 
 .todo-compact:hover {
-  background: rgba(0, 0, 0, 0.01);
+  background: #FDFDFD;
 }
 
 [data-theme="dark"] .todo-compact:hover {
-  background: rgba(255, 255, 255, 0.01);
+  background: #1A2332;
 }
 
 /* ============ Todo Row (Label + Card) ============ */
@@ -170,7 +170,7 @@
   from {
     opacity: 0;
     transform: translateY(-16px);
-    background: rgba(59, 130, 246, 0.1);
+    background: #EFF6FF;
   }
   to {
     opacity: 1;
@@ -260,9 +260,15 @@
 }
 
 .todo-card.current {
-  background: rgba(59, 130, 246, 0.08);
-  border-color: rgba(59, 130, 246, 0.3);
-  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.1);
+  background: #EFF6FF;
+  border-color: #93C5FD;
+  box-shadow: 0 0 0 1px #DBEAFE;
+}
+
+[data-theme="dark"] .todo-card.current {
+  background: #1E3A5F;
+  border-color: #1E4D8C;
+  box-shadow: 0 0 0 1px #1A3558;
 }
 
 .todo-card.completed {
@@ -270,8 +276,13 @@
 }
 
 .todo-card.failed {
-  background: rgba(239, 68, 68, 0.08);
-  border-color: rgba(239, 68, 68, 0.3);
+  background: #FEF2F2;
+  border-color: #FCA5A5;
+}
+
+[data-theme="dark"] .todo-card.failed {
+  background: #2D1B1F;
+  border-color: #7F1D1D;
 }
 
 .todo-card.next {

@@ -51,6 +51,8 @@ export interface UserQuestionData {
   question: string;
   options: { id: string; label: string }[];
   allowCustom: boolean;
+  reqId?: string; // Worker round-trip ID for askUser response routing
+  sessionId?: string; // Session that sent this question (for routing response to correct worker)
 }
 
 // Approval Request
@@ -59,6 +61,7 @@ export interface ApprovalRequest {
   toolName: string;
   args: Record<string, unknown>;
   reason?: string;
+  sessionId?: string; // Session that sent this request (for routing response to correct worker)
 }
 
 // Final response callback type
@@ -68,6 +71,10 @@ interface AgentContextValue {
   // Tool executions
   toolExecutions: ToolExecutionData[];
   clearToolExecutions: () => void;
+
+  // Session-aware state switching
+  switchSession: (newSessionId: string | null) => void;
+  clearSessionCache: (sessionId: string) => void;
 
   // Progress messages
   progressMessages: ProgressMessageData[];
@@ -115,14 +122,30 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     toolExecutionsRef.current = toolExecutions;
   }, [toolExecutions]);
 
+  // Per-session cache for tool executions, todos, progress
+  const toolCacheRef = useRef<Map<string, ToolExecutionData[]>>(new Map());
+  const todoCacheRef = useRef<Map<string, TodoItem[]>>(new Map());
+  const progressCacheRef = useRef<Map<string, ProgressMessageData[]>>(new Map());
+  const activeSessionRef = useRef<string | null>(null);
+
   // Progress messages
   const [progressMessages, setProgressMessages] = useState<ProgressMessageData[]>([]);
+  const progressMessagesRef = useRef<ProgressMessageData[]>([]);
+  useEffect(() => { progressMessagesRef.current = progressMessages; }, [progressMessages]);
 
   // TODOs
   const [todos, setTodos] = useState<TodoItem[]>([]);
+  const todosRef = useRef<TodoItem[]>([]);
+  useEffect(() => { todosRef.current = todos; }, [todos]);
 
-  // Execution state
-  const [isExecuting, setIsExecuting] = useState(false);
+  // Execution state — stored as ref to prevent cross-tab re-renders.
+  // When Session A sets isExecuting(true), it must NOT cause Session B's ChatPanel
+  // (where the user is typing) to re-render, which would break Korean IME composition.
+  // Each ChatPanel has its own `isLoading` local state for UI rendering.
+  const isExecutingRef = useRef(false);
+  const setIsExecuting = useCallback((value: boolean) => {
+    isExecutingRef.current = value;
+  }, []);
 
   // User question state
   const [currentQuestion, setCurrentQuestion] = useState<UserQuestionData | null>(null);
@@ -131,6 +154,32 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
   // Approval modal state
   const [approvalRequest, setApprovalRequest] = useState<ApprovalRequest | null>(null);
   const [isApprovalOpen, setIsApprovalOpen] = useState(false);
+
+  // Modal queue: When a question/approval arrives while another modal is open,
+  // queue it instead of overwriting. Prevents concurrent sessions from losing requests.
+  type PendingModal =
+    | { type: 'question'; data: UserQuestionData }
+    | { type: 'approval'; data: ApprovalRequest };
+  const pendingModalQueueRef = useRef<PendingModal[]>([]);
+  const isModalActiveRef = useRef(false);
+
+  // Show next queued modal (called after current modal is dismissed)
+  const showNextQueuedModal = useCallback(() => {
+    const next = pendingModalQueueRef.current.shift();
+    if (next) {
+      if (next.type === 'question') {
+        setCurrentQuestion(next.data);
+        setIsQuestionOpen(true);
+        // isModalActiveRef stays true
+      } else {
+        setApprovalRequest(next.data);
+        setIsApprovalOpen(true);
+        // isModalActiveRef stays true
+      }
+    } else {
+      isModalActiveRef.current = false;
+    }
+  }, []);
 
   // Final response callback (stored in ref to avoid stale closures)
   const finalResponseCallbackRef = useRef<FinalResponseCallback | null>(null);
@@ -164,14 +213,59 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     setProgressMessages(prev => prev.filter(msg => msg.id !== id));
   }, []);
 
+  // Switch session: save current state to cache, restore new session's state from cache
+  // Uses refs to avoid stale closure issues (this callback must be stable)
+  const switchSession = useCallback((newSessionId: string | null) => {
+    const oldId = activeSessionRef.current;
+
+    // Save current state to old session cache (read from refs for latest values)
+    if (oldId) {
+      toolCacheRef.current.set(oldId, toolExecutionsRef.current);
+      todoCacheRef.current.set(oldId, todosRef.current);
+      progressCacheRef.current.set(oldId, progressMessagesRef.current);
+    }
+
+    // Restore from new session cache (or empty for new session)
+    const cachedTools = newSessionId ? toolCacheRef.current.get(newSessionId) || [] : [];
+    const cachedTodos = newSessionId ? todoCacheRef.current.get(newSessionId) || [] : [];
+    const cachedProgress = newSessionId ? progressCacheRef.current.get(newSessionId) || [] : [];
+
+    setToolExecutions(cachedTools);
+    toolExecutionsRef.current = cachedTools;
+    setTodos(cachedTodos);
+    todosRef.current = cachedTodos;
+    setProgressMessages(cachedProgress);
+    progressMessagesRef.current = cachedProgress;
+
+    activeSessionRef.current = newSessionId;
+
+    window.electronAPI?.log?.debug?.('[AgentContext] switchSession', {
+      from: oldId, to: newSessionId,
+      restoredTools: cachedTools.length,
+      restoredTodos: cachedTodos.length,
+    });
+  }, []); // No deps - all reads from refs
+
+  // Clear session cache when a tab is closed (prevent memory leak)
+  const clearSessionCache = useCallback((sessionId: string) => {
+    toolCacheRef.current.delete(sessionId);
+    todoCacheRef.current.delete(sessionId);
+    progressCacheRef.current.delete(sessionId);
+    window.electronAPI?.log?.debug?.('[AgentContext] clearSessionCache', { sessionId });
+  }, []);
+
+
   // User question handlers
+  // Use stored sessionId from the question (not activeSessionRef) to route response to correct worker
   const handleQuestionAnswer = useCallback(async (questionId: string, answer: string, isCustom: boolean) => {
     window.electronAPI?.log?.debug('[AgentContext] Question answered', { questionId, answer, isCustom });
+    const currentReqId = currentQuestion?.reqId;
+    const originSessionId = currentQuestion?.sessionId || activeSessionRef.current;
     setIsQuestionOpen(false);
     setCurrentQuestion(null);
 
     if (window.electronAPI?.agent) {
-      const response: AskUserResponse = isCustom
+      const response: AskUserResponse & { reqId?: string; sessionId?: string } = isCustom
         ? {
             selectedOption: { label: 'Other', value: 'other' },
             isOther: true,
@@ -181,56 +275,91 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
             selectedOption: { label: answer, value: answer },
             isOther: false,
           };
-      await window.electronAPI.agent.respondToQuestion(response);
+      if (currentReqId) response.reqId = currentReqId;
+      if (originSessionId) response.sessionId = originSessionId;
+      await window.electronAPI.agent.respondToQuestion(response, originSessionId || undefined);
     }
-  }, []);
+    // Show next queued modal if any
+    showNextQueuedModal();
+  }, [currentQuestion, showNextQueuedModal]);
 
   const handleQuestionCancel = useCallback(async () => {
+    const currentReqId = currentQuestion?.reqId;
+    const originSessionId = currentQuestion?.sessionId || activeSessionRef.current;
     setIsQuestionOpen(false);
     setCurrentQuestion(null);
 
     if (window.electronAPI?.agent) {
-      const response: AskUserResponse = {
+      const response: AskUserResponse & { reqId?: string; sessionId?: string } = {
         selectedOption: { label: 'Cancel', value: 'cancel' },
         isOther: true,
         customText: 'User cancelled',
       };
-      await window.electronAPI.agent.respondToQuestion(response);
+      if (currentReqId) response.reqId = currentReqId;
+      if (originSessionId) response.sessionId = originSessionId;
+      await window.electronAPI.agent.respondToQuestion(response, originSessionId || undefined);
     }
-  }, []);
+    // Show next queued modal if any
+    showNextQueuedModal();
+  }, [currentQuestion, showNextQueuedModal]);
 
   // Approval handlers
+  // Use stored sessionId from the approval request (not activeSessionRef) to route to correct worker
   const handleApprovalResponse = useCallback(async (result: 'approve' | 'always' | { reject: true; comment: string }) => {
     if (!approvalRequest || !window.electronAPI?.agent?.respondToApproval) return;
 
+    const originSessionId = approvalRequest.sessionId || activeSessionRef.current;
     setIsApprovalOpen(false);
 
     await window.electronAPI.agent.respondToApproval({
       id: approvalRequest.id,
       result,
+      sessionId: originSessionId || undefined,
     });
 
     setApprovalRequest(null);
-  }, [approvalRequest]);
+    // Show next queued modal if any
+    showNextQueuedModal();
+  }, [approvalRequest, showNextQueuedModal]);
 
   const handleApprovalCancel = useCallback(async () => {
     if (!approvalRequest || !window.electronAPI?.agent?.respondToApproval) return;
 
+    const originSessionId = approvalRequest.sessionId || activeSessionRef.current;
     setIsApprovalOpen(false);
 
     await window.electronAPI.agent.respondToApproval({
       id: approvalRequest.id,
       result: { reject: true, comment: 'Cancelled by user' },
+      sessionId: originSessionId || undefined,
     });
 
     setApprovalRequest(null);
-  }, [approvalRequest]);
+    // Show next queued modal if any
+    showNextQueuedModal();
+  }, [approvalRequest, showNextQueuedModal]);
 
-  // Setup agent event listeners
-  const setupAgentListeners = useCallback(() => {
-    if (!window.electronAPI?.agent) return () => {};
+  // Setup agent event listeners — registered ONCE in AgentProvider (not per ChatPanel).
+  // Events from worker threads include `sessionId` in data.
+  // We route events to the active session's state. Background session events go to cache.
+  useEffect(() => {
+    if (!window.electronAPI?.agent) return;
 
     const unsubscribes: Array<() => void> = [];
+
+    // Helper: check if event is for the active session
+    const isActiveSession = (data: { sessionId?: string }): boolean => {
+      // If no sessionId in data, it's from legacy single-session mode — always active
+      if (!data.sessionId) return true;
+      return data.sessionId === activeSessionRef.current;
+    };
+
+    // Helper: add tool execution to background cache if not active session
+    const addToolToBackground = (sessionId: string, execution: ToolExecutionData) => {
+      const cache = toolCacheRef.current.get(sessionId) || [];
+      cache.push(execution);
+      toolCacheRef.current.set(sessionId, cache);
+    };
 
     // Tool call event - immediate update (skip final_response)
     unsubscribes.push(
@@ -238,7 +367,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
         // Skip final_response - it will be handled as a chat message
         if (data.toolName === 'final_response') return;
 
-        window.electronAPI?.log?.debug?.('[AgentContext] Tool call', { toolName: data.toolName });
+        window.electronAPI?.log?.debug?.('[AgentContext] Tool call', { toolName: data.toolName, sessionId: (data as any).sessionId });
         const toolCategory = getToolCategory(data.toolName);
 
         // Sanitize the reason to remove any XML-like artifacts
@@ -254,7 +383,12 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
           timestamp: Date.now(),
           reason: sanitizedReason,
         };
-        addToolExecution(newExecution);
+
+        if (isActiveSession(data as any)) {
+          addToolExecution(newExecution);
+        } else if ((data as any).sessionId) {
+          addToolToBackground((data as any).sessionId, newExecution);
+        }
       })
     );
 
@@ -264,42 +398,64 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
         window.electronAPI?.log?.debug?.('[AgentContext] Tool result', { toolName: data.toolName, success: data.success });
         // Handle final_response specially - display as chat message
         if (data.toolName === 'final_response' && data.success && data.result) {
-          if (finalResponseCallbackRef.current) {
+          if (finalResponseCallbackRef.current && isActiveSession(data as any)) {
             finalResponseCallbackRef.current(data.result);
           }
           return;
         }
 
-        // Update the matching tool execution
-        setToolExecutions(prev => {
-          const updated = [...prev];
-          // Find the most recent running tool with this name
-          const lastIdx = updated.findLastIndex(t => t.toolName === data.toolName && t.status === 'running');
+        // Update in active or background cache
+        if (isActiveSession(data as any)) {
+          setToolExecutions(prev => {
+            const updated = [...prev];
+            const lastIdx = updated.findLastIndex(t => t.toolName === data.toolName && t.status === 'running');
+            if (lastIdx !== -1) {
+              const startTime = updated[lastIdx].timestamp;
+              updated[lastIdx] = {
+                ...updated[lastIdx],
+                status: data.success ? 'success' : 'error',
+                output: data.success ? data.result : undefined,
+                error: data.success ? undefined : data.result,
+                duration: Date.now() - startTime,
+              };
+            }
+            return updated;
+          });
+        } else if ((data as any).sessionId) {
+          const sid = (data as any).sessionId;
+          const cache = toolCacheRef.current.get(sid) || [];
+          const lastIdx = cache.findLastIndex(t => t.toolName === data.toolName && t.status === 'running');
           if (lastIdx !== -1) {
-            const startTime = updated[lastIdx].timestamp;
-            updated[lastIdx] = {
-              ...updated[lastIdx],
+            cache[lastIdx] = {
+              ...cache[lastIdx],
               status: data.success ? 'success' : 'error',
               output: data.success ? data.result : undefined,
               error: data.success ? undefined : data.result,
-              duration: Date.now() - startTime,
+              duration: Date.now() - cache[lastIdx].timestamp,
             };
+            toolCacheRef.current.set(sid, cache);
           }
-          return updated;
-        });
+        }
       })
     );
 
-    // TODO update event
+    // TODO update event — sessionId passed as second arg from WorkerManager
     unsubscribes.push(
-      window.electronAPI.agent.onTodoUpdate((agentTodos) => {
-        window.electronAPI?.log?.debug?.('[AgentContext] Todo update', { count: agentTodos.length });
+      window.electronAPI.agent.onTodoUpdate((agentTodos, eventSessionId?: string) => {
+        window.electronAPI?.log?.debug?.('[AgentContext] Todo update', { count: agentTodos.length, sessionId: eventSessionId });
         const uiTodos: TodoItem[] = agentTodos.map(t => ({
           id: t.id,
           title: t.title,
           status: t.status,
         }));
-        setTodos(uiTodos);
+
+        const isActive = !eventSessionId || eventSessionId === activeSessionRef.current;
+        if (isActive) {
+          setTodos(uiTodos);
+        } else {
+          // Background session — save to cache for restoration on tab switch
+          todoCacheRef.current.set(eventSessionId, uiTodos);
+        }
       })
     );
 
@@ -310,31 +466,77 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
       })
     );
 
-    // Ask user event
+    // Auto-sync result event (ONCE/FREE background sync notifications)
+    if (window.electronAPI.agent.onAutoSyncResult) {
+      unsubscribes.push(
+        window.electronAPI.agent.onAutoSyncResult((result) => {
+          window.electronAPI?.log?.debug?.('[AgentContext] Auto-sync result', result);
+          // Auto-sync not applicable for local-cli (no ONCE/FREE)
+        })
+      );
+    }
+
+    // Ask user event (includes sessionId + reqId from worker for round-trip routing)
+    // Uses modal queue to prevent concurrent sessions from overwriting each other's requests
     unsubscribes.push(
       window.electronAPI.agent.onAskUser((request) => {
-        window.electronAPI?.log?.info?.('[AgentContext] Ask user', { question: request.question, optionCount: request.options.length });
+        const reqAny = request as Record<string, unknown>;
+        const eventSessionId = reqAny.sessionId as string | undefined;
+        window.electronAPI?.log?.info?.('[AgentContext] Ask user', {
+          question: request.question,
+          optionCount: request.options?.length ?? 0,
+          sessionId: eventSessionId,
+          modalActive: isModalActiveRef.current,
+        });
         const questionData: UserQuestionData = {
           id: `question-${Date.now()}`,
           question: request.question,
-          options: request.options.map((opt, idx) => ({
+          options: (request.options || []).map((opt: unknown, idx: number) => ({
             id: `option-${idx}`,
-            label: typeof opt === 'string' ? opt : opt.label,
+            label: typeof opt === 'string' ? opt : (opt as { label: string }).label,
           })),
           allowCustom: request.allowCustom ?? true,
+          reqId: reqAny.reqId as string | undefined,
+          sessionId: eventSessionId,
         };
-        setCurrentQuestion(questionData);
-        setIsQuestionOpen(true);
+        if (isModalActiveRef.current) {
+          // Another modal is already showing — queue this request
+          pendingModalQueueRef.current.push({ type: 'question', data: questionData });
+          window.electronAPI?.log?.info?.('[AgentContext] Question QUEUED (modal busy)', { sessionId: eventSessionId, queueLen: pendingModalQueueRef.current.length });
+        } else {
+          isModalActiveRef.current = true;
+          setCurrentQuestion(questionData);
+          setIsQuestionOpen(true);
+        }
       })
     );
 
-    // Approval request event
+    // Approval request event (includes sessionId from worker)
+    // Uses modal queue to prevent concurrent sessions from overwriting each other's requests
     if (window.electronAPI.agent.onApprovalRequest) {
       unsubscribes.push(
         window.electronAPI.agent.onApprovalRequest((request) => {
-          window.electronAPI?.log?.info?.('[AgentContext] Approval request', { toolName: request.toolName, reason: request.reason });
-          setApprovalRequest(request);
-          setIsApprovalOpen(true);
+          const reqAny = request as Record<string, unknown>;
+          const eventSessionId = reqAny.sessionId as string | undefined;
+          window.electronAPI?.log?.info?.('[AgentContext] Approval request', {
+            toolName: request.toolName,
+            reason: request.reason,
+            sessionId: eventSessionId,
+            modalActive: isModalActiveRef.current,
+          });
+          const approvalData: ApprovalRequest = {
+            ...request,
+            sessionId: eventSessionId,
+          };
+          if (isModalActiveRef.current) {
+            // Another modal is already showing — queue this request
+            pendingModalQueueRef.current.push({ type: 'approval', data: approvalData });
+            window.electronAPI?.log?.info?.('[AgentContext] Approval QUEUED (modal busy)', { sessionId: eventSessionId, queueLen: pendingModalQueueRef.current.length });
+          } else {
+            isModalActiveRef.current = true;
+            setApprovalRequest(approvalData);
+            setIsApprovalOpen(true);
+          }
         })
       );
     }
@@ -342,18 +544,25 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     return () => {
       unsubscribes.forEach(unsub => unsub());
     };
-  }, [addToolExecution]);
+  }, [addToolExecution]); // addToolExecution is stable (useCallback with [])
+
+  // Kept for backward compatibility but now a no-op (listeners are set up in useEffect above)
+  const setupAgentListeners = useCallback(() => {
+    return () => {};
+  }, []);
 
   // Memoize context value to prevent unnecessary re-renders
   const value = useMemo<AgentContextValue>(() => ({
     toolExecutions,
     clearToolExecutions,
+    switchSession,
+    clearSessionCache,
     progressMessages,
     dismissProgressMessage,
     clearProgressMessages,
     todos,
     clearTodos,
-    isExecuting,
+    isExecuting: isExecutingRef.current,
     setIsExecuting,
     currentQuestion,
     isQuestionOpen,
@@ -369,12 +578,13 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
   }), [
     toolExecutions,
     clearToolExecutions,
+    switchSession,
+    clearSessionCache,
     progressMessages,
     dismissProgressMessage,
     clearProgressMessages,
     todos,
     clearTodos,
-    isExecuting,
     currentQuestion,
     isQuestionOpen,
     handleQuestionAnswer,

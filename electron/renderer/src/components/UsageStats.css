@@ -8,7 +8,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: rgba(0, 0, 0, 0.7);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -171,6 +171,126 @@
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
 }
+
+/* Quota Progress Bars */
+.quota-bars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.quota-bar-container {
+  background-color: var(--color-bg-inset);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  border: 1px solid transparent;
+  transition: border-color 0.2s;
+}
+
+.quota-bar-container--exceeded {
+  border-color: var(--color-error, #f43f5e);
+  background-color: #FFF5F7;
+}
+
+[data-theme="dark"] .quota-bar-container--exceeded {
+  background-color: #2D1B1F;
+}
+
+.quota-bar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-2);
+}
+
+.quota-bar-label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium, 500);
+  color: var(--color-text-secondary);
+}
+
+.quota-bar-percent {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  font-family: var(--font-mono);
+  color: var(--color-text-primary);
+}
+
+.quota-bar-percent--exceeded {
+  color: var(--color-error, #f43f5e);
+}
+
+.quota-bar-track {
+  height: 8px;
+  background-color: #E5E7EB;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+[data-theme="dark"] .quota-bar-track {
+  background-color: #2A2D2E;
+}
+
+.quota-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.7s ease-out;
+}
+
+.quota-bar-fill--normal {
+  background: linear-gradient(90deg, #0d9488, #14b8a6);
+}
+
+.quota-bar-fill--caution {
+  background: linear-gradient(90deg, #14b8a6, #f59e0b);
+}
+
+.quota-bar-fill--warning {
+  background: linear-gradient(90deg, #f59e0b, #f43f5e);
+}
+
+.quota-bar-fill--danger {
+  background: #f43f5e;
+}
+
+.quota-bar-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--space-2);
+}
+
+.quota-bar-time {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.quota-bar-reset {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  opacity: 0.7;
+}
+
+.quota-bar-exceeded-text {
+  font-size: 11px;
+  color: var(--color-error, #f43f5e);
+  font-weight: var(--font-weight-medium, 500);
+}
+
+.quota-bar-reset-date {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  opacity: 0.5;
+  margin-top: 4px;
+  text-align: right;
+}
+
+.quota-login-hint {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  opacity: 0.8;
+}
+
 
 /* Footer */
 .usage-stats-footer {

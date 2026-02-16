@@ -333,6 +333,16 @@ const electronAPI = {
     isAlwaysOnTop: (): Promise<boolean> => {
       return ipcRenderer.invoke('task-window:isAlwaysOnTop');
     },
+
+    setActiveSession: (sessionId: string): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke('taskWindow:setActiveSession', sessionId);
+    },
+
+    onActiveSessionChanged: (callback: (sessionId: string, todos: unknown[]) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, sessionId: string, todos: unknown[]) => callback(sessionId, todos);
+      ipcRenderer.on('taskWindow:activeSessionChanged', handler);
+      return () => ipcRenderer.removeListener('taskWindow:activeSessionChanged', handler);
+    },
   },
 
   // ============ 테마 ============
@@ -725,18 +735,19 @@ const electronAPI = {
 
   // ============ Agent (에이전트) ============
   agent: {
-    // 에이전트 실행
+    // 에이전트 실행 (sessionId optional - for multi-session worker routing)
     run: (
       userMessage: string,
       existingMessages?: Array<{ role: string; content: string }>,
-      config?: AgentConfig
+      config?: AgentConfig,
+      sessionId?: string
     ): Promise<AgentResult> => {
-      return ipcRenderer.invoke('agent:run', userMessage, existingMessages, config);
+      return ipcRenderer.invoke('agent:run', userMessage, existingMessages, config, sessionId);
     },
 
-    // 에이전트 중단
-    abort: (): Promise<{ success: boolean }> => {
-      return ipcRenderer.invoke('agent:abort');
+    // 에이전트 중단 (sessionId optional)
+    abort: (sessionId?: string): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke('agent:abort', sessionId);
     },
 
     // 에이전트 실행 중 여부
@@ -754,9 +765,9 @@ const electronAPI = {
       return ipcRenderer.invoke('agent:setTodos', todos);
     },
 
-    // 에이전트 상태 초기화 (Clear Chat 시)
-    clearState: (): Promise<{ success: boolean }> => {
-      return ipcRenderer.invoke('agent:clearState');
+    // 에이전트 상태 초기화 (Clear Chat 시, sessionId optional)
+    clearState: (sessionId?: string): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke('agent:clearState', sessionId);
     },
 
     // 간단한 채팅 (도구 없음)
@@ -768,9 +779,9 @@ const electronAPI = {
       return ipcRenderer.invoke('agent:simpleChat', userMessage, existingMessages, systemPrompt);
     },
 
-    // 사용자 질문에 응답
-    respondToQuestion: (response: AskUserResponse): Promise<{ success: boolean }> => {
-      return ipcRenderer.invoke('agent:respondToQuestion', response);
+    // 사용자 질문에 응답 (sessionId optional)
+    respondToQuestion: (response: AskUserResponse, sessionId?: string): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke('agent:respondToQuestion', response, sessionId);
     },
 
     // 이벤트 리스너들
@@ -792,14 +803,14 @@ const electronAPI = {
       return () => ipcRenderer.removeListener('agent:toolResult', handler);
     },
 
-    onTodoUpdate: (callback: (todos: TodoItem[]) => void): (() => void) => {
-      const handler = (_event: IpcRendererEvent, todos: TodoItem[]) => callback(todos);
+    onTodoUpdate: (callback: (todos: TodoItem[], sessionId?: string) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, todos: TodoItem[], sessionId?: string) => callback(todos, sessionId);
       ipcRenderer.on('agent:todoUpdate', handler);
       return () => ipcRenderer.removeListener('agent:todoUpdate', handler);
     },
 
-    onTellUser: (callback: (message: string) => void): (() => void) => {
-      const handler = (_event: IpcRendererEvent, message: string) => callback(message);
+    onTellUser: (callback: (message: string, sessionId?: string) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, message: string, sessionId?: string) => callback(message, sessionId);
       ipcRenderer.on('agent:tellUser', handler);
       return () => ipcRenderer.removeListener('agent:tellUser', handler);
     },
@@ -857,10 +868,11 @@ const electronAPI = {
       return () => ipcRenderer.removeListener('agent:approvalRequest', handler);
     },
 
-    // Respond to tool approval request
+    // Respond to tool approval request (sessionId for worker routing)
     respondToApproval: (response: {
       id: string;
       result: 'approve' | 'always' | { reject: true; comment: string };
+      sessionId?: string;
     }): Promise<{ success: boolean }> => {
       return ipcRenderer.invoke('agent:respondToApproval', response);
     },
@@ -905,6 +917,22 @@ const electronAPI = {
       }) => callback(data);
       ipcRenderer.on('agent:fileCreate', handler);
       return () => ipcRenderer.removeListener('agent:fileCreate', handler);
+    },
+  },
+
+  // ============ Worker (멀티 세션) ============
+  worker: {
+    create: (sessionId: string): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke('worker:create', sessionId);
+    },
+    terminate: (sessionId: string): Promise<{ success: boolean; error?: string }> => {
+      return ipcRenderer.invoke('worker:terminate', sessionId);
+    },
+    exists: (sessionId: string): Promise<boolean> => {
+      return ipcRenderer.invoke('worker:exists', sessionId);
+    },
+    count: (): Promise<number> => {
+      return ipcRenderer.invoke('worker:count');
     },
   },
 

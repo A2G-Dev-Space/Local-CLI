@@ -66,29 +66,29 @@
 
 /* ============ CSS Variables - Theme System ============ */
 :root {
-  /* ---- Colors: Light Theme (Default) - Glassmorphism ---- */
+  /* ---- Colors: Light Theme (Default) - Solid ---- */
   --color-bg-base: #F0F4F8;
-  --color-bg-elevated: rgba(255, 255, 255, 0.85);
-  --color-bg-surface: rgba(255, 255, 255, 0.7);
-  --color-bg-overlay: rgba(241, 245, 249, 0.8);
-  --color-bg-inset: rgba(248, 250, 252, 0.9);
-  --color-bg-subtle: rgba(255, 255, 255, 0.6);
+  --color-bg-elevated: #FFFFFF;
+  --color-bg-surface: #FFFFFF;
+  --color-bg-overlay: #F1F5F9;
+  --color-bg-inset: #F8FAFC;
+  --color-bg-subtle: #FFFFFF;
 
   /* Gradient Background */
   --bg-gradient: linear-gradient(135deg, #EFF6FF 0%, #F1F5F9 50%, #EEF2FF 100%);
 
-  /* Glass Effect */
-  --glass-bg: rgba(255, 255, 255, 0.7);
-  --glass-bg-solid: rgba(255, 255, 255, 0.85);
-  --glass-border: rgba(255, 255, 255, 0.5);
-  --glass-border-subtle: rgba(255, 255, 255, 0.3);
-  --glass-blur: blur(12px);
+  /* Glass Effect (now solid) */
+  --glass-bg: #FFFFFF;
+  --glass-bg-solid: #FFFFFF;
+  --glass-border: #E2E8F0;
+  --glass-border-subtle: #F1F5F9;
+  --glass-blur: blur(0px);
   --glass-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
 
   /* Borders */
-  --color-border-default: rgba(203, 213, 225, 0.6);
-  --color-border-muted: rgba(226, 232, 240, 0.6);
-  --color-border-subtle: rgba(241, 245, 249, 0.6);
+  --color-border-default: #CBD5E1;
+  --color-border-muted: #E2E8F0;
+  --color-border-subtle: #F1F5F9;
 
   /* Text */
   --color-text-primary: #1E293B;
@@ -107,22 +107,22 @@
   /* Chat Message Colors (palette-responsive) */
   --color-msg-user-bg: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
   --color-msg-user-text: #0c4a6e;
-  --color-msg-user-border: rgba(125, 211, 252, 0.4);
+  --color-msg-user-border: #BEE7FE;
   --color-msg-user-shadow: rgba(56, 189, 248, 0.15);
-  --color-msg-assistant-bg: rgba(255, 255, 255, 0.95);
-  --color-msg-assistant-border: rgba(226, 232, 240, 0.6);
+  --color-msg-assistant-bg: #FFFFFF;
+  --color-msg-assistant-border: #E2E8F0;
   --color-msg-avatar-bg: #ffffff;
   --color-msg-avatar-border: #e2e8f0;
 
   /* Semantic Colors */
   --color-success: #3fb950;
-  --color-success-bg: rgba(63, 185, 80, 0.15);
+  --color-success-bg: #ECFDF5;
   --color-warning: #d29922;
-  --color-warning-bg: rgba(210, 153, 34, 0.15);
+  --color-warning-bg: #FFFBEB;
   --color-error: #f85149;
-  --color-error-bg: rgba(248, 81, 73, 0.15);
+  --color-error-bg: #FEF2F2;
   --color-info: #58a6ff;
-  --color-info-bg: rgba(88, 166, 255, 0.15);
+  --color-info-bg: #EFF6FF;
 
   /* Syntax Highlighting */
   --syntax-keyword: #ff7b72;
@@ -200,10 +200,10 @@
   --shadow-glow: 0 0 20px rgba(56, 189, 248, 0.3);
   --shadow-glow-lg: 0 0 40px rgba(56, 189, 248, 0.4);
 
-  /* Glassmorphism */
-  --glass-bg: rgba(22, 27, 34, 0.8);
-  --glass-border: rgba(48, 54, 61, 0.5);
-  --glass-blur: blur(12px);
+  /* Glassmorphism (now solid) */
+  --glass-bg: #161B22;
+  --glass-border: #30363D;
+  --glass-blur: blur(0px);
 
   /* Transitions */
   --transition-fast: 150ms ease;
@@ -236,28 +236,28 @@
   --scrollbar-thumb-hover: var(--color-text-muted);
 }
 
-/* ============ Dark Theme - Glassmorphism ============ */
+/* ============ Dark Theme - Solid ============ */
 [data-theme="dark"] {
   --color-bg-base: #0F172A;
-  --color-bg-elevated: rgba(15, 23, 42, 0.85);
-  --color-bg-surface: rgba(30, 41, 59, 0.7);
-  --color-bg-overlay: rgba(51, 65, 85, 0.6);
-  --color-bg-inset: rgba(2, 6, 23, 0.9);
-  --color-bg-subtle: rgba(30, 41, 59, 0.6);
+  --color-bg-elevated: #0F172A;
+  --color-bg-surface: #1E293B;
+  --color-bg-overlay: #334155;
+  --color-bg-inset: #020617;
+  --color-bg-subtle: #1E293B;
 
   /* Gradient Background - Dark */
   --bg-gradient: linear-gradient(135deg, #0F172A 0%, #1E293B 50%, #312E81 100%);
 
-  /* Glass Effect - Dark */
-  --glass-bg: rgba(30, 41, 59, 0.7);
-  --glass-bg-solid: rgba(15, 23, 42, 0.85);
-  --glass-border: rgba(255, 255, 255, 0.1);
-  --glass-border-subtle: rgba(255, 255, 255, 0.05);
+  /* Glass Effect - Dark (now solid) */
+  --glass-bg: #1E293B;
+  --glass-bg-solid: #0F172A;
+  --glass-border: #334155;
+  --glass-border-subtle: #1E293B;
   --glass-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
 
-  --color-border-default: rgba(51, 65, 85, 0.6);
-  --color-border-muted: rgba(71, 85, 105, 0.4);
-  --color-border-subtle: rgba(30, 41, 59, 0.6);
+  --color-border-default: #334155;
+  --color-border-muted: #475569;
+  --color-border-subtle: #1E293B;
 
   --color-text-primary: #E2E8F0;
   --color-text-secondary: #94A3B8;
@@ -271,10 +271,10 @@
   /* Chat Message Colors - Dark default */
   --color-msg-user-bg: linear-gradient(135deg, #0c4a6e 0%, #075985 100%);
   --color-msg-user-text: #e0f2fe;
-  --color-msg-user-border: rgba(56, 189, 248, 0.3);
+  --color-msg-user-border: #2D7FB8;
   --color-msg-user-shadow: rgba(56, 189, 248, 0.2);
-  --color-msg-assistant-bg: rgba(30, 41, 59, 0.95);
-  --color-msg-assistant-border: rgba(71, 85, 105, 0.4);
+  --color-msg-assistant-bg: #1E293B;
+  --color-msg-assistant-border: #475569;
   --color-msg-avatar-bg: #1e293b;
   --color-msg-avatar-border: #334155;
 
@@ -283,9 +283,27 @@
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.4);
   --shadow-glow: 0 0 20px rgba(59, 130, 246, 0.4);
 
-  --scrollbar-track: rgba(15, 23, 42, 0.5);
-  --scrollbar-thumb: rgba(71, 85, 105, 0.5);
-  --scrollbar-thumb-hover: rgba(100, 116, 139, 0.7);
+  --scrollbar-track: #0F172A;
+  --scrollbar-thumb: #475569;
+  --scrollbar-thumb-hover: #64748B;
+
+  /* Terminal Colors - Dark Theme (bright for readability on dark bg) */
+  --terminal-black: #0d1117;
+  --terminal-red: #ff7b72;
+  --terminal-green: #3fb950;
+  --terminal-yellow: #d29922;
+  --terminal-blue: #58a6ff;
+  --terminal-magenta: #bc8cff;
+  --terminal-cyan: #39c5cf;
+  --terminal-white: #e6edf3;
+  --terminal-bright-black: #484f58;
+  --terminal-bright-red: #ffa198;
+  --terminal-bright-green: #56d364;
+  --terminal-bright-yellow: #e3b341;
+  --terminal-bright-blue: #79c0ff;
+  --terminal-bright-magenta: #d2a8ff;
+  --terminal-bright-cyan: #56d4dd;
+  --terminal-bright-white: #ffffff;
 }
 
 /* ============ Font Size - Dynamic via CSS variable ============ */
@@ -307,10 +325,10 @@
   --bg-gradient: linear-gradient(135deg, #FDF2F8 0%, #FCE7F3 50%, #FBCFE8 100%);
   --color-msg-user-bg: linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%);
   --color-msg-user-text: #831843;
-  --color-msg-user-border: rgba(244, 114, 182, 0.4);
+  --color-msg-user-border: #FBC7E2;
   --color-msg-user-shadow: rgba(244, 114, 182, 0.15);
-  --color-msg-assistant-bg: rgba(255, 251, 253, 0.95);
-  --color-msg-assistant-border: rgba(244, 114, 182, 0.2);
+  --color-msg-assistant-bg: #FFFBFD;
+  --color-msg-assistant-border: #FADCE9;
 }
 
 /* Mint - Fresh green tones */
@@ -324,10 +342,10 @@
   --bg-gradient: linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 50%, #A7F3D0 100%);
   --color-msg-user-bg: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
   --color-msg-user-text: #064e3b;
-  --color-msg-user-border: rgba(52, 211, 153, 0.4);
+  --color-msg-user-border: #AEEDD6;
   --color-msg-user-shadow: rgba(52, 211, 153, 0.15);
-  --color-msg-assistant-bg: rgba(251, 255, 253, 0.95);
-  --color-msg-assistant-border: rgba(52, 211, 153, 0.2);
+  --color-msg-assistant-bg: #FBFFFD;
+  --color-msg-assistant-border: #D0F0E0;
 }
 
 /* Lavender - Soft purple tones */
@@ -341,10 +359,10 @@
   --bg-gradient: linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 50%, #DDD6FE 100%);
   --color-msg-user-bg: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%);
   --color-msg-user-text: #3b0764;
-  --color-msg-user-border: rgba(167, 139, 250, 0.4);
+  --color-msg-user-border: #DCD0FD;
   --color-msg-user-shadow: rgba(167, 139, 250, 0.15);
-  --color-msg-assistant-bg: rgba(253, 251, 255, 0.95);
-  --color-msg-assistant-border: rgba(167, 139, 250, 0.2);
+  --color-msg-assistant-bg: #FDFBFF;
+  --color-msg-assistant-border: #E4DAFA;
 }
 
 /* Peach - Warm orange tones */
@@ -358,10 +376,10 @@
   --bg-gradient: linear-gradient(135deg, #FFF7ED 0%, #FFEDD5 50%, #FED7AA 100%);
   --color-msg-user-bg: linear-gradient(135deg, #ffedd5 0%, #fed7aa 100%);
   --color-msg-user-text: #7c2d12;
-  --color-msg-user-border: rgba(251, 146, 60, 0.4);
+  --color-msg-user-border: #FDD3B1;
   --color-msg-user-shadow: rgba(251, 146, 60, 0.15);
-  --color-msg-assistant-bg: rgba(255, 253, 251, 0.95);
-  --color-msg-assistant-border: rgba(251, 146, 60, 0.2);
+  --color-msg-assistant-bg: #FFFDFB;
+  --color-msg-assistant-border: #FDE0C8;
 }
 
 /* Sky - Cool blue tones (different from default) */
@@ -375,10 +393,10 @@
   --bg-gradient: linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 50%, #BAE6FD 100%);
   --color-msg-user-bg: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
   --color-msg-user-text: #0c4a6e;
-  --color-msg-user-border: rgba(56, 189, 248, 0.4);
+  --color-msg-user-border: #AFE5FC;
   --color-msg-user-shadow: rgba(56, 189, 248, 0.15);
-  --color-msg-assistant-bg: rgba(251, 254, 255, 0.95);
-  --color-msg-assistant-border: rgba(56, 189, 248, 0.2);
+  --color-msg-assistant-bg: #FBFEFF;
+  --color-msg-assistant-border: #D0EDFA;
 }
 
 /* ============ Color Palettes - Dark Mode ============ */
@@ -389,10 +407,10 @@
   --bg-gradient: linear-gradient(135deg, #1A0A14 0%, #2D1424 50%, #4A1942 100%);
   --color-msg-user-bg: linear-gradient(135deg, #831843 0%, #9d174d 100%);
   --color-msg-user-text: #fce7f3;
-  --color-msg-user-border: rgba(244, 114, 182, 0.3);
+  --color-msg-user-border: #543254;
   --color-msg-user-shadow: rgba(244, 114, 182, 0.2);
-  --color-msg-assistant-bg: rgba(35, 25, 32, 0.95);
-  --color-msg-assistant-border: rgba(244, 114, 182, 0.15);
+  --color-msg-assistant-bg: #231920;
+  --color-msg-assistant-border: #3D2232;
 }
 
 [data-theme="dark"][data-palette="mint"] {
@@ -402,10 +420,10 @@
   --bg-gradient: linear-gradient(135deg, #0A1A14 0%, #0D2818 50%, #134E2C 100%);
   --color-msg-user-bg: linear-gradient(135deg, #064e3b 0%, #065f46 100%);
   --color-msg-user-text: #d1fae5;
-  --color-msg-user-border: rgba(52, 211, 153, 0.3);
+  --color-msg-user-border: #1A4F4B;
   --color-msg-user-shadow: rgba(52, 211, 153, 0.2);
-  --color-msg-assistant-bg: rgba(25, 35, 30, 0.95);
-  --color-msg-assistant-border: rgba(52, 211, 153, 0.15);
+  --color-msg-assistant-bg: #19231E;
+  --color-msg-assistant-border: #1E3D2A;
 }
 
 [data-theme="dark"][data-palette="lavender"] {
@@ -415,10 +433,10 @@
   --bg-gradient: linear-gradient(135deg, #0F0A1A 0%, #1E1434 50%, #3B2366 100%);
   --color-msg-user-bg: linear-gradient(135deg, #3b0764 0%, #4c1d95 100%);
   --color-msg-user-text: #ede9fe;
-  --color-msg-user-border: rgba(167, 139, 250, 0.3);
+  --color-msg-user-border: #3D3A68;
   --color-msg-user-shadow: rgba(167, 139, 250, 0.2);
-  --color-msg-assistant-bg: rgba(30, 25, 40, 0.95);
-  --color-msg-assistant-border: rgba(167, 139, 250, 0.15);
+  --color-msg-assistant-bg: #1E1928;
+  --color-msg-assistant-border: #2D2345;
 }
 
 [data-theme="dark"][data-palette="peach"] {
@@ -428,10 +446,10 @@
   --bg-gradient: linear-gradient(135deg, #1A0F0A 0%, #2D1A0D 50%, #4A2A14 100%);
   --color-msg-user-bg: linear-gradient(135deg, #7c2d12 0%, #9a3412 100%);
   --color-msg-user-text: #ffedd5;
-  --color-msg-user-border: rgba(251, 146, 60, 0.3);
+  --color-msg-user-border: #563C2F;
   --color-msg-user-shadow: rgba(251, 146, 60, 0.2);
-  --color-msg-assistant-bg: rgba(35, 30, 25, 0.95);
-  --color-msg-assistant-border: rgba(251, 146, 60, 0.15);
+  --color-msg-assistant-bg: #231E19;
+  --color-msg-assistant-border: #3D2A1A;
 }
 
 [data-theme="dark"][data-palette="sky"] {
@@ -441,10 +459,10 @@
   --bg-gradient: linear-gradient(135deg, #0A141A 0%, #0D1E2D 50%, #144A66 100%);
   --color-msg-user-bg: linear-gradient(135deg, #0c4a6e 0%, #0369a1 100%);
   --color-msg-user-text: #e0f2fe;
-  --color-msg-user-border: rgba(56, 189, 248, 0.3);
+  --color-msg-user-border: #1B4968;
   --color-msg-user-shadow: rgba(56, 189, 248, 0.2);
-  --color-msg-assistant-bg: rgba(25, 32, 38, 0.95);
-  --color-msg-assistant-border: rgba(56, 189, 248, 0.15);
+  --color-msg-assistant-bg: #192026;
+  --color-msg-assistant-border: #1E3345;
 }
 
 /* ============ Reset & Base ============ */
@@ -488,12 +506,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(156, 163, 175, 0.3);
+  background: #B0B5BD;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(156, 163, 175, 0.5);
+  background: #9CA3AF;
 }
 
 ::-webkit-scrollbar-corner {

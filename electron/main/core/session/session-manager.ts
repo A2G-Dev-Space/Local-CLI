@@ -9,8 +9,17 @@
 
 import fs from 'fs';
 import path from 'path';
-import { app } from 'electron';
+import os from 'os';
 import { logger } from '../../utils/logger';
+
+// Dynamic electron import for worker_threads compatibility
+function getElectronApp(): { getPath(name: string): string } | null {
+  try {
+    return require('electron').app;
+  } catch {
+    return null;
+  }
+}
 import { reportError } from '../telemetry/error-reporter';
 
 // =============================================================================
@@ -216,9 +225,10 @@ class SessionManager {
     if (this.initialized) return;
 
     // Sessions 디렉토리 경로 설정 (Windows: %APPDATA%\LOCAL-CLI-UI\sessions)
+    const electronApp = getElectronApp();
     const baseDir = process.platform === 'win32'
-      ? path.join(process.env.APPDATA || app.getPath('userData'), 'LOCAL-CLI-UI')
-      : app.getPath('userData');
+      ? path.join(process.env.APPDATA || (electronApp?.getPath('userData') ?? path.join(os.homedir(), '.local-cli-ui')), 'LOCAL-CLI-UI')
+      : (electronApp?.getPath('userData') ?? path.join(os.homedir(), '.local-cli-ui'));
     this.sessionsDir = path.join(baseDir, 'sessions');
 
     logger.info('Session manager initializing', {

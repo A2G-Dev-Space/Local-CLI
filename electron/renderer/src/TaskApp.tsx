@@ -4,7 +4,7 @@
  * Subscribes to IPC events independently (separate renderer process).
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { Theme } from '../../preload/index';
 import type { TodoItem } from './components/TodoList';
 import { useTranslation } from './i18n/LanguageContext';
@@ -39,6 +39,10 @@ const TaskApp: React.FC = () => {
   // Task state
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [isWaitingForUser, setIsWaitingForUser] = useState(false);
+
+  // Per-session TODO cache
+  const activeSessionIdRef = useRef<string | null>(null);
+  const todosMapRef = useRef<Map<string, TodoItem[]>>(new Map());
 
   // Handle appearance change from Settings (Chat Window → broadcast → Task Window)
   const handleAppearanceChange = useCallback((data: { key: string; value: unknown }) => {
@@ -135,20 +139,50 @@ const TaskApp: React.FC = () => {
     const unsubFocus = window.electronAPI.window.onFocusChange(setIsFocused);
     const unsubTheme = window.electronAPI.theme.onChange(setTheme);
     const unsubAppearance = window.electronAPI.theme.onAppearanceChange?.(handleAppearanceChange);
-    const unsubTodo = window.electronAPI.agent.onTodoUpdate?.((newTodos: TodoItem[]) => {
-      setTodos(newTodos);
+    const unsubTodo = window.electronAPI.agent.onTodoUpdate?.((newTodos: TodoItem[], sessionId?: string) => {
+      if (sessionId) {
+        // Multi-session mode: cache per session, only display active session
+        todosMapRef.current.set(sessionId, newTodos);
+        if (sessionId === activeSessionIdRef.current) {
+          setTodos(newTodos);
+        }
+      } else {
+        // Legacy single-session mode
+        setTodos(newTodos);
+      }
     });
 
-    // ask_to_user waiting indicator
-    const unsubAskUser = window.electronAPI.agent.onAskUser?.(() => {
-      setIsWaitingForUser(true);
+    // Active session changed (from tab switch in ChatApp)
+    const unsubActiveSession = window.electronAPI.taskWindow?.onActiveSessionChanged?.((sessionId: string, cachedTodos: unknown[]) => {
+      activeSessionIdRef.current = sessionId;
+      // Use cached TODOs from WorkerManager, or restore from local cache
+      const todosFromCache = todosMapRef.current.get(sessionId);
+      const resolvedTodos = todosFromCache || (cachedTodos as TodoItem[]) || [];
+      if (cachedTodos && (cachedTodos as TodoItem[]).length > 0) {
+        todosMapRef.current.set(sessionId, cachedTodos as TodoItem[]);
+      }
+      setTodos(resolvedTodos);
+    });
+
+    // ask_to_user waiting indicator (filtered by active session)
+    const unsubAskUser = window.electronAPI.agent.onAskUser?.((request: unknown) => {
+      const sid = (request as Record<string, unknown>)?.sessionId as string | undefined;
+      if (!sid || sid === activeSessionIdRef.current) {
+        setIsWaitingForUser(true);
+      }
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const unsubAskUserResolved = (window.electronAPI.agent as any)?.onAskUserResolved?.(() => {
-      setIsWaitingForUser(false);
+    const unsubAskUserResolved = (window.electronAPI.agent as any)?.onAskUserResolved?.((data: unknown) => {
+      const sid = (data as Record<string, unknown>)?.sessionId as string | undefined;
+      if (!sid || sid === activeSessionIdRef.current) {
+        setIsWaitingForUser(false);
+      }
     });
-    const unsubComplete = window.electronAPI.agent.onComplete?.(() => {
-      setIsWaitingForUser(false);
+    const unsubComplete = window.electronAPI.agent.onComplete?.((data: unknown) => {
+      const sid = (data as Record<string, unknown>)?.sessionId as string | undefined;
+      if (!sid || sid === activeSessionIdRef.current) {
+        setIsWaitingForUser(false);
+      }
     });
 
     return () => {
@@ -157,6 +191,7 @@ const TaskApp: React.FC = () => {
       unsubTheme();
       unsubAppearance?.();
       unsubTodo?.();
+      unsubActiveSession?.();
       unsubAskUser?.();
       unsubAskUserResolved?.();
       unsubComplete?.();

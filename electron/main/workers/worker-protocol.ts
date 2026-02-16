@@ -1,0 +1,51 @@
+/**
+ * Worker Protocol - Message types for Main ↔ Worker communication
+ *
+ * All messages use discriminated unions for type safety.
+ */
+
+import type { AgentConfig, AgentResult } from '../orchestration/agent-engine';
+import type { Message } from '../core/llm';
+import type { ToolApprovalResult } from '../tools/llm/simple/simple-tool-executor';
+import type { AskUserResponse } from '../orchestration/types';
+
+// =============================================================================
+// Main → Worker Messages
+// =============================================================================
+
+export type MainToWorkerMessage =
+  | { type: 'run'; userMessage: string; existingMessages: Message[]; config: AgentConfig }
+  | { type: 'abort' }
+  | { type: 'clearState' }
+  | { type: 'askUserResponse'; reqId: string; response: AskUserResponse }
+  | { type: 'approvalResponse'; requestId: string; result: ToolApprovalResult | null }
+  | { type: 'delegationResult'; requestId: string; result: unknown; error?: string }
+  | { type: 'setConfig'; endpoints?: unknown[]; currentEndpoint?: string; currentModel?: string }
+  | { type: 'setWorkingDirectory'; directory: string }
+  | { type: 'toolGroupChanged'; groupId: string; enabled: boolean };
+
+// =============================================================================
+// Worker → Main Messages
+// =============================================================================
+
+export type WorkerToMainMessage =
+  | { type: 'ready' }
+  | { type: 'broadcast'; channel: string; data: unknown[] }
+  | { type: 'complete'; result: AgentResult }
+  | { type: 'error'; error: string }
+  | { type: 'approvalRequest'; reqId: string; toolName: string; args: Record<string, unknown>; reason?: string }
+  | { type: 'askUser'; reqId: string; request: unknown }
+  | { type: 'fileEdit'; data: { path: string; originalContent: string; newContent: string; language: string } }
+  | { type: 'showTaskWindow' }
+  | { type: 'flashWindows' }
+  | { type: 'isTaskWindowVisible'; reqId: string }
+  | { type: 'delegation'; requestId: string; delegationType: 'browser' | 'office' | 'dialog'; action: string; args: unknown };
+
+// =============================================================================
+// Worker Init Data (passed via workerData)
+// =============================================================================
+
+export interface WorkerInitData {
+  sessionId: string;
+  enabledToolGroups: string[];
+}

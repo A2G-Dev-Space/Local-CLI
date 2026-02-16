@@ -419,8 +419,8 @@
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: rgba(239, 68, 68, 0.15);
-  border-bottom: 1px solid rgba(239, 68, 68, 0.3);
+  background: #3B1E24;
+  border-bottom: 1px solid #5C2424;
   color: #ef4444;
   font-size: 12px;
 }
@@ -433,7 +433,7 @@
   margin-left: auto;
   padding: 2px 8px;
   background: transparent;
-  border: 1px solid rgba(239, 68, 68, 0.5);
+  border: 1px solid #8B2828;
   border-radius: 3px;
   color: #ef4444;
   font-size: 10px;
@@ -441,7 +441,7 @@
 }
 
 .log-error button:hover {
-  background: rgba(239, 68, 68, 0.2);
+  background: #472024;
 }
 
 /* 로그 컨텐츠 */
@@ -533,7 +533,7 @@
 }
 
 .log-entry:hover {
-  background: var(--bg-hover, rgba(255, 255, 255, 0.04));
+  background: var(--bg-hover, #2A2D2E);
 }
 
 .log-entry.log-level-debug {
@@ -546,17 +546,17 @@
 
 .log-entry.log-level-warn {
   border-left-color: #f59e0b;
-  background: rgba(245, 158, 11, 0.05);
+  background: #252219;
 }
 
 .log-entry.log-level-error {
   border-left-color: #ef4444;
-  background: rgba(239, 68, 68, 0.08);
+  background: #2D2020;
 }
 
 .log-entry.log-level-fatal {
   border-left-color: #dc2626;
-  background: rgba(220, 38, 38, 0.12);
+  background: #351E1E;
 }
 
 .log-timestamp {
@@ -660,7 +660,7 @@
   --bg-primary: #ffffff;
   --bg-secondary: #f3f3f3;
   --bg-tertiary: #e8e8e8;
-  --bg-hover: rgba(0, 0, 0, 0.05);
+  --bg-hover: #F2F2F2;
   --text-primary: #1e1e1e;
   --text-secondary: #666666;
   --border-color: #d4d4d4;
@@ -669,15 +669,15 @@
 }
 
 [data-theme="light"] .log-entry.log-level-warn {
-  background: rgba(245, 158, 11, 0.08);
+  background: #FFFBEB;
 }
 
 [data-theme="light"] .log-entry.log-level-error {
-  background: rgba(239, 68, 68, 0.06);
+  background: #FFF5F5;
 }
 
 [data-theme="light"] .log-entry.log-level-fatal {
-  background: rgba(220, 38, 38, 0.1);
+  background: #FEF2F2;
 }
 
 [data-theme="light"] .log-entry.log-level-debug .log-message {
