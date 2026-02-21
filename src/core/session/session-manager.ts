@@ -460,6 +460,13 @@ export class SessionManager {
   }
 
   /**
+   * 현재 세션 이름 가져오기
+   */
+  getCurrentSessionName(): string | null {
+    return this.currentSessionName;
+  }
+
+  /**
    * 현재 세션 이름 설정 (Planning LLM 타이틀 → 세션 이름)
    */
   setCurrentSessionName(name: string): void {

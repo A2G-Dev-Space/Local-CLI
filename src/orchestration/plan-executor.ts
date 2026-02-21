@@ -96,6 +96,12 @@ export class PlanExecutor {
     // Log user input (for Ctrl+O LogBrowser chat category)
     streamLogger?.logUserInput(userMessage);
 
+    // Set initial session name from user message (will be overridden by Planning LLM title if available)
+    if (!sessionManager.getCurrentSessionName()) {
+      const truncated = userMessage.length > 30 ? userMessage.substring(0, 30) + '...' : userMessage;
+      sessionManager.setCurrentSessionName(truncated);
+    }
+
     // Log planning start
     streamLogger?.logPlanningStart(userMessage, {
       messageCount: messages.length,
