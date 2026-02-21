@@ -32,6 +32,8 @@ export interface TodoItem {
 }
 
 export interface PlanningResult {
+  /** Short title summarizing the overall task (becomes session name) */
+  title?: string;
   todos: TodoItem[];
   complexity: 'simple' | 'moderate' | 'complex';
   directResponse?: string; // If set, skip TODO execution and return this directly
@@ -348,6 +350,7 @@ Choose one of your 3 tools now.`,
               logger.exit('PlanningLLM.generateTODOList', { todoCount: todos.length });
 
               return {
+                title: toolArgs.title as string | undefined,
                 todos,
                 complexity: toolArgs.complexity || 'moderate',
                 clarificationMessages: clarificationMessages.length > 0 ? clarificationMessages : undefined,

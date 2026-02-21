@@ -171,6 +171,11 @@ export class PlanExecutor {
 
       currentTodos = planResult.todos;
 
+      // Update session name with planning title
+      if (planResult.title) {
+        sessionManager.setCurrentSessionName(planResult.title);
+      }
+
       // Log planning end (TODOs created)
       streamLogger?.logPlanningEnd(
         currentTodos.length,

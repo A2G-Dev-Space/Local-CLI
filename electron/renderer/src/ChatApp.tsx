@@ -652,10 +652,21 @@ const ChatApp: React.FC = () => {
       })
     );
 
+    // When Planning LLM provides a session title → update tab name
+    if (window.electronAPI.agent.onSessionTitle) {
+      unsubscribes.push(
+        window.electronAPI.agent.onSessionTitle((title: string, eventSessionId?: string) => {
+          if (eventSessionId && title) {
+            handleRenameTab(eventSessionId, title);
+          }
+        })
+      );
+    }
+
     return () => {
       unsubscribes.forEach(unsub => unsub());
     };
-  }, [setTabRunning, setTabUnread]);
+  }, [setTabRunning, setTabUnread, handleRenameTab]);
 
   // Build TabInfo array for SessionTabBar
   const tabInfos: TabInfo[] = useMemo(() =>

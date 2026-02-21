@@ -387,9 +387,15 @@ export async function runAgentCore(
         }
         io.broadcast('agent:todoUpdate', planningResult.todos);
 
+        // Broadcast session title for tab name update
+        if (planningResult.title) {
+          io.broadcast('agent:sessionTitle', planningResult.title);
+        }
+
         logger.info('Planning complete', {
           todoCount: planningResult.todos.length,
           complexity: planningResult.complexity,
+          title: planningResult.title,
         });
       }
     } catch (planningError) {

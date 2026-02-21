@@ -814,6 +814,12 @@ const electronAPI = {
       return () => ipcRenderer.removeListener('agent:todoUpdate', handler);
     },
 
+    onSessionTitle: (callback: (title: string, sessionId?: string) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, title: string, sessionId?: string) => callback(title, sessionId);
+      ipcRenderer.on('agent:sessionTitle', handler);
+      return () => ipcRenderer.removeListener('agent:sessionTitle', handler);
+    },
+
     onTellUser: (callback: (message: string, sessionId?: string) => void): (() => void) => {
       const handler = (_event: IpcRendererEvent, message: string, sessionId?: string) => callback(message, sessionId);
       ipcRenderer.on('agent:tellUser', handler);

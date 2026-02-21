@@ -292,6 +292,11 @@ export class WorkerManager {
           this.sessionTodos.set(sessionId, msg.data[0]);
         }
 
+        // Auto-rename session when Planning LLM provides a title
+        if (msg.channel === 'agent:sessionTitle' && typeof msg.data[0] === 'string') {
+          sessionManager.renameSession(sessionId, msg.data[0]).catch(() => {});
+        }
+
         // Forward to renderer with sessionId attached
         const firstArg = msg.data[0];
 

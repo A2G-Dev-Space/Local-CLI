@@ -82,6 +82,7 @@ export interface SessionSummary {
 export class SessionManager {
   private currentSessionId: string | null = null;
   private currentSessionCreatedAt: string | null = null;
+  private currentSessionName: string | null = null;
   private isSaving: boolean = false;
 
   constructor() {
@@ -423,7 +424,7 @@ export class SessionManager {
       const sessionData: SessionData = {
         metadata: {
           id: this.currentSessionId!,
-          name: `${this.currentSessionId}`,
+          name: this.currentSessionName || `${this.currentSessionId}`,
           createdAt: this.currentSessionCreatedAt || new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           messageCount: messages.length,
@@ -456,6 +457,13 @@ export class SessionManager {
    */
   setCurrentSessionId(sessionId: string): void {
     this.currentSessionId = sessionId;
+  }
+
+  /**
+   * 현재 세션 이름 설정 (Planning LLM 타이틀 → 세션 이름)
+   */
+  setCurrentSessionName(name: string): void {
+    this.currentSessionName = name;
   }
 }
 

@@ -295,6 +295,7 @@ Choose one of your 3 tools now.`,
               }));
 
               return {
+                title: toolArgs.title as string | undefined,
                 todos,
                 complexity: toolArgs.complexity || 'moderate',
                 clarificationMessages: clarificationMessages.length > 0 ? clarificationMessages : undefined,

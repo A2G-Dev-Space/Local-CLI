@@ -162,6 +162,8 @@ export interface TodoItem {
  * Planning result from Planning LLM
  */
 export interface PlanningResult {
+  /** Short title summarizing the overall task (becomes session name) */
+  title?: string;
   todos: TodoItem[];
   estimatedTime?: string;
   complexity: 'simple' | 'moderate' | 'complex';
