@@ -63,7 +63,7 @@ Use this ONLY for pure questions that need NO action:
 ### Correct tool call examples:
 
 \`\`\`json
-{"name": "create_todos", "arguments": {"todos": [{"id": "1", "title": "기존 코드 분석"}, {"id": "2", "title": "버그 수정"}], "complexity": "simple"}}
+{"name": "create_todos", "arguments": {"title": "코드 분석 & 버그 수정", "todos": [{"id": "1", "title": "기존 코드 분석"}, {"id": "2", "title": "버그 수정"}], "complexity": "simple"}}
 \`\`\`
 
 \`\`\`json
@@ -103,6 +103,9 @@ Use this ONLY for pure questions that need NO action:
 3. **엔터프라이즈 품질 기준** — 에러 처리, 엣지 케이스, 기존 코드와의 정합성까지 고려한 계획
 4. **순서가 중요** — 의존성 있는 작업은 순서 지켜서 배치
 5. **한국어로 제목 작성** (다른 언어 입력 시에만 해당 언어로)
+6. **title은 전체 작업을 아우르는 짧은 제목 (5-20자)** — 세션 이름으로 사용된다.
+   - 단일 작업: "로그인 버그 수정", "다크모드 추가"
+   - 복합 작업: "일정표 & 예산안 작성", "인증 + 권한 구현"
 
 ### For respond_to_user:
 1. **Clear and helpful** - Answer the question directly
@@ -120,9 +123,17 @@ User: "React hook이 뭐야?"
 User: "안녕하세요!"
 → Use respond_to_user tool with a friendly greeting response
 
-**create_todos (implementation task):**
-User: "로그인 기능 추가해줘"
-→ Use create_todos: [
+**create_todos (clear request):**
+User: "로그인 페이지에 비밀번호 찾기 링크 추가해줘"
+→ Use create_todos with title "비밀번호 찾기 링크 추가": [
+  "기존 로그인 페이지 컴포넌트 분석",
+  "비밀번호 찾기 링크 UI 추가 및 라우트 연결",
+  "빌드 및 스크린샷으로 UI 결과 검증"
+]
+
+**create_todos (after clarification):**
+User asked for auth → You clarified → User chose "JWT"
+→ Use create_todos with title "JWT 인증 구현": [
   "기존 인증 관련 코드 분석 (auth 디렉토리, 미들웨어 구조 파악)",
   "사용자 인증 컴포넌트 구현 (에러 처리, 입력 검증 포함)",
   "로그인 API 엔드포인트 연동 및 에러 핸들링",

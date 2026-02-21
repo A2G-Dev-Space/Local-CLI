@@ -17,6 +17,8 @@ import type { Message } from '../core/llm';
 import type { ToolApprovalResult } from '../tools/llm/simple/simple-tool-executor';
 import type { AskUserResponse } from '../orchestration/types';
 import type { MainToWorkerMessage, WorkerToMainMessage, WorkerInitData } from './worker-protocol';
+import { sessionManager } from '../core/session';
+import { configManager } from '../core/config';
 
 // =============================================================================
 // Types
@@ -281,6 +283,16 @@ export class WorkerManager {
         const entry = this.workers.get(sessionId);
         if (entry) {
           entry.isReady = true;
+          // Send current config to worker immediately on ready
+          const config = configManager.getAll();
+          if (config.endpoints && config.endpoints.length > 0) {
+            entry.worker.postMessage({
+              type: 'setConfig',
+              endpoints: config.endpoints,
+              currentEndpoint: config.currentEndpoint,
+              currentModel: config.currentModel,
+            });
+          }
         }
         logger.info('[WorkerManager] Worker ready', { sessionId });
         break;
@@ -290,6 +302,11 @@ export class WorkerManager {
         // Cache TODOs per session for task window session switching
         if (msg.channel === 'agent:todoUpdate' && Array.isArray(msg.data[0])) {
           this.sessionTodos.set(sessionId, msg.data[0]);
+        }
+
+        // Auto-rename session when Planning LLM provides a title
+        if (msg.channel === 'agent:sessionTitle' && typeof msg.data[0] === 'string') {
+          sessionManager.renameSession(sessionId, msg.data[0]).catch(() => {});
         }
 
         // Forward to renderer with sessionId attached

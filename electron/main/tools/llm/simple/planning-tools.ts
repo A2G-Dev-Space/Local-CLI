@@ -44,6 +44,10 @@ IMPORTANT: Write TODO titles in the user's language.`,
       parameters: {
         type: 'object',
         properties: {
+          title: {
+            type: 'string',
+            description: 'A short title (5-20 chars, user language) summarizing ALL tasks as a whole. If user requests multiple things, combine them (e.g., "일정표 & 예산안 작성"). This becomes the session name.',
+          },
           todos: {
             type: 'array',
             description: 'List of TODO items',
@@ -68,7 +72,7 @@ IMPORTANT: Write TODO titles in the user's language.`,
             description: 'Estimated complexity of the overall task',
           },
         },
-        required: ['todos', 'complexity'],
+        required: ['title', 'todos', 'complexity'],
       },
     },
   },

@@ -25,6 +25,7 @@ import {
   TokenLimitError,
   RateLimitError,
   ContextLengthError,
+  LLMRetryExhaustedError,
 } from '../../errors/llm.js';
 import { logger, isLLMLogEnabled } from '../../utils/logger.js';
 import { reportError } from '../telemetry/error-reporter.js';
@@ -81,6 +82,8 @@ export interface RetryConfig {
   currentAttempt?: number;
   /** 재시도 비활성화 여부 */
   disableRetry?: boolean;
+  /** 확장 retry (2분 대기 + Phase 3) 이미 수행됨 — 무한 루프 방지 (내부용) */
+  extendedRetryDone?: boolean;
 }
 
 /**
@@ -94,6 +97,9 @@ export class LLMClient {
   private modelName: string;
   private currentAbortController: AbortController | null = null;
   private isInterrupted: boolean = false;
+
+  /** 카운트다운 콜백 — UI에서 대기 시간 표시용 */
+  public countdownCallback: ((remainingSeconds: number) => void) | null = null;
 
   /** 기본 최대 재시도 횟수 */
   private static readonly DEFAULT_MAX_RETRIES = 3;
@@ -370,6 +376,43 @@ export class LLMClient {
         });
       }
 
+      // Phase 1 (3회) 실패 → Phase 2 (2분 대기) → Phase 3 (3회 추가 retry)
+      // 단, retryable 에러이고 retry가 활성화되고 확장 retry가 아직 수행되지 않은 경우에만
+      if (currentAttempt >= maxRetries && !retryConfig?.disableRetry && !retryConfig?.extendedRetryDone && this.isRetryableError(error)) {
+        logger.warn(`Phase 1 (${maxRetries}회) 실패. 2분 대기 후 Phase 2 시작...`, {
+          error: (error as Error).message,
+        });
+
+        // 2분 카운트다운 대기 (10초마다 콜백)
+        const waited = await this.waitWithCountdown(120);
+        if (!waited) {
+          // 인터럽트됨 — throw
+          logger.flow('카운트다운 중 인터럽트 감지');
+          throw new Error('INTERRUPTED');
+        }
+
+        // Phase 3: 3회 추가 retry (재귀 호출, extendedRetryDone=true로 무한 루프 방지)
+        logger.warn('Phase 2 (2분 대기) 완료. Phase 3 (3회 추가 retry) 시작...');
+        try {
+          return await this.chatCompletion(options, {
+            maxRetries,
+            currentAttempt: 1,
+            extendedRetryDone: true,
+          });
+        } catch (phase3Error) {
+          // Phase 3도 실패 → LLMRetryExhaustedError throw
+          const finalError = phase3Error instanceof Error ? phase3Error : new Error(String(phase3Error));
+          // INTERRUPTED는 그대로 전파
+          if (finalError.message === 'INTERRUPTED') {
+            throw finalError;
+          }
+          logger.errorSilent('Phase 3 (추가 3회) 실패. 최종 LLMRetryExhaustedError throw.', {
+            error: finalError.message,
+          });
+          throw new LLMRetryExhaustedError(finalError);
+        }
+      }
+
       // 최종 실패: 에러 로깅 및 throw
       logger.flow('API 호출 실패 - 에러 처리');
       if (currentAttempt > 1) {
@@ -480,6 +523,27 @@ export class LLMClient {
    */
   private sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * 카운트다운 대기 (확장 retry Phase 2)
+   * @param totalSeconds 총 대기 시간 (초)
+   * @returns true: 정상 완료, false: 인터럽트됨
+   */
+  private async waitWithCountdown(totalSeconds: number): Promise<boolean> {
+    for (let remaining = totalSeconds; remaining > 0; remaining -= 10) {
+      if (this.isInterrupted) {
+        this.countdownCallback?.(0);
+        return false;
+      }
+
+      const waitSec = Math.min(10, remaining);
+      this.countdownCallback?.(remaining);
+
+      await this.sleep(waitSec * 1000);
+    }
+    this.countdownCallback?.(0);
+    return !this.isInterrupted;
   }
 
   /**

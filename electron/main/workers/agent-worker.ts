@@ -206,8 +206,11 @@ port.on('message', async (msg: MainToWorkerMessage) => {
 
     case 'setConfig': {
       // Hot-reload config: update configManager for this worker
-      // llmClient reads from configManager on each request, so updating configManager is sufficient
+      // Must update endpoints array FIRST so setCurrentEndpoint can find the endpoint by ID
       try {
+        if (msg.endpoints && Array.isArray(msg.endpoints)) {
+          await configManager.update({ endpoints: msg.endpoints as any[] });
+        }
         if (msg.currentEndpoint) {
           await configManager.setCurrentEndpoint(msg.currentEndpoint);
         }

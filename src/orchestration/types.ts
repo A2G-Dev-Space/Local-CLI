@@ -67,6 +67,8 @@ export interface StateCallbacks {
   // Pending user message callbacks (for injecting messages during execution)
   getPendingMessage?: () => string | null;
   clearPendingMessage?: () => void;
+  // LLM retry exhausted — UI에서 Enter로 재시도 대기
+  setRetryPending?: (pending: boolean) => void;
 }
 
 /**
@@ -93,6 +95,8 @@ export interface ExecutionResult {
  * Plan Execution Actions 인터페이스
  */
 export interface PlanExecutionActions {
+  retryPending: boolean;
+  setRetryPending: (pending: boolean) => void;
   setTodos: (todos: TodoItem[] | ((prev: TodoItem[]) => TodoItem[])) => void;
   handleTodoUpdate: (todo: TodoItem) => void;
   handleAskUserResponse: (response: AskUserResponse) => void;

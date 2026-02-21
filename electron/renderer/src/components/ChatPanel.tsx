@@ -309,6 +309,10 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
   const [inputHistory, setInputHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
 
+  // LLM retry exhausted — 재시도 버튼 표시 상태
+  const [retryableError, setRetryableError] = useState(false);
+  const [countdownSeconds, setCountdownSeconds] = useState<number | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -317,6 +321,9 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
   // the result is from an aborted/superseded run and must be discarded.
   // Fixes: (1) duplicate old responses on abort, (2) race condition between concurrent sendMessage calls.
   const sendRunIdRef = useRef(0);
+
+  // Retry auto-send: handleRetry sets input + this ref, useEffect triggers sendMessage
+  const pendingRetryRef = useRef(false);
 
   // Track if we're programmatically updating messages (sending or clearing)
   // This prevents session change effect from overwriting our messages
@@ -448,6 +455,35 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
         // Note: Error messages and setIsLoading handled in sendMessage() catch/finally block
       })
     );
+
+    // LLM retry exhausted event — show retry button
+    if (window.electronAPI?.agent?.onRetryableError) {
+      unsubscribes.push(
+        window.electronAPI.agent.onRetryableError((data) => {
+          if (!isMyEvent(data as any)) return;
+          setRetryableError(true);
+          setIsLoading(false);
+          setIsExecuting(false);
+          const errorMessage: ChatMessage = {
+            id: `retry-error-${Date.now()}`,
+            role: 'system',
+            content: `LLM 서버가 응답하지 않습니다.\n6회 재시도 + 2분 대기 후에도 실패했습니다.\n\n아래 "재시도" 버튼을 눌러주세요.`,
+            timestamp: Date.now(),
+          };
+          setMessages(prev => [...prev, errorMessage]);
+        })
+      );
+    }
+
+    // Countdown event — show countdown during 2-minute wait
+    if (window.electronAPI?.agent?.onCountdown) {
+      unsubscribes.push(
+        window.electronAPI.agent.onCountdown((data) => {
+          if (!isMyEvent(data as any)) return;
+          setCountdownSeconds(data.seconds > 0 ? data.seconds : null);
+        })
+      );
+    }
 
     // Tell user event - now handled in AgentContext as tool execution
     // for unified UI design with other tools
@@ -738,6 +774,25 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
       }
     }
   }, [input, isLoading, messages, saveMessageToSession, currentDirectory, allowAllPermissions, clearProgressMessages, setIsExecuting, attachedImages]);
+
+  // Retry handler — 마지막 유저 메시지로 자동 재전송
+  const handleRetry = useCallback(() => {
+    setRetryableError(false);
+    setCountdownSeconds(null);
+    const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+    if (lastUserMsg) {
+      setInput(lastUserMsg.content);
+      pendingRetryRef.current = true;
+    }
+  }, [messages]);
+
+  // Auto-send after retry button click (pendingRetryRef triggers sendMessage on next render)
+  useEffect(() => {
+    if (pendingRetryRef.current && input.trim() && !isLoading) {
+      pendingRetryRef.current = false;
+      sendMessage();
+    }
+  }, [input, isLoading, sendMessage]);
 
   // Abort message state
   const [abortMessage, setAbortMessage] = useState<string | null>(null);
@@ -1163,6 +1218,22 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
             </div>
           </div>
         )}
+        {/* Countdown display during 2-minute wait */}
+        {countdownSeconds !== null && countdownSeconds > 0 && (
+          <div className="retry-countdown-bar">
+            LLM 서버 응답 대기 중... {countdownSeconds}초 남음
+          </div>
+        )}
+
+        {/* Retry button after LLM retry exhausted */}
+        {retryableError && (
+          <div className="retry-error-bar">
+            <button className="retry-btn" onClick={handleRetry}>
+              재시도
+            </button>
+          </div>
+        )}
+
         <div ref={messagesEndRef} />
       </div>
 

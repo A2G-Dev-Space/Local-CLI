@@ -33,6 +33,7 @@ export {
   ModelError,
   TokenLimitError,
   RateLimitError,
+  LLMRetryExhaustedError,
   ContextLengthError,
 } from './llm.js';
 

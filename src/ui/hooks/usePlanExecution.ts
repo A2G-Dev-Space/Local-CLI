@@ -58,6 +58,9 @@ export function usePlanExecution(pendingMessageCallbacks?: PendingMessageCallbac
     resolve: (response: AskUserResponse) => void;
   } | null>(null);
 
+  // Retry pending state (LLM 확장 retry 전부 실패 시)
+  const [retryPending, setRetryPending] = useState(false);
+
   // Refs
   const isInterruptedRef = useRef(false);
   const isPlanModeActiveRef = useRef(false);
@@ -88,6 +91,8 @@ export function usePlanExecution(pendingMessageCallbacks?: PendingMessageCallbac
     // Pending message callbacks for mid-execution user input injection
     getPendingMessage: pendingMessageCallbacks?.getPendingMessage,
     clearPendingMessage: pendingMessageCallbacks?.clearPendingMessage,
+    // LLM retry exhausted — UI에서 Enter로 재시도 대기
+    setRetryPending,
   }), [pendingMessageCallbacks]);
 
   // Keep todosRef in sync with todos state
@@ -323,6 +328,8 @@ export function usePlanExecution(pendingMessageCallbacks?: PendingMessageCallbac
     isInterrupted,
     currentActivity,
     askUserRequest,
+    retryPending,
+    setRetryPending,
     setTodos,
     handleTodoUpdate,
     handleAskUserResponse,

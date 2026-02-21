@@ -33,6 +33,8 @@ export {
   ModelError,
   TokenLimitError,
   RateLimitError,
+  LLMRetryExhaustedError,
+  QuotaExceededError,
   ContextLengthError,
 } from './llm';
 

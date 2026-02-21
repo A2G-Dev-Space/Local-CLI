@@ -814,6 +814,12 @@ const electronAPI = {
       return () => ipcRenderer.removeListener('agent:todoUpdate', handler);
     },
 
+    onSessionTitle: (callback: (title: string, sessionId?: string) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, title: string, sessionId?: string) => callback(title, sessionId);
+      ipcRenderer.on('agent:sessionTitle', handler);
+      return () => ipcRenderer.removeListener('agent:sessionTitle', handler);
+    },
+
     onTellUser: (callback: (message: string, sessionId?: string) => void): (() => void) => {
       const handler = (_event: IpcRendererEvent, message: string, sessionId?: string) => callback(message, sessionId);
       ipcRenderer.on('agent:tellUser', handler);
@@ -860,6 +866,18 @@ const electronAPI = {
       const handler = (_event: IpcRendererEvent, data: { error: string }) => callback(data);
       ipcRenderer.on('agent:error', handler);
       return () => ipcRenderer.removeListener('agent:error', handler);
+    },
+
+    onRetryableError: (callback: (data: { error: string }) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, data: { error: string }) => callback(data);
+      ipcRenderer.on('agent:retryableError', handler);
+      return () => ipcRenderer.removeListener('agent:retryableError', handler);
+    },
+
+    onCountdown: (callback: (data: { seconds: number }) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, data: { seconds: number }) => callback(data);
+      ipcRenderer.on('agent:countdown', handler);
+      return () => ipcRenderer.removeListener('agent:countdown', handler);
     },
 
     // Tool approval request event (Supervised Mode)
