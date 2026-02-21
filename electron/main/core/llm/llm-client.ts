@@ -15,6 +15,7 @@ import {
   ContextLengthError,
   StreamingError,
   ValidationError,
+  LLMRetryExhaustedError,
 } from '../../errors';
 import { emitReasoning } from '../../tools/llm/simple/simple-tool-executor';
 import { reportError } from '../telemetry/error-reporter';
@@ -102,6 +103,8 @@ export interface RetryConfig {
   currentAttempt?: number;
   /** Disable retry */
   disableRetry?: boolean;
+  /** Extended retry (2min wait + Phase 3) already done — prevents infinite loop (internal use) */
+  extendedRetryDone?: boolean;
 }
 
 export type StreamCallback = (chunk: string, done: boolean) => void;
@@ -113,6 +116,9 @@ export type StreamCallback = (chunk: string, done: boolean) => void;
 class LLMClient {
   private abortController: AbortController | null = null;
   private isInterrupted: boolean = false;
+
+  /** 카운트다운 콜백 — UI에서 대기 시간 표시용 */
+  public countdownCallback: ((remainingSeconds: number) => void) | null = null;
 
   /** Default maximum retry attempts (CLI parity) */
   private static readonly DEFAULT_MAX_RETRIES = 3;
@@ -357,6 +363,27 @@ class LLMClient {
   }
 
   /**
+   * 카운트다운 대기 (확장 retry Phase 2)
+   * @param totalSeconds 총 대기 시간 (초)
+   * @returns true: 정상 완료, false: 인터럽트됨
+   */
+  private async waitWithCountdown(totalSeconds: number): Promise<boolean> {
+    for (let remaining = totalSeconds; remaining > 0; remaining -= 10) {
+      if (this.isInterrupted) {
+        this.countdownCallback?.(0);
+        return false;
+      }
+
+      const waitSec = Math.min(10, remaining);
+      this.countdownCallback?.(remaining);
+
+      await this.sleep(waitSec * 1000);
+    }
+    this.countdownCallback?.(0);
+    return !this.isInterrupted;
+  }
+
+  /**
    * Chat completion (non-streaming) with retry logic (CLI parity)
    */
   async chatCompletion(
@@ -571,6 +598,38 @@ class LLMClient {
           maxRetries,
           currentAttempt: currentAttempt + 1,
         });
+      }
+
+      // Phase 1 (3회) 실패 → Phase 2 (2분 대기) → Phase 3 (3회 추가 retry)
+      if (currentAttempt >= maxRetries && !retryConfig?.disableRetry && !retryConfig?.extendedRetryDone && this.isRetryableError(error)) {
+        logger.warn(`Phase 1 (${maxRetries}회) 실패. 2분 대기 후 Phase 2 시작...`, {
+          error: (error as Error).message,
+        });
+
+        const waited = await this.waitWithCountdown(120);
+        if (!waited) {
+          logger.flow('카운트다운 중 인터럽트 감지');
+          this.isInterrupted = false;
+          throw new Error('INTERRUPTED');
+        }
+
+        logger.warn('Phase 2 (2분 대기) 완료. Phase 3 (3회 추가 retry) 시작...');
+        try {
+          return await this.chatCompletion(options, {
+            maxRetries,
+            currentAttempt: 1,
+            extendedRetryDone: true,
+          });
+        } catch (phase3Error) {
+          const finalError = phase3Error instanceof Error ? phase3Error : new Error(String(phase3Error));
+          if (finalError.message === 'INTERRUPTED') {
+            throw finalError;
+          }
+          logger.errorSilent('Phase 3 (추가 3회) 실패. 최종 LLMRetryExhaustedError throw.', {
+            error: finalError.message,
+          });
+          throw new LLMRetryExhaustedError(finalError);
+        }
       }
 
       // Context length error - use custom error class

@@ -998,6 +998,26 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
       return;
     }
 
+    // Retry pending: 빈 Enter로 LLM 재시도
+    if (!value.trim() && planExecutionState.retryPending) {
+      planExecutionState.setRetryPending(false);
+      // 마지막 유저 메시지를 찾아 재시도
+      const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+      if (lastUserMsg && llmClient) {
+        setIsProcessing(true);
+        setActivityStartTime(Date.now());
+        llmClient.resetInterrupt();
+        try {
+          await planExecutionState.executeAutoMode(lastUserMsg.content, llmClient, messages, setMessages);
+        } catch (e) {
+          logger.errorSilent('Retry failed', e as Error);
+        } finally {
+          setIsProcessing(false);
+        }
+      }
+      return;
+    }
+
     if (!value.trim() || fileBrowserState.showFileBrowser || showSessionBrowser || showSettings || showSetupWizard || showDocsBrowser) {
       return;
     }
@@ -1175,6 +1195,14 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
     // Reset interrupt flag for new operation
     if (llmClient) {
       llmClient.resetInterrupt();
+      // 카운트다운 콜백 설정 (LLM 확장 retry 2분 대기 표시)
+      llmClient.countdownCallback = (remainingSeconds: number) => {
+        if (remainingSeconds > 0) {
+          setActivityDetail(`서버 응답 대기... ${remainingSeconds}초`);
+        } else {
+          setActivityDetail('재시도 중...');
+        }
+      };
     }
 
     // Reset session usage for new task

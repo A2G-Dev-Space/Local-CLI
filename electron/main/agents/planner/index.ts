@@ -18,6 +18,7 @@ import {
   AskUserResponse,
   AskUserCallback,
 } from '../../tools/llm/simple/user-interaction-tools';
+import { LLMRetryExhaustedError } from '../../errors/llm';
 
 // =============================================================================
 // Types
@@ -399,6 +400,10 @@ Choose one of your 3 tools now.`,
           }
           // Continue to next retry
         } catch (error) {
+          // LLMRetryExhaustedError: chatCompletion()에서 이미 6회 시도 완료 → 즉시 전파
+          if (error instanceof LLMRetryExhaustedError) {
+            throw error;
+          }
           // Network or API error - will retry
           logger.warn(`Planning LLM error (attempt ${attempt}/${MAX_RETRIES}):`, error as Error);
           lastError = error as Error;

@@ -46,6 +46,7 @@ import { detectGitRepo } from '../utils/git-utils.js';
 import type { StateCallbacks } from './types.js';
 import { formatErrorMessage, buildTodoContext, flattenMessagesToHistory, findActiveTodo, getTodoStats } from './utils.js';
 import { reportError } from '../core/telemetry/error-reporter.js';
+import { LLMRetryExhaustedError } from '../errors/llm.js';
 
 /**
  * Build system prompt with conditional Git rules
@@ -372,7 +373,22 @@ export class PlanExecutor {
         return;
       }
 
-      logger.error('Plan mode execution failed', error as Error);
+      // LLM 확장 retry 전부 실패 → retryPending 콜백으로 UI에 알림
+      if (error instanceof LLMRetryExhaustedError) {
+        logger.errorSilent('LLM retry exhausted - notifying user', { error: error.message });
+        callbacks.setMessages((prev: Message[]) => {
+          const updatedMessages: Message[] = [
+            ...prev,
+            { role: 'assistant' as const, content: `LLM 서버가 응답하지 않습니다.\n6회 재시도 + 2분 대기 후에도 실패했습니다.\n\nEnter를 눌러 재시도하세요.` }
+          ];
+          sessionManager.autoSaveCurrentSession(updatedMessages);
+          return updatedMessages;
+        });
+        callbacks.setRetryPending?.(true);
+        return;
+      }
+
+      logger.errorSilent('Plan mode execution failed', error as Error);
       const cm = configManager.getCurrentModel();
       reportError(error, { type: 'execution', method: 'executePlanMode', modelId: cm?.id, modelName: cm?.name }).catch(() => {});
       const errorMessage = formatErrorMessage(error);
@@ -573,7 +589,22 @@ export class PlanExecutor {
         return;
       }
 
-      logger.error('Resume execution failed', error as Error);
+      // LLM 확장 retry 전부 실패 → retryPending 콜백으로 UI에 알림
+      if (error instanceof LLMRetryExhaustedError) {
+        logger.errorSilent('LLM retry exhausted during resume - notifying user', { error: error.message });
+        callbacks.setMessages((prev: Message[]) => {
+          const updatedMessages: Message[] = [
+            ...prev,
+            { role: 'assistant' as const, content: `LLM 서버가 응답하지 않습니다.\n6회 재시도 + 2분 대기 후에도 실패했습니다.\n\nEnter를 눌러 재시도하세요.` }
+          ];
+          sessionManager.autoSaveCurrentSession(updatedMessages);
+          return updatedMessages;
+        });
+        callbacks.setRetryPending?.(true);
+        return;
+      }
+
+      logger.errorSilent('Resume execution failed', error as Error);
       const cm2 = configManager.getCurrentModel();
       reportError(error, { type: 'execution', method: 'resumeTodoExecution', modelId: cm2?.id, modelName: cm2?.name }).catch(() => {});
       callbacks.setMessages((prev: Message[]) => [...prev, {

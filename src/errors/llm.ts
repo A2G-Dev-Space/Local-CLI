@@ -120,6 +120,28 @@ export class RateLimitError extends BaseError {
 }
 
 /**
+ * LLMRetryExhaustedError - 확장 retry 전부 실패한 에러
+ * chatCompletion()에서 Phase 1 (3회) + Phase 2 (2분 대기) + Phase 3 (3회) 모두 실패 시 throw
+ * UI 레이어에서 이 에러를 감지해 사용자에게 재시도 옵션을 제공
+ */
+export class LLMRetryExhaustedError extends BaseError {
+  public readonly originalError: Error;
+
+  constructor(originalError: Error, options: ErrorOptions = {}) {
+    super(
+      `LLM 서버 응답 실패 (6회 재시도 + 2분 대기 후 최종 실패): ${originalError.message}`,
+      'LLM_RETRY_EXHAUSTED',
+      {
+        ...options,
+        isRecoverable: true,
+        userMessage: options.userMessage ?? `LLM 서버가 응답하지 않습니다. Enter를 눌러 재시도하세요.`,
+      }
+    );
+    this.originalError = originalError;
+  }
+}
+
+/**
  * ContextLengthError - 컨텍스트 길이 초과 에러
  */
 export class ContextLengthError extends BaseError {

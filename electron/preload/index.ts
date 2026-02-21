@@ -868,6 +868,18 @@ const electronAPI = {
       return () => ipcRenderer.removeListener('agent:error', handler);
     },
 
+    onRetryableError: (callback: (data: { error: string }) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, data: { error: string }) => callback(data);
+      ipcRenderer.on('agent:retryableError', handler);
+      return () => ipcRenderer.removeListener('agent:retryableError', handler);
+    },
+
+    onCountdown: (callback: (data: { seconds: number }) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, data: { seconds: number }) => callback(data);
+      ipcRenderer.on('agent:countdown', handler);
+      return () => ipcRenderer.removeListener('agent:countdown', handler);
+    },
+
     // Tool approval request event (Supervised Mode)
     onApprovalRequest: (callback: (request: {
       id: string;

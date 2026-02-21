@@ -31,7 +31,7 @@ import {
 } from '../tools';
 import { setReasoningCallback, setToolApprovalCallback, requestToolApproval } from '../tools/llm/simple/simple-tool-executor';
 import type { ToolApprovalResult } from '../tools/llm/simple/simple-tool-executor';
-import { ContextLengthError, QuotaExceededError } from '../errors';
+import { ContextLengthError, QuotaExceededError, LLMRetryExhaustedError } from '../errors';
 import { buildPlanExecutePrompt, getCriticalReminders, VISION_VERIFICATION_RULE } from '../prompts';
 import { GIT_COMMIT_RULES } from '../prompts/shared/git-rules';
 import { PlanningLLM } from '../agents/planner';
@@ -196,6 +196,11 @@ export async function runAgentCore(
   // Set working directory for all tool executors
   setWorkingDirectory(workingDirectory);
   setPowerShellWorkingDirectory(workingDirectory);
+
+  // LLM 카운트다운 콜백 설정 (확장 retry 2분 대기 표시)
+  llmClient.countdownCallback = (remainingSeconds: number) => {
+    io.broadcast('agent:countdown', { seconds: remainingSeconds });
+  };
 
   // Error telemetry context (moved before planning to avoid temporal dead zone)
   const currentModelInfo = configManager.getCurrentModel();
@@ -1155,11 +1160,16 @@ Retry with correct parameter names and types.`;
     }
 
     if (!isAbort) {
-      reportError(error, { type: 'agent', method: 'runAgent' }).catch(() => {});
-      if (callbacks.onError) {
-        callbacks.onError(error instanceof Error ? error : new Error(errorMessage));
+      // LLM 확장 retry 전부 실패 → retryableError broadcast (UI에서 retry 버튼 표시)
+      if (error instanceof LLMRetryExhaustedError) {
+        io.broadcast('agent:retryableError', { error: errorMessage });
+      } else {
+        reportError(error, { type: 'agent', method: 'runAgent' }).catch(() => {});
+        if (callbacks.onError) {
+          callbacks.onError(error instanceof Error ? error : new Error(errorMessage));
+        }
+        io.broadcast('agent:error', { error: errorMessage });
       }
-      io.broadcast('agent:error', { error: errorMessage });
     }
 
     const errorReturnToolLoopMessages = stripParseFailures(toolLoopMessages);
