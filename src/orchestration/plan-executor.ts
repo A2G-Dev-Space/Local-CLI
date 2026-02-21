@@ -216,7 +216,11 @@ export class PlanExecutor {
           ];
       callbacks.setMessages(currentMessages);
 
-      // 2. Setup TODO callbacks
+      // Save session immediately after planning (before execution starts)
+      // This ensures interrupted executions still have the session saved
+      sessionManager.autoSaveCurrentSession(currentMessages);
+
+      // 2. Setup TODO callbacks (with background auto-sync)
       this.setupTodoCallbacks(currentTodos, callbacks, (updated) => {
         currentTodos = updated;
       });
