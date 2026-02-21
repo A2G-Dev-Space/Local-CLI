@@ -237,6 +237,7 @@ export class SessionManager {
       // 현재 세션 ID를 로드된 세션으로 설정 (이후 대화가 이 세션에 저장되도록)
       this.currentSessionId = sessionData.metadata.id;
       this.currentSessionCreatedAt = sessionData.metadata.createdAt;
+      this.currentSessionName = sessionData.metadata.name || null;
 
       // 로거를 해당 세션의 로그 파일로 재초기화 (append 모드)
       await initializeJsonStreamLogger(sessionData.metadata.id, true);
