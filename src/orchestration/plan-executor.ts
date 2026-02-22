@@ -375,7 +375,7 @@ export class PlanExecutor {
 
       // LLM 확장 retry 전부 실패 → retryPending 콜백으로 UI에 알림
       if (error instanceof LLMRetryExhaustedError) {
-        logger.errorSilent('LLM retry exhausted - notifying user', { error: error.message });
+        logger.error('LLM retry exhausted - notifying user', { error: error.message });
         callbacks.setMessages((prev: Message[]) => {
           const updatedMessages: Message[] = [
             ...prev,
@@ -388,7 +388,7 @@ export class PlanExecutor {
         return;
       }
 
-      logger.errorSilent('Plan mode execution failed', error as Error);
+      logger.error('Plan mode execution failed', error as Error);
       const cm = configManager.getCurrentModel();
       reportError(error, { type: 'execution', method: 'executePlanMode', modelId: cm?.id, modelName: cm?.name }).catch(() => {});
       const errorMessage = formatErrorMessage(error);
@@ -591,7 +591,7 @@ export class PlanExecutor {
 
       // LLM 확장 retry 전부 실패 → retryPending 콜백으로 UI에 알림
       if (error instanceof LLMRetryExhaustedError) {
-        logger.errorSilent('LLM retry exhausted during resume - notifying user', { error: error.message });
+        logger.error('LLM retry exhausted during resume - notifying user', { error: error.message });
         callbacks.setMessages((prev: Message[]) => {
           const updatedMessages: Message[] = [
             ...prev,
@@ -604,7 +604,7 @@ export class PlanExecutor {
         return;
       }
 
-      logger.errorSilent('Resume execution failed', error as Error);
+      logger.error('Resume execution failed', error as Error);
       const cm2 = configManager.getCurrentModel();
       reportError(error, { type: 'execution', method: 'resumeTodoExecution', modelId: cm2?.id, modelName: cm2?.name }).catch(() => {});
       callbacks.setMessages((prev: Message[]) => [...prev, {
