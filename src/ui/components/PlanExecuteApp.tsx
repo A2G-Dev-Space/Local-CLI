@@ -1010,7 +1010,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         try {
           await planExecutionState.executeAutoMode(lastUserMsg.content, llmClient, messages, setMessages);
         } catch (e) {
-          logger.errorSilent('Retry failed', e as Error);
+          logger.error('Retry failed', e as Error);
         } finally {
           setIsProcessing(false);
         }
@@ -1332,7 +1332,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
       };
 
       processAndExecute().catch(err => {
-        logger.errorSilent('Pending message execution error', err as Error);
+        logger.error('Pending message execution error', err as Error);
       });
     }
   }, [isProcessing, pendingUserMessage, llmClient, messages, planExecutionState, addLog]);

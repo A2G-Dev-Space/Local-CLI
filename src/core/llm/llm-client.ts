@@ -406,7 +406,7 @@ export class LLMClient {
           if (finalError.message === 'INTERRUPTED') {
             throw finalError;
           }
-          logger.errorSilent('Phase 3 (추가 3회) 실패. 최종 LLMRetryExhaustedError throw.', {
+          logger.error('Phase 3 (추가 3회) 실패. 최종 LLMRetryExhaustedError throw.', {
             error: finalError.message,
           });
           throw new LLMRetryExhaustedError(finalError);
