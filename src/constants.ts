@@ -50,7 +50,7 @@ export const SERVICE_ID = 'local-cli';
 /**
  * Application version (injected from package.json)
  */
-export const APP_VERSION = '4.5.5';
+export const APP_VERSION = '4.5.7';
 
 /**
  * Dashboard URL (injected from package.json)
