@@ -46,7 +46,7 @@ export const PROJECTS_DIR = path.join(LOCAL_HOME_DIR, 'projects');
  * Application version (injected from package.json)
  * CLI parity: src/constants.ts
  */
-export const APP_VERSION = '4.5.4';
+export const APP_VERSION = '4.5.5';
 
 /**
  * Dashboard URL (injected from package.json via inject-version.js)
