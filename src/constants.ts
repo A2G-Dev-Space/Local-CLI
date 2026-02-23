@@ -44,7 +44,7 @@ export const PROJECTS_DIR = path.join(LOCAL_HOME_DIR, 'projects');
 /**
  * Application version (injected from package.json)
  */
-export const APP_VERSION = '4.5.4';
+export const APP_VERSION = '4.5.5';
 
 /**
  * Dashboard URL (injected from package.json)
