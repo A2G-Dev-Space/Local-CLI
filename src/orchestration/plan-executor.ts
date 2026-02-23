@@ -290,6 +290,7 @@ export class PlanExecutor {
       const result = await llmClient.chatCompletionWithTools(messagesForLLM, tools, {
         getPendingMessage: callbacks.getPendingMessage,
         clearPendingMessage: callbacks.clearPendingMessage,
+        askUser: callbacks.askUser,
         rebuildMessages,
         onAfterToolExecution: async (loopMessages) => {
           // Electron parity: proactive auto-compact at 70% threshold inside tool loop
@@ -510,6 +511,7 @@ export class PlanExecutor {
       const result = await llmClient.chatCompletionWithTools(messagesForLLM, tools, {
         getPendingMessage: callbacks.getPendingMessage,
         clearPendingMessage: callbacks.clearPendingMessage,
+        askUser: callbacks.askUser,
         rebuildMessages,
         onAfterToolExecution: async (loopMessages) => {
           // Electron parity: proactive auto-compact at 70% threshold inside tool loop
