@@ -43,6 +43,12 @@ export const BACKUPS_DIR = path.join(LOCAL_HOME_DIR, 'backups');
 export const PROJECTS_DIR = path.join(LOCAL_HOME_DIR, 'projects');
 
 /**
+ * LLM 요청 시 X-Service-Id 헤더로 전송
+ * CLI와 Electron이 서로 다른 값을 사용
+ */
+export const SERVICE_ID = 'local-cli-ui';
+
+/**
  * Application version (injected from package.json)
  * CLI parity: src/constants.ts
  */

@@ -42,6 +42,12 @@ export const PROJECTS_DIR = path.join(LOCAL_HOME_DIR, 'projects');
 
 
 /**
+ * LLM 요청 시 X-Service-Id 헤더로 전송
+ * CLI와 Electron이 서로 다른 값을 사용
+ */
+export const SERVICE_ID = 'local-cli';
+
+/**
  * Application version (injected from package.json)
  */
 export const APP_VERSION = '4.5.5';
