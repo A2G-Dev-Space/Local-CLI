@@ -6,6 +6,7 @@
 
 import { logger } from '../../utils/logger';
 import { configManager } from '../config';
+import { SERVICE_ID } from '../../constants';
 import { usageTracker } from '../usage-tracker';
 import {
   APIError,
@@ -436,6 +437,7 @@ class LLMClient {
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      'X-Service-Id': SERVICE_ID,
     };
 
     if (endpoint.apiKey) {
@@ -671,6 +673,7 @@ class LLMClient {
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      'X-Service-Id': SERVICE_ID,
     };
 
     if (endpoint.apiKey) {

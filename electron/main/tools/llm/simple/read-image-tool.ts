@@ -11,6 +11,7 @@
 import fs from 'fs';
 import path from 'path';
 import { configManager } from '../../../core/config';
+import { SERVICE_ID } from '../../../constants';
 import type { ModelInfo, EndpointConfig } from '../../../core/config/config-manager';
 import type { LLMSimpleTool, ToolResult } from '../../types';
 import { getWorkingDirectory } from './file-tools';
@@ -155,10 +156,7 @@ Supported formats: PNG, JPEG, GIF, WebP, BMP. Max size: 100MB.`,
         headers['Authorization'] = `Bearer ${vlEndpoint.apiKey}`;
       }
 
-      // Add X-Service-Id if dashboard endpoint
-      if (vlEndpoint.id === 'dashboard') {
-        headers['X-Service-Id'] = 'local-cli-ui';
-      }
+      headers['X-Service-Id'] = SERVICE_ID;
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 120000);
