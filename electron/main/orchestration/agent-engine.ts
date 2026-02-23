@@ -875,6 +875,41 @@ Retry with correct parameter names and types.`;
             }
           }
 
+          // Handle ask_to_user specially — bypass global callback, use worker IPC directly
+          if (toolName === 'ask_to_user' && callbacks.onAskUser) {
+            const question = toolArgs['question'] as string;
+            const options = toolArgs['options'] as string[];
+
+            if (!question || !Array.isArray(options) || options.length < 2) {
+              const errorResult = `Invalid ask_to_user parameters`;
+              addMessage({ role: 'tool', content: errorResult, tool_call_id: toolCall.id });
+              toolCallHistory.push({ tool: toolName, args: toolArgs, result: errorResult, success: false });
+              continue;
+            }
+
+            // Notify UI about tool execution (tool card)
+            if (callbacks.onToolExecution) {
+              callbacks.onToolExecution(toolName, toolArgs['reason'] as string || 'Asking user', toolArgs);
+            }
+            io.broadcast('agent:toolCall', { toolName, args: { ...toolArgs, reason: toolArgs['reason'] || 'Asking user' } });
+
+            // Call onAskUser directly via worker IPC → main → renderer modal
+            const askResponse = await callbacks.onAskUser({ question, options });
+            const resultText = askResponse.isOther && askResponse.customText
+              ? `User provided custom response: "${askResponse.customText}"`
+              : `User selected: "${askResponse.selectedOption}"`;
+
+            // Notify UI about tool result
+            if (callbacks.onToolResult) {
+              callbacks.onToolResult(toolName, resultText, true);
+            }
+            io.broadcast('agent:toolResult', { toolName, result: resultText, success: true });
+
+            addMessage({ role: 'tool', content: resultText, tool_call_id: toolCall.id });
+            toolCallHistory.push({ tool: toolName, args: toolArgs, result: resultText, success: true });
+            continue;
+          }
+
           // Execute tool
           const result = await executeSimpleTool(toolName, toolArgs);
 

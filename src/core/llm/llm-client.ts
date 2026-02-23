@@ -775,6 +775,8 @@ export class LLMClient {
       rebuildMessages?: (toolLoopMessages: Message[]) => Message[];
       /** 매 tool 실행 후 호출. auto-compact 등 후처리 수행. toolLoopMessages를 in-place 수정 가능 */
       onAfterToolExecution?: (toolLoopMessages: Message[]) => Promise<void>;
+      /** ask_to_user 도구 직접 처리 콜백 — 전역 callback 대신 사용 */
+      askUser?: (request: { question: string; options: string[] }) => Promise<{ selectedOption: string; isOther: boolean; customText?: string }>;
     }
   ): Promise<{
     message: Message;
@@ -1152,6 +1154,25 @@ Retry with correct parameter names and types.`;
 
           let result: { success: boolean; result?: string; error?: string; metadata?: Record<string, unknown> };
 
+          // Handle ask_to_user specially — use direct callback instead of global
+          if (toolName === 'ask_to_user' && options?.askUser) {
+            const question = toolArgs['question'] as string;
+            const askOptions = toolArgs['options'] as string[];
+            if (question && Array.isArray(askOptions) && askOptions.length >= 2) {
+              try {
+                const askResponse = await options.askUser({ question, options: askOptions });
+                const resultText = askResponse.isOther && askResponse.customText
+                  ? `User provided custom response: "${askResponse.customText}"`
+                  : `User selected: "${askResponse.selectedOption}"`;
+                result = { success: true, result: resultText };
+              } catch (askError) {
+                result = { success: false, error: `Error asking user: ${askError instanceof Error ? askError.message : 'Unknown error'}` };
+              }
+            } else {
+              result = { success: false, error: 'Invalid ask_to_user parameters' };
+            }
+          } else {
+
           try {
             result = await executeFileTool(toolName, toolArgs);
             logger.toolExecution(toolName, toolArgs, result);
@@ -1227,6 +1248,7 @@ Retry with correct parameter names and types.`;
               error: toolError instanceof Error ? toolError.message : String(toolError),
             };
           }
+          } // close else (ask_to_user special handling)
 
           // 결과를 메시지에 추가
           addMessage({

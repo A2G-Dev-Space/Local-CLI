@@ -46,7 +46,24 @@ export const PROJECTS_DIR = path.join(LOCAL_HOME_DIR, 'projects');
  * Application version (injected from package.json)
  * CLI parity: src/constants.ts
  */
-export const APP_VERSION = '4.5.1';
+export const APP_VERSION = '4.5.4';
+
+/**
+ * Dashboard URL (injected from package.json via inject-version.js)
+ */
+export const DASHBOARD_URL = 'https://3.39.170.84.nip.io';
+
+/**
+ * ONCE URL (injected from package.json)
+ * AI 기반 노트/지식 관리 시스템
+ */
+export const ONCE_URL = 'https://3.39.170.84.nip.io:5090';
+
+/**
+ * FREE URL (injected from package.json)
+ * AI 기반 업무 기록 시스템
+ */
+export const FREE_URL = 'https://3.39.170.84.nip.io:6090';
 
 /**
  * Credentials 파일 경로 (CLI와 공유)
