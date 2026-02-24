@@ -93,6 +93,13 @@ export interface AppConfig {
 
   // External tools
   vscodePath?: string; // Custom VSCode path (if not in PATH)
+
+  // Jarvis Mode
+  jarvis?: {
+    enabled: boolean;
+    pollIntervalMinutes: number;
+    autoStartOnBoot: boolean;
+  };
 }
 
 // System status type

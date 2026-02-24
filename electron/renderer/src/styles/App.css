@@ -281,6 +281,12 @@
   transform: none;
 }
 
+/* Jarvis button tooltip: show BELOW instead of above (avoids titlebar clipping) */
+.jarvis-toolbar-btn::after {
+  top: auto !important;
+  bottom: -28px;
+}
+
 .panel-toolbar-divider {
   width: 1px;
   height: 16px;
