@@ -9,6 +9,7 @@ import { OfficeClientBase, OfficeResponse, ScreenshotResponse } from './office-c
 
 export class WordClient extends OfficeClientBase {
   protected override comProgId = 'Word.Application';
+  protected override displayAlertsSuppressExpr = '0';  // wdAlertsNone = 0
 
   // ===========================================================================
   // Microsoft Word Operations

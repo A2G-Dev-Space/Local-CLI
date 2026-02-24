@@ -10,6 +10,7 @@
  */
 
 import * as fs from 'fs/promises';
+import * as os from 'os';
 import * as path from 'path';
 import { llmClient, Message } from '../core/llm';
 import { logger } from '../utils/logger';
@@ -155,6 +156,29 @@ function buildSystemPrompt(workingDirectory: string): string {
 }
 
 // =============================================================================
+// Safe CWD (prevent crashes in read-only directories like Program Files)
+// =============================================================================
+
+function getSafeDefaultCwd(): string {
+  const cwd = process.cwd();
+  const lower = cwd.toLowerCase();
+  const tempDir = (process.env.TEMP || process.env.TMP || os.tmpdir()).toLowerCase();
+
+  // Protected/unsuitable paths → fallback to home directory
+  if (
+    (tempDir && lower.startsWith(tempDir)) ||
+    lower.includes('\\appdata\\local\\temp\\') ||
+    lower.includes('\\program files\\') ||
+    lower.includes('\\program files (x86)\\') ||
+    lower.includes('\\windows\\') ||
+    lower.includes('\\system32\\')
+  ) {
+    return os.homedir();
+  }
+  return cwd;
+}
+
+// =============================================================================
 // Core Agent Execution (Electron-free)
 // =============================================================================
 
@@ -167,7 +191,7 @@ export async function runAgentCore(
   agentState: AgentRunState,
 ): Promise<AgentResult> {
   const {
-    workingDirectory = process.cwd(),
+    workingDirectory = getSafeDefaultCwd(),
     enablePlanning = true,
     resumeTodos = false,
     autoMode = true,

@@ -9,6 +9,7 @@ import { OfficeClientBase, OfficeResponse, ScreenshotResponse } from './office-c
 
 export class PowerPointClient extends OfficeClientBase {
   protected override comProgId = 'PowerPoint.Application';
+  protected override displayAlertsSuppressExpr = '[Microsoft.Office.Interop.PowerPoint.PpAlertLevel]::ppAlertsNone';
 
   async powerpointLaunch(): Promise<OfficeResponse> {
     return this.executePowerShell(`
@@ -31,11 +32,11 @@ try {
 } catch {
   $ppt = New-Object -ComObject PowerPoint.Application
 }
-$ppt.DisplayAlerts = $false
+$ppt.DisplayAlerts = [Microsoft.Office.Interop.PowerPoint.PpAlertLevel]::ppAlertsNone
 $ppt.Visible = [Microsoft.Office.Core.MsoTriState]::msoTrue
 # Add presentation with window (msoTrue = -1)
 $presentation = $ppt.Presentations.Add(-1)
-$ppt.DisplayAlerts = $true
+$ppt.DisplayAlerts = [Microsoft.Office.Interop.PowerPoint.PpAlertLevel]::ppAlertsAll
 @{ success = $true; message = "Created new presentation"; presentation_name = $presentation.Name } | ConvertTo-Json -Compress
 `);
   }
@@ -48,10 +49,10 @@ try {
 } catch {
   $ppt = New-Object -ComObject PowerPoint.Application
 }
-$ppt.DisplayAlerts = $false
+$ppt.DisplayAlerts = [Microsoft.Office.Interop.PowerPoint.PpAlertLevel]::ppAlertsNone
 $ppt.Visible = [Microsoft.Office.Core.MsoTriState]::msoTrue
 $presentation = $ppt.Presentations.Open('${windowsPath}')
-$ppt.DisplayAlerts = $true
+$ppt.DisplayAlerts = [Microsoft.Office.Interop.PowerPoint.PpAlertLevel]::ppAlertsAll
 @{ success = $true; message = "Presentation opened"; presentation_name = $presentation.Name; path = $presentation.FullName } | ConvertTo-Json -Compress
 `);
   }
