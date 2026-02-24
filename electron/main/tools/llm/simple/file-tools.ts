@@ -99,12 +99,19 @@ const CORE_CATEGORIES: ToolCategory[] = ['llm-simple'];
 // Working Directory Management
 // =============================================================================
 
-// Portable 실행 시 temp 경로 방지: 홈 디렉토리로 fallback
+// Portable/설치 경로에서 실행 시 보호된 디렉토리 방지: 홈 디렉토리로 fallback
 function getSafeInitialCwd(): string {
   const cwd = process.cwd();
   const lower = cwd.toLowerCase();
   const tempDir = (process.env.TEMP || process.env.TMP || os.tmpdir()).toLowerCase();
-  if ((tempDir && lower.startsWith(tempDir)) || lower.includes('\\appdata\\local\\temp\\')) {
+  if (
+    (tempDir && lower.startsWith(tempDir)) ||
+    lower.includes('\\appdata\\local\\temp\\') ||
+    lower.includes('\\program files\\') ||
+    lower.includes('\\program files (x86)\\') ||
+    lower.includes('\\windows\\') ||
+    lower.includes('\\system32\\')
+  ) {
     return os.homedir();
   }
   return cwd;

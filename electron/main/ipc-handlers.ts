@@ -71,6 +71,19 @@ interface FileContentResult {
 // 윈도우 참조 (index.ts에서 설정)
 let chatWindow: BrowserWindow | null = null;
 let taskWindow: BrowserWindow | null = null;
+let jarvisWindow: BrowserWindow | null = null;
+
+// Jarvis 런타임 시작/중지 콜백 (index.ts에서 설정)
+let onJarvisEnable: (() => void) | null = null;
+let onJarvisDisable: (() => void) | null = null;
+
+export function setJarvisLifecycleCallbacks(callbacks: {
+  onEnable: () => void;
+  onDisable: () => void;
+}): void {
+  onJarvisEnable = callbacks.onEnable;
+  onJarvisDisable = callbacks.onDisable;
+}
 
 /**
  * Chat 윈도우 설정 (메인)
@@ -84,6 +97,13 @@ export function setChatWindow(win: BrowserWindow): void {
  */
 export function setTaskWindow(win: BrowserWindow | null): void {
   taskWindow = win;
+}
+
+/**
+ * Jarvis 윈도우 설정 (비서)
+ */
+export function setJarvisWindow(win: BrowserWindow | null): void {
+  jarvisWindow = win;
 }
 
 /**
@@ -164,6 +184,9 @@ export function setupIpcHandlers(): void {
     const senderWin = BrowserWindow.fromWebContents(event.sender);
     if (senderWin && taskWindow && !taskWindow.isDestroyed() && senderWin.id === taskWindow.id) {
       return 'task';
+    }
+    if (senderWin && jarvisWindow && !jarvisWindow.isDestroyed() && senderWin.id === jarvisWindow.id) {
+      return 'jarvis';
     }
     return 'chat';
   });
@@ -2056,6 +2079,89 @@ export function setupIpcHandlers(): void {
   // 문서 폴더 열기
   ipcMain.handle('docs:openFolder', async () => {
     return await openDocsFolder();
+  });
+
+  // ===========================================================================
+  // Jarvis Mode
+  // ===========================================================================
+
+  ipcMain.handle('jarvis:sendMessage', async (_event, message: string) => {
+    logger.info('[IPC] jarvis:sendMessage', { messageLength: message.length });
+    const { jarvisService } = await import('./jarvis');
+    await jarvisService.handleUserMessage(message);
+  });
+
+  ipcMain.handle('jarvis:pollNow', async () => {
+    logger.info('[IPC] jarvis:pollNow triggered');
+    const { jarvisService } = await import('./jarvis');
+    await jarvisService.pollNow();
+  });
+
+  ipcMain.handle('jarvis:getConfig', async () => {
+    const config = configManager.get('jarvis');
+    logger.info('[IPC] jarvis:getConfig', { enabled: config?.enabled });
+    return config || { enabled: false, pollIntervalMinutes: 30, autoStartOnBoot: true };
+  });
+
+  ipcMain.handle('jarvis:setConfig', async (_event, updates: Partial<{ enabled: boolean; pollIntervalMinutes: number; autoStartOnBoot: boolean; modelId: string; endpointId: string }>) => {
+    logger.info('[IPC] jarvis:setConfig', { updates });
+    const current = configManager.get('jarvis') || { enabled: false, pollIntervalMinutes: 30, autoStartOnBoot: true };
+    const newConfig = { ...current, ...updates };
+    await configManager.set('jarvis', newConfig);
+
+    // 자동 시작 설정 반영
+    if ('autoStartOnBoot' in updates || 'enabled' in updates) {
+      const { app: electronApp } = await import('electron');
+      electronApp.setLoginItemSettings({
+        openAtLogin: newConfig.enabled && newConfig.autoStartOnBoot,
+        args: ['--jarvis-only'],
+      });
+    }
+
+    // 실시간 활성화/비활성화 — 재시작 불필요
+    if ('enabled' in updates) {
+      if (newConfig.enabled) {
+        onJarvisEnable?.();
+      } else {
+        onJarvisDisable?.();
+      }
+    }
+  });
+
+  ipcMain.handle('jarvis:getState', async () => {
+    const { jarvisService } = await import('./jarvis');
+    const state = jarvisService.getState();
+    logger.info('[IPC] jarvis:getState', { status: state.status, isRunning: state.isRunning });
+    return state;
+  });
+
+  ipcMain.handle('jarvis:getChatHistory', async () => {
+    const { jarvisService } = await import('./jarvis');
+    const history = jarvisService.getChatHistory();
+    logger.info('[IPC] jarvis:getChatHistory', { messageCount: history.length });
+    return history;
+  });
+
+  ipcMain.handle('jarvis:showWindow', async () => {
+    if (jarvisWindow && !jarvisWindow.isDestroyed()) {
+      logger.info('[IPC] jarvis:showWindow — showing');
+      jarvisWindow.show();
+      jarvisWindow.focus();
+    } else {
+      logger.warn('[IPC] jarvis:showWindow — jarvisWindow is null or destroyed');
+    }
+  });
+
+  ipcMain.handle('jarvis:respondToApproval', async (_event, requestId: string, approved: boolean) => {
+    logger.info('[IPC] jarvis:respondToApproval', { requestId, approved });
+    const { jarvisService } = await import('./jarvis');
+    jarvisService.respondToApproval(requestId, approved);
+  });
+
+  ipcMain.handle('jarvis:respondToQuestion', async (_event, requestId: string, answer: string) => {
+    logger.info('[IPC] jarvis:respondToQuestion', { requestId, answerLength: answer.length });
+    const { jarvisService } = await import('./jarvis');
+    jarvisService.respondToQuestion(requestId, answer);
   });
 
   logger.info('IPC handlers registered');

@@ -1,0 +1,472 @@
+/* ═══════════════════════════════════════════════════════════
+   Jarvis — iOS iMessage-inspired chat interface
+   Frosted glass, bubble tails, grouped messages, app-logo avatar
+   Uses existing theme CSS variables from global.css
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Root ── */
+.jv {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--color-bg-base);
+  color: var(--color-text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', var(--font-sans);
+  font-size: 14px;
+  overflow: hidden;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+.jv--blur { opacity: .92; }
+
+/* ── Header (frosted glass) ── */
+.jv-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 48px;
+  padding: 0 12px;
+  background: var(--color-bg-elevated);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  border-bottom: .5px solid var(--color-border-muted);
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.jv-header__left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.jv-header__logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: contain;
+  background: var(--color-msg-avatar-bg);
+  border: 1px solid var(--color-msg-avatar-border);
+  padding: 2px;
+}
+
+.jv-header__info { display: flex; flex-direction: column; gap: 1px; }
+
+.jv-header__name {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  line-height: 1.2;
+}
+
+.jv-header__status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  line-height: 1;
+}
+
+.jv-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-text-disabled);
+  transition: background .3s;
+}
+.jv-header__status--active .jv-dot { background: var(--color-accent-primary); animation: jv-pulse 1.5s ease infinite; }
+.jv-header__status--busy .jv-dot { background: var(--color-warning); animation: jv-pulse .8s ease infinite; }
+.jv-header__status--waiting .jv-dot { background: var(--color-accent-tertiary); animation: jv-pulse 2s ease infinite; }
+
+@keyframes jv-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: .5; transform: scale(.8); }
+}
+
+.jv-header__actions { display: flex; gap: 2px; }
+
+.jv-header__btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .15s;
+}
+.jv-header__btn:hover { background: var(--color-bg-overlay); color: var(--color-text-primary); }
+.jv-header__btn--close:hover { background: #FF5F57; color: #fff; }
+
+/* ── Model Pill ── */
+.jv-model-bar {
+  display: flex;
+  padding: 6px 14px;
+  background: var(--color-bg-elevated);
+  border-bottom: .5px solid var(--color-border-muted);
+  flex-shrink: 0;
+}
+
+.jv-model-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px 3px 10px;
+  font-size: 11px;
+  font-family: inherit;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-overlay);
+  border: none;
+  border-radius: 100px;
+  cursor: pointer;
+  transition: background .15s;
+}
+.jv-model-pill:hover { background: var(--color-border-muted); }
+
+.jv-model-drop {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 220px;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-muted);
+  border-radius: 12px;
+  box-shadow: 0 8px 30px rgba(0,0,0,.12), 0 2px 8px rgba(0,0,0,.06);
+  z-index: 200;
+  padding: 4px;
+  animation: jv-drop-in .15s ease-out;
+}
+@keyframes jv-drop-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.jv-model-drop__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: background .1s;
+}
+.jv-model-drop__item:hover { background: var(--color-bg-overlay); }
+.jv-model-drop__item.is-active { background: var(--color-bg-overlay); color: var(--color-accent-primary); font-weight: 600; }
+.jv-model-drop__ep { font-size: 10px; color: var(--color-text-muted); margin-left: 8px; flex-shrink: 0; }
+
+/* ── Messages area ── */
+.jv-messages {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 12px 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.jv-messages::-webkit-scrollbar { width: 4px; }
+.jv-messages::-webkit-scrollbar-track { background: transparent; }
+.jv-messages::-webkit-scrollbar-thumb { background: var(--color-border-muted); border-radius: 2px; }
+
+/* ── Message rows ── */
+.jv-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  max-width: 82%;
+  animation: jv-msg-in .25s cubic-bezier(.16,1,.3,1);
+}
+.jv-row--jarvis { align-self: flex-start; }
+.jv-row--user { align-self: flex-end; flex-direction: row-reverse; }
+.jv-row--grouped { margin-top: -1px; }
+
+@keyframes jv-msg-in {
+  from { opacity: 0; transform: translateY(6px) scale(.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── Avatar ── */
+.jv-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  object-fit: contain;
+  background: var(--color-msg-avatar-bg);
+  border: 1px solid var(--color-msg-avatar-border);
+  padding: 2px;
+  flex-shrink: 0;
+}
+.jv-avatar-spacer { width: 26px; flex-shrink: 0; }
+
+.jv-col { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+
+/* ── Bubbles (iMessage style) ── */
+.jv-bubble {
+  position: relative;
+  padding: 8px 12px;
+  border-radius: 18px;
+  line-height: 1.45;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+/* Jarvis bubble */
+.jv-bubble--jarvis {
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  border: .5px solid var(--color-border-muted);
+  border-radius: 18px 18px 18px 6px;
+}
+.jv-bubble--jarvis.jv-bubble--tail {
+  border-radius: 4px 18px 18px 6px;
+}
+
+/* User bubble */
+.jv-bubble--user {
+  background: var(--color-accent-primary);
+  color: #fff;
+  border-radius: 18px 18px 6px 18px;
+}
+.jv-bubble--user.jv-bubble--tail {
+  border-radius: 18px 4px 6px 18px;
+}
+
+.jv-bubble__text {
+  margin: 0;
+  font-size: 13.5px;
+}
+
+.jv-bubble__markdown {
+  line-height: 1.5;
+}
+.jv-bubble__markdown p { margin: 0 0 4px; }
+.jv-bubble__markdown p:last-child { margin-bottom: 0; }
+.jv-bubble__markdown strong { font-weight: 600; }
+.jv-bubble__markdown code {
+  background: rgba(0,0,0,.08);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+.jv-bubble__markdown pre {
+  background: rgba(0,0,0,.06);
+  padding: 8px;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 4px 0;
+  font-size: 12px;
+}
+.jv-bubble__markdown ul, .jv-bubble__markdown ol {
+  margin: 4px 0;
+  padding-left: 18px;
+}
+.jv-bubble__markdown li { margin: 2px 0; }
+.jv-bubble__markdown a {
+  color: var(--accent-blue, #007AFF);
+  text-decoration: underline;
+}
+
+.jv-bubble__resolved {
+  margin: 6px 0 0;
+  font-size: 11px;
+  opacity: .6;
+}
+
+/* Time label */
+.jv-time {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  padding: 0 4px;
+  opacity: .7;
+}
+.jv-row--user .jv-time { text-align: right; }
+
+/* ── System message ── */
+.jv-sys {
+  display: flex;
+  justify-content: center;
+  padding: 6px 0;
+  animation: jv-msg-in .25s ease;
+}
+.jv-sys span {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  background: var(--color-bg-overlay);
+  padding: 3px 12px;
+  border-radius: 100px;
+}
+
+/* ── Execution status card ── */
+.jv-exec-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 14px;
+  padding: 10px 14px;
+  background: var(--color-bg-surface);
+  border: .5px solid var(--color-border-muted);
+  border-radius: 12px;
+  animation: jv-msg-in .25s ease;
+}
+
+.jv-exec-card--done { border-left: 3px solid var(--color-accent-primary); }
+.jv-exec-card--fail { border-left: 3px solid var(--color-error); }
+
+.jv-exec-card__spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--color-border-muted);
+  border-top-color: var(--color-accent-primary);
+  border-radius: 50%;
+  animation: jv-spin .8s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes jv-spin {
+  to { transform: rotate(360deg); }
+}
+
+.jv-exec-card__icon {
+  font-size: 15px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.jv-exec-card__text {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+.jv-exec-card--done .jv-exec-card__text { color: var(--color-text-primary); }
+.jv-exec-card--fail .jv-exec-card__text { color: var(--color-error); }
+
+/* ── Action cards (approval, question) ── */
+.jv-card {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.jv-card__btn {
+  padding: 6px 14px;
+  border-radius: 100px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  border: 1px solid var(--color-border-muted);
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+  transition: all .15s;
+}
+.jv-card__btn:hover { background: var(--color-bg-overlay); }
+
+.jv-card__btn--ok {
+  background: var(--color-accent-primary);
+  color: #fff;
+  border-color: var(--color-accent-primary);
+}
+.jv-card__btn--ok:hover { background: var(--color-accent-hover); }
+
+.jv-card__btn--no {
+  color: var(--color-error);
+  border-color: var(--color-error);
+  background: transparent;
+}
+.jv-card__btn--no:hover { background: var(--color-error); color: #fff; }
+
+.jv-card__btn--opt { background: var(--color-bg-overlay); }
+.jv-card__btn--opt:hover { background: var(--color-accent-primary); color: #fff; border-color: var(--color-accent-primary); }
+
+/* ── Empty state ── */
+.jv-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 6px;
+  opacity: .7;
+}
+.jv-empty__logo {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  opacity: .5;
+  margin-bottom: 4px;
+}
+.jv-empty__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  letter-spacing: -.02em;
+}
+.jv-empty__sub {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+/* ── Input bar ── */
+.jv-input-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px 12px;
+  background: var(--color-bg-elevated);
+  border-top: .5px solid var(--color-border-muted);
+  flex-shrink: 0;
+}
+
+.jv-input {
+  flex: 1;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--color-border-muted);
+  border-radius: 20px;
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color .2s, box-shadow .2s;
+}
+.jv-input:focus {
+  border-color: var(--color-accent-primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, .1);
+}
+.jv-input::placeholder { color: var(--color-text-disabled); }
+
+.jv-send {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-accent-primary);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background .15s, transform .1s, opacity .15s;
+}
+.jv-send:hover:not(:disabled) { background: var(--color-accent-hover); transform: scale(1.06); }
+.jv-send:active:not(:disabled) { transform: scale(.95); }
+.jv-send:disabled { opacity: .35; cursor: default; }

@@ -330,6 +330,11 @@ const BottomPanel: React.FC<BottomPanelProps> = ({
                   </button>
                 )}
 
+                {/* Jarvis Toggle (robot icon) */}
+                {layout === 'chat' && (
+                  <JarvisToggleButton />
+                )}
+
                 {/* Compact - Row 1 far right */}
                 {layout === 'chat' && (
                   <button className="panel-toolbar-btn" onClick={commandHandlers.onCompact} data-tooltip={t('toolbar.compact')}>
@@ -462,6 +467,64 @@ const BottomPanel: React.FC<BottomPanelProps> = ({
         </div>
       </ResizablePanel>
     </div>
+  );
+};
+
+// =============================================================================
+// Jarvis Toggle Button (inline component)
+// =============================================================================
+
+const JarvisToggleButton: React.FC = () => {
+  const [enabled, setEnabled] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const api = (window as any).electronAPI;
+    api?.jarvis?.getConfig?.().then((config: { enabled: boolean }) => {
+      setEnabled(config?.enabled ?? false);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
+
+  const handleClick = useCallback(async () => {
+    const api = (window as any).electronAPI;
+    if (!api?.jarvis) return;
+
+    if (!enabled) {
+      // 비활성화 → 활성화
+      setEnabled(true);
+      await api.jarvis.setConfig({ enabled: true });
+      // 윈도우 생성 대기 (startJarvisRuntime이 sync로 동작하지만 약간의 여유)
+      await new Promise(r => setTimeout(r, 300));
+    }
+    // 윈도우 열기/포커스
+    await api.jarvis.showWindow();
+  }, [enabled]);
+
+  if (loading) return null;
+
+  return (
+    <button
+      className={`panel-toolbar-btn panel-auto-view-btn jarvis-toolbar-btn ${enabled ? 'active' : ''}`}
+      onClick={handleClick}
+      data-tooltip={enabled ? 'Jarvis 열기' : 'Jarvis 시작'}
+      style={{
+        position: 'relative',
+        color: enabled ? '#D4A574' : undefined,
+        background: enabled ? 'rgba(212, 165, 116, 0.15)' : undefined,
+      }}
+    >
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1.07A7.001 7.001 0 0 1 14 23h-4a7.001 7.001 0 0 1-6.93-4H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2zm-4 13a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm8 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"/>
+      </svg>
+      {enabled && (
+        <span style={{
+          position: 'absolute', top: '1px', right: '1px',
+          width: '6px', height: '6px', borderRadius: '50%',
+          background: '#D4A574', border: '1px solid var(--color-bg-primary)',
+        }} />
+      )}
+    </button>
   );
 };
 

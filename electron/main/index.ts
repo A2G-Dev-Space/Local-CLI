@@ -15,7 +15,7 @@ import { fileURLToPath } from 'url';
 import pkg from 'electron-updater';
 const { autoUpdater } = pkg;
 import { logger, LogLevel } from './utils/logger';
-import { setupIpcHandlers, setChatWindow, setTaskWindow, cleanupIpcHandlers } from './ipc-handlers';
+import { setupIpcHandlers, setChatWindow, setTaskWindow, setJarvisWindow as setIpcJarvisWindow, setJarvisLifecycleCallbacks, cleanupIpcHandlers } from './ipc-handlers';
 import { powerShellManager } from './powershell-manager';
 import { configManager } from './core/config';
 import { sessionManager } from './core/session';
@@ -35,9 +35,21 @@ const RENDERER_DIST = path.join(__dirname, '../renderer');
 const VITE_DEV_SERVER_URL = process.env['ELECTRON_RENDERER_URL'];
 const isDev = !!VITE_DEV_SERVER_URL;
 
-// 윈도우 참조 (Chat: 메인, Task: 보조)
+// 윈도우 참조 (Chat: 메인, Task: 보조, Jarvis: 비서)
 let chatWindow: BrowserWindow | null = null;
 let taskWindow: BrowserWindow | null = null;
+let jarvisWindow: BrowserWindow | null = null;
+
+// 인증 중 플래그 (OAuth 창 닫힘 시 window-all-closed 방지)
+let isAuthenticating = false;
+
+// Jarvis 모드 관련
+import { DEFAULT_JARVIS_CONFIG, jarvisService } from './jarvis';
+import { JarvisTray } from './jarvis/jarvis-tray';
+let jarvisTray: JarvisTray | null = null;
+const isJarvisOnlyMode = process.argv.includes('--jarvis-only');
+let isAppQuitting = false; // app.quit() 호출 시 true → chatWindow close 핸들러가 hide 대신 close 허용
+
 
 // ============ 작업 디렉토리 보정 (Portable 실행 시 temp 경로 방지) ============
 
@@ -237,9 +249,25 @@ async function createChatWindow(): Promise<void> {
 
   loadWindowURL(chatWindow, 'chat');
 
-  // Chat 닫힘 = 앱 종료
-  chatWindow.on('close', () => {
+  // Chat 닫기 동작: Jarvis 활성화 시 hide, 비활성화 시 종료
+  // app.quit() 시에는 isAppQuitting=true → hide 대신 정상 close 허용
+  chatWindow.on('close', (e) => {
     saveWindowBounds('chat', chatWindow!);
+
+    // app.quit() 호출 시에는 무조건 close 허용 (hide 방지)
+    if (isAppQuitting) return;
+
+    const jarvisConfig = configManager.get('jarvis') || DEFAULT_JARVIS_CONFIG;
+    if (jarvisConfig.enabled && jarvisTray?.isCreated()) {
+      // Jarvis 활성화 → hide (트레이에서 계속 동작)
+      e.preventDefault();
+      chatWindow!.hide();
+      if (taskWindow && !taskWindow.isDestroyed()) {
+        taskWindow.hide();
+      }
+      logger.info('[Jarvis] Chat window hidden, running in tray');
+      return;
+    }
   });
 
   chatWindow.on('closed', () => {
@@ -250,6 +278,8 @@ async function createChatWindow(): Promise<void> {
       taskWindow.destroy();
       taskWindow = null;
     }
+    // Jarvis도 정리
+    destroyJarvis();
     app.quit();
   });
 
@@ -362,6 +392,168 @@ async function createTaskWindow(): Promise<void> {
   });
 }
 
+// ============ Jarvis 윈도우 생성 (비서) ============
+
+async function createJarvisWindow(): Promise<void> {
+  const savedBounds = getWindowBounds('jarvis');
+
+  // 기본: 화면 오른쪽 하단에 배치
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const workArea = primaryDisplay.workArea;
+  const jarvisWidth = savedBounds?.width || 400;
+  const jarvisHeight = savedBounds?.height || 600;
+  const defaultX = workArea.x + workArea.width - jarvisWidth - 20;
+  const defaultY = workArea.y + workArea.height - jarvisHeight - 40;
+
+  jarvisWindow = new BrowserWindow({
+    width: jarvisWidth,
+    height: jarvisHeight,
+    x: savedBounds?.x ?? defaultX,
+    y: savedBounds?.y ?? defaultY,
+    minWidth: 360,
+    minHeight: 480,
+    maxWidth: 500,
+    frame: false,
+    titleBarStyle: 'hidden',
+    titleBarOverlay: false,
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#0F172A' : '#F0F4F8',
+    transparent: false,
+    icon: appIcon,
+    webPreferences: commonWebPreferences,
+    show: false, // 기본 hidden, 트레이/IPC로 show
+    skipTaskbar: false,
+    resizable: true,
+  });
+
+  jarvisWindow.on('focus', () => {
+    jarvisWindow?.webContents.send('window:focus', true);
+    jarvisWindow?.flashFrame(false);
+  });
+
+  jarvisWindow.on('blur', () => {
+    jarvisWindow?.webContents.send('window:focus', false);
+  });
+
+  jarvisWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('https://') || url.startsWith('http://')) {
+      shell.openExternal(url);
+    }
+    return { action: 'deny' };
+  });
+
+  setIpcJarvisWindow(jarvisWindow);
+  loadWindowURL(jarvisWindow, 'jarvis');
+
+  // Jarvis 닫기 = hide (destroy 아님). 단, app.quit() 시에는 허용.
+  let jarvisQuitting = false;
+  app.on('before-quit', () => { jarvisQuitting = true; });
+  jarvisWindow.on('close', (e) => {
+    if (jarvisQuitting) return; // app.quit() 시에는 정상 종료 허용
+    e.preventDefault();
+    saveWindowBounds('jarvis', jarvisWindow!);
+    jarvisWindow!.hide();
+  });
+
+  logger.info('[Jarvis] Window created', {
+    width: jarvisWidth,
+    height: jarvisHeight,
+  });
+}
+
+// ============ Jarvis 트레이 + 라이프사이클 ============
+
+function initializeJarvis(): void {
+  const jarvisConfig = configManager.get('jarvis') || DEFAULT_JARVIS_CONFIG;
+  if (!jarvisConfig.enabled) return;
+  startJarvisRuntime();
+}
+
+/**
+ * Jarvis 런타임 시작 (트레이 + 윈도우 + 서비스)
+ * initializeJarvis()에서 호출되거나, Settings에서 실시간 활성화 시 호출됨
+ */
+function startJarvisRuntime(): void {
+  // 이미 동작 중이면 스킵
+  if (jarvisTray?.isCreated()) return;
+
+  // 트레이 생성
+  jarvisTray = new JarvisTray({
+    onShowJarvisWindow: () => {
+      if (jarvisWindow && !jarvisWindow.isDestroyed()) {
+        jarvisWindow.show();
+        jarvisWindow.focus();
+      }
+    },
+    onShowChatWindow: () => {
+      if (chatWindow && !chatWindow.isDestroyed()) {
+        chatWindow.show();
+        chatWindow.focus();
+      } else {
+        // --jarvis-only 모드에서 채팅 열기 요청 시 새로 생성
+        createChatWindow().then(() => {
+          createTaskWindow();
+        });
+      }
+    },
+    onPollNow: () => {
+      jarvisService.pollNow().catch(err =>
+        logger.errorSilent('[Jarvis] Poll failed', { error: String(err) })
+      );
+    },
+    onDisableJarvis: async () => {
+      // 자비스만 끄기 (config 저장 + 런타임 정리)
+      const current = configManager.get('jarvis') || DEFAULT_JARVIS_CONFIG;
+      await configManager.set('jarvis', { ...current, enabled: false });
+      app.setLoginItemSettings({ openAtLogin: false });
+      destroyJarvis();
+      logger.info('[Jarvis] Disabled via tray menu');
+      // 채팅 창이 있으면 보여주기, 없으면 앱 종료
+      if (chatWindow && !chatWindow.isDestroyed()) {
+        chatWindow.show();
+        chatWindow.focus();
+      } else {
+        app.quit();
+      }
+    },
+    onQuit: () => {
+      destroyJarvis();
+      app.exit(0);
+    },
+  });
+  jarvisTray.create();
+
+  // Jarvis 윈도우 생성 (hidden)
+  createJarvisWindow();
+
+  // JarvisService에 윈도우 연결 + 시작
+  jarvisService.setWindow(jarvisWindow);
+  jarvisService.start().catch(err =>
+    logger.errorSilent('[Jarvis] Service start failed', { error: String(err) })
+  );
+
+  // 최초 활성화 시 창 표시
+  if (jarvisWindow && !jarvisWindow.isDestroyed()) {
+    jarvisWindow.show();
+    jarvisWindow.focus();
+  }
+
+  const currentJarvisConfig = configManager.get('jarvis') || DEFAULT_JARVIS_CONFIG;
+  logger.info('[Jarvis] Initialized', {
+    pollInterval: currentJarvisConfig.pollIntervalMinutes,
+    autoStartOnBoot: currentJarvisConfig.autoStartOnBoot,
+  });
+}
+
+function destroyJarvis(): void {
+  jarvisService.stop();
+  jarvisTray?.destroy();
+  jarvisTray = null;
+  if (jarvisWindow && !jarvisWindow.isDestroyed()) {
+    jarvisWindow.destroy();
+    jarvisWindow = null;
+  }
+}
+
 // ============ 테마 변경 감지 ============
 
 nativeTheme.on('updated', () => {
@@ -369,12 +561,15 @@ nativeTheme.on('updated', () => {
   const themeValue = isDark ? 'dark' : 'light';
   const bgColor = isDark ? '#1e1e1e' : '#ffffff';
 
-  // 양쪽 윈도우에 테마 변경 전달
+  // 모든 윈도우에 테마 변경 전달
   chatWindow?.webContents.send('theme:change', themeValue);
   taskWindow?.webContents.send('theme:change', themeValue);
+  jarvisWindow?.webContents.send('theme:change', themeValue);
 
   if (chatWindow) chatWindow.setBackgroundColor(bgColor);
   if (taskWindow) taskWindow.setBackgroundColor(bgColor);
+  const jarvisBg = isDark ? '#0F172A' : '#F0F4F8';
+  if (jarvisWindow) jarvisWindow.setBackgroundColor(jarvisBg);
 
   logger.systemThemeChange({ theme: themeValue, isDark });
 });
@@ -395,6 +590,12 @@ function setupAutoUpdater(): void {
     return;
   }
 
+  // 업데이트 이벤트를 chatWindow + jarvisWindow 양쪽에 전송
+  const sendUpdateEvent = (channel: string, ...args: unknown[]) => {
+    chatWindow?.webContents.send(channel, ...args);
+    jarvisWindow?.webContents.send(channel, ...args);
+  };
+
   // 로그 설정
   autoUpdater.logger = {
     info: (message: string) => logger.info(`[AutoUpdater] ${message}`),
@@ -410,37 +611,37 @@ function setupAutoUpdater(): void {
   // 업데이트 확인 시작
   autoUpdater.on('checking-for-update', () => {
     logger.updateCheckStart();
-    chatWindow?.webContents.send('update:checking');
+    sendUpdateEvent('update:checking');
   });
 
-  // 업데이트 가능 - renderer로만 전달 (커스텀 UI 사용)
+  // 업데이트 가능 - renderer로 전달 (커스텀 UI 사용)
   autoUpdater.on('update-available', (info) => {
     logger.updateAvailable({ version: info.version, releaseDate: info.releaseDate });
-    chatWindow?.webContents.send('update:available', info);
+    sendUpdateEvent('update:available', info);
   });
 
   // 업데이트 없음
   autoUpdater.on('update-not-available', () => {
     logger.info('No updates available');
-    chatWindow?.webContents.send('update:not-available');
+    sendUpdateEvent('update:not-available');
   });
 
   // 다운로드 진행률
   autoUpdater.on('download-progress', (progress) => {
     logger.updateDownloadProgress({ percent: progress.percent, bytesPerSecond: progress.bytesPerSecond, transferred: progress.transferred, total: progress.total });
-    chatWindow?.webContents.send('update:download-progress', progress);
+    sendUpdateEvent('update:download-progress', progress);
   });
 
-  // 다운로드 완료 - renderer로만 전달 (커스텀 UI 사용)
+  // 다운로드 완료 - renderer로 전달 (커스텀 UI 사용)
   autoUpdater.on('update-downloaded', (info) => {
     logger.updateDownloadComplete({ version: info.version });
-    chatWindow?.webContents.send('update:downloaded', info);
+    sendUpdateEvent('update:downloaded', info);
   });
 
   // 에러 처리
   autoUpdater.on('error', (error) => {
     logger.updateError({ error: error.message, stack: error.stack });
-    chatWindow?.webContents.send('update:error', error.message);
+    sendUpdateEvent('update:error', error.message);
   });
 
   // 앱 시작 후 업데이트 확인 (5초 후)
@@ -485,9 +686,38 @@ app.whenReady().then(async () => {
   // IPC 핸들러 등록
   setupIpcHandlers();
 
-  // 윈도우 생성 (Chat 메인 + Task 보조)
-  await createChatWindow();
-  await createTaskWindow();
+  // Jarvis 실시간 활성화/비활성화 콜백 등록
+  setJarvisLifecycleCallbacks({
+    onEnable: () => startJarvisRuntime(),
+    onDisable: () => destroyJarvis(),
+  });
+
+  // 윈도우 생성 — 항상 Chat/Task를 먼저 (사용자가 앱을 볼 수 있게)
+  // --jarvis-only 모드에서만 스킵
+  if (!isJarvisOnlyMode) {
+    await createChatWindow();
+    await createTaskWindow();
+  }
+
+  // Jarvis 초기화 (chatWindow 생성 후에 — Jarvis 실패해도 앱은 정상 동작)
+  try {
+    initializeJarvis();
+  } catch (err) {
+    logger.errorSilent('[Jarvis] Initialization failed, continuing without Jarvis', { error: String(err) });
+  }
+
+  // --jarvis-only 모드: chatWindow 없이 jarvisWindow만
+  if (isJarvisOnlyMode) {
+    const jarvisConfig = configManager.get('jarvis') || DEFAULT_JARVIS_CONFIG;
+    if (jarvisConfig.enabled && jarvisWindow && !jarvisWindow.isDestroyed()) {
+      jarvisWindow.show();
+    } else {
+      // Jarvis 비활성화 상태 → 정상적으로 Chat/Task 생성
+      logger.info('[Jarvis] --jarvis-only but Jarvis disabled, creating Chat/Task');
+      await createChatWindow();
+      await createTaskWindow();
+    }
+  }
 
   // Auto Updater 설정
   setupAutoUpdater();
@@ -504,7 +734,12 @@ app.whenReady().then(async () => {
 // ============ 앱 종료 처리 ============
 
 // 모든 창이 닫히면 앱 종료 (macOS 제외)
+// 단, 인증 중이거나 Jarvis가 트레이에서 동작 중이면 종료하지 않음
 app.on('window-all-closed', () => {
+  if (isAuthenticating) return;
+  // Jarvis 활성화 시 트레이에서 계속 동작 (앱 종료하지 않음)
+  const jarvisConfig = configManager.get('jarvis') || DEFAULT_JARVIS_CONFIG;
+  if (jarvisConfig.enabled && jarvisTray?.isCreated()) return;
   if (process.platform !== 'darwin') {
     app.quit();
   }
@@ -512,6 +747,7 @@ app.on('window-all-closed', () => {
 
 // 앱 종료 전 정리
 app.on('before-quit', async () => {
+  isAppQuitting = true; // 반드시 첫 줄 — chatWindow close 핸들러가 hide 대신 close 허용
   logger.appBeforeQuit({ reason: 'user_initiated' });
 
   // Worker threads 종료 (멀티 세션)
@@ -521,6 +757,9 @@ app.on('before-quit', async () => {
   } catch (err) {
     logger.errorSilent('Failed to terminate workers', err);
   }
+
+  // Jarvis 정리
+  destroyJarvis();
 
   // PowerShell 세션 종료
   await powerShellManager.terminate();
@@ -574,11 +813,19 @@ if (!gotTheLock) {
 } else {
   app.on('second-instance', () => {
     // 두 번째 인스턴스 실행 시 Chat 창 포커스
+    // Jarvis 활성화 시 hide 상태일 수 있으므로 show() 호출 필수
     if (chatWindow) {
+      if (!chatWindow.isVisible()) {
+        chatWindow.show();
+      }
       if (chatWindow.isMinimized()) {
         chatWindow.restore();
       }
       chatWindow.focus();
+      // Task 윈도우도 함께 표시
+      if (taskWindow && !taskWindow.isDestroyed() && !taskWindow.isVisible()) {
+        taskWindow.show();
+      }
     }
   });
 }

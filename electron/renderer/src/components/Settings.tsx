@@ -34,7 +34,7 @@ interface SettingsProps {
   onClose: () => void;
 }
 
-type SettingsView = 'main' | 'llms' | 'llm-add' | 'llm-edit' | 'llm-delete' | 'appearance' | 'tools';
+type SettingsView = 'main' | 'llms' | 'llm-add' | 'llm-edit' | 'llm-delete' | 'appearance' | 'tools' | 'jarvis';
 
 // Color palette type
 type ColorPalette = 'default' | 'rose' | 'mint' | 'lavender' | 'peach' | 'sky';
@@ -441,6 +441,7 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
               {view === 'llm-delete' && 'Delete Endpoint'}
               {view === 'appearance' && t('settings.appearance.title')}
               {view === 'tools' && t('settings.tools.title')}
+              {view === 'jarvis' && '🤖 자비스 비서'}
             </span>
           </div>
           <button className="settings-close" onClick={onClose} title={t('settings.close')}>
@@ -515,6 +516,21 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                 <div className="menu-content">
                   <span className="menu-label">{t('settings.tools')}</span>
                   <span className="menu-description">{t('settings.tools.desc')}</span>
+                </div>
+                <svg className="menu-arrow" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
+                </svg>
+              </button>
+
+              <button className="menu-item" onClick={() => setView('jarvis')}>
+                <div className="menu-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                  </svg>
+                </div>
+                <div className="menu-content">
+                  <span className="menu-label">🤖 자비스 비서</span>
+                  <span className="menu-description">자율 비서 모드 설정</span>
                 </div>
                 <svg className="menu-arrow" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
@@ -874,6 +890,11 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
               </button>
             </div>
           )}
+
+          {/* Jarvis View */}
+          {view === 'jarvis' && (
+            <JarvisSettings onBack={() => setView('main')} />
+          )}
         </div>
 
         {/* Footer */}
@@ -881,6 +902,168 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
           <span className="keyboard-hint">ESC</span>
         </div>
       </div>
+    </div>
+  );
+};
+
+// =============================================================================
+// Jarvis Settings Sub-component
+// =============================================================================
+
+const JarvisSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
+  const { t } = useTranslation();
+  const [enabled, setEnabled] = useState(false);
+  const [pollInterval, setPollInterval] = useState(30);
+  const [autoStart, setAutoStart] = useState(true);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const config = await (window as any).electronAPI?.jarvis?.getConfig();
+        if (config) {
+          setEnabled(config.enabled);
+          setPollInterval(config.pollIntervalMinutes);
+          setAutoStart(config.autoStartOnBoot);
+        }
+      } catch { /* ignore */ }
+      setLoading(false);
+    };
+    load();
+  }, []);
+
+  const updateConfig = useCallback(async (updates: Record<string, unknown>) => {
+    try {
+      await (window as any).electronAPI?.jarvis?.setConfig(updates);
+    } catch { /* ignore */ }
+  }, []);
+
+  const handleToggleEnabled = useCallback(async () => {
+    const newValue = !enabled;
+    setEnabled(newValue);
+    await updateConfig({ enabled: newValue });
+    // 즉시 반영 — 재시작 불필요
+  }, [enabled, updateConfig]);
+
+  const handleIntervalChange = useCallback(async (value: number) => {
+    setPollInterval(value);
+    await updateConfig({ pollIntervalMinutes: value });
+  }, [updateConfig]);
+
+  const handleAutoStartToggle = useCallback(async () => {
+    const newValue = !autoStart;
+    setAutoStart(newValue);
+    await updateConfig({ autoStartOnBoot: newValue });
+  }, [autoStart, updateConfig]);
+
+  if (loading) {
+    return (
+      <div className="appearance-view">
+        <div className="empty-state"><p>로딩 중...</p></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="appearance-view">
+      {/* 활성화 토글 */}
+      <div className="setting-section">
+        <label className="setting-label">자비스 활성화</label>
+        <div className="setting-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+            {enabled ? '자율 비서가 백그라운드에서 동작합니다' : '비활성화 상태'}
+          </span>
+          <button
+            className={`toggle-btn ${enabled ? 'toggle-btn--active' : ''}`}
+            onClick={handleToggleEnabled}
+            style={{
+              width: '44px', height: '24px', borderRadius: '12px', border: 'none',
+              background: enabled ? '#D4A574' : 'var(--color-border-muted)',
+              position: 'relative', cursor: 'pointer', transition: 'background 0.2s',
+            }}
+          >
+            <span style={{
+              position: 'absolute', top: '2px',
+              left: enabled ? '22px' : '2px',
+              width: '20px', height: '20px', borderRadius: '50%',
+              background: 'white', transition: 'left 0.2s',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+            }} />
+          </button>
+        </div>
+      </div>
+
+      {/* 체크 주기 */}
+      <div className="setting-section">
+        <label className="setting-label">체크 주기: {pollInterval}분</label>
+        <input
+          type="range"
+          min={5}
+          max={120}
+          step={5}
+          value={pollInterval}
+          onChange={(e) => handleIntervalChange(Number(e.target.value))}
+          className="font-size-slider"
+          disabled={!enabled}
+        />
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--color-text-muted)' }}>
+          <span>5분</span>
+          <span>120분</span>
+        </div>
+      </div>
+
+      {/* Windows 부팅 시 자동 시작 */}
+      <div className="setting-section">
+        <label className="setting-label">Windows 부팅 시 자동 시작</label>
+        <div className="setting-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+            {autoStart ? '컴퓨터 켜면 자비스가 자동 시작됩니다' : '수동으로 시작해야 합니다'}
+          </span>
+          <button
+            onClick={handleAutoStartToggle}
+            disabled={!enabled}
+            style={{
+              width: '44px', height: '24px', borderRadius: '12px', border: 'none',
+              background: (enabled && autoStart) ? '#D4A574' : 'var(--color-border-muted)',
+              position: 'relative', cursor: enabled ? 'pointer' : 'default',
+              transition: 'background 0.2s', opacity: enabled ? 1 : 0.5,
+            }}
+          >
+            <span style={{
+              position: 'absolute', top: '2px',
+              left: (enabled && autoStart) ? '22px' : '2px',
+              width: '20px', height: '20px', borderRadius: '50%',
+              background: 'white', transition: 'left 0.2s',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+            }} />
+          </button>
+        </div>
+      </div>
+
+      {/* 안내 */}
+      {enabled && (
+        <div className="setting-section" style={{ marginTop: '8px' }}>
+          <div style={{
+            padding: '10px 12px', borderRadius: '8px',
+            background: 'rgba(212, 165, 116, 0.1)', border: '1px solid rgba(212, 165, 116, 0.2)',
+            fontSize: '11px', lineHeight: '1.6', color: 'var(--color-text-secondary)',
+          }}>
+            <strong>자비스 동작 방식:</strong><br />
+            • ONCE TODO + FREE 업무기록을 {pollInterval}분마다 확인<br />
+            • Manager LLM이 자율적으로 판단하여 작업 실행<br />
+            • 채팅 창을 닫아도 트레이에서 계속 동작<br />
+            • 트레이 우클릭 → "종료"로만 완전 종료<br />
+            {autoStart && '• 컴퓨터 부팅 시 자동 시작'}
+          </div>
+        </div>
+      )}
+
+      <button className="back-button" onClick={onBack} title={t('settings.back')}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
+        </svg>
+        {t('settings.back')}
+      </button>
     </div>
   );
 };
