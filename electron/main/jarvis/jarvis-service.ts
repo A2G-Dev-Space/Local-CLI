@@ -51,6 +51,11 @@ export class JarvisService {
   private status: JarvisStatus = 'idle';
   private isRunning = false;
   private isStopped = false; // stop() 호출 시 true → 진행 중인 루프 종료
+
+  // Pending response maps (사용자 응답 대기용)
+  private pendingApprovals = new Map<string, { resolve: (approved: boolean) => void; timer: NodeJS.Timeout }>();
+  private pendingQuestions = new Map<string, { resolve: (answer: string) => void; timer: NodeJS.Timeout }>();
+  private static readonly RESPONSE_TIMEOUT = 300_000; // 5분
   private jarvisWindow: BrowserWindow | null = null;
 
   // Memory file path
@@ -92,6 +97,19 @@ export class JarvisService {
     }
     this.isRunning = false;
     this.setStatus('idle');
+
+    // Pending 응답 모두 정리
+    for (const [, pending] of this.pendingApprovals) {
+      clearTimeout(pending.timer);
+      pending.resolve(false);
+    }
+    this.pendingApprovals.clear();
+    for (const [, pending] of this.pendingQuestions) {
+      clearTimeout(pending.timer);
+      pending.resolve('[서비스 종료]');
+    }
+    this.pendingQuestions.clear();
+
     logger.info('[JarvisService] Stopped');
   }
 
@@ -140,6 +158,30 @@ export class JarvisService {
       nextPollTime: null, // TODO: calculate from timer
       currentTask: null,
     };
+  }
+
+  // ===========================================================================
+  // User Response Handling (IPC에서 호출)
+  // ===========================================================================
+
+  respondToApproval(requestId: string, approved: boolean): void {
+    const pending = this.pendingApprovals.get(requestId);
+    if (pending) {
+      logger.info('[JarvisService] respondToApproval', { requestId, approved });
+      pending.resolve(approved);
+    } else {
+      logger.warn('[JarvisService] respondToApproval: no pending request', { requestId });
+    }
+  }
+
+  respondToQuestion(requestId: string, answer: string): void {
+    const pending = this.pendingQuestions.get(requestId);
+    if (pending) {
+      logger.info('[JarvisService] respondToQuestion', { requestId, answerLength: answer.length });
+      pending.resolve(answer);
+    } else {
+      logger.warn('[JarvisService] respondToQuestion: no pending request', { requestId });
+    }
   }
 
   // ===========================================================================
@@ -370,14 +412,10 @@ export class JarvisService {
             // Layer 2에 기록
             this.messages.push({ role: 'assistant', content: `[Jarvis → User] ${message}` });
             consecutiveReports++;
-            if (consecutiveReports >= 2) {
-              // 연속 2번 report → 더 이상 할 일 없음, 루프 종료
-              logger.info('[JarvisService] Consecutive reports reached limit, ending loop');
-              toolResult = 'Message sent. No more actions needed. Cycle complete.';
-              shouldBreak = true;
-            } else {
-              toolResult = 'Message sent to user. Continue with next action, or call report_to_user again if done.';
-            }
+            // 1번 report로 충분 → 즉시 루프 종료 (중복 메시지 방지)
+            logger.info('[JarvisService] report_to_user sent, ending loop');
+            toolResult = 'Message sent. Cycle complete. Do NOT send another message.';
+            shouldBreak = true;
             break;
           }
 
@@ -394,9 +432,23 @@ export class JarvisService {
               timestamp: Date.now(),
               requestId,
             });
-            // TODO: Phase 3에서 실제 사용자 응답 대기 구현
-            // 현재는 자동 승인
-            toolResult = JSON.stringify({ approved: true });
+            toolResult = await new Promise<string>((resolve) => {
+              const timer = setTimeout(() => {
+                this.pendingApprovals.delete(requestId);
+                logger.warn('[JarvisService] Approval timeout', { requestId });
+                this.setStatus('analyzing');
+                resolve(JSON.stringify({ approved: false, reason: '응답 시간 초과' }));
+              }, JarvisService.RESPONSE_TIMEOUT);
+              this.pendingApprovals.set(requestId, {
+                resolve: (approved) => {
+                  clearTimeout(timer);
+                  this.pendingApprovals.delete(requestId);
+                  this.setStatus('analyzing');
+                  resolve(JSON.stringify({ approved }));
+                },
+                timer,
+              });
+            });
             break;
           }
 
@@ -415,8 +467,23 @@ export class JarvisService {
               requestId,
               options,
             });
-            // TODO: Phase 3에서 실제 사용자 응답 대기 구현
-            toolResult = JSON.stringify({ answer: '[사용자 응답 대기 - Phase 3에서 구현]' });
+            toolResult = await new Promise<string>((resolve) => {
+              const timer = setTimeout(() => {
+                this.pendingQuestions.delete(requestId);
+                logger.warn('[JarvisService] Question timeout', { requestId });
+                this.setStatus('analyzing');
+                resolve(JSON.stringify({ answer: '[응답 시간 초과 - 기본값 사용]' }));
+              }, JarvisService.RESPONSE_TIMEOUT);
+              this.pendingQuestions.set(requestId, {
+                resolve: (answer) => {
+                  clearTimeout(timer);
+                  this.pendingQuestions.delete(requestId);
+                  this.setStatus('analyzing');
+                  resolve(JSON.stringify({ answer }));
+                },
+                timer,
+              });
+            });
             break;
           }
 

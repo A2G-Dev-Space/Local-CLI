@@ -2154,12 +2154,14 @@ export function setupIpcHandlers(): void {
 
   ipcMain.handle('jarvis:respondToApproval', async (_event, requestId: string, approved: boolean) => {
     logger.info('[IPC] jarvis:respondToApproval', { requestId, approved });
-    // Phase 4에서 구현: 승인 응답을 JarvisService로 전달
+    const { jarvisService } = await import('./jarvis');
+    jarvisService.respondToApproval(requestId, approved);
   });
 
   ipcMain.handle('jarvis:respondToQuestion', async (_event, requestId: string, answer: string) => {
     logger.info('[IPC] jarvis:respondToQuestion', { requestId, answerLength: answer.length });
-    // Phase 4에서 구현: 질문 응답을 JarvisService로 전달
+    const { jarvisService } = await import('./jarvis');
+    jarvisService.respondToQuestion(requestId, answer);
   });
 
   logger.info('IPC handlers registered');

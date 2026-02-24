@@ -519,9 +519,16 @@ function startJarvisRuntime(): void {
     logger.errorSilent('[Jarvis] Service start failed', { error: String(err) })
   );
 
+  // 최초 활성화 시 창 표시
+  if (jarvisWindow && !jarvisWindow.isDestroyed()) {
+    jarvisWindow.show();
+    jarvisWindow.focus();
+  }
+
+  const currentJarvisConfig = configManager.get('jarvis') || DEFAULT_JARVIS_CONFIG;
   logger.info('[Jarvis] Initialized', {
-    pollInterval: jarvisConfig.pollIntervalMinutes,
-    autoStartOnBoot: jarvisConfig.autoStartOnBoot,
+    pollInterval: currentJarvisConfig.pollIntervalMinutes,
+    autoStartOnBoot: currentJarvisConfig.autoStartOnBoot,
   });
 }
 
