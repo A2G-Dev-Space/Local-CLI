@@ -747,14 +747,58 @@ export class JarvisService {
       config,
       {
         onAskUser: async (request) => {
-          // Manager LLM이 비서 User — Sub-LLM의 ask_to_user를 Manager가 답변
-          // 기억 + 컨텍스트에서 답변 시도
-          logger.info('[JarvisService] Sub-LLM ask_to_user intercepted', { question: request.question });
-          // 간단한 자동 응답: 첫 번째 옵션 선택
-          return {
-            selectedOption: request.options[0] || 'Yes',
-            isOther: false,
-          };
+          // Manager LLM이 Sub-LLM의 질문에 기억+컨텍스트 기반으로 판단하여 답변
+          logger.info('[JarvisService] Sub-LLM ask_to_user intercepted', {
+            question: request.question,
+            options: request.options,
+          });
+
+          try {
+            const memoryContext = this.memory.entries.length > 0
+              ? this.memory.entries.map(e => `[${e.key}]: ${e.content}`).join('\n')
+              : '(기억 없음)';
+
+            const optionsList = request.options.length > 0
+              ? request.options.map((o, i) => `${i + 1}. ${o}`).join('\n')
+              : '(선택지 없음 — 자유 답변)';
+
+            const response = await llmClient.chatCompletion({
+              messages: [
+                {
+                  role: 'system',
+                  content: `You are Jarvis, answering a sub-agent's question on behalf of the user.
+Use the provided memory/context to make the best decision.
+If options are given, reply with EXACTLY one of the option texts. If no options, reply with a brief answer.
+Reply in Korean. No explanation, just the answer.`,
+                },
+                {
+                  role: 'user',
+                  content: `<MEMORY>\n${memoryContext}\n</MEMORY>\n\n<TASK_CONTEXT>\n${taskDescription}\n</TASK_CONTEXT>\n\n질문: ${request.question}\n\n선택지:\n${optionsList}`,
+                },
+              ],
+              temperature: 0.3,
+              max_tokens: 200,
+            });
+
+            const answer = response.choices?.[0]?.message?.content?.trim() || '';
+            logger.info('[JarvisService] Manager answered sub-LLM question', { answer: answer.slice(0, 200) });
+
+            if (request.options.length > 0) {
+              // 옵션 매칭: 정확 → 포함 → fallback 첫 번째
+              const exact = request.options.find(o => o === answer);
+              const partial = !exact ? request.options.find(o => answer.includes(o) || o.includes(answer)) : undefined;
+              const selected = exact || partial || request.options[0];
+              return { selectedOption: selected, isOther: false };
+            }
+
+            return { selectedOption: answer || 'Yes', isOther: true };
+          } catch (err) {
+            logger.warn('[JarvisService] Manager LLM failed to answer, falling back to first option', { error: String(err) });
+            return {
+              selectedOption: request.options[0] || 'Yes',
+              isOther: false,
+            };
+          }
         },
         onComplete: (response) => {
           logger.info('[JarvisService] Agent execution complete', { responseLength: response.length });
