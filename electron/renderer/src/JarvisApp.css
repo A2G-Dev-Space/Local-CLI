@@ -186,7 +186,7 @@
 /* ── Message rows ── */
 .jv-row {
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   gap: 6px;
   max-width: 82%;
   animation: jv-msg-in .25s cubic-bezier(.16,1,.3,1);
