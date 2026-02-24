@@ -45,7 +45,7 @@ export class JarvisTray {
     // 16x16 기본 아이콘 (inline nativeImage — 별도 아이콘 파일 없이)
     const icon = this.createTrayIcon();
     this.tray = new Tray(icon);
-    this.tray.setToolTip('Jarvis - 자율 비서');
+    this.tray.setToolTip('자비스 모드');
 
     this.updateContextMenu();
 
@@ -79,14 +79,14 @@ export class JarvisTray {
     if (!this.tray) return;
 
     const tooltips: Record<JarvisStatus, string> = {
-      idle: 'Jarvis - 대기 중',
-      polling: 'Jarvis - 할 일 확인 중...',
-      analyzing: 'Jarvis - 분석 중...',
-      executing: 'Jarvis - 작업 실행 중...',
-      waiting_user: 'Jarvis - 사용자 응답 대기',
+      idle: '자비스 모드 - 대기 중',
+      polling: '자비스 모드 - 할 일 확인 중...',
+      analyzing: '자비스 모드 - 분석 중...',
+      executing: '자비스 모드 - 작업 실행 중...',
+      waiting_user: '자비스 모드 - 사용자 응답 대기',
     };
 
-    this.tray.setToolTip(tooltips[status] || 'Jarvis');
+    this.tray.setToolTip(tooltips[status] || '자비스 모드');
     this.updateContextMenu();
   }
 
@@ -130,12 +130,12 @@ export class JarvisTray {
 
     const menu = Menu.buildFromTemplate([
       {
-        label: `Jarvis ${statusLabels[this.status]}`,
+        label: `자비스 ${statusLabels[this.status]}`,
         enabled: false,
       },
       { type: 'separator' },
       {
-        label: 'Jarvis 열기',
+        label: '자비스 열기',
         click: () => this.onShowJarvisWindow?.(),
       },
       {

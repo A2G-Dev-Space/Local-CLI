@@ -249,7 +249,7 @@ export function buildManagerUserPrompt(params: {
 
   // 5. Trigger context
   if (params.trigger === 'greeting') {
-    parts.push('앱이 방금 시작되었습니다. 사용자에게 인사하고 오늘 할 일을 확인해주세요.');
+    parts.push('The app just started. Greet the user with: "안녕하세요! 저는 24시간 깨어있는 사용자님의 개인 AI 비서입니다. 무엇이든 맡겨주세요!" then check today\'s tasks.');
   } else if (params.trigger === 'poll') {
     parts.push('주기적 체크 시간입니다. 할 일 목록과 업무기록을 분석하고, 필요한 작업이 있으면 진행하세요.');
   } else if (params.trigger === 'user_message' && params.userMessage) {

@@ -441,7 +441,7 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
               {view === 'llm-delete' && 'Delete Endpoint'}
               {view === 'appearance' && t('settings.appearance.title')}
               {view === 'tools' && t('settings.tools.title')}
-              {view === 'jarvis' && '🤖 Jarvis 비서'}
+              {view === 'jarvis' && '🤖 자비스 비서'}
             </span>
           </div>
           <button className="settings-close" onClick={onClose} title={t('settings.close')}>
@@ -529,7 +529,7 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                   </svg>
                 </div>
                 <div className="menu-content">
-                  <span className="menu-label">🤖 Jarvis 비서</span>
+                  <span className="menu-label">🤖 자비스 비서</span>
                   <span className="menu-description">자율 비서 모드 설정</span>
                 </div>
                 <svg className="menu-arrow" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -968,7 +968,7 @@ const JarvisSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     <div className="appearance-view">
       {/* 활성화 토글 */}
       <div className="setting-section">
-        <label className="setting-label">Jarvis 활성화</label>
+        <label className="setting-label">자비스 활성화</label>
         <div className="setting-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
             {enabled ? '자율 비서가 백그라운드에서 동작합니다' : '비활성화 상태'}
@@ -1017,7 +1017,7 @@ const JarvisSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         <label className="setting-label">Windows 부팅 시 자동 시작</label>
         <div className="setting-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-            {autoStart ? '컴퓨터 켜면 Jarvis가 자동 시작됩니다' : '수동으로 시작해야 합니다'}
+            {autoStart ? '컴퓨터 켜면 자비스가 자동 시작됩니다' : '수동으로 시작해야 합니다'}
           </span>
           <button
             onClick={handleAutoStartToggle}
@@ -1048,7 +1048,7 @@ const JarvisSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             background: 'rgba(212, 165, 116, 0.1)', border: '1px solid rgba(212, 165, 116, 0.2)',
             fontSize: '11px', lineHeight: '1.6', color: 'var(--color-text-secondary)',
           }}>
-            <strong>Jarvis 동작 방식:</strong><br />
+            <strong>자비스 동작 방식:</strong><br />
             • ONCE TODO + FREE 업무기록을 {pollInterval}분마다 확인<br />
             • Manager LLM이 자율적으로 판단하여 작업 실행<br />
             • 채팅 창을 닫아도 트레이에서 계속 동작<br />

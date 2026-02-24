@@ -251,6 +251,36 @@
   font-size: 13.5px;
 }
 
+.jv-bubble__markdown {
+  line-height: 1.5;
+}
+.jv-bubble__markdown p { margin: 0 0 4px; }
+.jv-bubble__markdown p:last-child { margin-bottom: 0; }
+.jv-bubble__markdown strong { font-weight: 600; }
+.jv-bubble__markdown code {
+  background: rgba(0,0,0,.08);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+.jv-bubble__markdown pre {
+  background: rgba(0,0,0,.06);
+  padding: 8px;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 4px 0;
+  font-size: 12px;
+}
+.jv-bubble__markdown ul, .jv-bubble__markdown ol {
+  margin: 4px 0;
+  padding-left: 18px;
+}
+.jv-bubble__markdown li { margin: 2px 0; }
+.jv-bubble__markdown a {
+  color: var(--accent-blue, #007AFF);
+  text-decoration: underline;
+}
+
 .jv-bubble__resolved {
   margin: 6px 0 0;
   font-size: 11px;

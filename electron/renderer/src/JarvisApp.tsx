@@ -6,6 +6,7 @@
  */
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { parseMarkdownSync } from './hooks';
 import logoImage from '/no_bg_logo.png';
 import './JarvisApp.css';
 
@@ -189,7 +190,7 @@ const JarvisApp: React.FC = () => {
         <div className="jv-header__left">
           <img src={logoImage} alt="" className="jv-header__logo" />
           <div className="jv-header__info">
-            <span className="jv-header__name">Jarvis</span>
+            <span className="jv-header__name">자비스</span>
             <span className={`jv-header__status jv-header__status--${si.dot}`}>
               <span className="jv-dot" />
               {si.label}
@@ -235,7 +236,7 @@ const JarvisApp: React.FC = () => {
         {messages.length === 0 && (
           <div className="jv-empty">
             <img src={logoImage} alt="" className="jv-empty__logo" />
-            <p className="jv-empty__title">Jarvis</p>
+            <p className="jv-empty__title">자비스</p>
             <p className="jv-empty__sub">할 일을 확인하고 자율적으로 동작합니다</p>
           </div>
         )}
@@ -279,7 +280,10 @@ const JarvisApp: React.FC = () => {
 
               <div className="jv-col">
                 <div className={`jv-bubble ${isUser ? 'jv-bubble--user' : 'jv-bubble--jarvis'} ${!sameGroup ? 'jv-bubble--tail' : ''}`}>
-                  <p className="jv-bubble__text">{msg.content}</p>
+                  {isUser
+                    ? <p className="jv-bubble__text">{msg.content}</p>
+                    : <div className="jv-bubble__text jv-bubble__markdown">{parseMarkdownSync(msg.content)}</div>
+                  }
 
                   {/* Approval card */}
                   {msg.type === 'approval_request' && !msg.resolved && (
