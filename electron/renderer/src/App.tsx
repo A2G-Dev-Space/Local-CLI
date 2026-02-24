@@ -4,10 +4,13 @@
  * No authentication required (open source version)
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { LanguageProvider } from './i18n/LanguageContext';
 import ChatApp from './ChatApp';
 import TaskApp from './TaskApp';
+
+// Jarvis는 lazy load (별도 번들)
+const JarvisApp = lazy(() => import('./JarvisApp'));
 
 // Re-export types for backward compatibility (until IDE files are deleted in Phase 4)
 export interface EditorTab {
@@ -36,7 +39,7 @@ export const TODO_TAB_ID = '__todo__';
 export type ColorPalette = 'default' | 'rose' | 'mint' | 'lavender' | 'peach' | 'sky';
 
 const App: React.FC = () => {
-  const [windowType, setWindowType] = useState<'chat' | 'task' | null>(null);
+  const [windowType, setWindowType] = useState<'chat' | 'task' | 'jarvis' | null>(null);
 
   useEffect(() => {
     const detectWindowType = async () => {
@@ -55,9 +58,21 @@ const App: React.FC = () => {
   // Show nothing until window type is determined (prevents flash of wrong UI)
   if (windowType === null) return null;
 
+  const renderApp = () => {
+    if (windowType === 'jarvis') {
+      return (
+        <Suspense fallback={null}>
+          <JarvisApp />
+        </Suspense>
+      );
+    }
+    if (windowType === 'task') return <TaskApp />;
+    return <ChatApp />;
+  };
+
   return (
     <LanguageProvider>
-      {windowType === 'task' ? <TaskApp /> : <ChatApp />}
+      {renderApp()}
     </LanguageProvider>
   );
 };

@@ -303,7 +303,7 @@ const electronAPI = {
       return ipcRenderer.invoke('window:reload');
     },
 
-    getWindowType: (): Promise<'chat' | 'task'> => {
+    getWindowType: (): Promise<'chat' | 'task' | 'jarvis'> => {
       return ipcRenderer.invoke('window:getType');
     },
   },
@@ -1371,6 +1371,67 @@ const electronAPI = {
     // Open docs folder in explorer
     openFolder: (): Promise<{ success: boolean; error?: string }> => {
       return ipcRenderer.invoke('docs:openFolder');
+    },
+  },
+
+  // =========================================================================
+  // Jarvis Mode
+  // =========================================================================
+  jarvis: {
+    // Jarvis 윈도우 열기
+    showWindow: (): Promise<void> => {
+      return ipcRenderer.invoke('jarvis:showWindow');
+    },
+
+    // 사용자 메시지 전송
+    sendMessage: (message: string): Promise<void> => {
+      return ipcRenderer.invoke('jarvis:sendMessage', message);
+    },
+
+    // 수동 폴링 트리거
+    pollNow: (): Promise<void> => {
+      return ipcRenderer.invoke('jarvis:pollNow');
+    },
+
+    // 설정 조회/변경
+    getConfig: (): Promise<{ enabled: boolean; pollIntervalMinutes: number; autoStartOnBoot: boolean; modelId?: string; endpointId?: string }> => {
+      return ipcRenderer.invoke('jarvis:getConfig');
+    },
+    setConfig: (config: Partial<{ enabled: boolean; pollIntervalMinutes: number; autoStartOnBoot: boolean; modelId: string; endpointId: string }>): Promise<void> => {
+      return ipcRenderer.invoke('jarvis:setConfig', config);
+    },
+
+    // 상태 조회
+    getState: (): Promise<{ status: string; isRunning: boolean; lastPollTime: string | null }> => {
+      return ipcRenderer.invoke('jarvis:getState');
+    },
+
+    // 대화 이력 가져오기 (윈도우 재오픈 시 복원용)
+    getChatHistory: (): Promise<unknown[]> => {
+      return ipcRenderer.invoke('jarvis:getChatHistory');
+    },
+
+    // 승인 응답
+    respondToApproval: (requestId: string, approved: boolean): Promise<void> => {
+      return ipcRenderer.invoke('jarvis:respondToApproval', requestId, approved);
+    },
+
+    // 질문 응답
+    respondToQuestion: (requestId: string, answer: string): Promise<void> => {
+      return ipcRenderer.invoke('jarvis:respondToQuestion', requestId, answer);
+    },
+
+    // 이벤트 리스너
+    onMessage: (callback: (message: unknown) => void): (() => void) => {
+      const handler = (_event: unknown, message: unknown) => callback(message);
+      ipcRenderer.on('jarvis:message', handler);
+      return () => ipcRenderer.removeListener('jarvis:message', handler);
+    },
+
+    onStatusChange: (callback: (status: string) => void): (() => void) => {
+      const handler = (_event: unknown, status: string) => callback(status);
+      ipcRenderer.on('jarvis:statusChange', handler);
+      return () => ipcRenderer.removeListener('jarvis:statusChange', handler);
     },
   },
 };
