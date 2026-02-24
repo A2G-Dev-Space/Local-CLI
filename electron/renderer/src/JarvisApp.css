@@ -311,27 +311,48 @@
   border-radius: 100px;
 }
 
-/* ── Execution status ── */
-.jv-exec {
+/* ── Execution status card ── */
+.jv-exec-card {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 4px 0;
+  gap: 10px;
+  margin: 6px 14px;
+  padding: 10px 14px;
+  background: var(--color-bg-surface);
+  border: .5px solid var(--color-border-muted);
+  border-radius: 12px;
   animation: jv-msg-in .25s ease;
 }
-.jv-exec__dot {
-  width: 5px;
-  height: 5px;
+
+.jv-exec-card--done { border-left: 3px solid var(--color-accent-primary); }
+.jv-exec-card--fail { border-left: 3px solid var(--color-error); }
+
+.jv-exec-card__spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--color-border-muted);
+  border-top-color: var(--color-accent-primary);
   border-radius: 50%;
-  background: var(--color-accent-primary);
-  animation: jv-pulse 1s ease infinite;
+  animation: jv-spin .8s linear infinite;
+  flex-shrink: 0;
 }
-.jv-exec span {
-  font-size: 11px;
+@keyframes jv-spin {
+  to { transform: rotate(360deg); }
+}
+
+.jv-exec-card__icon {
+  font-size: 15px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.jv-exec-card__text {
+  font-size: 12.5px;
   font-weight: 500;
-  color: var(--color-accent-primary);
+  color: var(--color-text-secondary);
 }
+.jv-exec-card--done .jv-exec-card__text { color: var(--color-text-primary); }
+.jv-exec-card--fail .jv-exec-card__text { color: var(--color-error); }
 
 /* ── Action cards (approval, question) ── */
 .jv-card {

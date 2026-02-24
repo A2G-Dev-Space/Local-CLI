@@ -263,10 +263,15 @@ const JarvisApp: React.FC = () => {
           }
 
           if (isExec) {
+            const isDone = msg.content.includes('완료');
+            const isFail = msg.content.includes('실패');
+            const variant = isDone ? 'done' : isFail ? 'fail' : '';
             return (
-              <div key={msg.id} className="jv-exec">
-                <div className="jv-exec__dot" />
-                <span>{msg.content}</span>
+              <div key={msg.id} className={`jv-exec-card ${variant ? `jv-exec-card--${variant}` : ''}`}>
+                {!variant && <div className="jv-exec-card__spinner" />}
+                {isDone && <span className="jv-exec-card__icon">✓</span>}
+                {isFail && <span className="jv-exec-card__icon">✕</span>}
+                <span className="jv-exec-card__text">{msg.content}</span>
               </div>
             );
           }

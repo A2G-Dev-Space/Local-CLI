@@ -366,7 +366,7 @@ export class JarvisService {
             this.broadcastMessage({
               id: `exec-${Date.now()}`,
               type: 'execution_status',
-              content: `⚡ 작업 실행 중: ${taskDesc.slice(0, 100)}...`,
+              content: '작업을 실행하고 있습니다...',
               timestamp: Date.now(),
             });
 
@@ -381,7 +381,7 @@ export class JarvisService {
               this.broadcastMessage({
                 id: `exec-done-${Date.now()}`,
                 type: 'execution_status',
-                content: result.success ? `✅ 작업 완료 (${result.iterations}단계)` : `❌ 작업 실패: ${result.error || ''}`,
+                content: result.success ? '작업이 완료되었습니다' : '작업에 실패했습니다',
                 timestamp: Date.now(),
               });
             } catch (err) {
@@ -393,7 +393,7 @@ export class JarvisService {
               this.broadcastMessage({
                 id: `exec-err-${Date.now()}`,
                 type: 'execution_status',
-                content: `❌ 실행 오류: ${String(err).slice(0, 200)}`,
+                content: '작업에 실패했습니다',
                 timestamp: Date.now(),
               });
             }
@@ -710,16 +710,11 @@ export class JarvisService {
     // Jarvis 전용 AgentIO — 모든 이벤트를 jarvisWindow로만 전송
     const jarvisIO: AgentIO = {
       broadcast: (channel: string, ...data: unknown[]) => {
-        // 선택적 UI 표시: 실행 진행 상황을 간략히 표시
+        // 중간 과정은 로그로만 기록, UI에는 표시하지 않음
         if (channel === 'agent:toolCall') {
           const toolInfo = data[0] as { toolName?: string } | undefined;
           if (toolInfo?.toolName) {
-            this.broadcastMessage({
-              id: `tool-${Date.now()}`,
-              type: 'execution_status',
-              content: `🔧 ${toolInfo.toolName}`,
-              timestamp: Date.now(),
-            });
+            logger.info('[JarvisService] Sub-agent tool call', { tool: toolInfo.toolName });
           }
         }
       },
