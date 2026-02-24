@@ -22,17 +22,20 @@ export class JarvisTray {
   private onShowJarvisWindow: (() => void) | null = null;
   private onShowChatWindow: (() => void) | null = null;
   private onPollNow: (() => void) | null = null;
+  private onDisableJarvis: (() => void) | null = null;
   private onQuit: (() => void) | null = null;
 
   constructor(callbacks: {
     onShowJarvisWindow: () => void;
     onShowChatWindow: () => void;
     onPollNow: () => void;
+    onDisableJarvis: () => void;
     onQuit: () => void;
   }) {
     this.onShowJarvisWindow = callbacks.onShowJarvisWindow;
     this.onShowChatWindow = callbacks.onShowChatWindow;
     this.onPollNow = callbacks.onPollNow;
+    this.onDisableJarvis = callbacks.onDisableJarvis;
     this.onQuit = callbacks.onQuit;
   }
 
@@ -150,7 +153,11 @@ export class JarvisTray {
       },
       { type: 'separator' },
       {
-        label: '종료',
+        label: '자비스 끄기',
+        click: () => this.onDisableJarvis?.(),
+      },
+      {
+        label: '앱 종료',
         click: () => this.onQuit?.(),
       },
     ]);

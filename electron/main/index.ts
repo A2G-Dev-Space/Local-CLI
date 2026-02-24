@@ -500,10 +500,22 @@ function startJarvisRuntime(): void {
         logger.errorSilent('[Jarvis] Poll failed', { error: String(err) })
       );
     },
+    onDisableJarvis: async () => {
+      // 자비스만 끄기 (config 저장 + 런타임 정리)
+      const current = configManager.get('jarvis') || DEFAULT_JARVIS_CONFIG;
+      await configManager.set('jarvis', { ...current, enabled: false });
+      app.setLoginItemSettings({ openAtLogin: false });
+      destroyJarvis();
+      logger.info('[Jarvis] Disabled via tray menu');
+      // 채팅 창이 있으면 보여주기, 없으면 앱 종료
+      if (chatWindow && !chatWindow.isDestroyed()) {
+        chatWindow.show();
+        chatWindow.focus();
+      } else {
+        app.quit();
+      }
+    },
     onQuit: () => {
-      // 트레이 종료 = 완전 강제 종료 (프로세스 즉시 종료)
-      // app.quit()은 async before-quit 핸들러 때문에 프로세스가 안 죽을 수 있음
-      // app.exit(0)으로 즉시 종료하여 다음 실행 시 깨끗한 상태 보장
       destroyJarvis();
       app.exit(0);
     },
