@@ -38,6 +38,8 @@ export class OfficeClientBase {
   protected commandTimeout = 30000;
   /** COM ProgID for DisplayAlerts auto-suppression (set by subclass) */
   protected comProgId: string = '';
+  /** PowerShell expression to suppress DisplayAlerts (Excel=$false, PowerPoint=enum) */
+  protected displayAlertsSuppressExpr: string = '$false';
 
   constructor() {
     // No initialization needed — screenshots saved to getWorkingDirectory() via common/utils.ts
@@ -70,7 +72,7 @@ export class OfficeClientBase {
       let actualScript = script;
       if (this.comProgId) {
         actualScript = `$__comApp = $null
-try { $__comApp = [Runtime.InteropServices.Marshal]::GetActiveObject("${this.comProgId}"); $__savedDA = $__comApp.DisplayAlerts; $__comApp.DisplayAlerts = $false } catch {}
+try { $__comApp = [Runtime.InteropServices.Marshal]::GetActiveObject("${this.comProgId}"); $__savedDA = $__comApp.DisplayAlerts; $__comApp.DisplayAlerts = ${this.displayAlertsSuppressExpr} } catch {}
 try {
 ${script}
 } finally {
