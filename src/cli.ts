@@ -15,11 +15,13 @@ import { createRequire } from 'module';
 import { configManager } from './core/config/config-manager.js';
 import { createLLMClient } from './core/llm/llm-client.js';
 import { PlanExecuteApp } from './ui/components/PlanExecuteApp.js';
-import { setupLogging, logger, setErrorReportCallback } from './utils/logger.js';
+import { setupLogging, logger } from './utils/logger.js';
 import { runPipeMode } from './pipe/index.js';
 import { initializeOptionalTools } from './tools/registry.js';
 import { sessionManager } from './core/session/session-manager.js';
 import { reportError } from './core/telemetry/error-reporter.js';
+import { runChatCommand } from './commands/chat-command.js';
+import { runJarvisCommand } from './commands/jarvis-command.js';
 
 // Read version from package.json (single source of truth)
 const require = createRequire(import.meta.url);
@@ -174,6 +176,30 @@ program
     }
   });
 
+
+/**
+ * chat 서브커맨드: Electron Chat 창에 명령 전달
+ */
+program
+  .command('chat')
+  .description('Electron Chat에 명령을 전달하고 결과를 받습니다')
+  .argument('<prompt>', '실행할 명령')
+  .option('-s, --specific', '상세 과정을 stderr에 출력')
+  .action(async (prompt: string, opts: { specific?: boolean }) => {
+    await runChatCommand(prompt, opts.specific ?? false);
+  });
+
+/**
+ * jarvis 서브커맨드: Electron Jarvis에 명령 전달
+ */
+program
+  .command('jarvis')
+  .description('Electron Jarvis에 명령을 전달하고 결과를 받습니다')
+  .argument('<prompt>', '실행할 명령')
+  .option('-s, --specific', '상세 과정을 stderr에 출력')
+  .action(async (prompt: string, opts: { specific?: boolean }) => {
+    await runJarvisCommand(prompt, opts.specific ?? false);
+  });
 
 /**
  * 에러 핸들링: 알 수 없는 옵션 처리

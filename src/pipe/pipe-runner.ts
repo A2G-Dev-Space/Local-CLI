@@ -9,9 +9,7 @@
 import chalk from 'chalk';
 import { Message, TodoItem } from '../types/index.js';
 import type { AskUserRequest, AskUserResponse } from '../orchestration/types.js';
-import { LLMClient } from '../core/llm/llm-client.js';
-import { DASHBOARD_URL } from '../constants.js';
-import { ensureAuthenticated, syncModelsFromDashboard } from '../core/auth/auth-gate.js';
+import { createLLMClient } from '../core/llm/llm-client.js';
 import { configManager } from '../core/config/config-manager.js';
 import { PlanExecutor } from '../orchestration/plan-executor.js';
 import type { StateCallbacks } from '../orchestration/types.js';
@@ -25,7 +23,7 @@ function log(msg: string): void {
 
 export class PipeRunner {
   private specific: boolean;
-  private llmClient: LLMClient | null = null;
+  private llmClient: ReturnType<typeof createLLMClient> | null = null;
   private planExecutor: PlanExecutor;
   private lastResponse: string = '';
   private todos: TodoItem[] = [];
@@ -43,15 +41,12 @@ export class PipeRunner {
       // 초기화
       await configManager.initialize();
 
-      const creds = await ensureAuthenticated(DASHBOARD_URL);
-      await syncModelsFromDashboard(DASHBOARD_URL, creds.token);
-
       if (!configManager.hasEndpoints()) {
-        log(chalk.red('Error: Dashboard에서 사용 가능한 모델이 없습니다.'));
+        log(chalk.red('Error: 사용 가능한 모델이 없습니다.'));
         process.exit(1);
       }
 
-      this.llmClient = new LLMClient(creds.token);
+      this.llmClient = createLLMClient();
 
       // 실행
       const messages: Message[] = [];

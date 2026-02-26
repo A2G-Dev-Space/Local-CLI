@@ -15,7 +15,9 @@ import { BrowserWindow } from 'electron';
 import { llmClient, Message } from '../core/llm';
 import { logger } from '../utils/logger';
 import { configManager } from '../core/config';
-import { onceTaskList, freeWorkList } from '../tools/llm/simple/external-services';
+// ONCE/FREE 도구 미포함 (오픈소스 제한) — stub
+const onceTaskList = async () => ({ success: false as const, result: undefined });
+const freeWorkList = async () => ({ success: false as const, items: undefined });
 import { compactConversation } from '../core/compact';
 import { runAgentCore, AgentIO, AgentRunState } from '../orchestration/agent-engine';
 import type { AgentConfig } from '../orchestration/agent-engine';
@@ -28,6 +30,7 @@ import type {
   JarvisChatMessage,
 } from './jarvis-types';
 import { JARVIS_SYSTEM_PROMPT, JARVIS_MANAGER_TOOLS, buildManagerUserPrompt } from './jarvis-prompts';
+import { emitToCLI } from '../cli-server-bridge';
 
 // =============================================================================
 // Constants
@@ -560,6 +563,11 @@ export class JarvisService {
       }
       this.isRunning = false;
       this.setStatus('idle');
+      // CLI Server에 완료 알림 (마지막 jarvis 메시지를 result로)
+      const lastJarvisMsg = [...this.chatHistory].reverse().find(m => m.type === 'jarvis');
+      if (lastJarvisMsg) {
+        emitToCLI('jarvis:complete', lastJarvisMsg);
+      }
       logger.info('[JarvisService] runManagerLoop finished');
     }
   }
@@ -840,6 +848,8 @@ Reply in Korean. No explanation, just the answer.`,
     });
     this.chatHistory.push(message);
     this.jarvisWindow?.webContents.send('jarvis:message', message);
+    // CLI Server로 이벤트 전달
+    emitToCLI('jarvis:message', message);
   }
 }
 

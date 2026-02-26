@@ -76,3 +76,9 @@ export const FREE_URL = 'https://3.39.170.84.nip.io:6090';
  * ~/.local-cli/credentials.json
  */
 export const CREDENTIALS_FILE_PATH = path.join(LOCAL_HOME_DIR, 'credentials.json');
+
+/**
+ * CLI Server 포트 (Electron ↔ CLI 통신)
+ * DEV: 19523 / PROD: 19524 / nexus-coder: 19525
+ */
+export const CLI_SERVER_PORT = 19524;

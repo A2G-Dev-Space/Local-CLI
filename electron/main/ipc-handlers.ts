@@ -45,6 +45,7 @@ import {
   DownloadProgress,
 } from './core/docs-manager';
 import { workerManager } from './workers/worker-manager';
+import { emitToCLI } from './cli-server-bridge';
 
 // 파일 필터 타입
 interface FileFilter {
@@ -116,6 +117,8 @@ function broadcastToAll(channel: string, ...args: unknown[]): void {
   if (taskWindow && !taskWindow.isDestroyed()) {
     taskWindow.webContents.send(channel, ...args);
   }
+  // CLI Server로 이벤트 전달
+  emitToCLI('agent:event', channel, ...args);
 }
 
 /**

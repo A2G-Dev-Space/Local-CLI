@@ -21,6 +21,7 @@ import { configManager } from './core/config';
 import { sessionManager } from './core/session';
 import { toolManager } from './tool-manager';
 import { reportError } from './core/telemetry/error-reporter';
+import { startCliServer, stopCliServer, setCliServerWindows } from './cli-server';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -719,6 +720,10 @@ app.whenReady().then(async () => {
     }
   }
 
+  // CLI Server 시작 (CLI → Electron 통신)
+  setCliServerWindows(chatWindow, taskWindow, jarvisWindow);
+  startCliServer();
+
   // Auto Updater 설정
   setupAutoUpdater();
 
@@ -757,6 +762,9 @@ app.on('before-quit', async () => {
   } catch (err) {
     logger.errorSilent('Failed to terminate workers', err);
   }
+
+  // CLI Server 종료
+  stopCliServer();
 
   // Jarvis 정리
   destroyJarvis();
