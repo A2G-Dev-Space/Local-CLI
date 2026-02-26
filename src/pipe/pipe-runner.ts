@@ -129,13 +129,22 @@ export class PipeRunner {
         const addedMessages = newMessages.slice(previousMessages.length);
 
         for (const msg of addedMessages) {
-          // Tool call 출력 (-ps)
-          if (this.specific && msg.role === 'assistant' && msg.tool_calls) {
+          // Tool call 처리
+          if (msg.role === 'assistant' && msg.tool_calls) {
             for (const toolCall of msg.tool_calls) {
               let args: Record<string, unknown> = {};
               try { args = JSON.parse(toolCall.function.arguments); } catch { /* ignore */ }
-              const summary = this.summarizeToolArgs(toolCall.function.name, args);
-              log(chalk.dim(`  → ${toolCall.function.name} ${summary}`));
+
+              // final_response의 message를 lastResponse로 캡처
+              if (toolCall.function.name === 'final_response' && typeof args['message'] === 'string') {
+                this.lastResponse = args['message'];
+              }
+
+              // -ps 모드: tool call 출력
+              if (this.specific) {
+                const summary = this.summarizeToolArgs(toolCall.function.name, args);
+                log(chalk.dim(`  → ${toolCall.function.name} ${summary}`));
+              }
             }
           }
 
