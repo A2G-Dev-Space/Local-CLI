@@ -8,7 +8,8 @@
  */
 
 import type { ToolResult } from '../../types';
-import { isLLMSimpleTool } from '../../types';
+import { isLLMSimpleTool, isLLMAgentTool } from '../../types';
+import type { LLMClient } from '../../../core/llm';
 import { logger } from '../../../utils/logger';
 
 /**
@@ -273,6 +274,51 @@ export async function executeSimpleTool(
  * @deprecated Use executeSimpleTool instead
  */
 export const executeFileTool = executeSimpleTool;
+
+/**
+ * Execute an agent tool by name (LLMAgentTool).
+ * Agent tools require a Sub-LLM client to run their internal iteration loop.
+ */
+export async function executeAgentTool(
+  toolName: string,
+  args: Record<string, unknown>,
+  llmClient: LLMClient
+): Promise<ToolResult> {
+  const startTime = Date.now();
+
+  const { toolRegistry } = await import('../../registry');
+  const tool = toolRegistry.get(toolName);
+
+  if (!tool || !isLLMAgentTool(tool)) {
+    const error = `Unknown or not an agent tool: ${toolName}`;
+    logger.warn(error, { toolName });
+    return { success: false, error };
+  }
+
+  const reason = (args['instruction'] as string) || toolName;
+
+  logger.toolStart(toolName, args, reason);
+
+  if (toolExecutionCallback) {
+    toolExecutionCallback(toolName, reason, args);
+  }
+
+  const result = await tool.execute(args, llmClient);
+  const durationMs = Date.now() - startTime;
+
+  if (result.success) {
+    logger.toolSuccess(toolName, args, result.result, durationMs);
+  } else {
+    logger.toolError(toolName, args, new Error(result.error || 'Unknown error'), durationMs);
+  }
+
+  if (toolResponseCallback) {
+    const resultText = result.success ? (result.result || '') : (result.error || 'Unknown error');
+    toolResponseCallback(toolName, result.success, resultText);
+  }
+
+  return result;
+}
 
 /**
  * Clear all callbacks (useful for cleanup)

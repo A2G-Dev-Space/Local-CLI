@@ -21,3 +21,11 @@ export {
   type TodoItem,
 } from './planner';
 
+// Office sub-agents (Agent as a Tool)
+export {
+  OfficeSubAgent,
+  createWordWorkRequestTool,
+  createExcelWorkRequestTool,
+  createPowerPointWorkRequestTool,
+} from './office';
+

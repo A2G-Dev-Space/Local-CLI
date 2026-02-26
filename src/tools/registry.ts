@@ -37,8 +37,14 @@ import { getShellTools } from './llm/simple/index.js';
 
 // Import optional tools
 import { BROWSER_TOOLS, startBrowserServer, shutdownBrowserServer } from './browser/index.js';
-import { WORD_TOOLS, EXCEL_TOOLS, POWERPOINT_TOOLS } from './office/index.js';
 import { VISION_TOOLS, findVisionModel } from './llm/simple/read-image-tool.js';
+
+// Import office sub-agent tools (Agent as a Tool)
+import {
+  createWordWorkRequestTool,
+  createExcelWorkRequestTool,
+  createPowerPointWorkRequestTool,
+} from '../agents/office/index.js';
 
 /**
  * Enable result with optional error message
@@ -110,32 +116,9 @@ function getOptionalToolGroupsConfig(): OptionalToolGroup[] {
     },
   ];
 
-  // Office tools only available with Windows access
-  if (hasWindowsAccess()) {
-    groups.push(
-      {
-        id: 'word',
-        name: 'Microsoft Word',
-        description: 'Control Word for document editing (write, read, save, export PDF, header/footer)',
-        tools: WORD_TOOLS,
-        enabled: false,
-      },
-      {
-        id: 'excel',
-        name: 'Microsoft Excel',
-        description: 'Control Excel for spreadsheet editing (cells, ranges, formulas, charts)',
-        tools: EXCEL_TOOLS,
-        enabled: false,
-      },
-      {
-        id: 'powerpoint',
-        name: 'Microsoft PowerPoint',
-        description: 'Control PowerPoint for presentations (slides, shapes, transitions, PDF export)',
-        tools: POWERPOINT_TOOLS,
-        enabled: false,
-      }
-    );
-  }
+  // Office tools removed from optional groups — now provided as sub-agent tools
+  // (word_work_request, excel_work_request, powerpoint_work_request)
+  // Auto-registered in initializeToolRegistry() when hasWindowsAccess() is true
 
   return groups;
 }
@@ -433,10 +416,11 @@ class ToolRegistry {
   getToolSummaryForPlanning(): string {
     const lines: string[] = [];
 
-    // Get all LLM Simple tools (always-on)
+    // Get all LLM Simple tools + Agent tools
     const simpleTools = this.getLLMSimpleTools();
+    const agentTools = this.getLLMAgentTools();
 
-    for (const tool of simpleTools) {
+    for (const tool of [...simpleTools, ...agentTools]) {
       const name = tool.definition.function.name;
       const desc = tool.definition.function.description?.split('\n')[0] || '';
       // Truncate long descriptions
@@ -499,8 +483,17 @@ export function initializeToolRegistry(): void {
   // LLM Planning Tools - create_todos (for task planning)
   toolRegistry.registerAll(PLANNING_TOOLS);
 
-  // Note: Optional tools (Browser, Word, Excel, PowerPoint) are registered via /tool command
-  // Office tools only available when hasWindowsAccess() is true
+  // Note: ONCE/FREE tools excluded from local-cli-git (open-source)
+
+  // Note: Browser tools are registered via /tool command
+
+  // Office sub-agent tools: auto-register when Windows access is available
+  // These are LLMAgentTool that run a sub-LLM internally
+  if (hasWindowsAccess()) {
+    toolRegistry.register(createWordWorkRequestTool());
+    toolRegistry.register(createExcelWorkRequestTool());
+    toolRegistry.register(createPowerPointWorkRequestTool());
+  }
 }
 
 /**
