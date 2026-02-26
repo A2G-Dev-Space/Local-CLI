@@ -31,7 +31,7 @@ export function createExcelWorkRequestTool(): LLMAgentTool {
     },
     execute: async (args, llmClient) => {
       const agent = new OfficeSubAgent(llmClient, 'excel', EXCEL_TOOLS, EXCEL_SYSTEM_PROMPT);
-      return agent.run(args.instruction as string);
+      return agent.run(args['instruction'] as string);
     },
     categories: ['llm-agent'],
     requiresSubLLM: true,

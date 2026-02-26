@@ -36,7 +36,7 @@ export function createPowerPointWorkRequestTool(): LLMAgentTool {
         POWERPOINT_TOOLS,
         POWERPOINT_SYSTEM_PROMPT
       );
-      return agent.run(args.instruction as string);
+      return agent.run(args['instruction'] as string);
     },
     categories: ['llm-agent'],
     requiresSubLLM: true,

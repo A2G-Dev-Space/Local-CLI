@@ -107,7 +107,7 @@ export class OfficeSubAgent {
         }
 
         if (toolName === 'complete') {
-          const summary = (args.summary as string) || 'Task completed.';
+          const summary = (args['summary'] as string) || 'Task completed.';
           logger.info(`OfficeSubAgent[${this.appName}] completed via complete tool`);
           return this.buildResult(true, summary, undefined, iterations, totalToolCalls, startTime);
         }
