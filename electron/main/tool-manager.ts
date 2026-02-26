@@ -71,38 +71,9 @@ class ToolManager {
       available: true,  // CDP works on all platforms with Chrome/Edge
     });
 
-    // Microsoft Word Tools
-    this.toolGroups.set('word', {
-      id: 'word',
-      name: 'Microsoft Word',
-      description: 'Control Word for document editing (write, read, save, export PDF)',
-      toolCount: 6,
-      enabled: false,
-      available: hasWindowsAccess,
-      requiresWindows: true,
-    });
-
-    // Microsoft Excel Tools
-    this.toolGroups.set('excel', {
-      id: 'excel',
-      name: 'Microsoft Excel',
-      description: 'Control Excel for spreadsheet editing (cells, ranges, formulas, charts)',
-      toolCount: 8,
-      enabled: false,
-      available: hasWindowsAccess,
-      requiresWindows: true,
-    });
-
-    // Microsoft PowerPoint Tools
-    this.toolGroups.set('powerpoint', {
-      id: 'powerpoint',
-      name: 'Microsoft PowerPoint',
-      description: 'Control PowerPoint for presentations (slides, shapes, transitions)',
-      toolCount: 6,
-      enabled: false,
-      available: hasWindowsAccess,
-      requiresWindows: true,
-    });
+    // Office tools removed — now provided as sub-agent tools
+    // (word_work_request, excel_work_request, powerpoint_work_request)
+    // Auto-registered in tool registry, no enable/disable needed
   }
 
   /**
