@@ -15,8 +15,8 @@ import { createRequire } from 'module';
 import { configManager } from './core/config/config-manager.js';
 import { createLLMClient } from './core/llm/llm-client.js';
 import { PlanExecuteApp } from './ui/components/PlanExecuteApp.js';
-import { setupLogging, logger } from './utils/logger.js';
-import { runEvalMode } from './eval/index.js';
+import { setupLogging, logger, setErrorReportCallback } from './utils/logger.js';
+import { runPipeMode } from './pipe/index.js';
 import { initializeOptionalTools } from './tools/registry.js';
 import { sessionManager } from './core/session/session-manager.js';
 import { reportError } from './core/telemetry/error-reporter.js';
@@ -48,14 +48,20 @@ program
  * 기본 명령어: 대화형 모드 시작
  */
 program
+  .argument('[prompt]', 'Pipe 모드(-p)에서 실행할 명령')
+  .option('-p, --pipe', 'Pipe 모드: UI 없이 명령 처리 후 결과만 출력')
+  .option('-s, --specific', 'Pipe 모드 상세 출력 (-p와 함께 사용)')
   .option('--verbose', 'Enable verbose logging')
   .option('--debug', 'Enable debug logging')
   .option('--llm-log', 'Enable LLM logging')
-  .option('--eval', 'Evaluation mode: read JSON from stdin, output NDJSON events')
-  .action(async (options: { verbose?: boolean; debug?: boolean; llmLog?: boolean; eval?: boolean }) => {
-    // --eval 모드: stdin JSON 입력, stdout NDJSON 이벤트 출력
-    if (options.eval) {
-      await runEvalMode();
+  .action(async (prompt: string | undefined, options: { pipe?: boolean; specific?: boolean; verbose?: boolean; debug?: boolean; llmLog?: boolean }) => {
+    // -p 모드: non-interactive pipe 모드
+    if (options.pipe) {
+      if (!prompt) {
+        console.error('Error: -p 옵션에는 프롬프트가 필요합니다. 예: hanseol -p "파일 목록 보여줘"');
+        process.exit(1);
+      }
+      await runPipeMode(prompt, options.specific ?? false);
       return;
     }
 
