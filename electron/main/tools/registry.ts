@@ -34,12 +34,16 @@ import {
   PLANNING_TOOLS,
 } from './llm/simple';
 
-// Import Optional Tools (CLI parity: tools/browser, tools/office)
+// Import Optional Tools (CLI parity: tools/browser)
 import { BROWSER_TOOLS } from './browser';
-import { WORD_TOOLS } from './office/word-tools';
-import { EXCEL_TOOLS } from './office/excel-tools';
-import { POWERPOINT_TOOLS } from './office/powerpoint-tools';
 import { VISION_TOOLS, findVisionModel } from './llm/simple/read-image-tool';
+
+// Import office sub-agent tools (Agent as a Tool)
+import {
+  createWordWorkRequestTool,
+  createExcelWorkRequestTool,
+  createPowerPointWorkRequestTool,
+} from '../agents/office';
 
 // =============================================================================
 // Types
@@ -88,27 +92,8 @@ function getOptionalToolGroupsConfig(): OptionalToolGroup[] {
       enabled: false,
       autoManaged: true,
     },
-    {
-      id: 'word',
-      name: 'Microsoft Word',
-      description: 'Control Word for document editing (52 tools)',
-      tools: WORD_TOOLS,
-      enabled: false,
-    },
-    {
-      id: 'excel',
-      name: 'Microsoft Excel',
-      description: 'Control Excel for spreadsheet editing (62 tools)',
-      tools: EXCEL_TOOLS,
-      enabled: false,
-    },
-    {
-      id: 'powerpoint',
-      name: 'Microsoft PowerPoint',
-      description: 'Control PowerPoint for presentations (68 tools)',
-      tools: POWERPOINT_TOOLS,
-      enabled: false,
-    },
+    // Office tools removed — now provided as sub-agent tools
+    // (word_work_request, excel_work_request, powerpoint_work_request)
   ];
 }
 
@@ -376,8 +361,9 @@ class ToolRegistry {
   getToolSummaryForPlanning(): string {
     const lines: string[] = [];
     const simpleTools = this.getLLMSimpleTools();
+    const agentTools = this.getLLMAgentTools();
 
-    for (const tool of simpleTools) {
+    for (const tool of [...simpleTools, ...agentTools]) {
       const name = tool.definition.function.name;
       const desc = tool.definition.function.description?.split('\n')[0] || '';
       const shortDesc = desc.length > 80 ? desc.slice(0, 77) + '...' : desc;
@@ -443,6 +429,14 @@ export function initializeToolRegistry(): void {
 
   // LLM Planning Tools
   toolRegistry.registerAll(PLANNING_TOOLS);
+
+  // Note: ONCE/FREE tools excluded from local-cli-git (open-source)
+
+  // Office sub-agent tools (Agent as a Tool)
+  // Electron runs on Windows, so always register
+  toolRegistry.register(createWordWorkRequestTool());
+  toolRegistry.register(createExcelWorkRequestTool());
+  toolRegistry.register(createPowerPointWorkRequestTool());
 }
 
 /**

@@ -17,6 +17,8 @@ import { logger } from '../utils/logger';
 import { reportError } from '../core/telemetry/error-reporter';
 import { detectGitRepo } from '../utils/git-utils';
 import { toolRegistry, executeSimpleTool } from '../tools';
+import { executeAgentTool } from '../tools/llm/simple/simple-tool-executor';
+import { isLLMAgentTool } from '../tools/types';
 import { OptionalToolGroupId } from '../tools/types';
 import {
   setWorkingDirectory,
@@ -934,8 +936,11 @@ Retry with correct parameter names and types.`;
             continue;
           }
 
-          // Execute tool
-          const result = await executeSimpleTool(toolName, toolArgs);
+          // Execute tool (route to agent tool or simple tool)
+          const registeredTool = toolRegistry.get(toolName);
+          const result = (registeredTool && isLLMAgentTool(registeredTool))
+            ? await executeAgentTool(toolName, toolArgs, llmClient)
+            : await executeSimpleTool(toolName, toolArgs);
 
           if (currentRunId !== agentState.runId || !agentState.isRunning || agentState.abortController?.signal.aborted) {
             logger.info('Agent aborted after tool execution', { toolName });

@@ -1122,7 +1122,9 @@ Retry with correct parameter names and types.`;
           consecutiveParseFailures = 0;
 
           // Tool 실행
-          const { executeFileTool, requestToolApproval } = await import('../../tools/llm/simple/file-tools.js');
+          const { executeFileTool, executeAgentTool, requestToolApproval } = await import('../../tools/llm/simple/file-tools.js');
+          const { isLLMAgentTool: checkAgentTool } = await import('../../tools/types.js');
+          const { toolRegistry: registry } = await import('../../tools/registry.js');
 
           // Supervised Mode: Request user approval before tool execution
           const approvalResult = await requestToolApproval(toolName, toolArgs);
@@ -1174,7 +1176,13 @@ Retry with correct parameter names and types.`;
           } else {
 
           try {
-            result = await executeFileTool(toolName, toolArgs);
+            // Route to agent tool executor or simple tool executor
+            const registeredTool = registry.get(toolName);
+            if (registeredTool && checkAgentTool(registeredTool)) {
+              result = await executeAgentTool(toolName, toolArgs, this);
+            } else {
+              result = await executeFileTool(toolName, toolArgs);
+            }
             logger.toolExecution(toolName, toolArgs, result);
 
             // LLM Log mode: Tool 결과 로깅

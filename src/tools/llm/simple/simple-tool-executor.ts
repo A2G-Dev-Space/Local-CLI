@@ -5,8 +5,9 @@
  * file-tools.ts에서 분리된 모듈
  */
 
-import { ToolResult, isLLMSimpleTool } from '../../types.js';
+import { ToolResult, isLLMSimpleTool, isLLMAgentTool } from '../../types.js';
 import { getStreamLogger } from '../../../utils/json-stream-logger.js';
+import type { LLMClient } from '../../../core/llm/llm-client.js';
 
 /**
  * Callback for tool execution events (reason display to user)
@@ -278,3 +279,51 @@ export async function executeSimpleTool(
  * @deprecated Use executeSimpleTool instead
  */
 export const executeFileTool = executeSimpleTool;
+
+/**
+ * Execute an agent tool by name (LLMAgentTool).
+ * Agent tools require a Sub-LLM client to run their internal iteration loop.
+ */
+export async function executeAgentTool(
+  toolName: string,
+  args: Record<string, unknown>,
+  llmClient: LLMClient
+): Promise<ToolResult> {
+  const startTime = Date.now();
+  const logger = getStreamLogger();
+
+  const { toolRegistry } = await import('../../registry.js');
+  const tool = toolRegistry.get(toolName);
+
+  if (!tool || !isLLMAgentTool(tool)) {
+    const error = `Unknown or not an agent tool: ${toolName}`;
+    logger?.logToolEnd(toolName, false, undefined, error, Date.now() - startTime);
+    return { success: false, error };
+  }
+
+  const reason = (args['instruction'] as string) || toolName;
+
+  logger?.logToolStart(toolName, args, reason);
+
+  if (toolExecutionCallback) {
+    toolExecutionCallback(toolName, reason, args);
+  }
+
+  const result = await tool.execute(args, llmClient);
+  const durationMs = Date.now() - startTime;
+
+  logger?.logToolEnd(
+    toolName,
+    result.success,
+    result.success ? result.result : undefined,
+    result.success ? undefined : result.error,
+    durationMs
+  );
+
+  if (toolResponseCallback) {
+    const resultText = result.success ? (result.result || '') : (result.error || 'Unknown error');
+    toolResponseCallback(toolName, result.success, resultText);
+  }
+
+  return result;
+}

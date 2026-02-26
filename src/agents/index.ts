@@ -19,3 +19,11 @@ export {
   PlanningLLM,
 } from './planner/index.js';
 
+// Office sub-agents (Agent as a Tool)
+export {
+  OfficeSubAgent,
+  createWordWorkRequestTool,
+  createExcelWorkRequestTool,
+  createPowerPointWorkRequestTool,
+} from './office/index.js';
+

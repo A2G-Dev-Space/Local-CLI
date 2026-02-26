@@ -1089,6 +1089,7 @@ export {
   // Tool executor
   executeSimpleTool,
   executeFileTool,
+  executeAgentTool,
   // Types
   type ToolApprovalResult,
 } from './simple-tool-executor.js';
