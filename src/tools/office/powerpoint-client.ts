@@ -11,59 +11,71 @@ export class PowerPointClient extends OfficeClientBase {
   protected override comProgId = 'PowerPoint.Application';
 
   async powerpointLaunch(): Promise<OfficeResponse> {
+    // Use raw integer values instead of .NET enum types (PIA may not be installed)
+    // msoTrue = -1, ppAlertsNone = 0, ppAlertsAll = 2
     return this.executePowerShell(`
 try {
   $ppt = [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application")
-  $ppt.Visible = [Microsoft.Office.Core.MsoTriState]::msoTrue
+  $ppt.Visible = -1
   @{ success = $true; message = "Connected to existing PowerPoint instance" } | ConvertTo-Json -Compress
 } catch {
   $ppt = New-Object -ComObject PowerPoint.Application
-  $ppt.Visible = [Microsoft.Office.Core.MsoTriState]::msoTrue
+  $ppt.Visible = -1
   @{ success = $true; message = "Launched new PowerPoint instance" } | ConvertTo-Json -Compress
 }
 `);
   }
 
   async powerpointCreate(): Promise<OfficeResponse> {
+    // msoTrue = -1, ppAlertsNone = 0, ppAlertsAll = 2
     return this.executePowerShell(`
 try {
   $ppt = [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application")
 } catch {
   $ppt = New-Object -ComObject PowerPoint.Application
 }
-$ppt.DisplayAlerts = $false
-$ppt.Visible = [Microsoft.Office.Core.MsoTriState]::msoTrue
-# Add presentation with window (msoTrue = -1)
+$ppt.DisplayAlerts = 0
+$ppt.Visible = -1
 $presentation = $ppt.Presentations.Add(-1)
-$ppt.DisplayAlerts = $true
+$ppt.DisplayAlerts = 2
 @{ success = $true; message = "Created new presentation"; presentation_name = $presentation.Name } | ConvertTo-Json -Compress
 `);
   }
 
   async powerpointOpen(filePath: string): Promise<OfficeResponse> {
     const windowsPath = this.toWindowsPath(filePath).replace(/'/g, "''");
+    // msoTrue = -1, ppAlertsNone = 0, ppAlertsAll = 2
     return this.executePowerShell(`
 try {
   $ppt = [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application")
 } catch {
   $ppt = New-Object -ComObject PowerPoint.Application
 }
-$ppt.DisplayAlerts = $false
-$ppt.Visible = [Microsoft.Office.Core.MsoTriState]::msoTrue
+$ppt.DisplayAlerts = 0
+$ppt.Visible = -1
 $presentation = $ppt.Presentations.Open('${windowsPath}')
-$ppt.DisplayAlerts = $true
+$ppt.DisplayAlerts = 2
 @{ success = $true; message = "Presentation opened"; presentation_name = $presentation.Name; path = $presentation.FullName } | ConvertTo-Json -Compress
 `);
   }
 
   async powerpointAddSlide(layout: number = 1): Promise<OfficeResponse> {
-    // Layout: 1=Title Slide, 2=Title and Content, 3=Section Header, 4=Two Content, etc.
+    // Layout: 1=Title Slide, 2=Title and Content, 3=Section Header, 4=Two Content,
+    // 7=Blank, 12=ppLayoutBlank (alternative)
     return this.executePowerShell(`
 $ppt = [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application")
 $presentation = $ppt.ActivePresentation
 $slideCount = $presentation.Slides.Count
-$customLayout = $presentation.SlideMaster.CustomLayouts(${layout})
-$slide = $presentation.Slides.AddSlide($slideCount + 1, $customLayout)
+try {
+  $customLayout = $presentation.SlideMaster.CustomLayouts(${layout})
+  $slide = $presentation.Slides.AddSlide($slideCount + 1, $customLayout)
+} catch {
+  # Fallback: use Slides.Add with ppLayout integer constants
+  # 1=ppLayoutTitle, 2=ppLayoutText, 7=ppLayoutBlank, 12=ppLayoutBlank
+  $ppLayout = ${layout}
+  if ($ppLayout -gt 11) { $ppLayout = 7 }
+  $slide = $presentation.Slides.Add($slideCount + 1, $ppLayout)
+}
 @{ success = $true; message = "Slide added"; slide_number = $slide.SlideIndex; layout = ${layout} } | ConvertTo-Json -Compress
 `);
   }
@@ -147,15 +159,50 @@ foreach ($shape in $slide.Shapes) {
     left: number = 100,
     top: number = 100,
     width: number = 300,
-    height: number = 50
+    height: number = 50,
+    options?: {
+      fontName?: string;
+      fontSize?: number;
+      bold?: boolean;
+      italic?: boolean;
+      fontColor?: string;
+      alignment?: 'left' | 'center' | 'right' | 'justify';
+      verticalAnchor?: 'top' | 'middle' | 'bottom';
+    }
   ): Promise<OfficeResponse> {
     const escapedText = text.replace(/'/g, "''");
 
-    // Auto-detect Korean and set font
-    const hasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(text);
-    const fontScript = hasKorean ? "$textbox.TextFrame.TextRange.Font.Name = 'Malgun Gothic'" : '';
+    // Build formatting commands
+    const formatCmds: string[] = [];
 
-    // TEXT FIRST, FONT AFTER pattern (Microsoft recommended for Korean)
+    // Font name (auto-detect Korean if not specified)
+    const hasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(text);
+    const fontName = options?.fontName || (hasKorean ? 'Malgun Gothic' : undefined);
+    if (fontName) formatCmds.push(`$textbox.TextFrame.TextRange.Font.Name = '${fontName}'`);
+
+    if (options?.fontSize) formatCmds.push(`$textbox.TextFrame.TextRange.Font.Size = ${options.fontSize}`);
+    if (options?.bold != null) formatCmds.push(`$textbox.TextFrame.TextRange.Font.Bold = ${options.bold ? '-1' : '0'}`);
+    if (options?.italic != null) formatCmds.push(`$textbox.TextFrame.TextRange.Font.Italic = ${options.italic ? '-1' : '0'}`);
+
+    if (options?.fontColor) {
+      const hex = options.fontColor.replace('#', '');
+      const r = parseInt(hex.substring(0, 2), 16);
+      const g = parseInt(hex.substring(2, 4), 16);
+      const b = parseInt(hex.substring(4, 6), 16);
+      const rgb = r + g * 256 + b * 65536;
+      formatCmds.push(`$textbox.TextFrame.TextRange.Font.Color.RGB = ${rgb}`);
+    }
+
+    const hAlignMap: Record<string, number> = { left: 1, center: 2, right: 3, justify: 4 };
+    if (options?.alignment) {
+      formatCmds.push(`$textbox.TextFrame.TextRange.ParagraphFormat.Alignment = ${hAlignMap[options.alignment]}`);
+    }
+
+    const vAnchorMap: Record<string, number> = { top: 1, middle: 3, bottom: 4 };
+    if (options?.verticalAnchor) {
+      formatCmds.push(`$textbox.TextFrame.VerticalAnchor = ${vAnchorMap[options.verticalAnchor]}`);
+    }
+
     return this.executePowerShell(`
 $ppt = [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application")
 $presentation = $ppt.ActivePresentation
@@ -164,7 +211,7 @@ $slide = $presentation.Slides(${slideNumber})
 $textbox = $slide.Shapes.AddTextbox(1, ${left}, ${top}, ${width}, ${height})
 $textContent = '${escapedText}' -replace '\\\\n', [char]10 -replace '\\n', [char]10
 $textbox.TextFrame.TextRange.Text = $textContent
-${fontScript}
+${formatCmds.join('\n')}
 @{ success = $true; message = "Textbox added to slide ${slideNumber}"; shape_index = $textbox.Index } | ConvertTo-Json -Compress
 `);
   }

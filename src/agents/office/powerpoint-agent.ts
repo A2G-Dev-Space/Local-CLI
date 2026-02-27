@@ -34,7 +34,8 @@ export function createPowerPointWorkRequestTool(): LLMAgentTool {
         llmClient,
         'powerpoint',
         POWERPOINT_TOOLS,
-        POWERPOINT_SYSTEM_PROMPT
+        POWERPOINT_SYSTEM_PROMPT,
+        { maxIterations: 70 }
       );
       return agent.run(args['instruction'] as string);
     },

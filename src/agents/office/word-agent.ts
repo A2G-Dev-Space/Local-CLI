@@ -30,7 +30,7 @@ export function createWordWorkRequestTool(): LLMAgentTool {
       },
     },
     execute: async (args, llmClient) => {
-      const agent = new OfficeSubAgent(llmClient, 'word', WORD_TOOLS, WORD_SYSTEM_PROMPT);
+      const agent = new OfficeSubAgent(llmClient, 'word', WORD_TOOLS, WORD_SYSTEM_PROMPT, { maxIterations: 50 });
       return agent.run(args['instruction'] as string);
     },
     categories: ['llm-agent'],

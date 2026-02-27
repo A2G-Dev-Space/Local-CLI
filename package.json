@@ -1,6 +1,6 @@
 {
   "name": "hanseol",
-  "version": "5.0.1",
+  "version": "5.0.2",
   "description": "Hanseol - OpenAI-Compatible Coding Agent",
   "type": "module",
   "main": "dist/index.js",
