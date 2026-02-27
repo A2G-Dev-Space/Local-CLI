@@ -94,6 +94,9 @@ export interface AppConfig {
   // External tools
   vscodePath?: string; // Custom VSCode path (if not in PATH)
 
+  /** Browser service URLs for sub-agents (Confluence, Jira) — CLI parity */
+  browserServices?: { type: 'confluence' | 'jira'; name: string; url: string }[];
+
   // Jarvis Mode
   jarvis?: {
     enabled: boolean;

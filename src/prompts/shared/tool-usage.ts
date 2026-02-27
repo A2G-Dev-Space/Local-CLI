@@ -85,17 +85,17 @@ Rules:
 
 Reading a file:
 \`\`\`json
-{"name": "read_file", "arguments": {"reason": "기존 코드 확인", "file_path": "src/index.ts"}}
+{"name": "read_file", "arguments": {"reason": "Check existing code", "file_path": "src/index.ts"}}
 \`\`\`
 
 Running a command:
 \`\`\`json
-{"name": "bash", "arguments": {"reason": "프로젝트 빌드", "command": "npm run build"}}
+{"name": "bash", "arguments": {"reason": "Build the project", "command": "npm run build"}}
 \`\`\`
 
 Editing a file:
 \`\`\`json
-{"name": "edit_file", "arguments": {"reason": "버그 수정", "file_path": "src/app.ts", "old_string": "const x = 1;", "new_string": "const x = 2;"}}
+{"name": "edit_file", "arguments": {"reason": "Fix the bug", "file_path": "src/app.ts", "old_string": "const x = 1;", "new_string": "const x = 2;"}}
 \`\`\`
 `.trim();
 

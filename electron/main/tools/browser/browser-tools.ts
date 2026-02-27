@@ -958,3 +958,23 @@ export const BROWSER_TOOLS: LLMSimpleTool[] = [
   browserPressKeyTool,
   browserSendTool,
 ];
+
+/**
+ * Sub-agent browser tools (lifecycle tools excluded — BrowserSubAgent manages lifecycle)
+ * CLI parity: src/tools/browser/browser-tools.ts
+ */
+export const BROWSER_SUB_AGENT_TOOLS: LLMSimpleTool[] = [
+  browserNavigateTool,
+  browserScreenshotTool,
+  browserClickTool,
+  browserFillTool,
+  browserGetTextTool,
+  browserGetHtmlTool,
+  browserGetPageInfoTool,
+  browserFocusTool,
+  browserPressKeyTool,
+  browserTypeTool,
+  browserExecuteScriptTool,
+  browserWaitTool,
+  browserSendTool,
+];

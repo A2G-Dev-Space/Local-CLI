@@ -45,6 +45,13 @@ import {
   createPowerPointWorkRequestTool,
 } from '../agents/office';
 
+// Import browser sub-agent tools (CLI parity: src/agents/browser)
+import {
+  createConfluenceRequestTool,
+  createJiraRequestTool,
+  createSearchRequestTool,
+} from '../agents/browser';
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -437,6 +444,11 @@ export function initializeToolRegistry(): void {
   toolRegistry.register(createWordWorkRequestTool());
   toolRegistry.register(createExcelWorkRequestTool());
   toolRegistry.register(createPowerPointWorkRequestTool());
+
+  // Browser sub-agent tools (CLI parity: confluence_request, jira_request, search_request)
+  toolRegistry.register(createConfluenceRequestTool());
+  toolRegistry.register(createJiraRequestTool());
+  toolRegistry.register(createSearchRequestTool());
 }
 
 /**
