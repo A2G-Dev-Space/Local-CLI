@@ -238,11 +238,21 @@ class BrowserClient {
   /**
    * Launch browser
    */
-  async launch(options?: { headless?: boolean; browser?: 'chrome' | 'edge' }): Promise<BrowserResponse> {
+  async launch(options?: {
+    headless?: boolean;
+    browser?: 'chrome' | 'edge';
+    userDataDir?: string;
+    cdpPort?: number;
+  }): Promise<BrowserResponse> {
     const headless = options?.headless ?? false;
     const preferredBrowser = options?.browser ?? 'chrome';
 
-    logger.info('[BrowserClient] Launching browser', { preferredBrowser, headless });
+    // Override CDP port if specified (for sub-agent isolation)
+    if (options?.cdpPort) {
+      this.cdpPort = options.cdpPort;
+    }
+
+    logger.info('[BrowserClient] Launching browser', { preferredBrowser, headless, cdpPort: this.cdpPort });
 
     try {
       // Clean up existing connection
@@ -282,8 +292,8 @@ class BrowserClient {
         };
       }
 
-      // Browser arguments
-      const userDataDir = path.join(process.env.LOCALAPPDATA || '', 'LOCAL-CLI-UI', 'browser-profile');
+      // Browser arguments — use persistent profile if provided, else temp
+      const userDataDir = options?.userDataDir || path.join(process.env.LOCALAPPDATA || '', 'LOCAL-CLI-UI', `browser-profile-${Date.now()}`);
       const args = [
         `--remote-debugging-port=${this.cdpPort}`,
         `--user-data-dir=${userDataDir}`,
@@ -1057,4 +1067,5 @@ class BrowserClient {
 
 // Export singleton
 export const browserClient = new BrowserClient();
+export { BrowserClient };
 export default browserClient;

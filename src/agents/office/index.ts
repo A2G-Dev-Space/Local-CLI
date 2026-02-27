@@ -1,11 +1,13 @@
 /**
  * Office Sub-Agents Index
  *
- * Agent as a Tool 패턴의 Office 전문 에이전트 모듈.
+ * Agent as a Tool pattern for Office specialist agents.
  */
 
-export { OfficeSubAgent, type OfficeSubAgentConfig } from './office-sub-agent.js';
-export { COMPLETE_TOOL_DEFINITION } from './complete-tool.js';
+// Re-export from common (backward compatibility)
+export { SubAgent as OfficeSubAgent, type SubAgentConfig as OfficeSubAgentConfig } from '../common/index.js';
+export { COMPLETE_TOOL_DEFINITION } from '../common/index.js';
+
 export {
   WORD_SYSTEM_PROMPT,
   EXCEL_SYSTEM_PROMPT,

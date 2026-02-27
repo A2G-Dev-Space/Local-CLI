@@ -498,9 +498,17 @@ class BrowserClient {
   /**
    * Launch browser with CDP
    */
-  async launch(options?: { headless?: boolean; browser?: 'chrome' | 'edge' }): Promise<BrowserResponse> {
+  async launch(options?: {
+    headless?: boolean;
+    browser?: 'chrome' | 'edge';
+    userDataDir?: string;
+    cdpPort?: number;
+  }): Promise<BrowserResponse> {
     const headless = options?.headless ?? false;
     const preferredBrowser = options?.browser ?? 'chrome';
+
+    // 포트/프로필 오버라이드 (서브에이전트용)
+    if (options?.cdpPort) this.cdpPort = options.cdpPort;
 
     logger.debug(`[BrowserClient] launch: starting browser (preferred=${preferredBrowser}, headless=${headless})`);
 
@@ -561,7 +569,8 @@ class BrowserClient {
       // Launch browser based on platform
       if (this.platform === 'native-windows') {
         // Native Windows - spawn directly with user data dir
-        const userDataDir = `${process.env['LOCALAPPDATA']}\\local-cli-browser-profile`;
+        const userDataDir = options?.userDataDir
+          || `${process.env['LOCALAPPDATA']}\\local-cli-browser-profile-${Date.now()}`;
         const args = [...baseArgs, `--user-data-dir=${userDataDir}`];
 
         logger.debug(`[BrowserClient] launch: spawning browser directly on Windows`);
@@ -571,12 +580,23 @@ class BrowserClient {
         });
       } else if (this.platform === 'wsl') {
         // WSL - use PowerShell to launch Windows browser
-        // We need to use a PowerShell variable ($dir) for user-data-dir
-        const argsForPowerShell = ['--user-data-dir=$dir', ...baseArgs];
-        const argsString = argsForPowerShell.map(arg => `"${arg}"`).join(',');
-        const psCommand = `$dir = "$env:LOCALAPPDATA\\local-cli-browser-profile"; Start-Process -FilePath '${browserPath}' -ArgumentList ${argsString}`;
+        let psCommand: string;
+        if (options?.userDataDir) {
+          // Persistent profile path: use Windows path directly (protected with single quotes)
+          const winPath = options.userDataDir.startsWith('/mnt/')
+            ? options.userDataDir.replace(/^\/mnt\/([a-z])\//, (_, d: string) => `${d.toUpperCase()}:\\`).replace(/\//g, '\\')
+            : options.userDataDir;
+          // single quotes → PowerShell won't interpret the path
+          const argsForPowerShell = [`'--user-data-dir=${winPath}'`, ...baseArgs.map(a => `"${a}"`)];
+          const argsString = argsForPowerShell.join(',');
+          psCommand = `Start-Process -FilePath '${browserPath}' -ArgumentList ${argsString}`;
+        } else {
+          const argsForPowerShell = ['--user-data-dir=$dir', ...baseArgs];
+          const argsString = argsForPowerShell.map(arg => `"${arg}"`).join(',');
+          psCommand = `$dir = "$env:LOCALAPPDATA\\local-cli-browser-profile-${Date.now()}"; Start-Process -FilePath '${browserPath}' -ArgumentList ${argsString}`;
+        }
 
-        logger.debug(`[BrowserClient] launch: executing PowerShell command from WSL`);
+        logger.debug(`[BrowserClient] launch: executing PowerShell command from WSL (port=${this.cdpPort})`);
 
         const powershellPath = getPowerShellPath();
         this.browserProcess = spawn(powershellPath, ['-Command', psCommand], {
@@ -585,7 +605,8 @@ class BrowserClient {
         });
       } else {
         // Native Linux - spawn directly
-        const userDataDir = `${process.env['HOME']}/.local-cli-browser-profile`;
+        const userDataDir = options?.userDataDir
+          || `${process.env['HOME']}/.local-cli-browser-profile-${Date.now()}`;
         const args = [...baseArgs, `--user-data-dir=${userDataDir}`];
 
         logger.debug(`[BrowserClient] launch: spawning browser directly on Linux`);
@@ -1343,6 +1364,8 @@ class BrowserClient {
   }
 }
 
-// Export singleton instance
+// Export singleton instance (raw browser tools용)
 export const browserClient = new BrowserClient();
+// Export class for sub-agent instances (별도 포트/프로필 사용)
+export { BrowserClient };
 export type { BrowserResponse, HealthResponse, ScreenshotResponse, NavigateResponse, PageInfoResponse, ConsoleResponse, NetworkResponse };

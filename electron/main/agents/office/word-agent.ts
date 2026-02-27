@@ -6,7 +6,7 @@
 
 import type { LLMAgentTool } from '../../tools/types';
 import { WORD_TOOLS } from '../../tools/office/word-tools';
-import { OfficeSubAgent } from './office-sub-agent';
+import { SubAgent } from '../common/sub-agent';
 import { WORD_SYSTEM_PROMPT } from './prompts';
 
 export function createWordWorkRequestTool(): LLMAgentTool {
@@ -16,13 +16,13 @@ export function createWordWorkRequestTool(): LLMAgentTool {
       function: {
         name: 'word_work_request',
         description:
-          'Microsoft Word 전문 에이전트에게 작업을 요청합니다. 문서 생성/편집, 서식, 표, 이미지, 헤더/푸터, 북마크, PDF 내보내기 등 모든 Word 작업을 수행할 수 있습니다. 자연어로 원하는 작업을 지시하세요.',
+          'Delegate a task to the Microsoft Word specialist agent. Capable of document creation/editing, formatting, tables, images, headers/footers, bookmarks, PDF export, and all Word operations. Describe the desired task in natural language.',
         parameters: {
           type: 'object',
           properties: {
             instruction: {
               type: 'string',
-              description: '수행할 Word 작업에 대한 자연어 지시',
+              description: 'Natural language instruction for the Word task to perform',
             },
           },
           required: ['instruction'],
@@ -30,7 +30,7 @@ export function createWordWorkRequestTool(): LLMAgentTool {
       },
     },
     execute: async (args, llmClient) => {
-      const agent = new OfficeSubAgent(llmClient, 'word', WORD_TOOLS, WORD_SYSTEM_PROMPT);
+      const agent = new SubAgent(llmClient, 'word', WORD_TOOLS, WORD_SYSTEM_PROMPT, { maxIterations: 50 });
       return agent.run(args['instruction'] as string);
     },
     categories: ['llm-agent'],

@@ -6,13 +6,14 @@
  * CLI parity: src/agents/index.ts
  */
 
-// Base agent
+// Common sub-agent
 export {
-  BaseAgent,
-  type AgentContext,
-  type AgentResult,
-  type AgentConfig,
-} from './base/base-agent';
+  SubAgent,
+  type SubAgentConfig,
+} from './common/index';
+
+// Backward compatibility alias
+export { SubAgent as OfficeSubAgent } from './common/index';
 
 // Planning agent
 export {
@@ -23,9 +24,7 @@ export {
 
 // Office sub-agents (Agent as a Tool)
 export {
-  OfficeSubAgent,
   createWordWorkRequestTool,
   createExcelWorkRequestTool,
   createPowerPointWorkRequestTool,
 } from './office';
-
