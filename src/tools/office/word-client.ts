@@ -45,7 +45,18 @@ $word.DisplayAlerts = -1
 
   async wordWrite(
     text: string,
-    options?: { fontName?: string; fontSize?: number; bold?: boolean; italic?: boolean; newParagraph?: boolean }
+    options?: {
+      fontName?: string;
+      fontSize?: number;
+      bold?: boolean;
+      italic?: boolean;
+      newParagraph?: boolean;
+      color?: string;
+      alignment?: 'left' | 'center' | 'right' | 'justify';
+      spaceBefore?: number;
+      spaceAfter?: number;
+      lineSpacing?: number;
+    }
   ): Promise<OfficeResponse> {
     // Auto-detect Korean text and set appropriate font if not specified
     const hasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(text);
@@ -71,6 +82,39 @@ $word.DisplayAlerts = -1
       }
     }).join('\n');
 
+    // Post-write formatting commands (applied to typed range)
+    const postFormatCmds: string[] = [];
+
+    // Font color
+    if (options?.color) {
+      const hex = options.color.replace('#', '');
+      const r = parseInt(hex.substring(0, 2), 16);
+      const g = parseInt(hex.substring(2, 4), 16);
+      const b = parseInt(hex.substring(4, 6), 16);
+      const rgb = r + g * 256 + b * 65536;
+      postFormatCmds.push(`$typedRange.Font.Color = ${rgb}`);
+    }
+
+    // Paragraph alignment: 0=left, 1=center, 2=right, 3=justify
+    const alignMap: Record<string, number> = { left: 0, center: 1, right: 2, justify: 3 };
+    if (options?.alignment) {
+      postFormatCmds.push(`$typedRange.ParagraphFormat.Alignment = ${alignMap[options.alignment]}`);
+    }
+
+    // Paragraph spacing
+    if (options?.spaceBefore != null) {
+      postFormatCmds.push(`$typedRange.ParagraphFormat.SpaceBefore = ${options.spaceBefore}`);
+    }
+    if (options?.spaceAfter != null) {
+      postFormatCmds.push(`$typedRange.ParagraphFormat.SpaceAfter = ${options.spaceAfter}`);
+    }
+
+    // Line spacing (multiplier: 1.0, 1.3, 1.5, etc.)
+    if (options?.lineSpacing) {
+      postFormatCmds.push(`$typedRange.ParagraphFormat.LineSpacingRule = 5`); // wdLineSpaceMultiple
+      postFormatCmds.push(`$typedRange.ParagraphFormat.LineSpacing = ${options.lineSpacing * 12}`);
+    }
+
     // TEXT FIRST, FONT AFTER pattern (Microsoft recommended for Korean)
     // Record start position, type text, then re-select and apply font
     return this.executePowerShell(`
@@ -89,9 +133,10 @@ $startPos = $selection.Start
 # Type text first
 ${typeCommands}
 
-# Apply font to the typed range (not just insertion point)
-${fontName ? `$typedRange = $doc.Range($startPos, $selection.Start)
-$typedRange.Font.Name = '${fontName}'` : ''}
+# Apply font and paragraph formatting to the typed range
+$typedRange = $doc.Range($startPos, $selection.Start)
+${fontName ? `$typedRange.Font.Name = '${fontName}'` : ''}
+${postFormatCmds.join('\n')}
 
 @{ success = $true; message = "Text written successfully" } | ConvertTo-Json -Compress
 `);
@@ -863,12 +908,13 @@ $selection.Range.ListFormat.RemoveNumbers()
     left?: number;
     right?: number;
   }): Promise<OfficeResponse> {
-    // Points (1 inch = 72 points)
+    // Input: cm. Word COM expects points (1 cm = 28.3465 points)
+    const cmToPoints = (cm: number) => Math.round(cm * 28.3465 * 100) / 100;
     const commands: string[] = [];
-    if (options.top !== undefined) commands.push(`$pageSetup.TopMargin = ${options.top}`);
-    if (options.bottom !== undefined) commands.push(`$pageSetup.BottomMargin = ${options.bottom}`);
-    if (options.left !== undefined) commands.push(`$pageSetup.LeftMargin = ${options.left}`);
-    if (options.right !== undefined) commands.push(`$pageSetup.RightMargin = ${options.right}`);
+    if (options.top !== undefined) commands.push(`$pageSetup.TopMargin = ${cmToPoints(options.top)}`);
+    if (options.bottom !== undefined) commands.push(`$pageSetup.BottomMargin = ${cmToPoints(options.bottom)}`);
+    if (options.left !== undefined) commands.push(`$pageSetup.LeftMargin = ${cmToPoints(options.left)}`);
+    if (options.right !== undefined) commands.push(`$pageSetup.RightMargin = ${cmToPoints(options.right)}`);
 
     return this.executePowerShell(`
 $word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")

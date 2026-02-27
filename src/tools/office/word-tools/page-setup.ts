@@ -17,15 +17,15 @@ const WORD_SET_PAGE_MARGINS_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'word_set_page_margins',
-    description: `Set page margins (in points, 72 points = 1 inch).`,
+    description: `Set page margins (in centimeters). Example: top=2.54 = 1 inch.`,
     parameters: {
       type: 'object',
       properties: {
         reason: { type: 'string', description: 'Why you are setting margins' },
-        top: { type: 'number', description: 'Top margin in points' },
-        bottom: { type: 'number', description: 'Bottom margin in points' },
-        left: { type: 'number', description: 'Left margin in points' },
-        right: { type: 'number', description: 'Right margin in points' },
+        top: { type: 'number', description: 'Top margin in cm' },
+        bottom: { type: 'number', description: 'Bottom margin in cm' },
+        left: { type: 'number', description: 'Left margin in cm' },
+        right: { type: 'number', description: 'Right margin in cm' },
       },
       required: ['reason'],
     },

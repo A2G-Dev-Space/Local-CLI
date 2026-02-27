@@ -109,6 +109,9 @@ $excel.DisplayAlerts = $true
     if (options?.asText) {
       // Force text format
       valueScript = `$range.NumberFormat = '@'; $range.Value = '${escapedValue}'`;
+    } else if (strValue.startsWith('=')) {
+      // Formula — set via .Formula so Excel evaluates it (not as text)
+      valueScript = `$range.Formula = '${escapedValue}'`;
     } else if (typeof value === 'number' || (strValue !== '' && !isNaN(Number(strValue)) && strValue.trim() !== '')) {
       // Numeric value - don't quote
       valueScript = `$range.Value = ${strValue}`;
@@ -175,13 +178,26 @@ $value = $sheet.Range('${cell}').Value2
     // Build proper 2D array (System.Object[,]) for Excel COM
     // PowerShell @(@(),@()) creates jagged arrays which Excel cannot assign to ranges
     const cellAssignments: string[] = [];
+    const formulaCells: { row: number; col: number; formula: string }[] = [];
     for (let i = 0; i < values.length; i++) {
       const row = values[i];
       if (!row) continue;
       for (let j = 0; j < row.length; j++) {
-        cellAssignments.push(`$data[${i},${j}] = ${toPsValue(row[j])}`);
+        const str = String(row[j]);
+        if (str.startsWith('=')) {
+          // Track formula cells — will be set separately after bulk value assignment
+          formulaCells.push({ row: i, col: j, formula: str.replace(/'/g, "''") });
+          cellAssignments.push(`$data[${i},${j}] = ''`); // placeholder
+        } else {
+          cellAssignments.push(`$data[${i},${j}] = ${toPsValue(row[j])}`);
+        }
       }
     }
+
+    // After bulk assignment, set formula cells individually
+    const formulaScript = formulaCells.map(f =>
+      `$sheet.Cells($startRange.Row + ${f.row}, $startRange.Column + ${f.col}).Formula = '${f.formula}'`
+    ).join('\n');
 
     // TEXT FIRST, FONT AFTER pattern (Microsoft recommended for Korean)
     const fontScript = hasKorean ? "$range.Font.Name = 'Malgun Gothic'" : '';
@@ -196,6 +212,7 @@ $range = $sheet.Range($startRange, $endCell)
 $data = New-Object 'object[,]' ${rows},${cols}
 ${cellAssignments.join('\n')}
 $range.Value = $data
+${formulaScript}
 ${fontScript}
 @{ success = $true; message = "Range written from ${startCell} (${rows}x${cols})" } | ConvertTo-Json -Compress
 `);
@@ -203,15 +220,31 @@ ${fontScript}
 
   async excelReadRange(range: string, sheet?: string): Promise<OfficeResponse> {
     const sheetScript = sheet ? `$sheet = $workbook.Sheets('${sheet.replace(/'/g, "''")}')` : '$sheet = $workbook.ActiveSheet';
+    // Return cell-addressed data so LLM knows exact cell positions
     return this.executePowerShell(`
 $excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
 $workbook = $excel.ActiveWorkbook
 ${sheetScript}
 $range = $sheet.Range('${range}')
-$values = $range.Value2
 $rows = $range.Rows.Count
 $cols = $range.Columns.Count
-@{ success = $true; range = '${range}'; values = $values; rows = $rows; columns = $cols } | ConvertTo-Json -Compress -Depth 10
+$startRow = $range.Row
+$startCol = $range.Column
+$lines = @()
+for ($r = 0; $r -lt $rows; $r++) {
+  $parts = @()
+  for ($c = 0; $c -lt $cols; $c++) {
+    $cell = $range.Cells($r + 1, $c + 1)
+    $addr = $cell.Address($false, $false)
+    $val = $cell.Value2
+    if ($cell.HasFormula) { $val = $cell.Formula }
+    if ($null -eq $val) { $val = '' }
+    $parts += "$addr=$val"
+  }
+  $lines += ($parts -join ' | ')
+}
+$table = $lines -join [char]10
+@{ success = $true; range = '${range}'; rows = $rows; columns = $cols; table = $table } | ConvertTo-Json -Compress -Depth 10
 `);
   }
 
@@ -559,6 +592,7 @@ $excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
 $workbook = $excel.ActiveWorkbook
 ${sheetScript}
 $sheet.Activate()
+if ($excel.ActiveWindow.FreezePanes) { $excel.ActiveWindow.FreezePanes = $false }
 $sheet.Range('${cellRef}').Select()
 $excel.ActiveWindow.FreezePanes = $true
 @{ success = $true; message = "Panes frozen at ${cellRef}" } | ConvertTo-Json -Compress

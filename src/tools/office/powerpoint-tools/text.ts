@@ -116,19 +116,25 @@ const POWERPOINT_ADD_TEXTBOX_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'powerpoint_add_textbox',
-    description: `Add a textbox to a slide.`,
+    description: `Add a textbox to a slide with optional formatting. Supports font, color, size, bold, alignment in one call.`,
     parameters: {
       type: 'object',
       properties: {
         reason: { type: 'string', description: 'Why you are adding a textbox' },
-        slide: { type: 'number', description: 'Slide number' },
-        text: { type: 'string', description: 'Text content' },
+        slide_number: { type: 'number', description: 'Slide number' },
+        text: { type: 'string', description: 'Text content. Use \\n for line breaks.' },
         left: { type: 'number', description: 'Left position in points (default: 100)' },
         top: { type: 'number', description: 'Top position in points (default: 100)' },
         width: { type: 'number', description: 'Width in points (default: 300)' },
         height: { type: 'number', description: 'Height in points (default: 50)' },
+        font_name: { type: 'string', description: 'Font name (e.g. "맑은 고딕")' },
+        font_size: { type: 'number', description: 'Font size in points' },
+        bold: { type: 'boolean', description: 'Bold text' },
+        italic: { type: 'boolean', description: 'Italic text' },
+        font_color: { type: 'string', description: 'Font color as hex (e.g. "#FFFFFF")' },
+        alignment: { type: 'string', enum: ['left', 'center', 'right', 'justify'], description: 'Horizontal text alignment' },
       },
-      required: ['reason', 'slide', 'text'],
+      required: ['reason', 'slide_number', 'text'],
     },
   },
 };
@@ -138,10 +144,18 @@ async function executePowerPointAddTextbox(args: Record<string, unknown>): Promi
     const response = await powerpointClient.powerpointAddTextbox(
       args['slide'] as number,
       args['text'] as string,
-      args['left'] as number ?? 100,
-      args['top'] as number ?? 100,
-      args['width'] as number ?? 300,
-      args['height'] as number ?? 50
+      args['left'] != null ? Number(args['left']) : 100,
+      args['top'] != null ? Number(args['top']) : 100,
+      args['width'] != null ? Number(args['width']) : 300,
+      args['height'] != null ? Number(args['height']) : 50,
+      {
+        fontName: args['font_name'] as string | undefined,
+        fontSize: args['font_size'] != null ? Number(args['font_size']) : undefined,
+        bold: args['bold'] != null ? Boolean(args['bold']) : undefined,
+        italic: args['italic'] != null ? Boolean(args['italic']) : undefined,
+        fontColor: args['font_color'] as string | undefined,
+        alignment: args['alignment'] as 'left' | 'center' | 'right' | 'justify' | undefined,
+      }
     );
     if (response.success) {
       return { success: true, result: `Textbox added to slide ${args['slide']} (shape index: ${response['shape_index']})` };

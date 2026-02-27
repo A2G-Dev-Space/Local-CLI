@@ -23,23 +23,25 @@ const WORD_WRITE_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'word_write',
-    description: `Write text to the active Word document with font settings.
-The text will be inserted at the current cursor position.
+    description: `Write text to the active Word document with full formatting in one call.
+Supports font (name, size, bold, italic, color) and paragraph (alignment, spacing) settings.
 By default, a new paragraph is created after the text (new_paragraph=true).
-This prevents formatting from bleeding between sections.
-Set new_paragraph=false only when continuing on the same line.
-IMPORTANT: Always specify font_name and font_size for proper formatting.
-Recommended: font_name="Malgun Gothic" or "Arial", font_size=11 for body text, 16-24 for titles.`,
+IMPORTANT: Always specify font_name, font_size, and color for proper formatting.`,
     parameters: {
       type: 'object',
       properties: {
         reason: { type: 'string', description: 'Explanation of why you are writing this text' },
         text: { type: 'string', description: 'The text to write to the document' },
-        font_name: { type: 'string', description: 'Font name (e.g., "Arial", "Times New Roman", "Malgun Gothic")' },
-        font_size: { type: 'number', description: 'Font size in points (e.g., 12, 14, 16)' },
-        bold: { type: 'boolean', description: 'Whether to make the text bold' },
-        italic: { type: 'boolean', description: 'Whether to make the text italic' },
-        new_paragraph: { type: 'boolean', description: 'Add paragraph break after text (default: true). Set false to continue on same line.' },
+        font_name: { type: 'string', description: 'Font name (e.g., "맑은 고딕", "Arial")' },
+        font_size: { type: 'number', description: 'Font size in points' },
+        bold: { type: 'boolean', description: 'Bold text' },
+        italic: { type: 'boolean', description: 'Italic text' },
+        color: { type: 'string', description: 'Font color as hex (e.g., "#1B3A5C", "#333333")' },
+        alignment: { type: 'string', enum: ['left', 'center', 'right', 'justify'], description: 'Paragraph alignment' },
+        space_before: { type: 'number', description: 'Space before paragraph in points' },
+        space_after: { type: 'number', description: 'Space after paragraph in points' },
+        line_spacing: { type: 'number', description: 'Line spacing multiplier (e.g., 1.0, 1.3, 1.5)' },
+        new_paragraph: { type: 'boolean', description: 'Add paragraph break after text (default: true)' },
       },
       required: ['reason', 'text'],
     },
@@ -53,9 +55,17 @@ async function executeWordWrite(args: Record<string, unknown>): Promise<ToolResu
   const bold = args['bold'] as boolean | undefined;
   const italic = args['italic'] as boolean | undefined;
   const newParagraph = args['new_paragraph'] as boolean | undefined;
+  const color = args['color'] as string | undefined;
+  const alignment = args['alignment'] as 'left' | 'center' | 'right' | 'justify' | undefined;
+  const spaceBefore = args['space_before'] != null ? Number(args['space_before']) : undefined;
+  const spaceAfter = args['space_after'] != null ? Number(args['space_after']) : undefined;
+  const lineSpacing = args['line_spacing'] != null ? Number(args['line_spacing']) : undefined;
 
   try {
-    const response = await wordClient.wordWrite(text, { fontName, fontSize, bold, italic, newParagraph });
+    const response = await wordClient.wordWrite(text, {
+      fontName, fontSize, bold, italic, newParagraph,
+      color, alignment, spaceBefore, spaceAfter, lineSpacing,
+    });
     if (response.success) {
       return { success: true, result: `Text written to document (${text.length} characters)` };
     }
