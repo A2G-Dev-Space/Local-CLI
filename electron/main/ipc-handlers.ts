@@ -45,6 +45,7 @@ import {
   DownloadProgress,
 } from './core/docs-manager';
 import { workerManager } from './workers/worker-manager';
+import { toolRegistry } from './tools/registry';
 import { emitToCLI } from './cli-server-bridge';
 
 // 파일 필터 타입
@@ -2016,7 +2017,11 @@ export function setupIpcHandlers(): void {
       workerManager.setChatWindow(chatWindow);
       workerManager.setTaskWindow(taskWindow);
       // Pass currently enabled tool groups so worker initializes its registry
-      const enabledGroups = toolManager.getEnabledToolGroups().map(g => g.id);
+      // toolManager: user-controlled groups (browser, office)
+      // toolRegistry: includes autoManaged groups (vision) that toolManager doesn't track
+      const managerGroups = toolManager.getEnabledToolGroups().map(g => g.id);
+      const registryGroups = toolRegistry.getEnabledToolGroupIds();
+      const enabledGroups = [...new Set([...managerGroups, ...registryGroups])];
       workerManager.createWorker(sessionId, enabledGroups);
       return { success: true };
     } catch (error) {

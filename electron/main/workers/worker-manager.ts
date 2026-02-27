@@ -29,6 +29,9 @@ interface WorkerEntry {
   sessionId: string;
   isRunning: boolean;
   isReady: boolean;
+  enabledToolGroups: string[];
+  crashCount: number;
+  intentionalTerminate: boolean;
 }
 
 // =============================================================================
@@ -92,6 +95,9 @@ export class WorkerManager {
       sessionId,
       isRunning: false,
       isReady: false,
+      enabledToolGroups,
+      crashCount: 0,
+      intentionalTerminate: false,
     };
 
     worker.on('message', (msg: WorkerToMainMessage) => {
@@ -466,7 +472,13 @@ export class WorkerManager {
   private handleWorkerExit(sessionId: string, code: number): void {
     logger.info('[WorkerManager] Worker exited', { sessionId, code });
 
-    if (code !== 0) {
+    // Save info before deleting entry
+    const entry = this.workers.get(sessionId);
+    const savedToolGroups = entry?.enabledToolGroups ?? [];
+    const prevCrashCount = entry?.crashCount ?? 0;
+    const wasIntentional = entry?.intentionalTerminate ?? false;
+
+    if (code !== 0 && !wasIntentional) {
       // Abnormal exit - dismiss pending modals and notify renderer
       this.dismissPendingModals(sessionId);
 
@@ -487,6 +499,24 @@ export class WorkerManager {
 
     this.workers.delete(sessionId);
     this.sessionTodos.delete(sessionId);
+
+    // Auto-recreate worker on abnormal exit (tab may still be open)
+    // Skip if intentionally terminated (tab close) — prevents race with terminateWorker
+    // Limit retries to prevent infinite crash loops
+    const MAX_AUTO_RECREATE = 2;
+    if (code !== 0 && !wasIntentional && prevCrashCount < MAX_AUTO_RECREATE) {
+      try {
+        this.createWorker(sessionId, savedToolGroups);
+        // Carry over crash count
+        const newEntry = this.workers.get(sessionId);
+        if (newEntry) newEntry.crashCount = prevCrashCount + 1;
+        logger.info('[WorkerManager] Worker auto-recreated after crash', { sessionId, crashCount: prevCrashCount + 1 });
+      } catch (err) {
+        logger.errorSilent('[WorkerManager] Failed to auto-recreate worker', { sessionId, error: (err as Error)?.message });
+      }
+    } else if (code !== 0) {
+      logger.warn('[WorkerManager] Worker crashed too many times, not recreating', { sessionId, crashCount: prevCrashCount });
+    }
   }
 
   // ==========================================================================
@@ -528,6 +558,8 @@ export class WorkerManager {
     // Dismiss any pending modals in renderer before termination
     this.dismissPendingModals(sessionId);
 
+    // Mark as intentional so handleWorkerExit skips auto-recreate
+    entry.intentionalTerminate = true;
     await entry.worker.terminate();
     this.workers.delete(sessionId);
     this.sessionTodos.delete(sessionId);
