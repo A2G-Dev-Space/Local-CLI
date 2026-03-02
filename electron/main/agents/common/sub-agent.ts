@@ -1,7 +1,10 @@
 /**
- * Office Sub-Agent
+ * Sub-Agent
  *
- * CLI parity: src/agents/office/office-sub-agent.ts
+ * Generic iteration loop for all sub-agents (Office, Browser, etc.).
+ * Runs an LLM with specialized tools + complete tool in a loop.
+ *
+ * CLI parity: src/agents/common/sub-agent.ts
  */
 
 import type { LLMClient } from '../../core/llm';
@@ -10,13 +13,13 @@ import type { LLMSimpleTool, ToolResult } from '../../tools/types';
 import { COMPLETE_TOOL_DEFINITION } from './complete-tool';
 import { logger } from '../../utils/logger';
 
-export interface OfficeSubAgentConfig {
+export interface SubAgentConfig {
   maxIterations?: number;
   temperature?: number;
   maxTokens?: number;
 }
 
-export class OfficeSubAgent {
+export class SubAgent {
   private llmClient: LLMClient;
   private appName: string;
   private tools: LLMSimpleTool[];
@@ -31,7 +34,7 @@ export class OfficeSubAgent {
     appName: string,
     tools: LLMSimpleTool[],
     systemPrompt: string,
-    config?: OfficeSubAgentConfig
+    config?: SubAgentConfig
   ) {
     this.llmClient = llmClient;
     this.appName = appName;
@@ -52,7 +55,9 @@ export class OfficeSubAgent {
     let iterations = 0;
     let totalToolCalls = 0;
 
-    logger.info(`OfficeSubAgent[${this.appName}] starting`, {
+    logger.enter(`SubAgent[${this.appName}].run`);
+    logger.info(`Sub-agent starting`, {
+      appName: this.appName,
       toolCount: this.tools.length,
       instruction: instruction.slice(0, 100),
     });
@@ -69,7 +74,7 @@ export class OfficeSubAgent {
 
     while (iterations < this.maxIterations) {
       iterations++;
-      logger.info(`OfficeSubAgent[${this.appName}] iteration ${iterations}`);
+      logger.flow(`SubAgent[${this.appName}] iteration ${iterations}`);
 
       const response = await this.llmClient.chatCompletion({
         messages,
@@ -87,7 +92,7 @@ export class OfficeSubAgent {
 
       if (!assistantMessage.tool_calls || assistantMessage.tool_calls.length === 0) {
         const content = assistantMessage.content || '';
-        logger.info(`OfficeSubAgent[${this.appName}] completed with text response`);
+        logger.flow(`SubAgent[${this.appName}] completed with text response`);
         return this.buildResult(true, content, undefined, iterations, totalToolCalls, startTime);
       }
 
@@ -108,7 +113,7 @@ export class OfficeSubAgent {
 
         if (toolName === 'complete') {
           const summary = (args['summary'] as string) || 'Task completed.';
-          logger.info(`OfficeSubAgent[${this.appName}] completed via complete tool`);
+          logger.flow(`SubAgent[${this.appName}] completed via complete tool`);
           return this.buildResult(true, summary, undefined, iterations, totalToolCalls, startTime);
         }
 
@@ -123,7 +128,7 @@ export class OfficeSubAgent {
         }
 
         totalToolCalls++;
-        logger.info(`OfficeSubAgent[${this.appName}] executing tool`, { toolName, iteration: iterations });
+        logger.info(`SubAgent[${this.appName}] executing tool`, { toolName, iteration: iterations });
 
         try {
           const result = await tool.execute(args);
@@ -147,7 +152,7 @@ export class OfficeSubAgent {
       }
     }
 
-    logger.warn(`OfficeSubAgent[${this.appName}] max iterations reached`, { maxIterations: this.maxIterations });
+    logger.warn(`SubAgent[${this.appName}] max iterations reached`, { maxIterations: this.maxIterations });
     return this.buildResult(
       true,
       `Sub-agent completed after ${this.maxIterations} iterations. ${totalToolCalls} tool calls executed.`,
@@ -167,7 +172,7 @@ export class OfficeSubAgent {
     startTime: number
   ): ToolResult {
     const duration = Date.now() - startTime;
-    logger.info(`OfficeSubAgent[${this.appName}] finished`, { success, iterations, toolCalls, duration });
+    logger.exit(`SubAgent[${this.appName}].run`, { success, iterations, toolCalls, duration });
     return {
       success,
       result,

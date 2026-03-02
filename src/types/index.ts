@@ -131,6 +131,13 @@ export interface SessionMemory {
 /**
  * 설정 파일 구조
  */
+/** Browser service configuration for sub-agents */
+export interface BrowserServiceConfig {
+  type: 'confluence' | 'jira';
+  name: string;
+  url: string;
+}
+
 export interface OpenConfig {
   version: string;
   currentEndpoint?: string;
@@ -144,6 +151,8 @@ export interface OpenConfig {
   };
   /** Enabled optional tool group IDs (persisted across sessions) */
   enabledTools?: string[];
+  /** Browser service URLs for sub-agents (Confluence, Jira) */
+  browserServices?: BrowserServiceConfig[];
 }
 
 /**

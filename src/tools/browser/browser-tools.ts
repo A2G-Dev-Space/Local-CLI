@@ -1137,3 +1137,19 @@ export const BROWSER_TOOLS: LLMSimpleTool[] = [
   browserExecuteScriptTool,
   browserCloseTool,
 ];
+
+/**
+ * Sub-agent용 브라우저 도구 서브셋
+ * launch/close/connect/health 제외 — BrowserSubAgent가 lifecycle 관리
+ */
+export const BROWSER_SUB_AGENT_TOOLS: LLMSimpleTool[] = [
+  browserNavigateTool,
+  browserScreenshotTool,
+  browserClickTool,
+  browserFillTool,
+  browserGetTextTool,
+  browserFocusTool,
+  browserPressKeyTool,
+  browserTypeTool,
+  browserExecuteScriptTool,
+];

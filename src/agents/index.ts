@@ -4,15 +4,14 @@
  * Central export for all LLM-powered agents.
  */
 
-// Base agent
+// Common sub-agent
 export {
-  BaseAgent,
-  type AgentContext,
-  type AgentResult,
-  type AgentConfig,
-} from './base/base-agent.js';
+  SubAgent,
+  type SubAgentConfig,
+} from './common/index.js';
 
-// RequestClassifier removed - all requests now go through planning
+// Backward compatibility alias
+export { SubAgent as OfficeSubAgent } from './common/index.js';
 
 // Planning agent
 export {
@@ -21,9 +20,7 @@ export {
 
 // Office sub-agents (Agent as a Tool)
 export {
-  OfficeSubAgent,
   createWordWorkRequestTool,
   createExcelWorkRequestTool,
   createPowerPointWorkRequestTool,
 } from './office/index.js';
-

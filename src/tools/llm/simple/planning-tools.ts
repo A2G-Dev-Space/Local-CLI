@@ -44,7 +44,7 @@ IMPORTANT: Write TODO titles in the user's language.`,
         properties: {
           title: {
             type: 'string',
-            description: 'A short title (5-20 chars, user language) summarizing ALL tasks as a whole. If user requests multiple things, combine them (e.g., "일정표 & 예산안 작성"). This becomes the session name.',
+            description: 'A short title (5-20 chars, user language) summarizing ALL tasks as a whole. If user requests multiple things, combine them (e.g., "Schedule & budget docs"). This becomes the session name.',
           },
           todos: {
             type: 'array',

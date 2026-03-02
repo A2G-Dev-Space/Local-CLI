@@ -46,6 +46,13 @@ import {
   createPowerPointWorkRequestTool,
 } from '../agents/office/index.js';
 
+// Import browser sub-agent tools (Agent as a Tool)
+import {
+  createConfluenceRequestTool,
+  createJiraRequestTool,
+  createSearchRequestTool,
+} from '../agents/browser/index.js';
+
 /**
  * Enable result with optional error message
  */
@@ -494,6 +501,12 @@ export function initializeToolRegistry(): void {
     toolRegistry.register(createExcelWorkRequestTool());
     toolRegistry.register(createPowerPointWorkRequestTool());
   }
+
+  // Browser sub-agent tools: always register (Chrome/Edge available on all platforms)
+  // These are LLMAgentTool that use headless browser internally
+  toolRegistry.register(createConfluenceRequestTool());
+  toolRegistry.register(createJiraRequestTool());
+  toolRegistry.register(createSearchRequestTool());
 }
 
 /**

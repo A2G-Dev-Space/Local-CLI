@@ -16,7 +16,7 @@ Always respond in the same language as the user's instruction.
 • CREATE MODE: user wants a new document → use *_create, then build from scratch.
 • MODIFY MODE: user wants to edit an existing file → use *_open, read content, make targeted changes.
 • If user provides a file path to open/edit → MODIFY MODE.
-• If user says "만들어", "create", "작성" → CREATE MODE.
+• If user says "create", "make", "write", "build" (or Korean equivalents) → CREATE MODE.
 
 ═══ ERROR RECOVERY ═══
 If a tool fails, do NOT give up immediately:
