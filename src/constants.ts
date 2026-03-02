@@ -47,8 +47,7 @@ export const PROJECTS_DIR = path.join(LOCAL_HOME_DIR, 'projects');
 export const APP_NAME = 'hanseol';
 
 /**
- * LLM 요청 시 X-Service-Id 헤더로 전송
- * CLI와 Electron이 서로 다른 값을 사용
+ * Service identifier for LLM requests (X-Service-Id header)
  */
 export const SERVICE_ID = 'local-cli';
 
@@ -58,25 +57,6 @@ export const SERVICE_ID = 'local-cli';
 export const APP_VERSION = '5.0.2';
 
 /**
- * Dashboard URL (injected from package.json)
- * PROD: https://3.39.170.84.nip.io
- */
-export const DASHBOARD_URL = 'https://3.39.170.84.nip.io';
-
-/**
- * ONCE URL (injected from package.json)
- * AI 기반 노트/지식 관리 시스템
- */
-export const ONCE_URL = 'https://3.39.170.84.nip.io:5090';
-
-/**
- * FREE URL (injected from package.json)
- * AI 기반 업무 기록 시스템
- */
-export const FREE_URL = 'https://3.39.170.84.nip.io:6090';
-
-/**
  * CLI Server 포트 (Electron ↔ CLI 통신)
- * DEV: 19523 / PROD: 19524 / nexus-coder: 19525
  */
 export const CLI_SERVER_PORT = 19524;

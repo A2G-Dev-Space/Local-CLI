@@ -1,11 +1,11 @@
 /**
- * Jarvis Service - Manager LLM 오케스트레이션
+ * Jarvis Service - Manager LLM Orchestration
  *
- * 핵심 역할:
- * - 주기적 ONCE/FREE 폴링 → Manager LLM 분석 → 자율 실행
- * - 사용자 채팅 처리 (Manager LLM 도구 루프)
- * - 2-Layer 컨텍스트 관리 (영구 기억 + 대화 메시지)
- * - Sub-LLM(Planner/Executor) 위임 + ask_to_user 가로채기
+ * Core responsibilities:
+ * - Periodic polling → Manager LLM analysis → autonomous execution
+ * - User chat processing (Manager LLM tool loop)
+ * - 2-Layer context management (persistent memory + conversation messages)
+ * - Sub-LLM (Planner/Executor) delegation + ask_to_user interception
  */
 
 import * as fs from 'fs/promises';
@@ -15,9 +15,6 @@ import { BrowserWindow } from 'electron';
 import { llmClient, Message } from '../core/llm';
 import { logger } from '../utils/logger';
 import { configManager } from '../core/config';
-// ONCE/FREE 도구 미포함 (오픈소스 제한) — stub
-const onceTaskList = async () => ({ success: false as const, result: undefined });
-const freeWorkList = async () => ({ success: false as const, items: undefined });
 import { compactConversation } from '../core/compact';
 import { runAgentCore, AgentIO, AgentRunState } from '../orchestration/agent-engine';
 import type { AgentConfig } from '../orchestration/agent-engine';
@@ -206,29 +203,7 @@ export class JarvisService {
     this.setStatus(trigger === 'poll' ? 'polling' : 'analyzing');
 
     try {
-      // 1. ONCE/FREE 데이터 조회
-      const [onceTodosResult, freeItemsResult] = await Promise.allSettled([
-        onceTaskList().catch(() => ({ success: false, result: undefined })),
-        freeWorkList().catch(() => ({ success: false, items: undefined })),
-      ]);
-
-      const onceTodos = onceTodosResult.status === 'fulfilled' && 'result' in onceTodosResult.value
-        ? (onceTodosResult.value.result || '') : '';
-      let freeWorkItems = '';
-      if (freeItemsResult.status === 'fulfilled' && 'items' in freeItemsResult.value && freeItemsResult.value.items?.length) {
-        freeWorkItems = freeItemsResult.value.items
-          .map((item: { id: string; title: string; content: string }) =>
-            `- ${item.title} [id: ${item.id}]: ${item.content?.slice(0, 200) || ''}`)
-          .join('\n');
-      }
-      logger.info('[JarvisService] Data fetched', {
-        onceTodosLength: onceTodos.length,
-        freeItemsLength: freeWorkItems.length,
-        onceFailed: onceTodosResult.status === 'rejected',
-        freeFailed: freeItemsResult.status === 'rejected',
-      });
-
-      // 2. 컨텍스트 구성
+      // 1. 컨텍스트 구성
       const now = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
       const recentConversation = this.messages.slice(-20).map(m =>
         `[${m.role.toUpperCase()}]: ${(m.content || '').slice(0, 500)}`
@@ -238,8 +213,6 @@ export class JarvisService {
         trigger,
         userMessage,
         memory: this.memory.entries,
-        onceTodos,
-        freeWorkItems,
         recentConversation,
         currentTime: now,
         pendingMessages: this.pendingUserMessages.length > 0 ? [...this.pendingUserMessages] : undefined,

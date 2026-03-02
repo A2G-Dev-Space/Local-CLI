@@ -474,12 +474,11 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
       })
     );
 
-    // Auto-sync result event (ONCE/FREE background sync notifications)
+    // Auto-sync result event (background sync notifications)
     if (window.electronAPI.agent.onAutoSyncResult) {
       unsubscribes.push(
         window.electronAPI.agent.onAutoSyncResult((result) => {
           window.electronAPI?.log?.debug?.('[AgentContext] Auto-sync result', result);
-          // Auto-sync not applicable for local-cli (no ONCE/FREE)
         })
       );
     }

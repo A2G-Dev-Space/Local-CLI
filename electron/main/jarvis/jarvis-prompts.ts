@@ -36,7 +36,7 @@ You delegate work to the Planner/Executor system and manage the results.
 
 ## Rules
 1. You MUST use a tool every turn. Responses without tool calls are errors.
-2. ONCE TODO list may have many items. Prioritize by: deadline urgency → feasibility → importance.
+2. If there are many tasks, prioritize by: deadline urgency → feasibility → importance.
 3. Be autonomous. Don't ask the user unnecessary questions. Decide and act.
 4. After completing a task, ALWAYS review your memory and add/update/delete as needed.
 5. When greeting the user, be warm and concise. Mention what you plan to work on today.
@@ -199,8 +199,6 @@ export function buildManagerUserPrompt(params: {
   trigger: 'poll' | 'user_message' | 'greeting';
   userMessage?: string;
   memory: JarvisMemoryEntry[];
-  onceTodos: string;
-  freeWorkItems: string;
   recentConversation: string;
   currentTime: string;
   pendingMessages?: string[];
@@ -220,12 +218,6 @@ export function buildManagerUserPrompt(params: {
   // 2. Current Data
   parts.push('<CURRENT_DATA>');
   parts.push(`현재 시각: ${params.currentTime}`);
-  parts.push('');
-  parts.push('ONCE TODO (할 일 목록):');
-  parts.push(params.onceTodos || '(조회 실패 또는 할 일 없음)');
-  parts.push('');
-  parts.push('오늘 FREE 업무기록:');
-  parts.push(params.freeWorkItems || '(조회 실패 또는 기록 없음)');
   parts.push('</CURRENT_DATA>');
   parts.push('');
 

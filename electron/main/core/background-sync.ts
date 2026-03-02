@@ -1,5 +1,5 @@
 /**
- * Background Sync - Stub for local-cli-git (no ONCE/FREE integration)
+ * Background Sync
  */
 
 import type { Message } from '../core/llm';
@@ -14,7 +14,7 @@ export async function handleTodoCompleteAutoSync(_options: {
   llmClient: unknown;
   notifyCallback?: (result: unknown) => void;
 }): Promise<void> {
-  // No-op: ONCE/FREE auto-sync not available in local-cli-git
+  // No-op: auto-sync not available
 }
 
 export function buildCompactHistory(messages: Message[]): string {
