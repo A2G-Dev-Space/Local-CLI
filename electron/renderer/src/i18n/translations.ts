@@ -69,29 +69,14 @@ const translations: Record<Language, Record<string, string>> = {
 
     // Settings
     'settings.title': '설정',
-    'settings.account': '계정',
     'settings.appearance': '외관',
     'settings.tools': '외부 도구',
     'settings.close': '설정 닫기',
     'settings.back': '뒤로',
-    'settings.account.desc': '로그인 상태 및 플랜 정보',
     'settings.appearance.desc': '글꼴, 크기, 색상 테마',
     'settings.tools.desc': 'VSCode 경로 및 연동',
-    'settings.account.title': '설정 > 계정',
     'settings.appearance.title': '설정 > 외관',
     'settings.tools.title': '설정 > 외부 도구',
-
-    // Settings - Account
-    'account.loginInfo': '로그인 정보',
-    'account.name': '이름',
-    'account.email': '이메일',
-    'account.provider': '제공자',
-    'account.plan': '플랜',
-    'account.expires': '만료',
-    'account.logout': '로그아웃',
-    'account.logoutTitle': '계정에서 로그아웃',
-    'account.notLoggedIn': '로그인되지 않았습니다',
-    'account.loading': '로딩 중...',
 
     // Settings - Appearance
     'appearance.fontSize': '글자 크기',
@@ -355,29 +340,14 @@ const translations: Record<Language, Record<string, string>> = {
 
     // Settings
     'settings.title': 'Settings',
-    'settings.account': 'Account',
     'settings.appearance': 'Appearance',
     'settings.tools': 'External Tools',
     'settings.close': 'Close Settings',
     'settings.back': 'Back',
-    'settings.account.desc': 'Login status & plan info',
     'settings.appearance.desc': 'Font, size & color theme',
     'settings.tools.desc': 'VSCode path & integrations',
-    'settings.account.title': 'Settings > Account',
     'settings.appearance.title': 'Settings > Appearance',
     'settings.tools.title': 'Settings > External Tools',
-
-    // Settings - Account
-    'account.loginInfo': 'Login Info',
-    'account.name': 'Name',
-    'account.email': 'Email',
-    'account.provider': 'Provider',
-    'account.plan': 'Plan',
-    'account.expires': 'Expires',
-    'account.logout': 'Logout',
-    'account.logoutTitle': 'Sign out of your account',
-    'account.notLoggedIn': 'Not logged in',
-    'account.loading': 'Loading...',
 
     // Settings - Appearance
     'appearance.fontSize': 'Font Size',

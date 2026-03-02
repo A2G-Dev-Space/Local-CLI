@@ -64,8 +64,5 @@ export type {
   RecentFile,
 } from './compact';
 
-// Docs Manager (CLI parity)
-export * from './docs-manager';
-
 // Usage Tracker (CLI parity)
 export * from './usage-tracker';

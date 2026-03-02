@@ -8,6 +8,3 @@ export { SettingsBrowser as SettingsDialog } from './SettingsDialog.js';
 
 // Re-export with original name for backwards compatibility
 export { SettingsBrowser } from './SettingsDialog.js';
-
-// Docs browser
-export { DocsBrowser } from './DocsBrowser.js';

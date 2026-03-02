@@ -50,10 +50,6 @@ export const SLASH_COMMANDS: CommandMetadata[] = [
     description: 'Load a saved session',
   },
   {
-    name: '/docs',
-    description: 'Download framework documentation (agno, adk)',
-  },
-  {
     name: '/tool',
     description: 'Enable/disable optional tools (Browser, Background)',
     aliases: ['/tools'],
