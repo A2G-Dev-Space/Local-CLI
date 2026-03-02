@@ -1,5 +1,5 @@
 {
-  "name": "hanseol",
+  "name": "local-cli-agent",
   "version": "5.0.2",
   "description": "Local-CLI - OpenAI-Compatible Coding Agent",
   "type": "module",

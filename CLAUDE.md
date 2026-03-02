@@ -184,17 +184,16 @@ CLI flags:
 
 JSON stream logs are written by `src/utils/logger.ts` for analysis.
 
-## ⚠️ ONCE/FREE 도구 제외 (Open-Source 제한)
+## ⚠️ Cherry-pick 시 주의사항
 
 **이 저장소는 오픈소스(A2G-Dev-Space/Local-CLI)입니다.**
 
-`ONCE_TOOLS`, `FREE_TOOLS` 등 외부 서비스(ONCE/FREE) 관련 도구는 **절대 포함하지 않습니다.**
-
-cherry-pick 시 주의:
-- `src/tools/registry.ts`에 `ONCE_TOOLS` import/registration 추가 금지
-- `electron/main/tools/registry.ts`에 `ONCE_TOOLS` import/registration 추가 금지
-- `ONCE_URL`, `FREE_URL` 상수는 `constants.ts`에 존재하지만 도구로 등록하지 않음
-- main-dev/main에서 cherry-pick할 때 ONCE/FREE 관련 코드가 포함되면 반드시 제거
+Hanseol(main/main-dev)에서 cherry-pick할 때 반드시 확인:
+- 외부 서비스 도구(ONCE_TOOLS, FREE_TOOLS 등) import/registration 추가 금지
+- Dashboard URL, ONCE_URL, FREE_URL, CREDENTIALS_FILE_PATH 등 enterprise 상수 추가 금지
+- OAuth 로그인, Dashboard 인증, credentials.json 관련 코드 추가 금지
+- `hanseol`, `한설`, `nexus-coder` 등 enterprise 브랜딩 유입 금지 → `local-cli`/`Local-CLI` 사용
+- PROD/DEV IP(3.39.170.84, 52.78.246.50) 노출 금지
 
 ## Platform Notes
 
