@@ -276,22 +276,6 @@ export interface ElectronAPI {
       error?: string;
     }>;
   };
-
-  // Auth (Dashboard 인증)
-  auth: {
-    getCredentials: () => Promise<{
-      success: boolean;
-      credentials?: {
-        email: string | null;
-        displayName: string | null;
-        provider: string | null;
-        plan?: { name: string; displayName: string; tier: string } | null;
-        expiresAt: string;
-      } | null;
-      error?: string;
-    }>;
-    logout: () => Promise<{ success: boolean; error?: string }>;
-  };
 }
 
 // ============ 전역 타입 선언 ============

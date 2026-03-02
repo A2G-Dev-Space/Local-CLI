@@ -237,10 +237,6 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
   const [showModelSelector, setShowModelSelector] = useState(false);
   const [currentModelInfo, setCurrentModelInfo] = useState(modelInfo);
 
-  // DISABLED: Docs Browser state removed - docs feature disabled
-  // const [showDocsBrowser, setShowDocsBrowser] = useState(false);
-  const showDocsBrowser = false; // Always false - docs feature disabled
-
   // Tool Selector state
   const [showToolSelector, setShowToolSelector] = useState(false);
 
@@ -1018,7 +1014,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
       return;
     }
 
-    if (!value.trim() || fileBrowserState.showFileBrowser || showSessionBrowser || showSettings || showSetupWizard || showDocsBrowser) {
+    if (!value.trim() || fileBrowserState.showFileBrowser || showSessionBrowser || showSettings || showSetupWizard) {
       return;
     }
 
@@ -1141,7 +1137,6 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         onShowSessionBrowser: () => setShowSessionBrowser(true),
         onShowSettings: () => setShowSettings(true),
         onShowModelSelector: () => setShowModelSelector(true),
-        // DISABLED: onShowDocsBrowser removed - docs feature disabled
         onShowToolSelector: () => setShowToolSelector(true),
         onCompact: llmClient
           ? () => planExecutionState.performCompact(llmClient, messages, setMessages)
@@ -1270,7 +1265,6 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
     showSessionBrowser,
     showSettings,
     showSetupWizard,
-    showDocsBrowser,
     commandBrowserState,
     planningMode,
     messages,
@@ -1477,7 +1471,6 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
     showSettings ||
     showModelSelector ||
     showSessionBrowser ||
-    showDocsBrowser ||
     showLogFiles;
 
   // Render a single log entry
@@ -1845,7 +1838,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
             <CustomTextInput
               value={input}
               onChange={(value) => {
-                if (showSessionBrowser || showSettings || showDocsBrowser) {
+                if (showSessionBrowser || showSettings) {
                   return;
                 }
                 setInput(value);
@@ -1860,11 +1853,9 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
                   ? "Select a session or press ESC..."
                   : showSettings
                   ? "Press ESC to close settings..."
-                  : showDocsBrowser
-                  ? "Select a doc source or press ESC..."
                   : "Type your message... (@ files, / commands, Alt+Enter newline)"
               }
-              focus={!showSessionBrowser && !showSettings && !showDocsBrowser && !planExecutionState.askUserRequest}
+              focus={!showSessionBrowser && !showSettings && !planExecutionState.askUserRequest}
             />
           </Box>
           {/* Character counter */}

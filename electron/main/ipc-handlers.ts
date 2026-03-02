@@ -37,13 +37,6 @@ import {
   AskUserRequest,
   AskUserResponse,
 } from './orchestration';
-import {
-  getDocsInfoForIpc as getDocsInfo,
-  downloadDocs,
-  deleteDocs,
-  openDocsFolder,
-  DownloadProgress,
-} from './core/docs-manager';
 import { workerManager } from './workers/worker-manager';
 import { toolRegistry } from './tools/registry';
 import { emitToCLI } from './cli-server-bridge';
@@ -2062,31 +2055,6 @@ export function setupIpcHandlers(): void {
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
-  });
-
-  // ============ Documentation ============
-
-  // 문서 정보 가져오기
-  ipcMain.handle('docs:getInfo', async () => {
-    return await getDocsInfo();
-  });
-
-  // 문서 다운로드
-  ipcMain.handle('docs:download', async (_event, sourceId: string) => {
-    const progressCallback = (progress: DownloadProgress) => {
-      chatWindow?.webContents.send('docs:downloadProgress', progress);
-    };
-    return await downloadDocs(sourceId, progressCallback);
-  });
-
-  // 문서 삭제
-  ipcMain.handle('docs:delete', async (_event, sourceId: string) => {
-    return await deleteDocs(sourceId);
-  });
-
-  // 문서 폴더 열기
-  ipcMain.handle('docs:openFolder', async () => {
-    return await openDocsFolder();
   });
 
   // ===========================================================================

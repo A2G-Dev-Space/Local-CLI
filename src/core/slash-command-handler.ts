@@ -10,13 +10,6 @@ import { sessionManager } from './session/session-manager.js';
 import { usageTracker } from './usage-tracker.js';
 import { contextTracker } from './compact/context-tracker.js';
 import { logger } from '../utils/logger.js';
-// DISABLED: docs feature removed
-// import {
-//   getDocsInfo,
-//   downloadDocsFromSource,
-//   getAvailableSources,
-// } from './docs-manager.js';
-
 // Planning mode is always 'auto' - other modes have been removed
 export type PlanningMode = 'auto';
 
@@ -40,7 +33,6 @@ export interface CommandHandlerContext {
   onShowSessionBrowser?: () => void;
   onShowSettings?: () => void;
   onShowModelSelector?: () => void;
-  // DISABLED: onShowDocsBrowser removed - docs feature disabled
   onShowToolSelector?: () => void;
   onCompact?: () => Promise<CompactResult>;
 }
@@ -226,9 +218,6 @@ export async function executeSlashCommand(
       },
     };
   }
-
-  // DISABLED: /docs command removed
-  // The docs feature has been disabled
 
   // Help command
   if (trimmedCommand === '/help') {
