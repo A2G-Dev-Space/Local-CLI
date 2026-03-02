@@ -60,7 +60,7 @@ program
     // -p 모드: non-interactive pipe 모드
     if (options.pipe) {
       if (!prompt) {
-        console.error('Error: -p 옵션에는 프롬프트가 필요합니다. 예: hanseol -p "파일 목록 보여줘"');
+        console.error('Error: -p 옵션에는 프롬프트가 필요합니다. 예: lcli -p "파일 목록 보여줘"');
         process.exit(1);
       }
       await runPipeMode(prompt, options.specific ?? false);
@@ -75,7 +75,7 @@ program
       // Show loading spinner immediately (before any async work)
       const ora = (await import('ora')).default;
       const spinner = ora({
-        text: chalk.cyan('한설 시작 중...'),
+        text: chalk.cyan('Local-CLI 시작 중...'),
         color: 'cyan',
       }).start();
 

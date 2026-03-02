@@ -57,7 +57,7 @@ const translations: Record<Language, Record<string, string>> = {
     'chat.compacting': '대화 압축 중...',
     'chat.noDirectory': '디렉토리가 선택되지 않았습니다',
     'chat.loadingLogs': '로그 로딩 중...',
-    'chat.welcome': '# 한설 Assistant에 오신 것을 환영합니다\n\n그 무엇이든지 시켜주세요. 무엇이든 대신해드릴게요.\n\n- **코드 작성 및 수정** - 코딩, 디버깅, 리팩토링을 도와드립니다\n- **파일 관리** - 파일 탐색, 생성, 수정, 정리를 대신합니다\n- **PowerShell 명령** - 시스템 작업과 자동화를 수행합니다\n- **브라우저 자동화** - 웹 검색, 스크래핑, 폼 입력을 대행합니다\n- **Excel 작업** - 데이터 분석, 차트 생성, 수식 작성을 합니다\n- **Word 문서** - 보고서 작성, 서식 편집, 문서 변환을 합니다\n- **PowerPoint** - 프레젠테이션 생성 및 슬라이드 편집을 합니다\n- **문제 해결** - 오류 분석과 트러블슈팅을 해결합니다\n\n아래에 명령을 입력하세요!',
+    'chat.welcome': '# Local-CLI Assistant에 오신 것을 환영합니다\n\n그 무엇이든지 시켜주세요. 무엇이든 대신해드릴게요.\n\n- **코드 작성 및 수정** - 코딩, 디버깅, 리팩토링을 도와드립니다\n- **파일 관리** - 파일 탐색, 생성, 수정, 정리를 대신합니다\n- **PowerShell 명령** - 시스템 작업과 자동화를 수행합니다\n- **브라우저 자동화** - 웹 검색, 스크래핑, 폼 입력을 대행합니다\n- **Excel 작업** - 데이터 분석, 차트 생성, 수식 작성을 합니다\n- **Word 문서** - 보고서 작성, 서식 편집, 문서 변환을 합니다\n- **PowerPoint** - 프레젠테이션 생성 및 슬라이드 편집을 합니다\n- **문제 해결** - 오류 분석과 트러블슈팅을 해결합니다\n\n아래에 명령을 입력하세요!',
 
     // TitleBar
     'titlebar.minimize': '최소화',
@@ -173,7 +173,7 @@ const translations: Record<Language, Record<string, string>> = {
     'approval.footer.cancel': 'ESC 취소',
 
     // Info Modal
-    'info.title': '한설',
+    'info.title': 'Local-CLI',
     'info.version': '버전',
     'info.developer': '개발자',
     'info.contact': '연락처',
@@ -188,7 +188,7 @@ const translations: Record<Language, Record<string, string>> = {
     // Common
     'common.loading': '로딩 중...',
     'app.selectFolder': '작업 폴더 선택',
-    'app.title': '한설 (For Windows)',
+    'app.title': 'Local-CLI (For Windows)',
 
     // TaskApp
     'task.title': '작업',
@@ -343,7 +343,7 @@ const translations: Record<Language, Record<string, string>> = {
     'chat.compacting': 'Compacting conversation...',
     'chat.noDirectory': 'No directory selected',
     'chat.loadingLogs': 'Loading logs...',
-    'chat.welcome': '# Welcome to Hanseol Assistant\n\nTell me anything. I\'ll do it for you.\n\n- **Code & Development** - Coding, debugging, and refactoring assistance\n- **File Management** - Browse, create, edit, and organize files\n- **PowerShell Commands** - System tasks and automation\n- **Browser Automation** - Web search, scraping, and form filling\n- **Excel** - Data analysis, charts, and formulas\n- **Word Documents** - Report writing, formatting, and conversion\n- **PowerPoint** - Create and edit presentations\n- **Troubleshooting** - Error analysis and problem solving\n\nType a command below!',
+    'chat.welcome': '# Welcome to Local-CLI Assistant\n\nTell me anything. I\'ll do it for you.\n\n- **Code & Development** - Coding, debugging, and refactoring assistance\n- **File Management** - Browse, create, edit, and organize files\n- **PowerShell Commands** - System tasks and automation\n- **Browser Automation** - Web search, scraping, and form filling\n- **Excel** - Data analysis, charts, and formulas\n- **Word Documents** - Report writing, formatting, and conversion\n- **PowerPoint** - Create and edit presentations\n- **Troubleshooting** - Error analysis and problem solving\n\nType a command below!',
 
     // TitleBar
     'titlebar.minimize': 'Minimize',
@@ -459,7 +459,7 @@ const translations: Record<Language, Record<string, string>> = {
     'approval.footer.cancel': 'ESC Cancel',
 
     // Info Modal
-    'info.title': 'Hanseol',
+    'info.title': 'Local-CLI',
     'info.version': 'Version',
     'info.developer': 'Developer',
     'info.contact': 'Contact',
@@ -474,7 +474,7 @@ const translations: Record<Language, Record<string, string>> = {
     // Common
     'common.loading': 'Loading...',
     'app.selectFolder': 'Select Working Folder',
-    'app.title': 'Hanseol (For Windows)',
+    'app.title': 'Local-CLI (For Windows)',
 
     // TaskApp
     'task.title': 'Tasks',

@@ -768,7 +768,7 @@ export function setupIpcHandlers(): void {
                   mimeType === 'image/gif' ? '.gif' :
                   mimeType === 'image/webp' ? '.webp' : '.png';
 
-      const tempDir = path.join(os.tmpdir(), 'hanseol-images');
+      const tempDir = path.join(os.tmpdir(), 'local-cli-images');
       if (!fs.existsSync(tempDir)) {
         fs.mkdirSync(tempDir, { recursive: true });
       }

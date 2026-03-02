@@ -1,5 +1,5 @@
 /**
- * Hanseol UI - Task Window
+ * Local-CLI UI - Task Window
  * Displays agent TODO progress in a separate window.
  * Subscribes to IPC events independently (separate renderer process).
  */
