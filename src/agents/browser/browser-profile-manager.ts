@@ -38,14 +38,14 @@ export function getProfileDir(): string {
     // spawnSync로 sh 우회 → $env:LOCALAPPDATA가 PowerShell에서 직접 해석됨
     try {
       const psPath = getPowerShellPath();
-      const psScript = "$d = Join-Path $env:LOCALAPPDATA 'hanseol-browser-profile'; if(-not(Test-Path $d)){New-Item -ItemType Directory -Path $d -Force | Out-Null}; Write-Output $d";
+      const psScript = "$d = Join-Path $env:LOCALAPPDATA 'local-cli-browser-profile'; if(-not(Test-Path $d)){New-Item -ItemType Directory -Path $d -Force | Out-Null}; Write-Output $d";
       const result = spawnSync(psPath, ['-NoProfile', '-Command', psScript], {
         encoding: 'utf-8',
         timeout: 10000,
       });
       const profileDir = (result.stdout || '').trim();
       if (profileDir && profileDir.includes('\\')) {
-        return profileDir; // e.g. "C:\Users\gkstm\AppData\Local\hanseol-browser-profile"
+        return profileDir; // e.g. "C:\Users\gkstm\AppData\Local\local-cli-browser-profile"
       }
     } catch { /* fall through to fallback */ }
     // 폴백: wslvar로 LOCALAPPDATA 조회
@@ -53,10 +53,10 @@ export function getProfileDir(): string {
       const result = spawnSync('wslvar', ['LOCALAPPDATA'], { encoding: 'utf-8', timeout: 5000 });
       const localAppData = (result.stdout || '').trim();
       if (localAppData) {
-        return `${localAppData}\\hanseol-browser-profile`;
+        return `${localAppData}\\local-cli-browser-profile`;
       }
     } catch { /* fall through */ }
-    return 'C:\\Users\\Default\\AppData\\Local\\hanseol-browser-profile';
+    return 'C:\\Users\\Default\\AppData\\Local\\local-cli-browser-profile';
   }
   if (platform === 'native-windows') {
     const dir = path.join(process.env['LOCALAPPDATA'] || LOCAL_HOME_DIR, PROFILE_DIR_NAME);

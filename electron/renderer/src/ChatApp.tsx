@@ -1,5 +1,5 @@
 /**
- * Hanseol UI - Chat Window (Main)
+ * Local-CLI UI - Chat Window (Main)
  * Full chat functionality: LLM conversation, terminal, logs, session management.
  * No IDE features (editor, file explorer, sidebar removed).
  * Closing this window terminates the app.

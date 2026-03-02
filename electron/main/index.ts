@@ -780,7 +780,7 @@ app.on('before-quit', async () => {
 
   // 이미지 임시 파일 정리
   try {
-    const tempImageDir = path.join(os.tmpdir(), 'hanseol-images');
+    const tempImageDir = path.join(os.tmpdir(), 'local-cli-images');
     if (fs.existsSync(tempImageDir)) {
       fs.rmSync(tempImageDir, { recursive: true, force: true });
     }
