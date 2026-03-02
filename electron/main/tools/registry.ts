@@ -437,7 +437,7 @@ export function initializeToolRegistry(): void {
   // LLM Planning Tools
   toolRegistry.registerAll(PLANNING_TOOLS);
 
-  // Note: ONCE/FREE tools excluded from local-cli-git (open-source)
+  // Note: External service tools not included
 
   // Office sub-agent tools (Agent as a Tool)
   // Electron runs on Windows, so always register

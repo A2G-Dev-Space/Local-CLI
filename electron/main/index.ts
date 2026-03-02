@@ -41,9 +41,6 @@ let chatWindow: BrowserWindow | null = null;
 let taskWindow: BrowserWindow | null = null;
 let jarvisWindow: BrowserWindow | null = null;
 
-// 인증 중 플래그 (OAuth 창 닫힘 시 window-all-closed 방지)
-let isAuthenticating = false;
-
 // Jarvis 모드 관련
 import { DEFAULT_JARVIS_CONFIG, jarvisService } from './jarvis';
 import { JarvisTray } from './jarvis/jarvis-tray';
@@ -746,9 +743,8 @@ app.whenReady().then(async () => {
 // ============ 앱 종료 처리 ============
 
 // 모든 창이 닫히면 앱 종료 (macOS 제외)
-// 단, 인증 중이거나 Jarvis가 트레이에서 동작 중이면 종료하지 않음
+// Jarvis가 트레이에서 동작 중이면 종료하지 않음
 app.on('window-all-closed', () => {
-  if (isAuthenticating) return;
   // Jarvis 활성화 시 트레이에서 계속 동작 (앱 종료하지 않음)
   const jarvisConfig = configManager.get('jarvis') || DEFAULT_JARVIS_CONFIG;
   if (jarvisConfig.enabled && jarvisTray?.isCreated()) return;

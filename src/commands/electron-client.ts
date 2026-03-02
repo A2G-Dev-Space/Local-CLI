@@ -10,8 +10,6 @@ import { spawn, execSync } from 'child_process';
 import path from 'path';
 import os from 'os';
 import fs from 'fs';
-import { APP_NAME } from '../constants.js';
-
 /** SSE 이벤트 */
 export interface SSEEvent {
   event: string;
@@ -59,7 +57,7 @@ export class ElectronClient {
     if (!exePath) {
       throw new Error(
         `Electron 앱을 찾을 수 없습니다.\n` +
-        `환경변수 HANSEOL_ELECTRON_PATH를 설정하거나 앱을 먼저 설치해주세요.`
+        `환경변수 LOCAL_CLI_ELECTRON_PATH를 설정하거나 앱을 먼저 설치해주세요.`
       );
     }
 
@@ -180,18 +178,13 @@ export class ElectronClient {
    */
   private findElectronPath(): string | null {
     // 1. 환경변수
-    if (process.env['HANSEOL_ELECTRON_PATH']) {
-      const envPath = process.env['HANSEOL_ELECTRON_PATH'];
+    if (process.env['LOCAL_CLI_ELECTRON_PATH']) {
+      const envPath = process.env['LOCAL_CLI_ELECTRON_PATH'];
       if (fs.existsSync(envPath)) return envPath;
     }
 
-    // 브랜드별 앱 이름 매핑
-    const appNames: Record<string, string> = {
-      'hanseol-dev': '한설 DEV',
-      'hanseol': '한설',
-      'nexus-coder': 'Nexus Bot (For Windows)',
-    };
-    const appDisplayName = appNames[APP_NAME] || APP_NAME;
+    // Electron app display name
+    const appDisplayName = 'LOCAL-CLI-UI';
 
     if (this.isWSL()) {
       // WSL: /mnt/c/Users/{USER}/AppData/Local/{앱이름}/{앱이름}.exe

@@ -490,7 +490,7 @@ export function initializeToolRegistry(): void {
   // LLM Planning Tools - create_todos (for task planning)
   toolRegistry.registerAll(PLANNING_TOOLS);
 
-  // Note: ONCE/FREE tools excluded from local-cli-git (open-source)
+  // Note: External service tools not included
 
   // Note: Browser tools are registered via /tool command
 

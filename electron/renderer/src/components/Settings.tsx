@@ -1049,7 +1049,7 @@ const JarvisSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             fontSize: '11px', lineHeight: '1.6', color: 'var(--color-text-secondary)',
           }}>
             <strong>자비스 동작 방식:</strong><br />
-            • ONCE TODO + FREE 업무기록을 {pollInterval}분마다 확인<br />
+            • {pollInterval}분마다 상태를 확인하고 작업 분석<br />
             • Manager LLM이 자율적으로 판단하여 작업 실행<br />
             • 채팅 창을 닫아도 트레이에서 계속 동작<br />
             • 트레이 우클릭 → "종료"로만 완전 종료<br />
