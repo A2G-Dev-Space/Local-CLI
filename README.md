@@ -10,6 +10,8 @@
 
 https://github.com/user-attachments/assets/77cc96c9-cb22-4411-8744-3a006b00c580
 
+> **Demo**: The video above shows LOCAL-CLI autonomously editing code with Plan & Execute.
+
 ---
 
 ## Why LOCAL-CLI?
@@ -19,9 +21,11 @@ https://github.com/user-attachments/assets/77cc96c9-cb22-4411-8744-3a006b00c580
 | **Zero Cloud Dependency** | Runs entirely on your local/on-prem LLM. Your code never leaves your network. |
 | **No API Cost** | Use open-source models (Llama, Qwen, DeepSeek, etc.) for free. |
 | **Any OpenAI-Compatible API** | Works with vLLM, Ollama, LM Studio, Azure OpenAI, Google Gemini, and more. |
-| **Autonomous Coding Agent** | Reads, searches, edits, and creates code files - not just chat. |
-| **Plan & Execute** | Breaks complex tasks into TODO steps and executes them sequentially. |
+| **Autonomous Coding Agent** | Reads, searches, edits, and creates code files — not just chat. |
+| **Plan & Execute** | Breaks complex tasks into TODO steps and executes them step by step. |
 | **Safe by Default** | Supervised mode requires your approval before any file modification. |
+| **Sub-Agent Architecture** | Dedicated sub-agents for Office and Browser with specialized prompts. |
+| **Pipe Mode** | Non-interactive CLI mode (`-p`) for scripting and automation pipelines. |
 | **Desktop GUI (Electron)** | Dual-window desktop app with chat + real-time task monitoring. |
 | **Vision Model Support** | Analyze images and screenshots with Vision Language Models. |
 | **Office Automation** | Control Excel, Word, PowerPoint directly via PowerShell/COM (Windows). |
@@ -40,14 +44,17 @@ cd Local-CLI
 npm install && npm run build
 
 # 2. Run
-node dist/cli.js       # or use 'lcli' after npm link
+node dist/cli.js
+
+# Optional: create a global 'lcli' command
+npm link
 ```
 
 The endpoint setup wizard launches automatically on first run.
 
 ### Desktop App (Electron)
 
-Download the latest portable `.exe` from the [Releases](https://github.com/A2G-Dev-Space/Local-CLI/releases) page - no installation required.
+Download the latest Windows portable `.exe` from the [Releases](https://github.com/A2G-Dev-Space/Local-CLI/releases) page — no installation required.
 
 ---
 
@@ -55,16 +62,17 @@ Download the latest portable `.exe` from the [Releases](https://github.com/A2G-D
 
 ### Dual-Window Desktop App
 
-The Electron desktop app provides a **Chat Window** and a separate **Task Popup** for real-time TODO monitoring:
+The Electron desktop app provides a **Chat Window** and a separate **Task Popup** for real-time task monitoring:
 
 - **Chat Window** - Full-featured chat UI with markdown rendering, code syntax highlighting, and file diff viewer
-- **Task Popup** - Always-on-top TODO tracker showing current progress, execution status, and tool activity
+- **Task Popup** - Always-on-top task tracker showing current progress, execution status, and tool activity
+- **Multi-session** - Run multiple independent agent sessions in parallel via worker threads
 - **"Waiting for user input"** indicator when the agent needs your response
 - **Taskbar flashing** when tasks complete or user input is needed (even when minimized)
 - **Auto-expanding input** - Text area grows dynamically up to half the screen height
-- **Table paste** - Paste tables from Excel/web and they convert to markdown automatically
+- **Table paste** - Paste tables from Excel or web pages — auto-converts to markdown
 - **Image paste** - Paste or attach images for Vision model analysis
-- **Per-model selection** - Choose different models for Planning and Execution independently
+- **Per-model selection** - Choose different models for Planning and Execution
 - **Last folder restore** - Reopens the last working directory on app restart
 - **VSCode diff toggle** - Persistent setting for automatic file diff viewing
 
@@ -95,7 +103,7 @@ Analyze images and screenshots directly from the chat:
 Every file modification requires your explicit approval:
 
 - **Tab** to toggle between Auto / Supervised mode
-- Only file modification tools need approval (read/search are always allowed)
+- Only file modification tools need approval (read and search tools are always allowed)
 - Reject with feedback to guide the agent's next attempt
 
 ### Office Automation (60+ Tools)
@@ -110,22 +118,23 @@ Every file modification requires your explicit approval:
 
 - Navigate pages, click elements, fill forms
 - Take screenshots, extract text
-- No external server required (Chrome DevTools Protocol)
+- Uses Chrome DevTools Protocol directly — no WebDriver or external server needed
 
 ### LLM Compatibility
 
-Works well even with smaller/weaker open-source models:
+Works well even with smaller or less capable open-source models:
 
 - **Schema pre-validation** - Fixes malformed tool calls before execution
 - **Smart retry** - Automatically retries on transient LLM errors with context
+- **Extended retry with user prompt** - On persistent failures, offers a retry option instead of crashing
 - **Loop detection** - Breaks out of repetitive tool call cycles
-- **Tool name sanitization** - Handles special token contamination in tool names
-- **Prompt repetition** - Reinforces critical instructions for models that forget context
+- **Tool name sanitization** - Cleans up malformed tool names caused by special tokens in model output
+- **Prompt repetition** - Reinforces critical instructions for models with limited context retention
 
 ### Session Management
 
 - Save and restore conversation history
-- Auto-context compression at 80% capacity with TODO preservation
+- Auto-context compression when token usage reaches 80%, preserving TODO state
 - Resume work exactly where you left off
 
 ---
@@ -136,7 +145,7 @@ Works well even with smaller/weaker open-source models:
 
 | Command | Description |
 |---------|-------------|
-| `/help` | Help |
+| `/help` | Show help information |
 | `/clear` | Reset conversation |
 | `/compact` | Compress conversation |
 | `/load` | Load saved session |
@@ -161,8 +170,11 @@ Works well even with smaller/weaker open-source models:
 ## Configuration
 
 ```bash
-lcli            # Setup wizard on first run
-/settings       # Settings menu while running
+# Terminal — setup wizard launches on first run
+lcli
+
+# Inside LOCAL-CLI — open settings menu
+/settings
 ```
 
 Any OpenAI-compatible API works:
@@ -175,40 +187,59 @@ vLLM, Ollama, LM Studio, Azure OpenAI, Google Gemini, or internal LLM servers.
 - Node.js v20+
 - npm v10+
 - Git
-- Windows (for Office/Browser automation via PowerShell)
+- Windows (required only for Office and Browser automation features)
 
 ---
 
-## Changelog (since v4.0.7)
+## Changelog
+
+### v5.0.2
+- Office Sub-Agent prompt refactoring for 95+ quality scores
+- Unified branding cleanup (removed all enterprise references)
+- Fixed Electron vision tool missing + worker shutdown race condition
+- Fixed Jarvis mode auto-update not triggering
+
+### v5.0.1
+- Added pipe mode (`-p`) for non-interactive CLI usage in scripts and automation
+- Fixed pipe mode final_response capture bug
+- Office Sub-Agent architecture (Agent as a Tool) with specialized prompts
+
+### v5.0.0
+- **Sub-Agent architecture** — Dedicated sub-agents for Office and Browser with manager/worker LLM pattern
+- **Jarvis autonomous assistant mode** — Always-on-top voice-style UI with tray menu
+- **Multi-session support** — Run multiple independent sessions in parallel via worker threads
+- **Extended LLM retry** — User-facing retry prompt on persistent LLM failures instead of crashing
+- **Auto-generated session titles** — Planning LLM generates meaningful session names
+- Planning auto-save to prevent session loss on interruption
 
 ### v4.5.1
-- Fix: Electron shutdown crash (write-after-end)
-- Fix: Planning LLM tool_choice fallback for unsupported models
-- Fix: Electron chatCompletion response validation crash
+- Fixed Electron shutdown crash (write-after-end)
+- Fixed Planning LLM tool_choice fallback for unsupported models
+- Fixed Electron chatCompletion response validation crash
 
 ### v4.5.0
-- Electron: 6 UX improvements (ask_to_user waiting indicator, taskbar flash, auto-expanding input, VSCode diff persistence, table paste, image paste)
+- Electron: 6 UX improvements (waiting indicator, taskbar flash, auto-expanding input, VSCode diff persistence, table paste, image paste)
 - Enhanced Planning/Execution prompts + GPT-OSS reasoning_effort support
 - Execution result verification rules with Vision screenshot verification
 - Auto-compact parity between CLI and Electron (TODO preservation)
-- Screenshot save path migrated to working directory
+- Screenshots now saved to working directory
 
 ### v4.4.0
 - Per-model selection for Planning and Execution LLMs
 - Last opened folder restoration on app restart
 - Error telemetry system (ErrorReporter)
-- Excel write_range bug fix (#N/A values)
+- Fixed Excel write_range bug (#N/A values)
 - Excel tool parameter validation + trim handling
 
 ### v4.3.0
 - Vision Language Model (VLM) support with read_image tool
 - Settings UI Vision toggle
-- Schema pre-validation + Prompt repetition for weaker LLMs
+- Schema pre-validation + Prompt repetition for less capable LLMs
 - Office COM DisplayAlerts auto-suppression
 - Office COM Visible always-on + Electron Launch method
 
 ### v4.2.0
-- Electron Dual-window UI (Chat + Task popup) - major UI refactoring
+- Electron Dual-window UI (Chat + Task popup) — major UI refactoring
 - LLM message structure improvement (XML-based History/Request separation)
 - Smart retry + loop detection for LLM robustness
 - Tool name sanitization (special token contamination defense)
@@ -216,9 +247,9 @@ vLLM, Ollama, LM Studio, Azure OpenAI, Google Gemini, or internal LLM servers.
 - PowerShell curl/wget alias auto-substitution
 - Supervised Mode bug fixes + escape character handling
 
-### v4.1.5 - v4.1.7
+### v4.1.5 — v4.1.7
 - UI/UX improvements and docs-search disable
-- Planning LLM infinite loop fix (askUser callback)
+- Fixed Planning LLM infinite loop (askUser callback)
 - 3-second delay + Supervised Mode fixes + model selection bug fix
 
 ---
@@ -234,7 +265,8 @@ vLLM, Ollama, LM Studio, Azure OpenAI, Google Gemini, or internal LLM servers.
 
 ## Contact
 
-Email: **gkstdmgk2731@naver.com**
+- **GitHub Issues**: https://github.com/A2G-Dev-Space/Local-CLI/issues
+- **Email**: gkstdmgk2731@naver.com
 
 ---
 
