@@ -30,6 +30,25 @@ if (!parentPort) {
 }
 
 const port = parentPort;
+
+// Prevent unhandled rejections from crashing the worker thread (exit code 1).
+// Node.js >= 15 terminates on unhandled rejections by default.
+// Background async operations (reportError, handleTodoCompleteAutoSync) can produce
+// rejections after abort — these should not kill the worker.
+process.on('unhandledRejection', (reason) => {
+  const msg = reason instanceof Error ? reason.message : String(reason);
+  logger.warn('[Worker] Unhandled rejection (suppressed)', { reason: msg, stack: reason instanceof Error ? reason.stack?.split('\n').slice(0, 3).join('\n') : undefined });
+});
+
+process.on('uncaughtException', (error) => {
+  logger.error('[Worker] Uncaught exception', { error: error.message, stack: error.stack?.split('\n').slice(0, 5).join('\n') });
+  // Notify main process so the renderer can show an error.
+  // Wrap in try-catch: if the exception corrupted state, postMessage itself could throw.
+  try {
+    port.postMessage({ type: 'error', error: `Worker uncaught exception: ${error.message}` });
+  } catch { /* port may be unusable — worker will be auto-recreated on exit */ }
+});
+
 const initData = workerData as WorkerInitData;
 const sessionId = initData.sessionId;
 
