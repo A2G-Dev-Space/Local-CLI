@@ -713,9 +713,12 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
       // Save all messages (including tool messages) to session for proper compact support
       // result.messages includes: user, assistant (with tool_calls), tool responses
       // Use refs to avoid stale closure (agent.run can take a long time)
+      // BUG FIX: Only save on success — on error, failed tool loop messages accumulate
+      // in the session and get re-sent to the LLM on the next attempt, causing a snowball
+      // effect (1→4→7→14 messages) that triggers repeated HTTP 400 errors.
       const currentSession = sessionRef.current;
       const currentOnSessionChange = onSessionChangeRef.current;
-      if (result.messages && result.messages.length > 0 && currentSession && currentOnSessionChange) {
+      if (result.success && result.messages && result.messages.length > 0 && currentSession && currentOnSessionChange) {
         const agentStart = userMessage.timestamp;
         const agentEnd = Date.now();
         const totalDuration = agentEnd - agentStart;

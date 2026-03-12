@@ -514,9 +514,26 @@ class LLMClient {
           }
         }
 
+        // Log full error response body for debugging (CLI parity)
+        logger.errorSilent('=== API ERROR DETAILS ===', {
+          status: response.status,
+          statusText: response.statusText,
+          url,
+          model: modelId,
+          errorMessage,
+          responseBody: errorText?.substring(0, 2000),
+          messagesCount: options.messages.length,
+        });
+
         // Use specific error classes based on status code
         if (response.status === 429) {
           throw new RateLimitError(undefined, {
+            details: { originalMessage: errorMessage },
+          });
+        }
+        // Context length error detection for non-stream (CLI parity with stream path)
+        if (this.isContextLengthError(new Error(errorMessage))) {
+          throw new ContextLengthError(0, undefined, {
             details: { originalMessage: errorMessage },
           });
         }
@@ -739,6 +756,17 @@ class LLMClient {
             errorMessage = errorText.substring(0, 500);
           }
         }
+
+        // Log full error response body for debugging (CLI parity)
+        logger.errorSilent('=== API ERROR DETAILS (stream) ===', {
+          status: response.status,
+          statusText: response.statusText,
+          url,
+          model: modelId,
+          errorMessage,
+          responseBody: errorText?.substring(0, 2000),
+          messagesCount: options.messages.length,
+        });
 
         // Use specific error classes based on status code
         if (response.status === 429) {

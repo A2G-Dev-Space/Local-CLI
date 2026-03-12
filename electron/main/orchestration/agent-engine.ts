@@ -34,7 +34,7 @@ import {
 } from '../tools';
 import { setReasoningCallback, setToolApprovalCallback, requestToolApproval } from '../tools/llm/simple/simple-tool-executor';
 import type { ToolApprovalResult } from '../tools/llm/simple/simple-tool-executor';
-import { ContextLengthError, QuotaExceededError, LLMRetryExhaustedError } from '../errors';
+import { ContextLengthError, QuotaExceededError, LLMRetryExhaustedError, APIError } from '../errors';
 import { buildPlanExecutePrompt, getCriticalReminders, VISION_VERIFICATION_RULE } from '../prompts';
 import { GIT_COMMIT_RULES } from '../prompts/shared/git-rules';
 import { PlanningLLM } from '../agents/planner';
@@ -615,6 +615,32 @@ export async function runAgentCore(
             toolCalls: toolCallHistory,
             iterations,
             error: quotaMsg,
+          };
+        } else if (llmError instanceof APIError && llmError.statusCode === 400 && iterations > 1 && toolLoopMessages.length > 0) {
+          // HTTP 400 after successful tool execution — likely CONVERSATION_HISTORY grew too large.
+          // Condition: iterations > 1 ensures at least one successful LLM call occurred,
+          // so the request format itself is valid. A 400 on iteration 1 is a genuine format
+          // error and should propagate normally.
+          // Some LLM proxies (e.g. Samsung A2G) return 400 instead of standard context_length error.
+          const errorMsg = `LLM API 요청 오류 (HTTP 400). 도구 실행 결과가 너무 크거나 메시지 형식이 호환되지 않을 수 있습니다.`;
+          logger.warn('HTTP 400 after tool execution - returning gracefully', {
+            toolLoopLength: toolLoopMessages.length,
+            iterations,
+            error: (llmError as Error).message,
+          });
+          if (callbacks.onTellUser) {
+            callbacks.onTellUser(errorMsg);
+          }
+          io.broadcast('agent:tellUser', errorMsg);
+
+          // Return only validMessages + userMessage (exclude failed toolLoopMessages)
+          return {
+            success: false,
+            response: errorMsg,
+            messages: [...validMessages, { role: 'user' as const, content: userMessage }],
+            toolCalls: toolCallHistory,
+            iterations,
+            error: (llmError as Error).message,
           };
         } else {
           throw llmError;
