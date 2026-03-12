@@ -3,6 +3,8 @@
  *
  * Tools for managing visual effects: transitions, backgrounds, animations,
  * shadows, reflections, and themes.
+ *
+ * CLI parity: electron/main/tools/office/powerpoint-tools/effects.ts
  */
 
 import { ToolDefinition } from '../../../types/index.js';

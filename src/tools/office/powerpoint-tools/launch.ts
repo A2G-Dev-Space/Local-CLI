@@ -8,8 +8,9 @@
 import { ToolDefinition } from '../../../types/index.js';
 import { LLMSimpleTool, ToolResult } from '../../types.js';
 import { powerpointClient } from '../powerpoint-client.js';
-import { saveScreenshot } from '../common/utils.js';
+import { saveScreenshot, delay, APP_LAUNCH_DELAY_MS } from '../common/utils.js';
 import { OFFICE_CATEGORIES } from '../common/constants.js';
+import { resetLayoutCounters } from './layout-builders.js';
 
 // =============================================================================
 // PowerPoint Launch
@@ -72,8 +73,11 @@ const POWERPOINT_CREATE_DEFINITION: ToolDefinition = {
 
 async function executePowerPointCreate(_args: Record<string, unknown>): Promise<ToolResult> {
   try {
+    resetLayoutCounters();
     const response = await powerpointClient.powerpointCreate();
     if (response.success) {
+      // Wait for presentation to fully load before LLM proceeds
+      await delay(APP_LAUNCH_DELAY_MS);
       return { success: true, result: response.message || 'New presentation created' };
     }
     return { success: false, error: response.error || 'Failed to create presentation' };
@@ -113,6 +117,8 @@ async function executePowerPointOpen(args: Record<string, unknown>): Promise<Too
   try {
     const response = await powerpointClient.powerpointOpen(args['path'] as string);
     if (response.success) {
+      // Wait for presentation to fully load before LLM proceeds
+      await delay(APP_LAUNCH_DELAY_MS);
       return { success: true, result: `Presentation opened: ${response['presentation_name'] || args['path']}` };
     }
     return { success: false, error: response.error || 'Failed to open presentation' };

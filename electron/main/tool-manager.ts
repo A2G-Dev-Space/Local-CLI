@@ -72,7 +72,7 @@ class ToolManager {
     });
 
     // Office tools removed — now provided as sub-agent tools
-    // (word_work_request, excel_work_request, powerpoint_work_request)
+    // (word_create_agent, word_modify_agent, excel_create_agent, excel_modify_agent, powerpoint_create_agent, powerpoint_modify_agent)
     // Auto-registered in tool registry, no enable/disable needed
   }
 

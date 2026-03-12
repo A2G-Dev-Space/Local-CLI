@@ -41,9 +41,12 @@ import { VISION_TOOLS, findVisionModel } from './llm/simple/read-image-tool.js';
 
 // Import office sub-agent tools (Agent as a Tool)
 import {
-  createWordWorkRequestTool,
-  createExcelWorkRequestTool,
-  createPowerPointWorkRequestTool,
+  createWordCreateRequestTool,
+  createWordModifyRequestTool,
+  createExcelCreateRequestTool,
+  createExcelModifyRequestTool,
+  createPowerPointCreateRequestTool,
+  createPowerPointModifyRequestTool,
 } from '../agents/office/index.js';
 
 // Import browser sub-agent tools (Agent as a Tool)
@@ -124,7 +127,7 @@ function getOptionalToolGroupsConfig(): OptionalToolGroup[] {
   ];
 
   // Office tools removed from optional groups — now provided as sub-agent tools
-  // (word_work_request, excel_work_request, powerpoint_work_request)
+  // (word_create_agent, word_modify_agent, excel_create_agent, excel_modify_agent, powerpoint_create_agent, powerpoint_modify_agent)
   // Auto-registered in initializeToolRegistry() when hasWindowsAccess() is true
 
   return groups;
@@ -497,9 +500,12 @@ export function initializeToolRegistry(): void {
   // Office sub-agent tools: auto-register when Windows access is available
   // These are LLMAgentTool that run a sub-LLM internally
   if (hasWindowsAccess()) {
-    toolRegistry.register(createWordWorkRequestTool());
-    toolRegistry.register(createExcelWorkRequestTool());
-    toolRegistry.register(createPowerPointWorkRequestTool());
+    toolRegistry.register(createWordCreateRequestTool());
+    toolRegistry.register(createWordModifyRequestTool());
+    toolRegistry.register(createExcelCreateRequestTool());
+    toolRegistry.register(createExcelModifyRequestTool());
+    toolRegistry.register(createPowerPointCreateRequestTool());
+    toolRegistry.register(createPowerPointModifyRequestTool());
   }
 
   // Browser sub-agent tools: always register (Chrome/Edge available on all platforms)

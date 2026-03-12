@@ -164,7 +164,7 @@ async function executeExcelWriteRange(args: Record<string, unknown>): Promise<To
     );
     if (response.success) {
       const rows = values.length;
-      const cols = values[0]?.length || 0;
+      const cols = Math.max(...values.map((row: unknown[]) => row?.length || 0));
       logger.toolSuccess('excel_write_range', args, { startCell: args['start_cell'], rows, cols }, Date.now() - startTime);
       return { success: true, result: `Written ${rows}x${cols} values starting at ${args['start_cell']}` };
     }

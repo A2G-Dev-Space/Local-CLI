@@ -2,6 +2,8 @@
  * PowerPoint Section Tools
  *
  * Tools for managing sections in PowerPoint presentations.
+ *
+ * CLI parity: electron/main/tools/office/powerpoint-tools/sections.ts
  */
 
 import { ToolDefinition } from '../../../types/index.js';

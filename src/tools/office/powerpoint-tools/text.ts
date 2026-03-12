@@ -3,6 +3,8 @@
  *
  * Tools for writing text, reading slides, adding textboxes,
  * and formatting text (font, alignment, bullets, spacing, border, fill).
+ *
+ * CLI parity: electron/main/tools/office/powerpoint-tools/text.ts
  */
 
 import { ToolDefinition } from '../../../types/index.js';

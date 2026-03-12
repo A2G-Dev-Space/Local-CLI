@@ -4,6 +4,14 @@
  * Generic iteration loop for all sub-agents (Office, Browser, etc.).
  * Runs an LLM with specialized tools + complete tool in a loop.
  *
+ * When planningPrompt is set:
+ *   Planning Phase → Execution Phase (rebuildMessages pattern, like main agent)
+ *   Every iteration rebuilds [system, user(plan+history+instruction), ...recentMessages]
+ *   so that even weak LLMs always see the plan and know where they are.
+ *
+ * When planningPrompt is NOT set:
+ *   Simple execution loop (existing behavior, no message rebuild).
+ *
  * CLI parity: src/agents/common/sub-agent.ts
  */
 
@@ -13,10 +21,37 @@ import type { LLMSimpleTool, ToolResult } from '../../tools/types';
 import { COMPLETE_TOOL_DEFINITION } from './complete-tool';
 import { logger } from '../../utils/logger';
 
+// Global callback for SubAgent event logging (opt-in)
+type ToolCallLoggerFn = (appName: string, toolName: string, args: Record<string, unknown>, resultText: string, success: boolean, iteration: number, totalCalls: number) => void;
+type PhaseLoggerFn = (appName: string, phase: string, detail: string) => void;
+let globalToolCallLogger: ToolCallLoggerFn | null = null;
+let globalPhaseLogger: PhaseLoggerFn | null = null;
+
+export function setSubAgentToolCallLogger(fn: ToolCallLoggerFn | null): void {
+  globalToolCallLogger = fn;
+}
+
+export function setSubAgentPhaseLogger(fn: PhaseLoggerFn | null): void {
+  globalPhaseLogger = fn;
+}
+
+export function getSubAgentToolCallLogger(): ToolCallLoggerFn | null {
+  return globalToolCallLogger;
+}
+
+export function getSubAgentPhaseLogger(): PhaseLoggerFn | null {
+  return globalPhaseLogger;
+}
+
 export interface SubAgentConfig {
   maxIterations?: number;
   temperature?: number;
   maxTokens?: number;
+  planningPrompt?: string;
+  enhancementPrompt?: string;
+  minToolCallsBeforeComplete?: number;
+  /** Agent-specific critical rules injected into rebuildMessages. If not set, generic rules are used. */
+  executionRules?: string;
 }
 
 export class SubAgent {
@@ -28,6 +63,10 @@ export class SubAgent {
   private maxIterations: number;
   private temperature: number;
   private maxTokens: number;
+  private planningPrompt?: string;
+  private enhancementPrompt?: string;
+  private minToolCallsBeforeComplete: number;
+  private executionRules?: string;
 
   constructor(
     llmClient: LLMClient,
@@ -43,6 +82,10 @@ export class SubAgent {
     this.maxIterations = config?.maxIterations ?? 15;
     this.temperature = config?.temperature ?? 0.3;
     this.maxTokens = config?.maxTokens ?? 4000;
+    this.planningPrompt = config?.planningPrompt;
+    this.enhancementPrompt = config?.enhancementPrompt;
+    this.minToolCallsBeforeComplete = config?.minToolCallsBeforeComplete ?? 0;
+    this.executionRules = config?.executionRules;
 
     this.toolMap = new Map();
     for (const tool of tools) {
@@ -50,6 +93,10 @@ export class SubAgent {
     }
   }
 
+  /**
+   * Run the sub-agent with the given instruction.
+   * Uses rebuildMessages pattern when plan exists (main agent pattern).
+   */
   async run(instruction: string): Promise<ToolResult> {
     const startTime = Date.now();
     let iterations = 0;
@@ -62,22 +109,68 @@ export class SubAgent {
       instruction: instruction.slice(0, 100),
     });
 
+    // Instruction Enhancement Phase — dynamically generates topic-specific creative guidance
+    let enhancedInstruction = instruction;
+    if (this.enhancementPrompt) {
+      if (globalPhaseLogger) globalPhaseLogger(this.appName, 'enhancement', 'Generating creative guidance...');
+      const guidance = await this.enhanceInstruction(instruction);
+      if (guidance) {
+        enhancedInstruction = `${instruction}\n\n═══ CREATIVE GUIDANCE ═══\n${guidance}\n═══ END GUIDANCE ═══`;
+        if (globalPhaseLogger) globalPhaseLogger(this.appName, 'enhancement', `Done (${guidance.length} chars)`);
+      }
+    }
+
+    // Planning Phase — uses enhanced instruction for richer context
+    let plan: string | null = null;
+    if (this.planningPrompt) {
+      if (globalPhaseLogger) globalPhaseLogger(this.appName, 'planning', 'Generating execution plan...');
+      plan = await this.generatePlan(enhancedInstruction);
+      if (plan && globalPhaseLogger) globalPhaseLogger(this.appName, 'planning', `Done (${plan.length} chars)`);
+    }
+
+    // Build tool definitions: app tools + complete tool
     const toolDefinitions: ToolDefinition[] = [
       ...this.tools.map((t) => t.definition),
       COMPLETE_TOOL_DEFINITION,
     ];
 
-    const messages: Message[] = [
-      { role: 'system', content: this.systemPrompt },
-      { role: 'user', content: instruction },
-    ];
+    // === Message management ===
+    // Plan mode: rebuild messages each iteration (main agent pattern)
+    // Simple mode: single growing messages array (existing behavior)
+    let historyText = '';
+    let pendingMessages: Message[] = [];
+    const simpleMessages: Message[] = plan
+      ? []
+      : [
+          { role: 'system', content: this.systemPrompt },
+          { role: 'user', content: enhancedInstruction },
+        ];
 
+    // Execution iteration loop
     while (iterations < this.maxIterations) {
       iterations++;
       logger.flow(`SubAgent[${this.appName}] iteration ${iterations}`);
 
+      const messagesForLLM: Message[] = plan
+        ? this.rebuildMessages(plan, instruction, historyText, pendingMessages)
+        : simpleMessages;
+
+      // Inject urgent save warning when running low on iterations (proportional to maxIterations)
+      const remaining = this.maxIterations - iterations;
+      const earlyThreshold = Math.max(3, Math.floor(this.maxIterations * 0.3));
+      const emergencyThreshold = Math.max(2, Math.floor(this.maxIterations * 0.15));
+      if (remaining <= earlyThreshold && remaining > emergencyThreshold) {
+        const warning = `⚠️ WARNING: Only ${remaining} iteration(s) remaining out of ${this.maxIterations}! Finish your current work, SAVE the file, and call "complete". Do NOT start new content.`;
+        messagesForLLM.push({ role: 'user' as const, content: warning });
+        logger.warn(`SubAgent[${this.appName}] injected early save warning`, { remaining });
+      } else if (remaining <= emergencyThreshold && remaining > 0) {
+        const warning = `🚨 EMERGENCY: Only ${remaining} iteration(s) left! STOP building content NOW. SAVE the file immediately and call "complete". ALL UNSAVED WORK WILL BE LOST.`;
+        messagesForLLM.push({ role: 'user' as const, content: warning });
+        logger.warn(`SubAgent[${this.appName}] injected emergency save warning`, { remaining });
+      }
+
       const response = await this.llmClient.chatCompletion({
-        messages,
+        messages: messagesForLLM,
         tools: toolDefinitions,
         temperature: this.temperature,
         max_tokens: this.maxTokens,
@@ -88,13 +181,24 @@ export class SubAgent {
         return this.buildResult(false, undefined, 'No response from Sub-LLM', iterations, totalToolCalls, startTime);
       }
 
-      messages.push(assistantMessage);
-
       if (!assistantMessage.tool_calls || assistantMessage.tool_calls.length === 0) {
         const content = assistantMessage.content || '';
+        // Empty content with no tool calls = LLM failed to produce output (e.g. thinking model with reasoning_content only)
+        // Retry instead of returning empty
+        if (!content.trim()) {
+          logger.warn(`SubAgent[${this.appName}] received empty response with no tool calls, retrying (iteration ${iterations})`);
+          if (plan) {
+            historyText += this.flattenExchange(pendingMessages);
+            pendingMessages = [];
+          }
+          continue;
+        }
         logger.flow(`SubAgent[${this.appName}] completed with text response`);
         return this.buildResult(true, content, undefined, iterations, totalToolCalls, startTime);
       }
+
+      // Process tool calls — collect results
+      const toolResults: Message[] = [];
 
       for (const toolCall of assistantMessage.tool_calls) {
         const toolName = toolCall.function.name;
@@ -103,7 +207,7 @@ export class SubAgent {
         try {
           args = JSON.parse(toolCall.function.arguments);
         } catch {
-          messages.push({
+          toolResults.push({
             role: 'tool',
             content: 'Error: Invalid JSON in tool arguments.',
             tool_call_id: toolCall.id,
@@ -112,6 +216,19 @@ export class SubAgent {
         }
 
         if (toolName === 'complete') {
+          // Guard: reject premature completion if not enough work done
+          if (this.minToolCallsBeforeComplete > 0 && totalToolCalls < this.minToolCallsBeforeComplete) {
+            const remaining = this.minToolCallsBeforeComplete - totalToolCalls;
+            logger.warn(`SubAgent[${this.appName}] rejected premature complete`, {
+              totalToolCalls, minRequired: this.minToolCallsBeforeComplete,
+            });
+            toolResults.push({
+              role: 'tool',
+              content: `REJECTED: You have only executed ${totalToolCalls} tool calls, but the minimum is ${this.minToolCallsBeforeComplete}. You still have approximately ${remaining} more tool calls worth of work to do. Go back to your EXECUTION PLAN and continue building the remaining slides. Do NOT call "complete" again until ALL planned slides (including closing slide) are built and saved.`,
+              tool_call_id: toolCall.id,
+            });
+            continue;
+          }
           const summary = (args['summary'] as string) || 'Task completed.';
           logger.flow(`SubAgent[${this.appName}] completed via complete tool`);
           return this.buildResult(true, summary, undefined, iterations, totalToolCalls, startTime);
@@ -119,7 +236,7 @@ export class SubAgent {
 
         const tool = this.toolMap.get(toolName);
         if (!tool) {
-          messages.push({
+          toolResults.push({
             role: 'tool',
             content: `Error: Unknown tool "${toolName}". Use only the provided tools.`,
             tool_call_id: toolCall.id,
@@ -136,19 +253,35 @@ export class SubAgent {
             ? result.result || '(success, no output)'
             : `Error: ${result.error || 'Unknown error'}`;
 
-          messages.push({
+          toolResults.push({
             role: 'tool',
             content: resultText,
             tool_call_id: toolCall.id,
           });
+
+          if (globalToolCallLogger) {
+            globalToolCallLogger(this.appName, toolName, args, resultText, result.success, iterations, totalToolCalls);
+          }
         } catch (error) {
           const errorMsg = error instanceof Error ? error.message : String(error);
-          messages.push({
+          toolResults.push({
             role: 'tool',
             content: `Error executing ${toolName}: ${errorMsg}`,
             tool_call_id: toolCall.id,
           });
+
+          if (globalToolCallLogger) {
+            globalToolCallLogger(this.appName, toolName, args, errorMsg, false, iterations, totalToolCalls);
+          }
         }
+      }
+
+      // Update message state
+      if (plan) {
+        historyText += this.flattenExchange(pendingMessages);
+        pendingMessages = [assistantMessage, ...toolResults];
+      } else {
+        simpleMessages.push(assistantMessage, ...toolResults);
       }
     }
 
@@ -161,6 +294,120 @@ export class SubAgent {
       totalToolCalls,
       startTime
     );
+  }
+
+  /**
+   * Enhance instruction with topic-specific creative guidance via LLM.
+   * Returns null on failure (graceful degradation — raw instruction used).
+   */
+  private async enhanceInstruction(instruction: string): Promise<string | null> {
+    logger.info(`SubAgent[${this.appName}] enhancing instruction`);
+    try {
+      const response = await this.llmClient.chatCompletion({
+        messages: [
+          { role: 'system', content: this.enhancementPrompt! },
+          { role: 'user', content: instruction },
+        ],
+        temperature: 0.5,
+      });
+
+      const enhancement = response.choices[0]?.message?.content;
+      if (enhancement) {
+        logger.info(`SubAgent[${this.appName}] instruction enhanced`, { length: enhancement.length });
+      }
+      return enhancement || null;
+    } catch (error) {
+      logger.warn(`SubAgent[${this.appName}] enhancement failed, proceeding without`, {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    }
+  }
+
+  private async generatePlan(instruction: string): Promise<string | null> {
+    logger.info(`SubAgent[${this.appName}] generating plan`);
+    try {
+      const response = await this.llmClient.chatCompletion({
+        messages: [
+          { role: 'system', content: this.planningPrompt! },
+          { role: 'user', content: instruction },
+        ],
+        temperature: 0.4,
+      });
+
+      const plan = response.choices[0]?.message?.content;
+      if (plan) {
+        logger.info(`SubAgent[${this.appName}] plan generated`, { length: plan.length });
+      }
+      return plan || null;
+    } catch (error) {
+      logger.warn(`SubAgent[${this.appName}] planning failed, proceeding without plan`, {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Rebuild messages with plan context every iteration (main agent pattern).
+   */
+  private rebuildMessages(
+    plan: string,
+    instruction: string,
+    historyText: string,
+    recentMessages: Message[]
+  ): Message[] {
+    let userContent = `<EXECUTION_PLAN>\n${plan}\n</EXECUTION_PLAN>\n\n`;
+
+    if (historyText) {
+      userContent += `<PREVIOUS_WORK>\n${historyText}</PREVIOUS_WORK>\n\n`;
+    }
+
+    userContent += `<INSTRUCTION>\n${instruction}\n</INSTRUCTION>\n\n`;
+    userContent += 'Follow the EXECUTION_PLAN step by step. Continue from where PREVIOUS_WORK left off.';
+    if (this.executionRules) {
+      userContent += '\n' + this.executionRules;
+    }
+
+    // Detect Korean in instruction and add language enforcement
+    const hasKorean = /[\uac00-\ud7af\u1100-\u11ff]/.test(instruction);
+    if (hasKorean) {
+      userContent += '\n⚠ LANGUAGE: 사용자가 한국어로 작성했습니다. 모든 텍스트(제목, 본문, 테이블 헤더, 차트 라벨)를 반드시 한국어로 작성하세요. 실행 계획에 영어 제목이 있더라도 한국어로 번역하여 사용하세요.';
+    }
+
+    return [
+      { role: 'system' as const, content: this.systemPrompt },
+      { role: 'user' as const, content: userContent },
+      ...recentMessages,
+    ];
+  }
+
+  /**
+   * Flatten messages into text for history. Truncates long tool results.
+   */
+  private flattenExchange(messages: Message[]): string {
+    if (messages.length === 0) return '';
+
+    const lines: string[] = [];
+    for (const msg of messages) {
+      if (msg.role === 'assistant') {
+        if (msg.content) lines.push(`[ASSISTANT]: ${msg.content}`);
+        if (msg.tool_calls) {
+          for (const tc of msg.tool_calls) {
+            const args = tc.function.arguments;
+            const truncatedArgs = args.length > 200 ? args.slice(0, 200) + '...' : args;
+            lines.push(`[TOOL_CALL]: ${tc.function.name}(${truncatedArgs})`);
+          }
+        }
+      } else if (msg.role === 'tool') {
+        const content = msg.content || '';
+        const truncated = content.length > 500
+          ? content.slice(0, 500) + '...(truncated)'
+          : content;
+        lines.push(`[TOOL_RESULT]: ${truncated}`);
+      }
+    }
+    return lines.join('\n') + '\n';
   }
 
   private buildResult(

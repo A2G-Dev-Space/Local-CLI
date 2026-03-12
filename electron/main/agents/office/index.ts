@@ -3,7 +3,7 @@
  *
  * Agent as a Tool pattern for Office specialist agents.
  *
- * CLI parity: src/agents/office/index.ts
+ * Electron parity: src/agents/office/index.ts
  */
 
 // Re-export from common (backward compatibility)
@@ -15,6 +15,12 @@ export {
   EXCEL_SYSTEM_PROMPT,
   POWERPOINT_SYSTEM_PROMPT,
 } from './prompts';
-export { createWordWorkRequestTool } from './word-agent';
-export { createExcelWorkRequestTool } from './excel-agent';
-export { createPowerPointWorkRequestTool } from './powerpoint-agent';
+// Word
+export { createWordCreateRequestTool } from './word-create-agent';
+export { createWordModifyRequestTool } from './word-agent';
+// Excel
+export { createExcelCreateRequestTool } from './excel-create-agent';
+export { createExcelModifyRequestTool } from './excel-agent';
+// PowerPoint
+export { createPowerPointCreateRequestTool } from './powerpoint-create-agent';
+export { createPowerPointModifyRequestTool } from './powerpoint-agent';

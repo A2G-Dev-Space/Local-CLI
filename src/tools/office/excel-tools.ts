@@ -6,4 +6,4 @@
  */
 
 export * from './excel-tools/index.js';
-export { EXCEL_TOOLS } from './excel-tools/index.js';
+export { EXCEL_TOOLS, EXCEL_CREATE_TOOLS } from './excel-tools/index.js';

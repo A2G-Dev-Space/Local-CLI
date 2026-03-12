@@ -8,7 +8,7 @@
 import { ToolDefinition } from '../../../types/index.js';
 import { LLMSimpleTool, ToolResult } from '../../types.js';
 import { excelClient } from '../excel-client.js';
-import { saveScreenshot } from '../common/utils.js';
+import { saveScreenshot, delay, APP_LAUNCH_DELAY_MS } from '../common/utils.js';
 import { OFFICE_CATEGORIES } from '../common/constants.js';
 
 // =============================================================================
@@ -74,6 +74,8 @@ async function executeExcelCreate(_args: Record<string, unknown>): Promise<ToolR
   try {
     const response = await excelClient.excelCreate();
     if (response.success) {
+      // Wait for workbook to fully load before LLM proceeds
+      await delay(APP_LAUNCH_DELAY_MS);
       return { success: true, result: response.message || 'New workbook created' };
     }
     return { success: false, error: response.error || 'Failed to create workbook' };
@@ -113,6 +115,8 @@ async function executeExcelOpen(args: Record<string, unknown>): Promise<ToolResu
   try {
     const response = await excelClient.excelOpen(args['path'] as string);
     if (response.success) {
+      // Wait for workbook to fully load before LLM proceeds
+      await delay(APP_LAUNCH_DELAY_MS);
       return { success: true, result: `Workbook opened: ${response['workbook_name'] || args['path']}` };
     }
     return { success: false, error: response.error || 'Failed to open workbook' };

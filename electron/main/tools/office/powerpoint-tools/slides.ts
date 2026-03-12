@@ -3,6 +3,8 @@
  *
  * Tools for managing slides in PowerPoint presentations:
  * add, delete, move, duplicate, hide, show, set layout, get count
+ *
+ * Electron parity: src/tools/office/powerpoint-tools/slides.ts
  */
 
 import { ToolDefinition } from '../../../types/index';
@@ -40,19 +42,14 @@ Layout options:
 };
 
 async function executePowerPointAddSlide(args: Record<string, unknown>): Promise<ToolResult> {
-  const startTime = Date.now();
-  logger.toolStart('powerpoint_add_slide', args);
   try {
-    const layout = args['layout'] as number ?? 2;
+    const layout = args['layout'] != null ? Number(args['layout']) : 2;
     const response = await powerpointClient.powerpointAddSlide(layout);
     if (response.success) {
-      logger.toolSuccess('powerpoint_add_slide', args, { layout, slideNumber: response['slide_number'] }, Date.now() - startTime);
-      return { success: true, result: `Slide added (layout ${layout}), slide number: ${response['slide_number']}` };
+      return { success: true, result: `Slide ${response['slide_number']} created (layout ${layout}). ⚠ THIS SLIDE IS EMPTY. You MUST add content NOW: sidebar + title + accent line + body (text/table) + footer. Do NOT call powerpoint_add_slide again until this slide is fully built.` };
     }
-    logger.toolError('powerpoint_add_slide', args, new Error(response.error || 'Failed to add slide'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to add slide' };
   } catch (error) {
-    logger.toolError('powerpoint_add_slide', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to add slide: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -77,26 +74,22 @@ const POWERPOINT_DELETE_SLIDE_DEFINITION: ToolDefinition = {
       type: 'object',
       properties: {
         reason: { type: 'string', description: 'Why you are deleting this slide' },
-        slide: { type: 'number', description: 'Slide number to delete' },
+        slide_number: { type: 'number', description: 'Slide number to delete' },
       },
-      required: ['reason', 'slide'],
+      required: ['reason', 'slide_number'],
     },
   },
 };
 
 async function executePowerPointDeleteSlide(args: Record<string, unknown>): Promise<ToolResult> {
-  const startTime = Date.now();
-  logger.toolStart('powerpoint_delete_slide', args);
   try {
-    const response = await powerpointClient.powerpointDeleteSlide(args['slide'] as number);
+    const slideNum = Number(args['slide_number']);
+    const response = await powerpointClient.powerpointDeleteSlide(slideNum);
     if (response.success) {
-      logger.toolSuccess('powerpoint_delete_slide', args, { slide: args['slide'] }, Date.now() - startTime);
-      return { success: true, result: `Slide ${args['slide']} deleted` };
+      return { success: true, result: `Slide ${slideNum} deleted` };
     }
-    logger.toolError('powerpoint_delete_slide', args, new Error(response.error || 'Failed to delete slide'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to delete slide' };
   } catch (error) {
-    logger.toolError('powerpoint_delete_slide', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to delete slide: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -130,21 +123,15 @@ const POWERPOINT_MOVE_SLIDE_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointMoveSlide(args: Record<string, unknown>): Promise<ToolResult> {
-  const startTime = Date.now();
-  logger.toolStart('powerpoint_move_slide', args);
   try {
-    const response = await powerpointClient.powerpointMoveSlide(
-      args['from_index'] as number,
-      args['to_index'] as number
-    );
+    const fromIndex = Number(args['from_index']);
+    const toIndex = Number(args['to_index']);
+    const response = await powerpointClient.powerpointMoveSlide(fromIndex, toIndex);
     if (response.success) {
-      logger.toolSuccess('powerpoint_move_slide', args, { fromIndex: args['from_index'], toIndex: args['to_index'] }, Date.now() - startTime);
-      return { success: true, result: `Slide moved from ${args['from_index']} to ${args['to_index']}` };
+      return { success: true, result: `Slide moved from ${fromIndex} to ${toIndex}` };
     }
-    logger.toolError('powerpoint_move_slide', args, new Error(response.error || 'Failed to move slide'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to move slide' };
   } catch (error) {
-    logger.toolError('powerpoint_move_slide', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to move slide: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -168,26 +155,23 @@ const POWERPOINT_DUPLICATE_SLIDE_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are duplicating this slide' },
         slide_number: { type: 'number', description: 'Slide number to duplicate' },
       },
-      required: ['slide_number'],
+      required: ['reason', 'slide_number'],
     },
   },
 };
 
 async function executePowerPointDuplicateSlide(args: Record<string, unknown>): Promise<ToolResult> {
-  const startTime = Date.now();
-  logger.toolStart('powerpoint_duplicate_slide', args);
   try {
-    const response = await powerpointClient.powerpointDuplicateSlide(args['slide_number'] as number);
+    const slideNum = Number(args['slide_number']);
+    const response = await powerpointClient.powerpointDuplicateSlide(slideNum);
     if (response.success) {
-      logger.toolSuccess('powerpoint_duplicate_slide', args, { slideNumber: args['slide_number'], newSlideIndex: response['new_slide_index'] }, Date.now() - startTime);
       return { success: true, result: `Slide duplicated. New slide index: ${response['new_slide_index']}` };
     }
-    logger.toolError('powerpoint_duplicate_slide', args, new Error(response.error || 'Failed to duplicate slide'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to duplicate slide' };
   } catch (error) {
-    logger.toolError('powerpoint_duplicate_slide', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to duplicate slide: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -211,26 +195,23 @@ const POWERPOINT_HIDE_SLIDE_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are hiding this slide' },
         slide_number: { type: 'number', description: 'Slide number' },
       },
-      required: ['slide_number'],
+      required: ['reason', 'slide_number'],
     },
   },
 };
 
 async function executePowerPointHideSlide(args: Record<string, unknown>): Promise<ToolResult> {
-  const startTime = Date.now();
-  logger.toolStart('powerpoint_hide_slide', args);
   try {
-    const response = await powerpointClient.powerpointHideSlide(args['slide_number'] as number);
+    const slideNum = Number(args['slide_number']);
+    const response = await powerpointClient.powerpointHideSlide(slideNum);
     if (response.success) {
-      logger.toolSuccess('powerpoint_hide_slide', args, { slideNumber: args['slide_number'] }, Date.now() - startTime);
       return { success: true, result: response.message || 'Slide hidden' };
     }
-    logger.toolError('powerpoint_hide_slide', args, new Error(response.error || 'Failed to hide slide'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to hide slide' };
   } catch (error) {
-    logger.toolError('powerpoint_hide_slide', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to hide slide: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -254,26 +235,23 @@ const POWERPOINT_SHOW_SLIDE_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are showing this slide' },
         slide_number: { type: 'number', description: 'Slide number' },
       },
-      required: ['slide_number'],
+      required: ['reason', 'slide_number'],
     },
   },
 };
 
 async function executePowerPointShowSlide(args: Record<string, unknown>): Promise<ToolResult> {
-  const startTime = Date.now();
-  logger.toolStart('powerpoint_show_slide', args);
   try {
-    const response = await powerpointClient.powerpointShowSlide(args['slide_number'] as number);
+    const slideNum = Number(args['slide_number']);
+    const response = await powerpointClient.powerpointShowSlide(slideNum);
     if (response.success) {
-      logger.toolSuccess('powerpoint_show_slide', args, { slideNumber: args['slide_number'] }, Date.now() - startTime);
       return { success: true, result: response.message || 'Slide shown' };
     }
-    logger.toolError('powerpoint_show_slide', args, new Error(response.error || 'Failed to show slide'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to show slide' };
   } catch (error) {
-    logger.toolError('powerpoint_show_slide', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to show slide: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -297,30 +275,25 @@ const POWERPOINT_SET_SLIDE_LAYOUT_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are changing this slide layout' },
         slide_number: { type: 'number', description: 'Slide number' },
         layout_index: { type: 'number', description: 'Layout index (1-12)' },
       },
-      required: ['slide_number', 'layout_index'],
+      required: ['reason', 'slide_number', 'layout_index'],
     },
   },
 };
 
 async function executePowerPointSetSlideLayout(args: Record<string, unknown>): Promise<ToolResult> {
-  const startTime = Date.now();
-  logger.toolStart('powerpoint_set_slide_layout', args);
   try {
-    const response = await powerpointClient.powerpointSetSlideLayout(
-      args['slide_number'] as number,
-      args['layout_index'] as number
-    );
+    const slideNum = Number(args['slide_number']);
+    const layoutIndex = Number(args['layout_index']);
+    const response = await powerpointClient.powerpointSetSlideLayout(slideNum, layoutIndex);
     if (response.success) {
-      logger.toolSuccess('powerpoint_set_slide_layout', args, { slideNumber: args['slide_number'], layoutIndex: args['layout_index'] }, Date.now() - startTime);
       return { success: true, result: response.message || 'Slide layout set' };
     }
-    logger.toolError('powerpoint_set_slide_layout', args, new Error(response.error || 'Failed to set slide layout'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to set slide layout' };
   } catch (error) {
-    logger.toolError('powerpoint_set_slide_layout', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to set slide layout: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -352,18 +325,13 @@ const POWERPOINT_GET_SLIDE_COUNT_DEFINITION: ToolDefinition = {
 };
 
 async function executePowerPointGetSlideCount(_args: Record<string, unknown>): Promise<ToolResult> {
-  const startTime = Date.now();
-  logger.toolStart('powerpoint_get_slide_count', _args);
   try {
     const response = await powerpointClient.powerpointGetSlideCount();
     if (response.success) {
-      logger.toolSuccess('powerpoint_get_slide_count', _args, { slideCount: response['slide_count'] }, Date.now() - startTime);
       return { success: true, result: `Slide count: ${response['slide_count']}` };
     }
-    logger.toolError('powerpoint_get_slide_count', _args, new Error(response.error || 'Failed to get slide count'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to get slide count' };
   } catch (error) {
-    logger.toolError('powerpoint_get_slide_count', _args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to get slide count: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -373,6 +341,180 @@ export const powerpointGetSlideCountTool: LLMSimpleTool = {
   execute: executePowerPointGetSlideCount,
   categories: OFFICE_CATEGORIES,
   description: 'Get PowerPoint slide count',
+};
+
+// =============================================================================
+// PowerPoint Stop Slideshow
+// =============================================================================
+
+const POWERPOINT_STOP_SLIDESHOW_DEFINITION: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'powerpoint_stop_slideshow',
+    description: `Stop the currently running slideshow.`,
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: { type: 'string', description: 'Why you are stopping the slideshow' },
+      },
+      required: ['reason'],
+    },
+  },
+};
+
+async function executePowerPointStopSlideshow(_args: Record<string, unknown>): Promise<ToolResult> {
+  try {
+    const response = await powerpointClient.powerpointStopSlideshow();
+    if (response.success) {
+      return { success: true, result: response.message || 'Slideshow stopped' };
+    }
+    return { success: false, error: response.error || 'Failed to stop slideshow' };
+  } catch (error) {
+    return { success: false, error: `Failed to stop slideshow: ${error instanceof Error ? error.message : String(error)}` };
+  }
+}
+
+export const powerpointStopSlideshowTool: LLMSimpleTool = {
+  definition: POWERPOINT_STOP_SLIDESHOW_DEFINITION,
+  execute: executePowerPointStopSlideshow,
+  categories: OFFICE_CATEGORIES,
+  description: 'Stop running slideshow',
+};
+
+// =============================================================================
+// PowerPoint Goto Slide
+// =============================================================================
+
+const POWERPOINT_GOTO_SLIDE_DEFINITION: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'powerpoint_goto_slide',
+    description: `Navigate to a specific slide during slideshow.`,
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: { type: 'string', description: 'Why you are navigating to this slide' },
+        slide_number: { type: 'number', description: 'Target slide number' },
+      },
+      required: ['reason', 'slide_number'],
+    },
+  },
+};
+
+async function executePowerPointGotoSlide(args: Record<string, unknown>): Promise<ToolResult> {
+  try {
+    const slideNum = Number(args['slide_number']);
+    const response = await powerpointClient.powerpointGotoSlide(slideNum);
+    if (response.success) {
+      return { success: true, result: response.message || `Navigated to slide ${slideNum}` };
+    }
+    return { success: false, error: response.error || 'Failed to navigate to slide' };
+  } catch (error) {
+    return { success: false, error: `Failed to navigate to slide: ${error instanceof Error ? error.message : String(error)}` };
+  }
+}
+
+export const powerpointGotoSlideTool: LLMSimpleTool = {
+  definition: POWERPOINT_GOTO_SLIDE_DEFINITION,
+  execute: executePowerPointGotoSlide,
+  categories: OFFICE_CATEGORIES,
+  description: 'Navigate to slide during slideshow',
+};
+
+// =============================================================================
+// PowerPoint Get Presentation Info
+// =============================================================================
+
+const POWERPOINT_GET_PRESENTATION_INFO_DEFINITION: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'powerpoint_get_presentation_info',
+    description: `Get detailed information about the current presentation including file name, slide count, dimensions, and author.`,
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: { type: 'string', description: 'Why you need presentation information' },
+      },
+      required: ['reason'],
+    },
+  },
+};
+
+async function executePowerPointGetPresentationInfo(_args: Record<string, unknown>): Promise<ToolResult> {
+  try {
+    const response = await powerpointClient.powerpointGetPresentationInfo();
+    if (response.success) {
+      const details = [
+        `Name: ${response['name'] || 'N/A'}`,
+        `Path: ${response['path'] || 'N/A'}`,
+        `Slide Count: ${response['slide_count'] || 'N/A'}`,
+        `Width: ${response['slide_width'] || 'N/A'}`,
+        `Height: ${response['slide_height'] || 'N/A'}`,
+        `Saved: ${response['saved'] || 'N/A'}`,
+        `ReadOnly: ${response['readonly'] || 'N/A'}`,
+      ].join('\n');
+      return { success: true, result: `Presentation Info:\n${details}` };
+    }
+    return { success: false, error: response.error || 'Failed to get presentation info' };
+  } catch (error) {
+    return { success: false, error: `Failed to get presentation info: ${error instanceof Error ? error.message : String(error)}` };
+  }
+}
+
+export const powerpointGetPresentationInfoTool: LLMSimpleTool = {
+  definition: POWERPOINT_GET_PRESENTATION_INFO_DEFINITION,
+  execute: executePowerPointGetPresentationInfo,
+  categories: OFFICE_CATEGORIES,
+  description: 'Get presentation information',
+};
+
+// =============================================================================
+// PowerPoint Import Slides
+// =============================================================================
+
+const POWERPOINT_IMPORT_SLIDES_DEFINITION: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'powerpoint_import_slides',
+    description: `Import slides from another PowerPoint presentation. Useful for reusing content from templates or merging presentations. WSL paths are auto-converted.`,
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: { type: 'string', description: 'Why you are importing slides' },
+        source_path: { type: 'string', description: 'Path to source PowerPoint file (.pptx)' },
+        start_slide: { type: 'number', description: 'First slide to import from source (default: 1)' },
+        end_slide: { type: 'number', description: 'Last slide to import from source (default: all slides)' },
+        insert_at: { type: 'number', description: 'Position to insert in current presentation (default: end)' },
+      },
+      required: ['reason', 'source_path'],
+    },
+  },
+};
+
+async function executePowerPointImportSlides(args: Record<string, unknown>): Promise<ToolResult> {
+  try {
+    const sourcePath = args['source_path'] as string;
+    const startSlide = args['start_slide'] != null ? Number(args['start_slide']) : undefined;
+    const endSlide = args['end_slide'] != null ? Number(args['end_slide']) : undefined;
+    const insertAt = args['insert_at'] != null ? Number(args['insert_at']) : undefined;
+
+    const slideRange = startSlide || endSlide ? { start: startSlide, end: endSlide } : undefined;
+    const response = await powerpointClient.powerpointImportSlides(sourcePath, slideRange, insertAt);
+
+    if (response.success) {
+      return { success: true, result: response.message || `Slides imported from ${sourcePath}` };
+    }
+    return { success: false, error: response.error || 'Failed to import slides' };
+  } catch (error) {
+    return { success: false, error: `Failed to import slides: ${error instanceof Error ? error.message : String(error)}` };
+  }
+}
+
+export const powerpointImportSlidesTool: LLMSimpleTool = {
+  definition: POWERPOINT_IMPORT_SLIDES_DEFINITION,
+  execute: executePowerPointImportSlides,
+  categories: OFFICE_CATEGORIES,
+  description: 'Import slides from another presentation',
 };
 
 // =============================================================================
@@ -388,4 +530,8 @@ export const slidesTools: LLMSimpleTool[] = [
   powerpointShowSlideTool,
   powerpointSetSlideLayoutTool,
   powerpointGetSlideCountTool,
+  powerpointStopSlideshowTool,
+  powerpointGotoSlideTool,
+  powerpointGetPresentationInfoTool,
+  powerpointImportSlidesTool,
 ];

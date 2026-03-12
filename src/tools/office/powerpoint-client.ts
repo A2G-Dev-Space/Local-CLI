@@ -9,73 +9,65 @@ import { OfficeClientBase, OfficeResponse, ScreenshotResponse } from './office-c
 
 export class PowerPointClient extends OfficeClientBase {
   protected override comProgId = 'PowerPoint.Application';
+  protected override displayAlertsSuppressExpr = '1'; // ppAlertsNone
 
   async powerpointLaunch(): Promise<OfficeResponse> {
-    // Use raw integer values instead of .NET enum types (PIA may not be installed)
-    // msoTrue = -1, ppAlertsNone = 0, ppAlertsAll = 2
     return this.executePowerShell(`
 try {
   $ppt = [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application")
-  $ppt.Visible = -1
+  $ppt.Visible = -1  # msoTrue
   @{ success = $true; message = "Connected to existing PowerPoint instance" } | ConvertTo-Json -Compress
 } catch {
   $ppt = New-Object -ComObject PowerPoint.Application
-  $ppt.Visible = -1
+  $ppt.Visible = -1  # msoTrue
   @{ success = $true; message = "Launched new PowerPoint instance" } | ConvertTo-Json -Compress
 }
 `);
   }
 
   async powerpointCreate(): Promise<OfficeResponse> {
-    // msoTrue = -1, ppAlertsNone = 0, ppAlertsAll = 2
     return this.executePowerShell(`
 try {
   $ppt = [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application")
 } catch {
   $ppt = New-Object -ComObject PowerPoint.Application
 }
-$ppt.DisplayAlerts = 0
-$ppt.Visible = -1
+$ppt.DisplayAlerts = 1  # ppAlertsNone
+$ppt.Visible = -1  # msoTrue
+# Close all existing presentations to prevent leftover slides from previous runs
+for ($i = $ppt.Presentations.Count; $i -ge 1; $i--) {
+  try { $ppt.Presentations($i).Close() } catch {}
+}
 $presentation = $ppt.Presentations.Add(-1)
-$ppt.DisplayAlerts = 2
+$ppt.DisplayAlerts = 2  # ppAlertsAll
 @{ success = $true; message = "Created new presentation"; presentation_name = $presentation.Name } | ConvertTo-Json -Compress
 `);
   }
 
   async powerpointOpen(filePath: string): Promise<OfficeResponse> {
     const windowsPath = this.toWindowsPath(filePath).replace(/'/g, "''");
-    // msoTrue = -1, ppAlertsNone = 0, ppAlertsAll = 2
     return this.executePowerShell(`
 try {
   $ppt = [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application")
 } catch {
   $ppt = New-Object -ComObject PowerPoint.Application
 }
-$ppt.DisplayAlerts = 0
-$ppt.Visible = -1
+$ppt.DisplayAlerts = 1  # ppAlertsNone
+$ppt.Visible = -1  # msoTrue
 $presentation = $ppt.Presentations.Open('${windowsPath}')
-$ppt.DisplayAlerts = 2
+$ppt.DisplayAlerts = 2  # ppAlertsAll
 @{ success = $true; message = "Presentation opened"; presentation_name = $presentation.Name; path = $presentation.FullName } | ConvertTo-Json -Compress
 `);
   }
 
   async powerpointAddSlide(layout: number = 1): Promise<OfficeResponse> {
-    // Layout: 1=Title Slide, 2=Title and Content, 3=Section Header, 4=Two Content,
-    // 7=Blank, 12=ppLayoutBlank (alternative)
+    // Layout: 1=Title Slide, 2=Title and Content, 3=Section Header, 4=Two Content, etc.
     return this.executePowerShell(`
 $ppt = [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application")
 $presentation = $ppt.ActivePresentation
 $slideCount = $presentation.Slides.Count
-try {
-  $customLayout = $presentation.SlideMaster.CustomLayouts(${layout})
-  $slide = $presentation.Slides.AddSlide($slideCount + 1, $customLayout)
-} catch {
-  # Fallback: use Slides.Add with ppLayout integer constants
-  # 1=ppLayoutTitle, 2=ppLayoutText, 7=ppLayoutBlank, 12=ppLayoutBlank
-  $ppLayout = ${layout}
-  if ($ppLayout -gt 11) { $ppLayout = 7 }
-  $slide = $presentation.Slides.Add($slideCount + 1, $ppLayout)
-}
+$customLayout = $presentation.SlideMaster.CustomLayouts(${layout})
+$slide = $presentation.Slides.AddSlide($slideCount + 1, $customLayout)
 @{ success = $true; message = "Slide added"; slide_number = $slide.SlideIndex; layout = ${layout} } | ConvertTo-Json -Compress
 `);
   }
@@ -110,11 +102,12 @@ $presentation.Slides(${fromIndex}).MoveTo(${toIndex})
     const hasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(text);
     const fontName = options?.fontName || (hasKorean ? 'Malgun Gothic' : '');
 
-    // TEXT FIRST, FONT AFTER pattern (Microsoft recommended for Korean)
-    const fontCommands: string[] = [];
-    if (fontName) fontCommands.push(`$textRange.Font.Name = '${fontName.replace(/'/g, "''")}'`);
-    if (options?.fontSize) fontCommands.push(`$textRange.Font.Size = ${options.fontSize}`);
-    if (options?.bold !== undefined) fontCommands.push(`$textRange.Font.Bold = ${options.bold ? '-1' : '0'}`);
+    // IMPORTANT: Set text FIRST, then apply font formatting
+    // Setting .Text = can reset font in some Office apps
+    const formatCommands: string[] = [];
+    if (fontName) formatCommands.push(`$textRange.Font.Name = '${fontName.replace(/'/g, "''")}'`);
+    if (options?.fontSize) formatCommands.push(`$textRange.Font.Size = ${options.fontSize}`);
+    if (options?.bold !== undefined) formatCommands.push(`$textRange.Font.Bold = ${options.bold ? '-1' : '0'}`);
 
     return this.executePowerShell(`
 $ppt = [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application")
@@ -124,7 +117,7 @@ $shape = $slide.Shapes(${shapeIndex})
 $textRange = $shape.TextFrame.TextRange
 $textContent = '${escapedText}' -replace '\\\\n', [char]10 -replace '\\n', [char]10
 $textRange.Text = $textContent
-${fontCommands.join('\n')}
+${formatCommands.join('\n')}
 @{ success = $true; message = "Text written to slide ${slideNumber}, shape ${shapeIndex}" } | ConvertTo-Json -Compress
 `);
   }
@@ -194,14 +187,16 @@ foreach ($shape in $slide.Shapes) {
     }
 
     const hAlignMap: Record<string, number> = { left: 1, center: 2, right: 3, justify: 4 };
-    if (options?.alignment) {
+    if (options?.alignment && hAlignMap[options.alignment]) {
       formatCmds.push(`$textbox.TextFrame.TextRange.ParagraphFormat.Alignment = ${hAlignMap[options.alignment]}`);
     }
 
     const vAnchorMap: Record<string, number> = { top: 1, middle: 3, bottom: 4 };
-    if (options?.verticalAnchor) {
+    if (options?.verticalAnchor && vAnchorMap[options.verticalAnchor]) {
       formatCmds.push(`$textbox.TextFrame.VerticalAnchor = ${vAnchorMap[options.verticalAnchor]}`);
     }
+
+    const formatScript = formatCmds.length > 0 ? formatCmds.join('\n') : '';
 
     return this.executePowerShell(`
 $ppt = [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application")
@@ -211,7 +206,7 @@ $slide = $presentation.Slides(${slideNumber})
 $textbox = $slide.Shapes.AddTextbox(1, ${left}, ${top}, ${width}, ${height})
 $textContent = '${escapedText}' -replace '\\\\n', [char]10 -replace '\\n', [char]10
 $textbox.TextFrame.TextRange.Text = $textContent
-${formatCmds.join('\n')}
+${formatScript}
 @{ success = $true; message = "Textbox added to slide ${slideNumber}"; shape_index = $textbox.Index } | ConvertTo-Json -Compress
 `);
   }
@@ -391,6 +386,30 @@ ${bgScript}
 `);
   }
 
+  /**
+   * Add a full-slide image as a picture shape covering the entire slide.
+   * Creates picture at dummy size, then resizes with 20pt bleed to guarantee zero gap.
+   * Deletes placeholder shapes from blank slide layout first.
+   */
+  async powerpointAddFullSlideImage(
+    slideNumber: number,
+    imagePath: string,
+  ): Promise<OfficeResponse> {
+    const windowsPath = this.toWindowsPath(imagePath).replace(/'/g, "''");
+    return this.executePowerShell(`
+$ppt = [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application")
+$presentation = $ppt.ActivePresentation
+$slide = $presentation.Slides(${slideNumber})
+$w = $presentation.PageSetup.SlideWidth
+$h = $presentation.PageSetup.SlideHeight
+for ($s = $slide.Shapes.Count; $s -ge 1; $s--) { try { $slide.Shapes($s).Delete() } catch {} }
+$pic = $slide.Shapes.AddPicture('${windowsPath}', 0, -1, 0, 0, $w, $h)
+$pic.LockAspectRatio = 0
+$pic.ZOrder(1)
+@{ success = $true; message = "Full-slide image added to slide ${slideNumber}" } | ConvertTo-Json -Compress
+`);
+  }
+
   async powerpointGetSlideCount(): Promise<OfficeResponse> {
     return this.executePowerShell(`
 $ppt = [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application")
@@ -505,8 +524,6 @@ Remove-Item $tempPath -Force
       cols = Math.max(cols, ...data.map(row => row?.length || 0));
     }
 
-    // TEXT FIRST, FONT AFTER pattern (Microsoft recommended for Korean)
-    // Generate per-cell: text first, then font if Korean detected
     let dataScript = '';
 
     if (data) {
@@ -517,11 +534,11 @@ Remove-Item $tempPath -Force
         for (let j = 0; j < row.length && j < cols; j++) {
           const cellValue = row[j];
           if (cellValue === undefined) continue;
-          const val = cellValue.replace(/'/g, "''");
+          // Check for Korean text in this specific cell
           const cellHasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(cellValue);
-          // 1. Text first
-          dataLines.push(`$table.Cell(${i + 1}, ${j + 1}).Shape.TextFrame.TextRange.Text = '${val}'`);
-          // 2. Font after (only if Korean)
+          const val = cellValue.replace(/'/g, "''");
+          // IMPORTANT: Set text FIRST, then apply font to prevent garbled Korean
+          dataLines.push(`$table.Cell(${i + 1}, ${j + 1}).Shape.TextFrame.TextRange.Text = ('${val}' -replace '\\\\n', [char]10 -replace '\\n', [char]10)`);
           if (cellHasKorean) {
             dataLines.push(`$table.Cell(${i + 1}, ${j + 1}).Shape.TextFrame.TextRange.Font.Name = 'Malgun Gothic'`);
           }
@@ -552,16 +569,14 @@ ${dataScript}
     const hasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(text);
     const fontName = options?.fontName || (hasKorean ? 'Malgun Gothic' : '');
 
-    // TEXT FIRST, FONT AFTER pattern (Microsoft recommended for Korean)
-    const fontCommands: string[] = [];
-    if (fontName) fontCommands.push(`$cell.Shape.TextFrame.TextRange.Font.Name = '${fontName}'`);
-    if (options?.fontSize) fontCommands.push(`$cell.Shape.TextFrame.TextRange.Font.Size = ${options.fontSize}`);
-    if (options?.bold !== undefined) fontCommands.push(`$cell.Shape.TextFrame.TextRange.Font.Bold = ${options.bold ? '-1' : '0'}`);
-
-    const otherCommands: string[] = [];
+    // IMPORTANT: Set text FIRST, then apply font formatting to prevent garbled Korean
+    const formatCommands: string[] = [];
+    if (fontName) formatCommands.push(`$cell.Shape.TextFrame.TextRange.Font.Name = '${fontName}'`);
+    if (options?.fontSize) formatCommands.push(`$cell.Shape.TextFrame.TextRange.Font.Size = ${options.fontSize}`);
+    if (options?.bold !== undefined) formatCommands.push(`$cell.Shape.TextFrame.TextRange.Font.Bold = ${options.bold ? '-1' : '0'}`);
     if (options?.fillColor) {
       const rgb = this.hexToRgb(options.fillColor);
-      if (rgb) otherCommands.push(`$cell.Shape.Fill.ForeColor.RGB = ${rgb.r + rgb.g * 256 + rgb.b * 65536}`);
+      if (rgb) formatCommands.push(`$cell.Shape.Fill.ForeColor.RGB = ${rgb.r + rgb.g * 256 + rgb.b * 65536}`);
     }
 
     return this.executePowerShell(`
@@ -572,8 +587,7 @@ $table = $slide.Shapes(${shapeIndex}).Table
 $cell = $table.Cell(${row}, ${col})
 $textContent = '${escapedText}' -replace '\\\\n', [char]10 -replace '\\n', [char]10
 $cell.Shape.TextFrame.TextRange.Text = $textContent
-${fontCommands.join('\n')}
-${otherCommands.join('\n')}
+${formatCommands.join('\n')}
 @{ success = $true; message = "Table cell (${row}, ${col}) updated" } | ConvertTo-Json -Compress
 `);
   }
@@ -1021,7 +1035,7 @@ for ($i = 1; $i -le $presentation.SectionProperties.Count; $i++) {
     const escapedText = noteText.replace(/'/g, "''");
     const hasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(noteText);
 
-    // TEXT FIRST, FONT AFTER pattern (Microsoft recommended for Korean)
+    // IMPORTANT: Set text FIRST, then apply font to prevent garbled Korean
     return this.executePowerShell(`
 $ppt = [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application")
 $presentation = $ppt.ActivePresentation
@@ -1484,7 +1498,7 @@ if (Test-Path $userThemesPath) {
       date: 16,
     };
 
-    // TEXT FIRST, FONT AFTER pattern (Microsoft recommended for Korean)
+    // IMPORTANT: Set text FIRST, then apply font to prevent garbled Korean
     return this.executePowerShell(`
 $ppt = [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application")
 $presentation = $ppt.ActivePresentation
@@ -1551,6 +1565,137 @@ for ($i = 1; $i -le $master.CustomLayouts.Count; $i++) {
   // Helper Methods
   // ===========================================================================
 
+  /**
+   * Render an HTML file to PNG using Edge headless screenshot.
+   * Both paths must be Windows-format (e.g., C:\temp\slide.html).
+   */
+  async renderHtmlToImage(
+    htmlWindowsPath: string,
+    imageWindowsPath: string,
+  ): Promise<OfficeResponse> {
+    const safeHtml = htmlWindowsPath.replace(/'/g, "''");
+    const safePng = imageWindowsPath.replace(/'/g, "''");
+    return this.executePowerShell(`
+$edgePath = (Get-ItemProperty 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\msedge.exe' -ErrorAction SilentlyContinue).'(default)'
+if (-not $edgePath -or -not (Test-Path $edgePath)) {
+  $candidates = @(
+    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe'
+  )
+  $edgePath = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+}
+if (-not $edgePath) {
+  $chromePath = (Get-ItemProperty 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\chrome.exe' -ErrorAction SilentlyContinue).'(default)'
+  if (-not $chromePath -or -not (Test-Path $chromePath)) {
+    $chromeCandidates = @(
+      'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+      'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe'
+    )
+    $chromePath = $chromeCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+  }
+  if ($chromePath) { $edgePath = $chromePath }
+  else { throw 'Neither Microsoft Edge nor Google Chrome found' }
+}
+
+$htmlFile = '${safeHtml}'
+$pngFile = '${safePng}'
+$fileUrl = 'file:///' + ($htmlFile -replace '\\\\', '/')
+
+$psi = New-Object System.Diagnostics.ProcessStartInfo
+$psi.FileName = $edgePath
+$rawPng = $pngFile + '.raw.png'
+$psi.Arguments = "--headless=new --disable-gpu --no-sandbox --hide-scrollbars --force-device-scale-factor=1 --window-size=2040,1200 --screenshot=$rawPng $fileUrl"
+$psi.UseShellExecute = $false
+$psi.CreateNoWindow = $true
+$proc = [System.Diagnostics.Process]::Start($psi)
+$proc.WaitForExit(15000)
+
+if (-not (Test-Path $rawPng)) {
+  throw "Screenshot not created. Exit code: $($proc.ExitCode)"
+}
+
+# Crop from 2040x1200 to 1920x1080 (removes Edge headless gradient edge gap)
+Add-Type -AssemblyName System.Drawing
+$raw = [System.Drawing.Bitmap]::new($rawPng)
+$cropped = New-Object System.Drawing.Bitmap(1920, 1080)
+$g = [System.Drawing.Graphics]::FromImage($cropped)
+$g.DrawImage($raw, 0, 0, [System.Drawing.Rectangle]::new(0, 0, 1920, 1080), [System.Drawing.GraphicsUnit]::Pixel)
+$g.Dispose()
+$cropped.Save($pngFile, [System.Drawing.Imaging.ImageFormat]::Png)
+$raw.Dispose()
+$cropped.Dispose()
+Remove-Item $rawPng -Force -ErrorAction SilentlyContinue
+
+@{ success = $true; image_path = $pngFile } | ConvertTo-Json -Compress
+`);
+  }
+
+  /**
+   * Measure the natural content height of an HTML file using Edge --dump-dom.
+   * The HTML must have a <script> that sets document.title = 'SH:' + scrollHeight.
+   * Returns the scrollHeight in pixels, or -1 on failure.
+   */
+  async measureHtmlHeight(htmlWindowsPath: string): Promise<number> {
+    const safeHtml = htmlWindowsPath.replace(/'/g, "''");
+    try {
+      const result = await this.executePowerShell(`
+$edgePath = (Get-ItemProperty 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\msedge.exe' -ErrorAction SilentlyContinue).'(default)'
+if (-not $edgePath -or -not (Test-Path $edgePath)) {
+  $candidates = @(
+    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe'
+  )
+  $edgePath = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+}
+if (-not $edgePath) {
+  $chromePath = (Get-ItemProperty 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\chrome.exe' -ErrorAction SilentlyContinue).'(default)'
+  if (-not $chromePath -or -not (Test-Path $chromePath)) {
+    $chromeCandidates = @(
+      'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+      'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe'
+    )
+    $chromePath = $chromeCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+  }
+  if ($chromePath) { $edgePath = $chromePath }
+  else { throw 'Neither Microsoft Edge nor Google Chrome found' }
+}
+
+$htmlFile = '${safeHtml}'
+$fileUrl = 'file:///' + ($htmlFile -replace '\\\\', '/')
+
+$psi = New-Object System.Diagnostics.ProcessStartInfo
+$psi.FileName = $edgePath
+$psi.Arguments = "--headless=new --disable-gpu --no-sandbox --dump-dom $fileUrl"
+$psi.UseShellExecute = $false
+$psi.CreateNoWindow = $true
+$psi.RedirectStandardOutput = $true
+$psi.RedirectStandardError = $true
+$psi.StandardOutputEncoding = [System.Text.Encoding]::UTF8
+$proc = [System.Diagnostics.Process]::Start($psi)
+$output = $proc.StandardOutput.ReadToEnd()
+$proc.StandardError.ReadToEnd() | Out-Null
+if (-not $proc.WaitForExit(15000)) { try { $proc.Kill() } catch {} }
+
+# Match title tag specifically — avoids encoding issues with full-output regex
+$height = -1
+if ($output -match '<title>SH:(\\d+)</title>') {
+  $height = [int]$Matches[1]
+} elseif ($output -match 'SH:(\\d+)') {
+  $height = [int]$Matches[1]
+}
+if ($height -gt 0) {
+  @{ success = $true; height = $height } | ConvertTo-Json -Compress
+} else {
+  @{ success = $false; height = -1 } | ConvertTo-Json -Compress
+}
+`);
+      if (result.success) {
+        const height = (result as Record<string, unknown>)['height'];
+        return typeof height === 'number' ? height : -1;
+      }
+    } catch { /* measurement failed, non-critical */ }
+    return -1;
+  }
 
 }
 

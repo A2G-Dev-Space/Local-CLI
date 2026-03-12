@@ -2,6 +2,8 @@
  * PowerPoint Notes and Placeholder Tools
  *
  * Tools for managing speaker notes, placeholders, and slide layouts in PowerPoint.
+ *
+ * CLI parity: electron/main/tools/office/powerpoint-tools/notes.ts
  */
 
 import { ToolDefinition } from '../../../types/index.js';

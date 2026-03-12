@@ -13,9 +13,10 @@ export const AVAILABLE_TOOLS = `
 
 - **read_file**: Read file contents to understand existing code
 - **create_file**: Create a NEW file (fails if file exists)
-- **edit_file**: Edit an EXISTING file by replacing specific text
+- **edit_file**: Edit an EXISTING file by replacing specific lines
 - **list_files**: List directory contents
 - **find_files**: Search for files by pattern
+- **search_content**: Search for text patterns in files (grep-like)
 - **powershell**: Execute PowerShell commands (git, npm, etc.)
 `.trim();
 
@@ -27,13 +28,23 @@ export const AVAILABLE_TOOLS_WITH_TODO = `
 
 - **read_file**: Read file contents to understand existing code
 - **create_file**: Create a NEW file (fails if file exists)
-- **edit_file**: Edit an EXISTING file by replacing specific text
+- **edit_file**: Edit an EXISTING file by replacing specific lines
 - **list_files**: List directory contents
 - **find_files**: Search for files by pattern
+- **search_content**: Search for text patterns in files (grep-like)
 - **powershell**: Execute PowerShell commands (git, npm, etc.)
 - **tell_to_user**: Send status updates to the user
 - **ask_to_user**: Ask user a question with multiple choice options
 - **write_todos**: Update entire TODO list (replaces current list)
+
+
+### Specialist Sub-Agent Tools (autonomous agents that run independently)
+- **word_create_agent**: Autonomous Word CREATION agent — creates NEW documents from scratch with high-level section builders. Provide topic, sections, content, and save path.
+- **word_modify_agent**: Autonomous Word MODIFY agent — edits EXISTING .docx files. Provide file path and specific changes needed.
+- **excel_create_agent**: Autonomous Excel CREATION agent — creates NEW spreadsheets from scratch with high-level sheet builders. Provide data topic, columns, calculations, and save path.
+- **excel_modify_agent**: Autonomous Excel MODIFY agent — edits EXISTING .xlsx files. Provide file path and specific changes needed.
+- **powerpoint_create_agent**: Autonomous PowerPoint CREATION agent — creates NEW presentations from scratch with high-level builder tools. Provide topic, slide outline, content details, and save path.
+- **powerpoint_modify_agent**: Autonomous PowerPoint MODIFY agent — edits EXISTING .pptx files. Provide file path and specific changes needed.
 `.trim();
 
 /**
@@ -59,7 +70,7 @@ export const FILE_MODIFICATION_RULES = `
 ## File Modification Rules
 
 - For NEW files: Use create_file
-- For EXISTING files: First use read_file to see content, then use edit_file with exact text matches
+- For EXISTING files: First use read_file to see content, then use edit_file with exact line matches
 `.trim();
 
 /**
@@ -84,17 +95,17 @@ Rules:
 
 Reading a file:
 \`\`\`json
-{"name": "read_file", "arguments": {"reason": "기존 코드 확인", "file_path": "src/index.ts"}}
+{"name": "read_file", "arguments": {"reason": "Check existing code", "file_path": "src/index.ts"}}
 \`\`\`
 
 Running a command:
 \`\`\`json
-{"name": "powershell", "arguments": {"reason": "프로젝트 빌드", "command": "npm run build"}}
+{"name": "powershell", "arguments": {"reason": "Build the project", "command": "npm run build"}}
 \`\`\`
 
 Editing a file:
 \`\`\`json
-{"name": "edit_file", "arguments": {"reason": "버그 수정", "file_path": "src/app.ts", "old_string": "const x = 1;", "new_string": "const x = 2;"}}
+{"name": "edit_file", "arguments": {"reason": "Fix the bug", "file_path": "src/app.ts", "old_string": "const x = 1;", "new_string": "const x = 2;"}}
 \`\`\`
 `.trim();
 

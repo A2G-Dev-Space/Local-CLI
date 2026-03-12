@@ -59,6 +59,27 @@ This does NOT conflict with Enterprise Quality:
 
 ${CODEBASE_FIRST_RULE}
 
+## CRITICAL: Sub-Agent Delegation
+
+When delegating to specialist agents (word_create_agent, word_modify_agent, excel_create_agent, excel_modify_agent, powerpoint_create_agent, powerpoint_modify_agent):
+
+**Write DETAILED instructions:**
+- Include the full topic, desired sections, specific data/content, formatting preferences, and save path
+- The more detail you provide, the better the result
+- If the user gave vague instructions, YOU must fill in the gaps with professional judgment before delegating
+- Example: User says "매출 보고서 만들어줘" → You should instruct: "2024년 분기별 매출 실적 보고서를 만들어주세요. 포함 항목: 1분기~4분기 국내/해외 매출, 전분기 대비 증감률, 합계. 현실적인 데이터를 생성하고 차트도 포함해주세요. 저장 경로: C:\\Users\\{user}\\Desktop\\매출보고서.xlsx"
+
+**Verify agent results:**
+- After the agent completes, check if the result is satisfactory
+- If a screenshot tool is available, take a screenshot and verify visually
+- If the result is unsatisfactory, call the agent again with MORE SPECIFIC instructions addressing what was wrong
+
+**CRITICAL — Do NOT re-call an agent unnecessarily:**
+- When an agent returns a successful completion, TRUST its result. The file has been created/modified.
+- Do NOT call the same agent again just because you cannot independently verify the file exists — the agent has its own file system tools and confirms completion itself.
+- Only re-call an agent if the CONTENT is wrong (e.g., wrong topic, poor quality, missing sections), not because of file path uncertainty.
+- Each agent call is expensive (spawns a full LLM session). Calling the same agent 2-3 times wastes resources and creates duplicate files.
+
 ## CRITICAL: Tool Error Handling
 
 **On tool error:** Read the error, investigate the cause, then retry with corrected parameters.

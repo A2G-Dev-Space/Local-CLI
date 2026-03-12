@@ -6,4 +6,4 @@
  */
 
 export * from './word-tools/index.js';
-export { WORD_TOOLS } from './word-tools/index.js';
+export { WORD_TOOLS, WORD_CREATE_TOOLS } from './word-tools/index.js';

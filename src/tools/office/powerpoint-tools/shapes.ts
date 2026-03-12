@@ -7,6 +7,8 @@
  * - Transform: position, size, style, opacity
  * - Z-Order: bring to front, send to back, bring forward, send backward
  * - Multi-shape: align, distribute, group, ungroup
+ *
+ * CLI parity: electron/main/tools/office/powerpoint-tools/shapes.ts
  */
 
 import { ToolDefinition } from '../../../types/index.js';

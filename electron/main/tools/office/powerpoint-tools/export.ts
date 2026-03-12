@@ -34,10 +34,26 @@ async function executePowerPointSave(args: Record<string, unknown>): Promise<Too
   const startTime = Date.now();
   logger.toolStart('powerpoint_save', args);
   try {
+    // Pre-save check: verify closing slide exists
+    let closingWarning = '';
+    try {
+      const infoResp = await powerpointClient.powerpointGetSlideCount();
+      if (infoResp.success && infoResp['slide_count']) {
+        const slideCount = Number(infoResp['slide_count']);
+        if (slideCount > 0) {
+          const lastSlideResp = await powerpointClient.powerpointGetShapeList(slideCount);
+          const shapeCount = lastSlideResp?.['count'] ?? (Array.isArray(lastSlideResp?.['shapes']) ? lastSlideResp['shapes'].length : 0);
+          if (Number(shapeCount) < 2) {
+            closingWarning = ` ⚠ WARNING: Your LAST slide (slide ${slideCount}) has only ${shapeCount} shape(s) — it does NOT look like a proper closing slide. You MUST add a closing slide with "감사합니다"/"Thank You" text and a colored background BEFORE finishing. Do NOT call "complete" yet — build the closing slide first!`;
+          }
+        }
+      }
+    } catch { /* non-critical check, proceed with save */ }
+
     const response = await powerpointClient.powerpointSave(args['path'] as string | undefined);
     if (response.success) {
       logger.toolSuccess('powerpoint_save', args, { path: response['path'] || 'current location' }, Date.now() - startTime);
-      return { success: true, result: `Presentation saved: ${response['path'] || 'current location'}` };
+      return { success: true, result: `Presentation saved: ${response['path'] || 'current location'}${closingWarning}` };
     }
     logger.toolError('powerpoint_save', args, new Error(response.error || 'Failed to save presentation'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to save presentation' };
