@@ -1,15 +1,20 @@
 {
   "name": "local-cli-agent",
   "version": "5.0.2",
-  "description": "Local-CLI - OpenAI-Compatible Coding Agent",
+  "description": "lcli - OpenAI-Compatible Local CLI Coding Agent",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "lcli": "dist/cli.js",
-    "lcli-dev": "dist/cli.js"
+    "lcli": "dist/cli.js"
   },
+  "files": [
+    "dist/**/*",
+    "scripts/patch-yoga.js",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
-    "build": "tsc",
+    "build": "node scripts/inject-version.js && tsc",
     "postbuild": "chmod +x dist/cli.js",
     "postinstall": "node scripts/patch-yoga.js",
     "dev": "ts-node src/cli.ts",
@@ -21,16 +26,16 @@
     "test": "cd tests && python -m pytest test_eval.py -v",
     "test:quick": "cd tests && python -m pytest test_eval.py -v -m 'not slow'",
     "prepr": "npm run lint && npm run build",
-    "bun:build": "node scripts/inject-version.js && npm run build && bun build dist/cli.js --compile --outfile bin/lcli && cp node_modules/yoga-wasm-web/dist/yoga.wasm bin/",
+    "release:npm": "npm run build && npm publish",
     "electron:dev": "electron-vite dev",
     "electron:build": "electron-vite build && npm run electron:build-worker",
     "electron:build-worker": "npx esbuild electron/main/workers/agent-worker.ts --bundle --platform=node --format=cjs --outfile=dist-electron/main/agent-worker.cjs --alias:electron=./electron/main/workers/electron-shim.ts --external:worker_threads --external:better-sqlite3 --external:original-fs --tsconfig=tsconfig.electron.json",
     "electron:preview": "electron-vite preview",
-    "electron:package": "electron-builder --win portable"
+    "electron:package": "electron-builder --win nsis"
   },
   "build": {
-    "appId": "com.local-cli.powershell-ui",
-    "productName": "LOCAL-CLI-UI",
+    "appId": "com.lcli.windows",
+    "productName": "lcli (Windows)",
     "directories": {
       "output": "release"
     },
@@ -55,11 +60,18 @@
       }
     ],
     "win": {
-      "target": "portable",
+      "target": "nsis",
       "icon": "build/icon.ico"
     },
-    "portable": {
-      "artifactName": "${productName} ${version}.${ext}"
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "lcli-Windows-Setup-${version}.${ext}"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "A2G-Dev-Space",
+      "repo": "Local-CLI"
     }
   },
   "keywords": [

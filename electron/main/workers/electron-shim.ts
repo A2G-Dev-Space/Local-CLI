@@ -7,9 +7,9 @@
 import os from 'os';
 import path from 'path';
 
-// Worker uses the same userData path as main process (AppData/Roaming/LOCAL-CLI-UI)
-const workerUserData = path.join(os.homedir(), 'AppData', 'Roaming', 'LOCAL-CLI-UI');
-const workerHome = path.join(os.homedir(), '.local-cli-ui');
+// Worker uses the same userData path as main process (AppData/Roaming/lcli-ui)
+const workerUserData = path.join(os.homedir(), 'AppData', 'Roaming', 'lcli-ui');
+const workerHome = path.join(os.homedir(), '.lcli-ui');
 
 export const app = {
   getPath: (name: string) => {

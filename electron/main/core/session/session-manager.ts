@@ -224,11 +224,11 @@ class SessionManager {
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
-    // Sessions 디렉토리 경로 설정 (Windows: %APPDATA%\LOCAL-CLI-UI\sessions)
+    // Sessions 디렉토리 경로 설정 (Windows: %APPDATA%\lcli-ui\sessions)
     const electronApp = getElectronApp();
     const baseDir = process.platform === 'win32'
-      ? path.join(process.env.APPDATA || (electronApp?.getPath('userData') ?? path.join(os.homedir(), '.local-cli-ui')), 'LOCAL-CLI-UI')
-      : (electronApp?.getPath('userData') ?? path.join(os.homedir(), '.local-cli-ui'));
+      ? path.join(process.env.APPDATA || (electronApp?.getPath('userData') ?? path.join(os.homedir(), '.lcli-ui')), 'lcli-ui')
+      : (electronApp?.getPath('userData') ?? path.join(os.homedir(), '.lcli-ui'));
     this.sessionsDir = path.join(baseDir, 'sessions');
 
     logger.info('Session manager initializing', {
