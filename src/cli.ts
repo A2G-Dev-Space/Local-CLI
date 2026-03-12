@@ -41,8 +41,8 @@ const program = new Command();
  * CLI 프로그램 설정
  */
 program
-  .name('lcli')
-  .description('lcli - OpenAI-Compatible Local CLI Coding Agent')
+  .name('local-cli')
+  .description('Local CLI - OpenAI-Compatible Local CLI Coding Agent')
   .version(packageJson.version)
   .helpOption(false);  // -h, --help 비활성화 (/help 사용)
 
@@ -60,8 +60,12 @@ program
     // -p 모드: non-interactive pipe 모드
     if (options.pipe) {
       if (!prompt) {
-        console.error('Error: -p 옵션에는 프롬프트가 필요합니다. 예: lcli -p "파일 목록 보여줘"');
+        console.error('Error: -p 옵션에는 프롬프트가 필요합니다. 예: local-cli -p "파일 목록 보여줘"');
         process.exit(1);
+      }
+      // Setup logging for pipe mode (--verbose, --debug, --llm-log)
+      if (options.verbose || options.debug || options.llmLog) {
+        await setupLogging({ verbose: options.verbose, debug: options.debug, llmLog: options.llmLog });
       }
       await runPipeMode(prompt, options.specific ?? false);
       return;
@@ -134,7 +138,7 @@ program
 
       // Ink UI 시작 (verbose/debug/llm-log 모드에서만 시작 메시지 표시)
       if (options.verbose || options.debug) {
-        console.log(chalk.cyan('🚀 Starting lcli...\n'));
+        console.log(chalk.cyan('🚀 Starting local-cli...\n'));
       }
 
       // Ink UI를 같은 프로세스에서 직접 렌더링 (stdin raw mode 유지)
@@ -217,7 +221,7 @@ program.configureOutput({
 
 program.on('command:*', () => {
   console.error(chalk.red('⚠️  Unknown command.'));
-  console.log(chalk.white('Usage: lcli [--verbose] [--debug]\n'));
+  console.log(chalk.white('Usage: local-cli [--verbose] [--debug]\n'));
   console.log(chalk.white('Use /help in interactive mode for help.\n'));
   process.exit(1);
 });

@@ -63,8 +63,8 @@ export class JarvisService {
 
   constructor() {
     const homeDir = process.platform === 'win32'
-      ? path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'lcli-ui')
-      : path.join(os.homedir(), '.lcli-ui');
+      ? path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'local-bot')
+      : path.join(os.homedir(), '.local-bot');
     this.memoryPath = path.join(homeDir, 'jarvis-memory.json');
   }
 

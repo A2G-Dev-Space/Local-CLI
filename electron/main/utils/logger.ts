@@ -108,7 +108,7 @@ class Logger {
       const electronApp = getElectronApp();
       this.config.logDir = electronApp
         ? path.join(electronApp.getPath('userData'), 'logs')
-        : path.join(os.homedir(), '.lcli-ui', 'logs'); // Worker fallback
+        : path.join(os.homedir(), '.local-bot', 'logs'); // Worker fallback
     }
 
     // 로그 디렉토리 생성

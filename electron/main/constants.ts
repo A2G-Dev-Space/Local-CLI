@@ -1,5 +1,5 @@
 /**
- * lcli Constants (Electron)
+ * LOCAL BOT Constants (Electron)
  *
  * CLI parity: src/constants.ts
  * Windows native paths used for Electron
@@ -45,13 +45,13 @@ export const PROJECTS_DIR = path.join(LOCAL_HOME_DIR, 'projects');
 /**
  * Service identifier for LLM requests (X-Service-Id header)
  */
-export const SERVICE_ID = 'lcli-ui';
+export const SERVICE_ID = 'local-bot';
 
 /**
  * Application version (injected from package.json)
  * CLI parity: src/constants.ts
  */
-export const APP_VERSION = '5.0.2';
+export const APP_VERSION = '5.0.4';
 
 /**
  * CLI Server 포트 (Electron ↔ CLI 통신)

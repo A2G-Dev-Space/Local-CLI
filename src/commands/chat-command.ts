@@ -2,7 +2,7 @@
  * Chat Command
  *
  * CLI에서 Electron Chat 창에 명령을 전달하고 결과를 받는 서브커맨드.
- * `lcli chat "파일 목록 보여줘"` → Electron Chat에서 실행 → stdout에 결과
+ * `local-cli chat "파일 목록 보여줘"` → Electron Chat에서 실행 → stdout에 결과
  */
 
 import chalk from 'chalk';

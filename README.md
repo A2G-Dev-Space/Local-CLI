@@ -1,4 +1,4 @@
-# lcli
+# Local CLI
 
 [![npm version](https://img.shields.io/npm/v/local-cli-agent)](https://www.npmjs.com/package/local-cli-agent)
 [![GitHub release](https://img.shields.io/github/v/release/A2G-Dev-Space/Local-CLI)](https://github.com/A2G-Dev-Space/Local-CLI/releases)
@@ -11,11 +11,11 @@
 
 https://github.com/user-attachments/assets/77cc96c9-cb22-4411-8744-3a006b00c580
 
-> **Demo**: The video above shows lcli autonomously editing code with Plan & Execute.
+> **Demo**: The video above shows Local CLI autonomously editing code with Plan & Execute.
 
 ---
 
-## Why lcli?
+## Why Local CLI?
 
 | Benefit | Description |
 |---------|-------------|
@@ -43,16 +43,16 @@ https://github.com/user-attachments/assets/77cc96c9-cb22-4411-8744-3a006b00c580
 npm install -g local-cli-agent
 
 # Run
-lcli
+local-cli
 ```
 
 The endpoint setup wizard launches automatically on first run.
 
 ### Desktop App (Windows)
 
-Download the latest `lcli-Windows-Setup-{version}.exe` from the [Releases](https://github.com/A2G-Dev-Space/Local-CLI/releases) page.
+Download the latest `LOCAL-BOT-Setup-{version}.exe` from the [Releases](https://github.com/A2G-Dev-Space/Local-CLI/releases) page.
 
-- **NSIS installer** — installs to `%LOCALAPPDATA%\lcli (Windows)\`
+- **NSIS installer** — installs to `%LOCALAPPDATA%\LOCAL BOT\`
 - **Auto-update** — the app automatically checks GitHub Releases for updates and notifies you when a new version is available
 
 ### Build from Source
@@ -190,9 +190,9 @@ Works well even with smaller or less capable open-source models:
 
 ```bash
 # Terminal — setup wizard launches on first run
-lcli
+local-cli
 
-# Inside lcli — open settings menu
+# Inside Local CLI — open settings menu
 /settings
 ```
 
@@ -212,6 +212,11 @@ vLLM, Ollama, LM Studio, Azure OpenAI, Google Gemini, or internal LLM servers.
 
 ## Changelog
 
+### v5.0.4
+- Rebranded CLI to `local-cli`, Electron to `LOCAL BOT`
+- Pipe mode logging setup for `--verbose`, `--debug`, `--llm-log` flags
+- SubAgent tool call and phase loggers for `-ps` (specific) mode
+
 ### v5.0.2
 - **Office Sub-Agent v5** — Dedicated create agents with structured execution for Excel, Word, PowerPoint
   - Excel: Sheet-by-sheet builder with automatic chart/formatting generation
@@ -219,7 +224,7 @@ vLLM, Ollama, LM Studio, Azure OpenAI, Google Gemini, or internal LLM servers.
   - PowerPoint: Layout-aware slide builder with design system and review loop
 - Unified branding cleanup (removed all enterprise references)
 - Switched to npm publish + GitHub Release deployment (removed binary distribution)
-- Electron rebranded to `lcli (Windows)` with NSIS installer and auto-update via GitHub Release
+- Electron rebranded to `LOCAL BOT` with NSIS installer and auto-update via GitHub Release
 - Fixed Electron vision tool missing + worker shutdown race condition
 - Fixed Jarvis mode auto-update not triggering
 

@@ -1,5 +1,5 @@
 /**
- * lcli (Windows) - Entry Point
+ * LOCAL BOT - Entry Point
  * Modern Electron React application
  */
 

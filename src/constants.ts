@@ -54,7 +54,7 @@ export const SERVICE_ID = 'local-cli';
 /**
  * Application version (injected from package.json)
  */
-export const APP_VERSION = '5.0.2';
+export const APP_VERSION = '5.0.4';
 
 /**
  * CLI Server 포트 (Electron ↔ CLI 통신)

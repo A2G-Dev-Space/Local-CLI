@@ -203,7 +203,7 @@ class BrowserClient {
       );
       // Also kill any Chrome/Edge with our user-data-dir profile (might be running without CDP)
       execSync(
-        `powershell.exe -Command "Get-Process chrome, msedge -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like '*lcli-ui*' } | Stop-Process -Force -ErrorAction SilentlyContinue"`,
+        `powershell.exe -Command "Get-Process chrome, msedge -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like '*local-bot*' } | Stop-Process -Force -ErrorAction SilentlyContinue"`,
         { stdio: 'ignore', timeout: 5000 }
       );
     } catch {
@@ -293,7 +293,7 @@ class BrowserClient {
       }
 
       // Browser arguments — use persistent profile if provided, else temp
-      const userDataDir = options?.userDataDir || path.join(process.env.LOCALAPPDATA || '', 'lcli-ui', `browser-profile-${Date.now()}`);
+      const userDataDir = options?.userDataDir || path.join(process.env.LOCALAPPDATA || '', 'local-bot', `browser-profile-${Date.now()}`);
       const args = [
         `--remote-debugging-port=${this.cdpPort}`,
         `--user-data-dir=${userDataDir}`,
@@ -396,7 +396,7 @@ class BrowserClient {
       try {
         const processName = this.browserType === 'chrome' ? 'chrome.exe' : 'msedge.exe';
         execSync(
-          `powershell.exe -Command "Get-Process -Name '${processName.replace('.exe', '')}' -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like '*lcli-ui*' } | Stop-Process -Force -ErrorAction SilentlyContinue"`,
+          `powershell.exe -Command "Get-Process -Name '${processName.replace('.exe', '')}' -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like '*local-bot*' } | Stop-Process -Force -ErrorAction SilentlyContinue"`,
           { stdio: 'ignore', timeout: 10000 }
         );
       } catch {

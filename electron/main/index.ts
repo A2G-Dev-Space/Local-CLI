@@ -109,7 +109,7 @@ app.commandLine.appendSwitch('disable-features', 'OutOfBlinkCors');
 
 // Windows 전용 최적화
 if (process.platform === 'win32') {
-  app.setAppUserModelId('com.lcli.windows');
+  app.setAppUserModelId('com.local-bot.windows');
 }
 
 // ============ 공통 webPreferences ============

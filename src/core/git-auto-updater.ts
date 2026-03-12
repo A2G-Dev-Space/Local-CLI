@@ -127,7 +127,7 @@ export class GitAutoUpdater {
   }
 
   /**
-   * Main entry point - runs on every 'lcli' command
+   * Main entry point - runs on every 'local-cli' command
    * @returns true if updated and needs restart, false otherwise
    */
   async run(options: { noUpdate?: boolean } = {}): Promise<boolean> {
@@ -296,7 +296,7 @@ export class GitAutoUpdater {
       const shell = process.env['SHELL'] || '/bin/bash';
       const rcFile = shell.includes('zsh') ? '~/.zshrc' : '~/.bashrc';
       const restartMsg = isFirstRun
-        ? `Setup complete! Run: source ${rcFile} && lcli`
+        ? `Setup complete! Run: source ${rcFile} && local-cli`
         : 'Update complete! Please restart.';
       this.emitStatus({ type: 'complete', needsRestart: true, message: restartMsg });
       return true;
@@ -456,14 +456,14 @@ export class GitAutoUpdater {
       const repoBinDir = path.join(this.repoDir, 'bin');
       const installDir = path.join(os.homedir(), '.local', 'bin');
 
-      const lcliGzSrc = path.join(repoBinDir, 'lcli.gz');
+      const binaryGzSrc = path.join(repoBinDir, 'local-cli.gz');
       const yogaSrc = path.join(repoBinDir, 'yoga.wasm');
-      const lcliDest = path.join(installDir, 'lcli');
+      const binaryDest = path.join(installDir, 'local-cli');
       const yogaDest = path.join(installDir, 'yoga.wasm');
 
       // Check if source files exist
-      if (!fs.existsSync(lcliGzSrc)) {
-        this.emitStatus({ type: 'error', message: 'Binary not found in repository (bin/lcli.gz)' });
+      if (!fs.existsSync(binaryGzSrc)) {
+        this.emitStatus({ type: 'error', message: 'Binary not found in repository (bin/local-cli.gz)' });
         return false;
       }
 
@@ -472,15 +472,15 @@ export class GitAutoUpdater {
         fs.mkdirSync(installDir, { recursive: true });
       }
 
-      // Extract and copy lcli binary using streams for memory efficiency
+      // Extract and copy local-cli binary using streams for memory efficiency
       // Remove existing binary first to avoid ETXTBSY error
-      await rm(lcliDest, { force: true });
+      await rm(binaryDest, { force: true });
       await pipeline(
-        createReadStream(lcliGzSrc),
+        createReadStream(binaryGzSrc),
         zlib.createGunzip(),
-        createWriteStream(lcliDest)
+        createWriteStream(binaryDest)
       );
-      await chmod(lcliDest, 0o755);
+      await chmod(binaryDest, 0o755);
 
       // Copy yoga.wasm
       if (fs.existsSync(yogaSrc)) {
