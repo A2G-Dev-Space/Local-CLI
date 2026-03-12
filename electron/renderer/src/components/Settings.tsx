@@ -915,6 +915,7 @@ const JarvisSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const [enabled, setEnabled] = useState(false);
   const [pollInterval, setPollInterval] = useState(30);
   const [autoStart, setAutoStart] = useState(true);
+  const [autoStartChat, setAutoStartChat] = useState(true);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -926,6 +927,8 @@ const JarvisSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
           setPollInterval(config.pollIntervalMinutes);
           setAutoStart(config.autoStartOnBoot);
         }
+        const chatAutoStart = await (window as any).electronAPI?.autoStart?.getChat();
+        if (chatAutoStart !== undefined) setAutoStartChat(chatAutoStart);
       } catch { /* ignore */ }
       setLoading(false);
     };
@@ -955,6 +958,14 @@ const JarvisSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     setAutoStart(newValue);
     await updateConfig({ autoStartOnBoot: newValue });
   }, [autoStart, updateConfig]);
+
+  const handleAutoStartChatToggle = useCallback(async () => {
+    const newValue = !autoStartChat;
+    setAutoStartChat(newValue);
+    try {
+      await (window as any).electronAPI?.autoStart?.setChat(newValue);
+    } catch { /* ignore */ }
+  }, [autoStartChat]);
 
   if (loading) {
     return (
@@ -1012,12 +1023,39 @@ const JarvisSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         </div>
       </div>
 
-      {/* Windows 부팅 시 자동 시작 */}
+      {/* Windows 부팅 시 자동 시작 — 채팅 */}
       <div className="setting-section">
-        <label className="setting-label">Windows 부팅 시 자동 시작</label>
+        <label className="setting-label">Windows 부팅 시 채팅 자동 시작</label>
         <div className="setting-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-            {autoStart ? '컴퓨터 켜면 자비스가 자동 시작됩니다' : '수동으로 시작해야 합니다'}
+            {autoStartChat ? '컴퓨터 켜면 채팅 창이 자동으로 뜹니다' : '채팅은 수동으로 시작해야 합니다'}
+          </span>
+          <button
+            onClick={handleAutoStartChatToggle}
+            style={{
+              width: '44px', height: '24px', borderRadius: '12px', border: 'none',
+              background: autoStartChat ? '#D4A574' : 'var(--color-border-muted)',
+              position: 'relative', cursor: 'pointer',
+              transition: 'background 0.2s',
+            }}
+          >
+            <span style={{
+              position: 'absolute', top: '2px',
+              left: autoStartChat ? '22px' : '2px',
+              width: '20px', height: '20px', borderRadius: '50%',
+              background: 'white', transition: 'left 0.2s',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+            }} />
+          </button>
+        </div>
+      </div>
+
+      {/* Windows 부팅 시 자동 시작 — 자비스 */}
+      <div className="setting-section">
+        <label className="setting-label">Windows 부팅 시 자비스 자동 시작</label>
+        <div className="setting-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+            {autoStart ? '컴퓨터 켜면 자비스가 자동 시작됩니다' : '자비스는 수동으로 시작해야 합니다'}
           </span>
           <button
             onClick={handleAutoStartToggle}
@@ -1053,7 +1091,8 @@ const JarvisSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             • Manager LLM이 자율적으로 판단하여 작업 실행<br />
             • 채팅 창을 닫아도 트레이에서 계속 동작<br />
             • 트레이 우클릭 → "종료"로만 완전 종료<br />
-            {autoStart && '• 컴퓨터 부팅 시 자동 시작'}
+            {autoStartChat && '• 컴퓨터 부팅 시 채팅 자동 시작'}{autoStartChat && <br />}
+            {autoStart && '• 컴퓨터 부팅 시 자비스 자동 시작'}
           </div>
         </div>
       )}

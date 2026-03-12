@@ -97,6 +97,9 @@ export interface AppConfig {
   /** Browser service URLs for sub-agents (Confluence, Jira) — CLI parity */
   browserServices?: { type: 'confluence' | 'jira'; name: string; url: string }[];
 
+  // Auto-start settings
+  autoStartChat?: boolean; // Boot with Chat window (default: true)
+
   // Jarvis Mode
   jarvis?: {
     enabled: boolean;
