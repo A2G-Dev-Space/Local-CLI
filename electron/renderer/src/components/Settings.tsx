@@ -19,11 +19,27 @@ export interface ModelInfo {
   lastHealthCheck?: Date;
 }
 
+type LLMProvider = 'openai' | 'anthropic' | 'gemini' | 'zai' | 'qwen' | 'deepseek' | 'ollama' | 'lmstudio' | 'xai' | 'other';
+
+const PROVIDER_OPTIONS: { id: LLMProvider; name: string; defaultBaseUrl: string; icon: string }[] = [
+  { id: 'openai', name: 'OpenAI', defaultBaseUrl: 'https://api.openai.com/v1', icon: '⬡' },
+  { id: 'anthropic', name: 'Anthropic', defaultBaseUrl: 'https://api.anthropic.com/v1', icon: '◈' },
+  { id: 'gemini', name: 'Google Gemini', defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', icon: '◆' },
+  { id: 'zai', name: 'Z.AI (GLM)', defaultBaseUrl: 'https://api.z.ai/api/paas/v4', icon: 'Z' },
+  { id: 'qwen', name: 'Alibaba Qwen', defaultBaseUrl: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1', icon: 'Q' },
+  { id: 'deepseek', name: 'DeepSeek', defaultBaseUrl: 'https://api.deepseek.com', icon: '⊛' },
+  { id: 'ollama', name: 'Ollama', defaultBaseUrl: 'http://localhost:11434/v1', icon: '🦙' },
+  { id: 'lmstudio', name: 'LM Studio', defaultBaseUrl: 'http://localhost:1234/v1', icon: '⊞' },
+  { id: 'xai', name: 'x.ai (Grok)', defaultBaseUrl: 'https://api.x.ai/v1', icon: '𝕏' },
+  { id: 'other', name: 'Other', defaultBaseUrl: '', icon: '⚙' },
+];
+
 export interface EndpointConfig {
   id: string;
   name: string;
   baseUrl: string;
   apiKey?: string;
+  provider?: LLMProvider;
   models: ModelInfo[];
   createdAt?: Date;
   updatedAt?: Date;
@@ -67,6 +83,7 @@ const FONT_FAMILY_OPTIONS: { value: FontFamily; labelKey: string; cssFamily: str
 ];
 
 interface FormData {
+  provider: LLMProvider;
   name: string;
   baseUrl: string;
   apiKey: string;
@@ -93,6 +110,7 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
 
   // Form state
   const [formData, setFormData] = useState<FormData>({
+    provider: 'other',
     name: '',
     baseUrl: '',
     apiKey: '',
@@ -236,6 +254,7 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
   // Reset form
   const resetForm = useCallback(() => {
     setFormData({
+      provider: 'other',
       name: '',
       baseUrl: '',
       apiKey: '',
@@ -257,6 +276,7 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
   const handleEditEndpoint = useCallback((endpoint: EndpointConfig) => {
     setSelectedEndpoint(endpoint);
     setFormData({
+      provider: (endpoint.provider as LLMProvider) || 'other',
       name: endpoint.name,
       baseUrl: endpoint.baseUrl,
       apiKey: endpoint.apiKey || '',
@@ -331,6 +351,7 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
         name: currentFormData.name.trim(),
         baseUrl: currentFormData.baseUrl.trim(),
         apiKey: currentFormData.apiKey?.trim() || undefined,
+        provider: currentFormData.provider,
         models: [{
           id: currentFormData.modelId.trim(),
           name: currentFormData.modelName?.trim() || currentFormData.modelId.trim(),
@@ -593,7 +614,10 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                             </span>
                           </div>
                           <div className="endpoint-details">
-                            <span className="endpoint-provider">{endpoint.name}</span>
+                            <span className="endpoint-provider">
+                              <span className="provider-icon">{PROVIDER_OPTIONS.find(p => p.id === endpoint.provider)?.icon || '⚙'}</span>
+                              {endpoint.name}
+                            </span>
                             <span className="endpoint-url">{endpoint.baseUrl}</span>
                           </div>
                         </div>
@@ -647,12 +671,36 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
           {(view === 'llm-add' || view === 'llm-edit') && (
             <div className="endpoint-form">
               <div className="form-group">
-                <label>Provider Name</label>
+                <label>Provider</label>
+                <select
+                  className="provider-select"
+                  value={formData.provider}
+                  onChange={(e) => {
+                    const provider = e.target.value as LLMProvider;
+                    const providerOption = PROVIDER_OPTIONS.find(p => p.id === provider);
+                    setFormData({
+                      ...formData,
+                      provider,
+                      name: formData.name || providerOption?.name || '',
+                      baseUrl: providerOption?.defaultBaseUrl || formData.baseUrl,
+                    });
+                  }}
+                >
+                  {PROVIDER_OPTIONS.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.icon} {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label>Display Name</label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="e.g., Ollama Local, OpenAI, LiteLLM"
+                  placeholder="e.g., My OpenAI, Local Ollama"
                 />
               </div>
 

@@ -6,7 +6,7 @@
 
 import { logger } from '../../utils/logger';
 import { configManager } from '../config';
-import { SERVICE_ID } from '../../constants';
+import { getProviderConfig, type LLMProvider } from './providers';
 import { usageTracker } from '../usage-tracker';
 import {
   APIError,
@@ -438,27 +438,39 @@ class LLMClient {
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'X-Service-Id': SERVICE_ID,
     };
 
     if (endpoint.apiKey) {
       headers['Authorization'] = `Bearer ${endpoint.apiKey}`;
     }
 
-    const requestBody = {
+    const providerConfig = getProviderConfig(endpoint.provider as LLMProvider);
+    const requestBody: Record<string, unknown> = {
       model: modelId,
       messages: processedMessages,
       temperature: options.temperature ?? 0.7,
       max_tokens: options.max_tokens ?? model.maxTokens,
       stream: false,
-      // GPT-OSS reasoning models: always use high reasoning effort
-      ...(/^gpt-oss-(120b|20b)$/i.test(modelId) && { reasoning_effort: 'high' }),
-      ...(options.tools && {
-        tools: options.tools,
-        parallel_tool_calls: false,  // Enforce one tool at a time (CLI parity)
-        ...(options.tool_choice && { tool_choice: options.tool_choice }),
-      }),
     };
+
+    // GPT-OSS reasoning models: use high reasoning effort
+    if (/^gpt-oss-(120b|20b)$/i.test(modelId)) {
+      requestBody.reasoning_effort = 'high';
+    }
+
+    if (options.tools) {
+      requestBody.tools = options.tools;
+      if (providerConfig.supportsParallelToolCalls) {
+        requestBody.parallel_tool_calls = false;
+      }
+      if (options.tool_choice) {
+        if (options.tool_choice === 'required' && !providerConfig.supportsToolChoiceRequired) {
+          requestBody.tool_choice = 'auto';
+        } else {
+          requestBody.tool_choice = options.tool_choice;
+        }
+      }
+    }
 
     logger.enter('chatCompletion', {
       model: modelId,
@@ -691,27 +703,39 @@ class LLMClient {
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'X-Service-Id': SERVICE_ID,
     };
 
     if (endpoint.apiKey) {
       headers['Authorization'] = `Bearer ${endpoint.apiKey}`;
     }
 
-    const requestBody = {
+    const providerConfig = getProviderConfig(endpoint.provider as LLMProvider);
+    const requestBody: Record<string, unknown> = {
       model: modelId,
       messages: processedMessages,
       temperature: options.temperature ?? 0.7,
       max_tokens: options.max_tokens ?? model.maxTokens,
       stream: true,
-      // GPT-OSS reasoning models: always use high reasoning effort
-      ...(/^gpt-oss-(120b|20b)$/i.test(modelId) && { reasoning_effort: 'high' }),
-      ...(options.tools && {
-        tools: options.tools,
-        parallel_tool_calls: false,
-        ...(options.tool_choice && { tool_choice: options.tool_choice }),
-      }),
     };
+
+    // GPT-OSS reasoning models: use high reasoning effort
+    if (/^gpt-oss-(120b|20b)$/i.test(modelId)) {
+      requestBody.reasoning_effort = 'high';
+    }
+
+    if (options.tools) {
+      requestBody.tools = options.tools;
+      if (providerConfig.supportsParallelToolCalls) {
+        requestBody.parallel_tool_calls = false;
+      }
+      if (options.tool_choice) {
+        if (options.tool_choice === 'required' && !providerConfig.supportsToolChoiceRequired) {
+          requestBody.tool_choice = 'auto';
+        } else {
+          requestBody.tool_choice = options.tool_choice;
+        }
+      }
+    }
 
     logger.enter('chatCompletionStream', {
       model: modelId,

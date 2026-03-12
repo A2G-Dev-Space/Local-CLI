@@ -13,6 +13,7 @@ import { configManager } from '../../../core/config/config-manager.js';
 import { sessionManager } from '../../../core/session/session-manager.js';
 import { LLMClient } from '../../../core/llm/llm-client.js';
 import { EndpointConfig } from '../../../types/index.js';
+import { ALL_PROVIDERS, PROVIDER_CONFIGS, type LLMProvider } from '../../../core/llm/providers.js';
 
 interface SettingsBrowserProps {
   currentPlanningMode: PlanningMode;
@@ -42,6 +43,7 @@ interface EndpointHealthStatus {
 }
 
 interface LLMFormData {
+  provider: LLMProvider;
   name: string;
   baseUrl: string;
   apiKey: string;
@@ -61,7 +63,7 @@ type SettingsView =
   | 'llm-edit'
   | 'llm-delete-confirm';
 
-type FormField = 'name' | 'baseUrl' | 'apiKey' | 'modelId' | 'modelName' | 'maxContextLength' | 'supportsVision' | 'buttons';
+type FormField = 'provider' | 'name' | 'baseUrl' | 'apiKey' | 'modelId' | 'modelName' | 'maxContextLength' | 'supportsVision' | 'buttons';
 
 export const SettingsBrowser: React.FC<SettingsBrowserProps> = ({
   currentPlanningMode: _currentPlanningMode, // Kept for backward compatibility but not used (always auto)
@@ -83,6 +85,7 @@ export const SettingsBrowser: React.FC<SettingsBrowserProps> = ({
 
   // Form state
   const [formData, setFormData] = useState<LLMFormData>({
+    provider: 'other',
     name: '',
     baseUrl: '',
     apiKey: '',
@@ -91,7 +94,7 @@ export const SettingsBrowser: React.FC<SettingsBrowserProps> = ({
     maxContextLength: '128000',
     supportsVision: false,
   });
-  const [formField, setFormField] = useState<FormField>('name');
+  const [formField, setFormField] = useState<FormField>('provider');
   const [formButtonIndex, setFormButtonIndex] = useState(0);
   const [formError, setFormError] = useState<string | null>(null);
   const [isTesting, setIsTesting] = useState(false);
@@ -222,12 +225,29 @@ export const SettingsBrowser: React.FC<SettingsBrowserProps> = ({
   // Handle form field navigation with Tab, Arrow keys, and Enter
   const handleFormNavigation = useCallback(
     (key: { tab?: boolean; shift?: boolean; return?: boolean; upArrow?: boolean; downArrow?: boolean }) => {
-      const fields: FormField[] = ['name', 'baseUrl', 'apiKey', 'modelId', 'modelName', 'maxContextLength', 'supportsVision', 'buttons'];
+      const fields: FormField[] = ['provider', 'name', 'baseUrl', 'apiKey', 'modelId', 'modelName', 'maxContextLength', 'supportsVision', 'buttons'];
       const currentIndex = fields.indexOf(formField);
 
       // Toggle supportsVision on Enter
       if (key.return && formField === 'supportsVision') {
         setFormData((prev) => ({ ...prev, supportsVision: !prev.supportsVision }));
+        return true;
+      }
+
+      // Provider selection: cycle through providers on Enter
+      if (key.return && formField === 'provider') {
+        setFormData((prev) => {
+          const currentIdx = ALL_PROVIDERS.indexOf(prev.provider);
+          const nextIdx = (currentIdx + 1) % ALL_PROVIDERS.length;
+          const nextProvider = ALL_PROVIDERS[nextIdx]!;
+          const config = PROVIDER_CONFIGS[nextProvider];
+          return {
+            ...prev,
+            provider: nextProvider,
+            name: prev.name || config.name,
+            baseUrl: config.defaultBaseUrl || prev.baseUrl,
+          };
+        });
         return true;
       }
 
@@ -335,6 +355,7 @@ export const SettingsBrowser: React.FC<SettingsBrowserProps> = ({
         name: formData.name,
         baseUrl: formData.baseUrl,
         apiKey: formData.apiKey || undefined,
+        provider: formData.provider,
         models: [
           {
             id: formData.modelId,
@@ -356,6 +377,7 @@ export const SettingsBrowser: React.FC<SettingsBrowserProps> = ({
           name: formData.name,
           baseUrl: formData.baseUrl,
           apiKey: formData.apiKey || undefined,
+          provider: formData.provider,
           models: [
             {
               id: formData.modelId,
@@ -414,6 +436,25 @@ export const SettingsBrowser: React.FC<SettingsBrowserProps> = ({
       // Space to toggle supportsVision
       if (inputChar === ' ' && formField === 'supportsVision') {
         setFormData((prev) => ({ ...prev, supportsVision: !prev.supportsVision }));
+        return;
+      }
+
+      // Left/Right arrows to cycle provider
+      if (formField === 'provider' && (key.leftArrow || key.rightArrow)) {
+        setFormData((prev) => {
+          const currentIdx = ALL_PROVIDERS.indexOf(prev.provider);
+          const nextIdx = key.rightArrow
+            ? (currentIdx + 1) % ALL_PROVIDERS.length
+            : (currentIdx - 1 + ALL_PROVIDERS.length) % ALL_PROVIDERS.length;
+          const nextProvider = ALL_PROVIDERS[nextIdx]!;
+          const config = PROVIDER_CONFIGS[nextProvider];
+          return {
+            ...prev,
+            provider: nextProvider,
+            name: prev.name || config.name,
+            baseUrl: config.defaultBaseUrl || prev.baseUrl,
+          };
+        });
         return;
       }
 
@@ -512,8 +553,8 @@ export const SettingsBrowser: React.FC<SettingsBrowserProps> = ({
   // Handle LLMs menu selection
   const handleLLMsSelect = (item: SelectItem) => {
     if (item.value === 'add') {
-      setFormData({ name: '', baseUrl: '', apiKey: '', modelId: '', modelName: '', maxContextLength: '128000', supportsVision: false });
-      setFormField('name');
+      setFormData({ provider: 'other', name: '', baseUrl: '', apiKey: '', modelId: '', modelName: '', maxContextLength: '128000', supportsVision: false });
+      setFormField('provider');
       setFormButtonIndex(0);
       setFormError(null);
       setView('llm-add');
@@ -533,6 +574,7 @@ export const SettingsBrowser: React.FC<SettingsBrowserProps> = ({
     switch (item.value) {
       case 'edit':
         setFormData({
+          provider: (selectedEndpoint.provider as LLMProvider) || 'other',
           name: selectedEndpoint.name,
           baseUrl: selectedEndpoint.baseUrl,
           apiKey: selectedEndpoint.apiKey || '',
@@ -541,7 +583,7 @@ export const SettingsBrowser: React.FC<SettingsBrowserProps> = ({
           maxContextLength: String(selectedEndpoint.models[0]?.maxTokens || 128000),
           supportsVision: selectedEndpoint.models[0]?.supportsVision || false,
         });
-        setFormField('name');
+        setFormField('provider');
         setFormButtonIndex(0);
         setFormError(null);
         setView('llm-edit');
@@ -823,6 +865,17 @@ export const SettingsBrowser: React.FC<SettingsBrowserProps> = ({
 
         {/* Form */}
         <Box borderStyle="single" borderColor="gray" paddingX={1} flexDirection="column">
+          {/* Provider Field */}
+          <Box>
+            <Text color={formField === 'provider' ? 'cyan' : 'yellow'}>
+              {formField === 'provider' ? '> ' : '  '}Provider:
+            </Text>
+            <Text color={formField === 'provider' ? 'white' : undefined}>
+              {' '}{PROVIDER_CONFIGS[formData.provider].name}
+              {formField === 'provider' && <Text dimColor> (←/→ or Enter to change)</Text>}
+            </Text>
+          </Box>
+
           {/* Name Field */}
           <Box>
             <Text color={formField === 'name' ? 'cyan' : 'yellow'}>

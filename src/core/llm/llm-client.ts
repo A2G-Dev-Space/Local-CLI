@@ -14,6 +14,7 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import { Message, LLMRequestOptions } from '../../types/index.js';
 import { configManager } from '../config/config-manager.js';
+import { getProviderConfig, type LLMProvider } from './providers.js';
 import {
   NetworkError,
   APIError,
@@ -95,6 +96,7 @@ export class LLMClient {
   private apiKey: string;
   private model: string;
   private modelName: string;
+  private provider: LLMProvider;
   private currentAbortController: AbortController | null = null;
   private isInterrupted: boolean = false;
 
@@ -117,6 +119,7 @@ export class LLMClient {
     this.apiKey = endpoint.apiKey || '';
     this.model = currentModel.id;
     this.modelName = currentModel.name;
+    this.provider = endpoint.provider || 'other';
 
     // Axios 인스턴스 생성
     this.axiosInstance = axios.create({
@@ -239,6 +242,7 @@ export class LLMClient {
         { name: 'temperature', value: options.temperature ?? 0.7 }
       );
 
+      const providerConfig = getProviderConfig(this.provider);
       const requestBody = {
         model: modelId,
         messages: processedMessages,
@@ -249,8 +253,12 @@ export class LLMClient {
         ...(/^gpt-oss-(120b|20b)$/i.test(modelId) && { reasoning_effort: 'high' }),
         ...(options.tools && {
           tools: options.tools,
-          parallel_tool_calls: false,  // Enforce one tool at a time via API
-          ...(options.tool_choice && { tool_choice: options.tool_choice }),
+          // Only send parallel_tool_calls if provider supports it
+          ...(providerConfig.supportsParallelToolCalls && { parallel_tool_calls: false }),
+          ...(options.tool_choice && {
+            tool_choice: (options.tool_choice === 'required' && !providerConfig.supportsToolChoiceRequired)
+              ? 'auto' : options.tool_choice,
+          }),
         }),
       };
 
@@ -560,6 +568,7 @@ export class LLMClient {
       const processedMessages = options.messages ?
         this.preprocessMessages(options.messages, modelId) : [];
 
+      const providerConfig = getProviderConfig(this.provider);
       const requestBody = {
         model: modelId,
         messages: processedMessages,
@@ -570,7 +579,11 @@ export class LLMClient {
         ...(/^gpt-oss-(120b|20b)$/i.test(modelId) && { reasoning_effort: 'high' }),
         ...(options.tools && {
           tools: options.tools,
-          ...(options.tool_choice && { tool_choice: options.tool_choice }),
+          ...(providerConfig.supportsParallelToolCalls && { parallel_tool_calls: false }),
+          ...(options.tool_choice && {
+            tool_choice: (options.tool_choice === 'required' && !providerConfig.supportsToolChoiceRequired)
+              ? 'auto' : options.tool_choice,
+          }),
         }),
       };
 
