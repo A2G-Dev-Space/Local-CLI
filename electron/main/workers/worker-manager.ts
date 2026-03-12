@@ -182,6 +182,8 @@ export class WorkerManager {
    */
   abortAgent(sessionId: string): void {
     this.sendToWorker(sessionId, { type: 'abort' });
+    // Dismiss any pending modals immediately (don't wait for worker crash/exit)
+    this.dismissPendingModals(sessionId);
   }
 
   /**

@@ -11,7 +11,6 @@ import { ToolDefinition } from '../../../types/index';
 import { LLMSimpleTool, ToolResult } from '../../types';
 import { powerpointClient } from '../powerpoint-client';
 import { OFFICE_CATEGORIES } from '../common/constants';
-import { logger } from '../../../utils/logger';
 
 // =============================================================================
 // PowerPoint Add Animation

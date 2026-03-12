@@ -25,6 +25,8 @@ export interface TodoItem {
   id: string;
   title: string;
   status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  result?: string;
+  error?: string;
 }
 
 export type TodoWriteCallback = (todos: TodoItem[]) => Promise<boolean>;
@@ -64,6 +66,14 @@ Example - Mark first task complete, second in progress:
     { "id": "1", "title": "Setup project", "status": "completed" },
     { "id": "2", "title": "Implement feature", "status": "in_progress" },
     { "id": "3", "title": "Write tests", "status": "pending" }
+  ]
+}
+
+Example - Add a new task:
+{
+  "todos": [
+    { "id": "1", "title": "Existing task", "status": "completed" },
+    { "id": "2", "title": "New task I just added", "status": "pending" }
   ]
 }`,
     parameters: {

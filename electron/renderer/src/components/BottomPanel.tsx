@@ -250,7 +250,7 @@ const BottomPanel: React.FC<BottomPanelProps> = ({
                     </button>
                     {isModelDropdownOpen && (
                       <div className="panel-model-dropdown">
-                        {endpoints.length === 0 ? (
+                        {!currentEndpoint || currentEndpoint.models.length === 0 ? (
                           <div className="panel-model-empty">
                             <span>{t('model.noModels')}</span>
                             <button onClick={() => { onModelDropdownToggle(); commandHandlers.onSettings(); }}>

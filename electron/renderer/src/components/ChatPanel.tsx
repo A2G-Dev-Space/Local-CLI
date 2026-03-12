@@ -133,7 +133,7 @@ const MessageItem = memo<MessageItemProps>(({ message, isBatchLoad }) => {
         </div>
       )}
       <div className="message-content">
-        <MemoizedMessageContent content={message.content} role={message.role} />
+        <MemoizedMessageContent content={message.content} role={message.role as 'system' | 'user' | 'assistant'} />
         {/* Copy button for all message types */}
         <button
           className={`message-copy-btn ${copied ? 'copied' : ''}`}
@@ -248,59 +248,79 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
     setupAgentListeners,
   } = useAgent();
 
-  // Create unified timeline of messages and tool executions sorted by timestamp
-  // Tool executions are split into groups between messages so they appear in the correct position
+  // Create unified timeline of messages and tool executions
+  // Messages maintain their array order (authoritative). Tool executions are inserted
+  // between messages based on tool timestamps falling between message timestamps.
   const timeline = useMemo<TimelineItem[]>(() => {
-    const items: TimelineItem[] = [];
-
-    // Add messages to timeline
-    visibleMessages.forEach(msg => {
-      items.push({
-        type: 'message',
+    if (toolExecutions.length === 0) {
+      // Fast path: no tool executions, just messages in order
+      return visibleMessages.map(msg => ({
+        type: 'message' as const,
         data: msg,
         timestamp: msg.timestamp,
-      });
-    });
+      }));
+    }
 
-    // Split tool executions into groups separated by user messages
-    // Tools between message A and message B should appear between them in the timeline
-    if (toolExecutions.length > 0) {
-      const messageTimes = visibleMessages.map(m => m.timestamp).sort((a, b) => a - b);
+    const items: TimelineItem[] = [];
 
-      let currentGroup: ToolExecutionData[] = [];
-      for (let i = 0; i < toolExecutions.length; i++) {
-        const tool = toolExecutions[i];
-        const prevTool = i > 0 ? toolExecutions[i - 1] : null;
+    // Build message entries with stable ordering timestamps.
+    // Use array index as tiebreaker to guarantee order even if timestamps are identical.
+    const msgEntries = visibleMessages.map((msg, idx) => ({
+      type: 'message' as const,
+      data: msg,
+      timestamp: msg.timestamp,
+      order: idx,
+    }));
 
-        // Check if a message was sent between this tool and the previous one
-        const hasMessageBetween = prevTool &&
-          messageTimes.some(t => t > prevTool.timestamp && t <= tool.timestamp);
-
-        if (hasMessageBetween && currentGroup.length > 0) {
-          // Flush current group and start a new one
-          items.push({
-            type: 'tools',
-            data: currentGroup,
-            timestamp: currentGroup[0].timestamp,
-          });
+    // Group consecutive tool executions together
+    const toolGroups: { data: ToolExecutionData[]; timestamp: number }[] = [];
+    let currentGroup: ToolExecutionData[] = [];
+    for (const tool of toolExecutions) {
+      if (currentGroup.length > 0) {
+        const lastTool = currentGroup[currentGroup.length - 1];
+        // Start new group if gap > 30 seconds (different conversation turn)
+        if (tool.timestamp - lastTool.timestamp > 30000) {
+          toolGroups.push({ data: currentGroup, timestamp: currentGroup[0].timestamp });
           currentGroup = [tool];
         } else {
           currentGroup.push(tool);
         }
-      }
-
-      // Flush remaining group
-      if (currentGroup.length > 0) {
-        items.push({
-          type: 'tools',
-          data: currentGroup,
-          timestamp: currentGroup[0].timestamp,
-        });
+      } else {
+        currentGroup.push(tool);
       }
     }
+    if (currentGroup.length > 0) {
+      toolGroups.push({ data: currentGroup, timestamp: currentGroup[0].timestamp });
+    }
 
-    // Sort by timestamp
-    items.sort((a, b) => a.timestamp - b.timestamp);
+    // For each message, add it to timeline. Insert tool groups that belong before it.
+    let toolIdx = 0;
+    for (const msgEntry of msgEntries) {
+      // Insert any tool groups whose timestamp is before this message
+      while (toolIdx < toolGroups.length && toolGroups[toolIdx].timestamp <= msgEntry.timestamp) {
+        items.push({
+          type: 'tools',
+          data: toolGroups[toolIdx].data,
+          timestamp: toolGroups[toolIdx].timestamp,
+        });
+        toolIdx++;
+      }
+      items.push({
+        type: 'message',
+        data: msgEntry.data,
+        timestamp: msgEntry.timestamp,
+      });
+    }
+
+    // Append any remaining tool groups after the last message
+    while (toolIdx < toolGroups.length) {
+      items.push({
+        type: 'tools',
+        data: toolGroups[toolIdx].data,
+        timestamp: toolGroups[toolIdx].timestamp,
+      });
+      toolIdx++;
+    }
 
     return items;
   }, [visibleMessages, toolExecutions]);
@@ -726,12 +746,12 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
           ? totalDuration / (result.messages.length - 1)
           : 0;
         const updatedMessages: ChatMessage[] = result.messages.map((m, idx) => ({
-          id: `msg-${Date.now()}-${idx}`,
+          id: `msg-${agentStart}-${idx}`,
           role: m.role as 'user' | 'assistant' | 'system' | 'tool',
           content: m.content || '',
           tool_calls: (m as any).tool_calls,
           tool_call_id: (m as any).tool_call_id,
-          timestamp: Date.now(),
+          timestamp: Math.round(agentStart + (idx * step)),
         }));
 
         const updatedSession: Session = {
@@ -966,7 +986,13 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
       );
 
       if (result.success && result.compactedMessages) {
-        const newMessages: ChatMessage[] = result.compactedMessages.map((m, idx) => ({
+        // Manual compact: remove the "Please continue your work." message
+        // Auto-compact (in ipc-agent) keeps it to resume agent execution
+        // Manual compact should wait for user input instead
+        const filteredMessages = result.compactedMessages.filter(
+          m => !(m.role === 'user' && m.content === 'Please continue your work.')
+        );
+        const newMessages: ChatMessage[] = filteredMessages.map((m, idx) => ({
           id: `compacted-${Date.now()}-${idx}`,
           role: m.role as 'user' | 'assistant' | 'system',
           content: m.content,
@@ -982,6 +1008,10 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
 
         setIsBatchLoad(true);
         setMessages(newMessages);
+        // Clear old tool executions (they're now in the compact summary)
+        clearToolExecutions();
+        clearTodos();
+        clearProgressMessages();
         setTimeout(() => setIsBatchLoad(false), 100);
 
         if (session && onSessionChange) {
@@ -1196,7 +1226,6 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
             </div>
           </div>
         )}
-
 
         {isLoading && (
           <div className="chat-message assistant loading">

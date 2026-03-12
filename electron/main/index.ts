@@ -7,7 +7,7 @@
  * - 전역 에러 핸들링
  */
 
-import { app, BrowserWindow, shell, nativeTheme, crashReporter, dialog, screen } from 'electron';
+import { app, BrowserWindow, shell, nativeTheme, crashReporter, screen } from 'electron';
 import path from 'path';
 import os from 'os';
 import fs from 'fs';

@@ -6,15 +6,7 @@
 
 // Types (local definitions)
 export type {
-  ToolParameter,
-  ToolDefinition,
   ToolResult,
-  ToolContext,
-  CoreToolGroupId,
-  OptionalToolGroupId,
-  ToolGroupId,
-  ToolGroup,
-  ToolRegistry as IToolRegistry,
 } from './types';
 
 // Registry

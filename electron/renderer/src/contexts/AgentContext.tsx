@@ -210,11 +210,13 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
   const clearProgressMessages = useCallback(() => {
     window.electronAPI?.log?.debug?.('[AgentContext] clearProgressMessages');
     setProgressMessages([]);
+    progressMessagesRef.current = [];
   }, []);
 
   const clearTodos = useCallback(() => {
     window.electronAPI?.log?.debug?.('[AgentContext] clearTodos');
     setTodos([]);
+    todosRef.current = [];
   }, []);
 
   const dismissProgressMessage = useCallback((id: string) => {
@@ -261,7 +263,6 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     progressCacheRef.current.delete(sessionId);
     window.electronAPI?.log?.debug?.('[AgentContext] clearSessionCache', { sessionId });
   }, []);
-
 
   // User question handlers
   // Use stored sessionId from the question (not activeSessionRef) to route response to correct worker
@@ -474,20 +475,11 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
       })
     );
 
-    // Auto-sync result event (background sync notifications)
-    if (window.electronAPI.agent.onAutoSyncResult) {
-      unsubscribes.push(
-        window.electronAPI.agent.onAutoSyncResult((result) => {
-          window.electronAPI?.log?.debug?.('[AgentContext] Auto-sync result', result);
-        })
-      );
-    }
-
     // Ask user event (includes sessionId + reqId from worker for round-trip routing)
     // Uses modal queue to prevent concurrent sessions from overwriting each other's requests
     unsubscribes.push(
       window.electronAPI.agent.onAskUser((request) => {
-        const reqAny = request as Record<string, unknown>;
+        const reqAny = request as unknown as Record<string, unknown>;
         const eventSessionId = reqAny.sessionId as string | undefined;
         window.electronAPI?.log?.info?.('[AgentContext] Ask user', {
           question: request.question,
@@ -523,7 +515,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
     if (window.electronAPI.agent.onApprovalRequest) {
       unsubscribes.push(
         window.electronAPI.agent.onApprovalRequest((request) => {
-          const reqAny = request as Record<string, unknown>;
+          const reqAny = request as unknown as Record<string, unknown>;
           const eventSessionId = reqAny.sessionId as string | undefined;
           window.electronAPI?.log?.info?.('[AgentContext] Approval request', {
             toolName: request.toolName,

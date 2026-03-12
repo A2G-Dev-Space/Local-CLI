@@ -247,7 +247,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
       if (result.success && result.entries) {
         setLogEntries(result.entries);
       } else {
-        setError(result.error || 'Failed to read session log');
+        setError((result as any).error || 'Failed to read session log');
       }
     } catch (err) {
       setError('Failed to load session log entries');
@@ -271,7 +271,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
       if (result.success && result.entries) {
         setLogEntries(result.entries);
       } else {
-        setError(result.error || 'Failed to read current run log');
+        setError((result as any).error || 'Failed to read current run log');
       }
     } catch (err) {
       setError('Failed to load current run log entries');

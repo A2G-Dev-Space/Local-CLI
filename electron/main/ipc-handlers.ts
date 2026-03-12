@@ -17,7 +17,7 @@ import { powerShellManager, PowerShellOutput, SessionInfo } from './powershell-m
 import { configManager, AppConfig, EndpointConfig } from './core/config';
 import { sessionManager, Session, SessionSummary, ChatMessage } from './core/session';
 import { llmClient, Message } from './core/llm';
-import { compactConversation, canCompact, CompactContext } from './core/compact';
+import { compactConversation, canCompact, CompactContext, contextTracker } from './core/compact';
 import { usageTracker } from './core/usage-tracker';
 import { toolManager } from './tool-manager';
 import {
@@ -964,7 +964,7 @@ export function setupIpcHandlers(): void {
       logger.ipcHandle('powershell:execute', { commandLength: command.length });
       try {
         const result = await powerShellManager.execute(command);
-        logger.flow('PowerShell command executed', { exitCode: result.exitCode, outputLength: result.output?.length || 0 });
+        logger.flow('PowerShell command executed', { exitCode: result.exitCode, outputLength: (result as any).output?.length || 0 });
         return { ...result, success: true };
       } catch (error) {
         logger.ipcError('powershell:execute', { command, error });

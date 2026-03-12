@@ -335,6 +335,14 @@ class Logger {
   }
 
   /**
+   * Silent error logging - logs to file only, no console output
+   * Used for non-critical errors that shouldn't clutter the UI
+   */
+  errorSilent(message: string, data?: unknown): void {
+    this.log(LogLevel.ERROR, message, data);
+  }
+
+  /**
    * Fatal level logging - maps to ERROR (CLI parity: no separate FATAL level)
    */
   fatal(message: string, data?: unknown): void {

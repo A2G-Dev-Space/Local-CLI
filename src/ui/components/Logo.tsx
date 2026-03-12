@@ -7,12 +7,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { Box, Text } from 'ink';
-import { createRequire } from 'module';
+import { APP_VERSION } from '../../constants.js';
 
-// Get version from package.json
-const require = createRequire(import.meta.url);
-const pkg = require('../../../package.json') as { version: string };
-const VERSION = pkg.version;
+const VERSION = APP_VERSION;
 
 // ASCII Art Logo for LOCAL-CLI (Terminal Style)
 const LOGO_LINES = [

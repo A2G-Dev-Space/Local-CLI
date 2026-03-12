@@ -134,11 +134,12 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
     if (!window.electronAPI?.config) return;
     try {
       const config = await window.electronAPI.config.getAll();
-      if (config?.fontSize && typeof config.fontSize === 'number') {
-        setFontSize(config.fontSize);
+      const configAny2 = config as unknown as Record<string, unknown>;
+      if (configAny2?.fontSize && typeof configAny2.fontSize === 'number') {
+        setFontSize(configAny2.fontSize as number);
       }
-      if (config?.colorPalette) {
-        setColorPalette(config.colorPalette as ColorPalette);
+      if (configAny2?.colorPalette) {
+        setColorPalette(configAny2.colorPalette as ColorPalette);
       }
       const configAny = config as unknown as Record<string, unknown>;
       if (configAny?.fontFamily && typeof configAny.fontFamily === 'string') {
@@ -154,7 +155,7 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
     async (key: string, value: number | string) => {
       if (!window.electronAPI?.config) return;
       try {
-        await window.electronAPI.config.set(key, value);
+        await window.electronAPI.config.set(key as any, value);
         if (key === 'fontSize') {
           document.documentElement.style.setProperty('--user-font-size', `${value}px`);
         } else if (key === 'colorPalette') {

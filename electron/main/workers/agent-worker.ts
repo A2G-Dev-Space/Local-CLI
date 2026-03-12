@@ -11,7 +11,7 @@
 
 import { parentPort, workerData } from 'worker_threads';
 import { runAgentCore, AgentIO, AgentRunState } from '../orchestration/agent-engine';
-import type { AgentConfig, AgentCallbacks } from '../orchestration/agent-engine';
+import type { AgentCallbacks } from '../orchestration/agent-engine';
 import type { ToolApprovalResult } from '../tools/llm/simple/simple-tool-executor';
 import type { AskUserResponse } from '../orchestration/types';
 import type { MainToWorkerMessage, WorkerInitData } from './worker-protocol';
@@ -170,28 +170,32 @@ port.on('message', async (msg: MainToWorkerMessage) => {
     }
 
     case 'abort': {
-      // Abort LLM HTTP request (sets isInterrupted flag + cancels in-flight fetch)
-      llmClient.abort();
+      try {
+        // Abort LLM HTTP request (sets isInterrupted flag + cancels in-flight fetch)
+        llmClient.abort();
 
-      if (agentState.abortController) {
-        agentState.abortController.abort();
-        agentState.abortController = null;
-      }
-      agentState.isRunning = false;
-      agentState.currentTodos = [];
+        if (agentState.abortController) {
+          agentState.abortController.abort();
+          agentState.abortController = null;
+        }
+        agentState.isRunning = false;
+        agentState.currentTodos = [];
 
-      // Reject all pending approvals/askUser
-      for (const [id, { resolve, timer }] of pendingApprovals) {
-        clearTimeout(timer);
-        resolve({ reject: true, comment: 'Agent aborted' });
-      }
-      pendingApprovals.clear();
+        // Reject all pending approvals/askUser
+        for (const [, { resolve, timer }] of pendingApprovals) {
+          clearTimeout(timer);
+          resolve({ reject: true, comment: 'Agent aborted' });
+        }
+        pendingApprovals.clear();
 
-      for (const [id, { resolve, timer }] of pendingAskUser) {
-        clearTimeout(timer);
-        resolve({ selectedOption: '', isOther: false });
+        for (const [, { resolve, timer }] of pendingAskUser) {
+          clearTimeout(timer);
+          resolve({ selectedOption: '', isOther: false });
+        }
+        pendingAskUser.clear();
+      } catch (error) {
+        logger.errorSilent('[Worker] Error during abort cleanup', { error: (error as Error)?.message, sessionId });
       }
-      pendingAskUser.clear();
       break;
     }
 
@@ -254,7 +258,7 @@ port.on('message', async (msg: MainToWorkerMessage) => {
     case 'compact': {
       // Manual compact execution within this worker's llmClient/contextTracker
       try {
-        const result = await compactConversation(msg.messages, msg.context);
+        const result = await compactConversation(msg.messages, msg.context as any);
         port.postMessage({ type: 'compactResult', result });
       } catch (error) {
         port.postMessage({ type: 'compactResult', result: {

@@ -59,6 +59,15 @@ interface PageInfoResponse extends BrowserResponse {
   url?: string;
   title?: string;
   html?: string;
+  domain?: string;
+  protocol?: string;
+  pathname?: string;
+  readyState?: string;
+  bodyLength?: number;
+  linkCount?: number;
+  imageCount?: number;
+  formCount?: number;
+  inputCount?: number;
 }
 
 interface ConsoleLogEntry {
@@ -260,8 +269,20 @@ class BrowserClient {
       return null;
     }
 
-    // WSL - use PowerShell to check Windows paths
+    // WSL - check via /mnt/c/ paths first (fast, no PowerShell), then fallback to PowerShell
     if (this.platform === 'wsl') {
+      // Fast path: convert Windows paths to WSL /mnt/ paths and check directly
+      for (const winPath of windowsPaths) {
+        const wslPath = winPath
+          .replace(/^([A-Z]):\\/i, (_, drive: string) => `/mnt/${drive.toLowerCase()}/`)
+          .replace(/\\/g, '/');
+        if (fs.existsSync(wslPath)) {
+          logger.debug(`[BrowserClient] findBrowserPath: found via WSL mount: ${wslPath} → ${winPath}`);
+          return winPath;
+        }
+      }
+
+      // Slow fallback: PowerShell Test-Path (for non-standard paths)
       try {
         const powerShellPath = getPowerShellPath();
         const conditions = windowsPaths
@@ -331,13 +352,23 @@ class BrowserClient {
   private killExistingBrowser(): void {
     logger.debug('[BrowserClient] killExistingBrowser: killing processes on port ' + this.cdpPort);
     try {
-      if (this.platform === 'native-windows' || this.platform === 'wsl') {
-        // Use PowerShell to kill processes on Windows
+      if (this.platform === 'native-windows') {
+        // Native Windows - PowerShell to kill processes
         const powerShellPath = getPowerShellPath();
         execSync(
           `${powerShellPath} -Command "Get-NetTCPConnection -LocalPort ${this.cdpPort} -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }"`,
           { stdio: 'ignore', timeout: 5000 }
         );
+      } else if (this.platform === 'wsl') {
+        // WSL - kill only processes on CDP port (not ALL Chrome/Edge instances)
+        // Use PowerShell for precise port-based kill (same as native-windows)
+        try {
+          const powerShellPath = getPowerShellPath();
+          execSync(
+            `${powerShellPath} -Command "Get-NetTCPConnection -LocalPort ${this.cdpPort} -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }"`,
+            { stdio: 'ignore', timeout: 5000 }
+          );
+        } catch { /* ignore - PowerShell may timeout in enterprise env */ }
       } else {
         // Native Linux - use fuser or lsof
         try {
@@ -416,7 +447,10 @@ class BrowserClient {
    * Stop the browser server (for compatibility)
    */
   async stopServer(): Promise<boolean> {
-    return this.close().then(() => true).catch(() => true);
+    return this.close().then(() => true).catch((err) => {
+      logger.debug('Browser stopServer failed: ' + (err instanceof Error ? err.message : String(err)));
+      return true;
+    });
   }
 
   /**
@@ -664,6 +698,13 @@ class BrowserClient {
       // Page 도메인 활성화
       await this.cdp.send('Page.enable');
 
+      // Bring browser window to front so actions are visible
+      try {
+        await this.cdp.send('Page.bringToFront');
+      } catch {
+        logger.debug('[BrowserClient] launch: Page.bringToFront failed (non-critical)');
+      }
+
       logger.debug('[BrowserClient] launch: browser connected successfully');
 
       return {
@@ -738,6 +779,9 @@ class BrowserClient {
       if (!this.cdp || !this.cdp.isConnected()) {
         return { success: false, error: 'Browser not running. Use launch first.' };
       }
+
+      // Ensure browser window is visible before navigation
+      try { await this.cdp.send('Page.bringToFront'); } catch { /* ignore */ }
 
       await this.cdp.send('Page.navigate', { url });
 
@@ -926,20 +970,24 @@ class BrowserClient {
   /**
    * Get element text
    */
-  async getText(selector: string): Promise<BrowserResponse> {
+  async getText(selector?: string): Promise<BrowserResponse> {
     try {
       if (!this.cdp || !this.cdp.isConnected()) {
         return { success: false, error: 'Browser not running. Use launch first.' };
       }
 
-      const result = await this.cdp.send('Runtime.evaluate', {
-        expression: `
+      const expression = selector
+        ? `
           (function() {
             const el = document.querySelector(${JSON.stringify(selector)});
-            if (!el) return { success: false, error: 'Element not found' };
+            if (!el) return { success: false, error: 'Element not found: ${selector}' };
             return { success: true, text: el.textContent || '' };
           })()
-        `,
+        `
+        : `({ success: true, text: document.body.innerText || '' })`;
+
+      const result = await this.cdp.send('Runtime.evaluate', {
+        expression,
         returnByValue: true,
       }) as { result: { value: { success: boolean; text?: string; error?: string } } };
 
@@ -974,13 +1022,29 @@ class BrowserClient {
         return { success: false, error: 'Browser not running. Use launch first.' };
       }
 
-      const pageInfo = await this.getCurrentPageInfo();
+      const result = await this.cdp.send('Runtime.evaluate', {
+        expression: `JSON.stringify({
+          url: window.location.href,
+          title: document.title,
+          domain: window.location.hostname,
+          protocol: window.location.protocol,
+          pathname: window.location.pathname,
+          readyState: document.readyState,
+          bodyLength: document.body?.innerHTML.length || 0,
+          linkCount: document.querySelectorAll('a').length,
+          imageCount: document.querySelectorAll('img').length,
+          formCount: document.querySelectorAll('form').length,
+          inputCount: document.querySelectorAll('input').length,
+        })`,
+        returnByValue: true,
+      }) as { result: { value: string } };
+
+      const pageInfo = JSON.parse(result.result.value);
 
       return {
         success: true,
         message: 'Page info retrieved',
-        url: pageInfo.url,
-        title: pageInfo.title,
+        ...pageInfo,
       };
     } catch (error) {
       return {
@@ -1361,6 +1425,107 @@ class BrowserClient {
    */
   getServerUrl(): string {
     return this.getCDPUrl();
+  }
+
+  /**
+   * Connect to an existing browser with CDP port
+   */
+  async connect(port?: number): Promise<BrowserResponse> {
+    try {
+      if (port) this.cdpPort = port;
+
+      if (!(await this.isCDPAvailable())) {
+        return { success: false, error: `No browser found on port ${this.cdpPort}` };
+      }
+
+      const targets = await this.getTargets();
+      const pageTarget = targets.find(t => t.type === 'page');
+
+      if (!pageTarget) {
+        return { success: false, error: 'No page target found' };
+      }
+
+      if (this.cdp) {
+        this.cdp.close();
+      }
+
+      this.cdp = new CDPConnection();
+      await this.cdp.connect(pageTarget.webSocketDebuggerUrl);
+      await this.cdp.send('Page.enable');
+
+      // Setup logging
+      this.consoleLogs = [];
+      this.networkLogs = [];
+      this.setupLogging();
+
+      return {
+        success: true,
+        message: 'Connected to existing browser',
+        url: pageTarget.url,
+        title: pageTarget.title,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: 'Failed to connect to browser',
+        details: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  /**
+   * Send raw CDP command
+   */
+  async send(method: string, params?: Record<string, unknown>): Promise<BrowserResponse> {
+    try {
+      if (!this.cdp || !this.cdp.isConnected()) {
+        return { success: false, error: 'Browser not running. Use launch first.' };
+      }
+
+      const result = await this.cdp.send(method, params);
+      return { success: true, message: 'Command sent', result };
+    } catch (error) {
+      return {
+        success: false,
+        error: 'Failed to send CDP command',
+        details: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  /**
+   * Focus element by selector (DOM element focus)
+   */
+  async focusElement(selector: string): Promise<BrowserResponse> {
+    try {
+      if (!this.cdp || !this.cdp.isConnected()) {
+        return { success: false, error: 'Browser not running. Use launch first.' };
+      }
+
+      const result = await this.cdp.send('Runtime.evaluate', {
+        expression: `
+          (function() {
+            const el = document.querySelector(${JSON.stringify(selector)});
+            if (!el) return { success: false, error: 'Element not found' };
+            el.focus();
+            return { success: true };
+          })()
+        `,
+        returnByValue: true,
+      }) as { result: { value: { success: boolean; error?: string } } };
+
+      if (!result.result.value.success) {
+        return { success: false, error: result.result.value.error || 'Focus failed' };
+      }
+
+      return { success: true, message: 'Element focused', selector };
+    } catch (error) {
+      return {
+        success: false,
+        error: 'Failed to focus element',
+        details: error instanceof Error ? error.message : String(error),
+      };
+    }
   }
 }
 

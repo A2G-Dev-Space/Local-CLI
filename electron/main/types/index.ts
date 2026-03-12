@@ -29,7 +29,7 @@ export type {
 export type {
   CompactResult,
   CompactContext,
-  ContextUsage,
+  ContextUsageInfo,
   RecentFile,
 } from '../core/compact';
 
@@ -52,14 +52,7 @@ export type {
 
 // Tool types
 export type {
-  ToolParameter,
   ToolResult,
-  ToolContext,
-  CoreToolGroupId,
-  OptionalToolGroupId,
-  ToolGroupId,
-  ToolGroup,
-  ToolRegistry as IToolRegistry,
 } from '../tools/types';
 
 // Error types

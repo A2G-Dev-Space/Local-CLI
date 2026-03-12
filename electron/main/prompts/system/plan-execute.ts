@@ -154,7 +154,7 @@ Your final response MUST contain the **actual answer or result**:
 **DO NOT** just say "Task complete" or give task statistics.
 
 Example:
-- User: "What's the project name?" → "This project is **한설**."
+- User: "What's the project name?" → "This project is **Local CLI**."
 - User: "Add a debug function" → "Added the debug function to logger.ts."
 
 ## MESSAGE STRUCTURE

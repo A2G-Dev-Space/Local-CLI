@@ -949,10 +949,14 @@ export class LLMClient {
 
       // Tool calls 확인
       if (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
-        // Multi-tool detection logging
+        // Enforce single tool per turn: only execute the FIRST tool call
+        // Some LLM models ignore parallel_tool_calls:false and return multiple tools.
+        // Executing all of them is incorrect because the LLM decided on tools 2..N
+        // without seeing the result of tool 1.
         if (assistantMessage.tool_calls.length > 1) {
           const toolNames = assistantMessage.tool_calls.map(tc => tc.function.name).join(', ');
-          logger.warn(`[MULTI-TOOL DETECTED] LLM returned ${assistantMessage.tool_calls.length} tools: ${toolNames}`);
+          logger.warn(`[SINGLE-TOOL ENFORCED] LLM returned ${assistantMessage.tool_calls.length} tools, truncating to first only: ${toolNames}`);
+          assistantMessage.tool_calls = [assistantMessage.tool_calls[0]!];
         }
 
         // Tool call 실행 (single tool per turn enforced)
