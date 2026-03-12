@@ -2,7 +2,7 @@
  * Jarvis Command
  *
  * CLI에서 Electron Jarvis에 명령을 전달하고 결과를 받는 서브커맨드.
- * `lcli jarvis "오늘 할 일 정리해줘"` → Jarvis에서 실행 → stdout에 결과
+ * `local-cli jarvis "오늘 할 일 정리해줘"` → Jarvis에서 실행 → stdout에 결과
  */
 
 import chalk from 'chalk';

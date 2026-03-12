@@ -39,10 +39,10 @@ class ToolManager {
   private toolGroups: Map<string, ToolGroup>;
 
   constructor() {
-    // Windows: %APPDATA%\lcli-ui, Linux/Mac: ~/.lcli-ui
+    // Windows: %APPDATA%\local-bot, Linux/Mac: ~/.local-bot
     const configDir = process.platform === 'win32'
-      ? path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'lcli-ui')
-      : path.join(os.homedir(), '.lcli-ui');
+      ? path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'local-bot')
+      : path.join(os.homedir(), '.local-bot');
     this.configPath = path.join(configDir, 'tools.json');
     this.state = { enabledTools: [], lastUpdated: new Date().toISOString() };
     this.toolGroups = new Map();

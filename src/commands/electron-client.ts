@@ -184,7 +184,7 @@ export class ElectronClient {
     }
 
     // Electron app display name
-    const appDisplayName = 'lcli (Windows)';
+    const appDisplayName = 'LOCAL BOT';
 
     if (this.isWSL()) {
       // WSL: /mnt/c/Users/{USER}/AppData/Local/{앱이름}/{앱이름}.exe
