@@ -492,6 +492,33 @@
   box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
 }
 
+.form-group select,
+.provider-select {
+  padding: var(--space-3);
+  font-size: var(--font-size-sm);
+  font-family: inherit;
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-inset);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  outline: none;
+  transition: all var(--transition-fast);
+  width: 100%;
+  cursor: pointer;
+  appearance: auto;
+}
+
+.form-group select:focus,
+.provider-select:focus {
+  border-color: var(--color-accent-primary);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+}
+
+.provider-icon {
+  margin-right: 4px;
+  font-size: 0.9em;
+}
+
 .form-actions {
   display: flex;
   justify-content: flex-end;

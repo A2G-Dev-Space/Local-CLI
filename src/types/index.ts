@@ -12,6 +12,7 @@ export interface EndpointConfig {
   name: string;
   baseUrl: string;
   apiKey?: string;
+  provider?: import('../core/llm/providers.js').LLMProvider;
   models: ModelInfo[];
   healthCheckInterval?: number;
   priority?: number;

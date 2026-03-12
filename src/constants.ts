@@ -46,15 +46,11 @@ export const PROJECTS_DIR = path.join(LOCAL_HOME_DIR, 'projects');
  */
 export const APP_NAME = 'local-cli';
 
-/**
- * Service identifier for LLM requests (X-Service-Id header)
- */
-export const SERVICE_ID = 'local-cli';
 
 /**
  * Application version (injected from package.json)
  */
-export const APP_VERSION = '5.0.5';
+export const APP_VERSION = '5.0.6';
 
 /**
  * CLI Server 포트 (Electron ↔ CLI 통신)

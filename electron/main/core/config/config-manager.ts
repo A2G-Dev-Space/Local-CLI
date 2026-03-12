@@ -47,6 +47,7 @@ export interface EndpointConfig {
   name: string;
   baseUrl: string;
   apiKey?: string;
+  provider?: import('../llm/providers').LLMProvider;
   models: ModelInfo[];
   createdAt?: Date;
   updatedAt?: Date;

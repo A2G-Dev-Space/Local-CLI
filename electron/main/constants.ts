@@ -42,16 +42,12 @@ export const BACKUPS_DIR = path.join(LOCAL_HOME_DIR, 'backups');
  */
 export const PROJECTS_DIR = path.join(LOCAL_HOME_DIR, 'projects');
 
-/**
- * Service identifier for LLM requests (X-Service-Id header)
- */
-export const SERVICE_ID = 'local-bot';
 
 /**
  * Application version (injected from package.json)
  * CLI parity: src/constants.ts
  */
-export const APP_VERSION = '5.0.5';
+export const APP_VERSION = '5.0.6';
 
 /**
  * CLI Server 포트 (Electron ↔ CLI 통신)
