@@ -17,6 +17,7 @@ export * from './effects';
 export * from './sections';
 export * from './notes';
 export * from './export';
+export * from './layout-builders';
 
 // Import tool arrays for aggregation
 import { launchTools } from './launch';
@@ -29,8 +30,10 @@ import { effectsTools } from './effects';
 import { sectionsTools } from './sections';
 import { notesTools } from './notes';
 import { exportTools } from './export';
+import { powerpointCreateTool } from './launch';
+import { powerpointSaveTool } from './export';
 
-// All PowerPoint tools combined into a single array
+// All PowerPoint tools combined (for Modify Agent)
 export const POWERPOINT_TOOLS: LLMSimpleTool[] = [
   ...launchTools,
   ...slidesTools,
@@ -42,4 +45,10 @@ export const POWERPOINT_TOOLS: LLMSimpleTool[] = [
   ...sectionsTools,
   ...notesTools,
   ...exportTools,
+];
+
+// High-level tools for Creation Agent — HTML pipeline only, no layout tools
+export const POWERPOINT_CREATE_TOOLS: LLMSimpleTool[] = [
+  powerpointCreateTool,
+  powerpointSaveTool,
 ];

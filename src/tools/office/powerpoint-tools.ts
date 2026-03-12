@@ -6,4 +6,4 @@
  */
 
 export * from './powerpoint-tools/index.js';
-export { POWERPOINT_TOOLS } from './powerpoint-tools/index.js';
+export { POWERPOINT_TOOLS, POWERPOINT_CREATE_TOOLS } from './powerpoint-tools/index.js';

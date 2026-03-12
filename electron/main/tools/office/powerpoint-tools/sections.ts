@@ -2,6 +2,8 @@
  * PowerPoint Section Tools
  *
  * Tools for managing sections in PowerPoint presentations.
+ *
+ * Electron parity: src/tools/office/powerpoint-tools/sections.ts
  */
 
 import { ToolDefinition } from '../../../types/index';
@@ -22,30 +24,27 @@ const POWERPOINT_ADD_SECTION_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are adding this section' },
         section_name: { type: 'string', description: 'Section name' },
         before_slide: { type: 'number', description: 'Insert section before this slide number' },
       },
-      required: ['section_name', 'before_slide'],
+      required: ['reason', 'section_name', 'before_slide'],
     },
   },
 };
 
 async function executePowerPointAddSection(args: Record<string, unknown>): Promise<ToolResult> {
-  const startTime = Date.now();
-  logger.toolStart('powerpoint_add_section', args);
   try {
+    const beforeSlide = Number(args['before_slide']);
     const response = await powerpointClient.powerpointAddSection(
       args['section_name'] as string,
-      args['before_slide'] as number
+      beforeSlide
     );
     if (response.success) {
-      logger.toolSuccess('powerpoint_add_section', args, { sectionName: args['section_name'], sectionIndex: response['section_index'] }, Date.now() - startTime);
       return { success: true, result: `Section added. Section index: ${response['section_index']}` };
     }
-    logger.toolError('powerpoint_add_section', args, new Error(response.error || 'Failed to add section'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to add section' };
   } catch (error) {
-    logger.toolError('powerpoint_add_section', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to add section: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -69,30 +68,25 @@ const POWERPOINT_DELETE_SECTION_DEFINITION: ToolDefinition = {
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: 'Why you are deleting this section' },
         section_index: { type: 'number', description: 'Section index to delete (1-based)' },
         delete_slides: { type: 'boolean', description: 'Whether to also delete slides in the section (default: false)' },
       },
-      required: ['section_index'],
+      required: ['reason', 'section_index'],
     },
   },
 };
 
 async function executePowerPointDeleteSection(args: Record<string, unknown>): Promise<ToolResult> {
-  const startTime = Date.now();
-  logger.toolStart('powerpoint_delete_section', args);
   try {
-    const response = await powerpointClient.powerpointDeleteSection(
-      args['section_index'] as number,
-      (args['delete_slides'] as boolean) ?? false
-    );
+    const sectionIndex = Number(args['section_index']);
+    const deleteSlides = args['delete_slides'] != null ? Boolean(args['delete_slides']) : false;
+    const response = await powerpointClient.powerpointDeleteSection(sectionIndex, deleteSlides);
     if (response.success) {
-      logger.toolSuccess('powerpoint_delete_section', args, { sectionIndex: args['section_index'] }, Date.now() - startTime);
       return { success: true, result: `Section deleted.` };
     }
-    logger.toolError('powerpoint_delete_section', args, new Error(response.error || 'Failed to delete section'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to delete section' };
   } catch (error) {
-    logger.toolError('powerpoint_delete_section', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to delete section: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -115,25 +109,22 @@ const POWERPOINT_GET_SECTIONS_DEFINITION: ToolDefinition = {
     description: `Get list of all sections in the presentation.`,
     parameters: {
       type: 'object',
-      properties: {},
-      required: [],
+      properties: {
+        reason: { type: 'string', description: 'Why you are getting the sections list' },
+      },
+      required: ['reason'],
     },
   },
 };
 
 async function executePowerPointGetSections(_args: Record<string, unknown>): Promise<ToolResult> {
-  const startTime = Date.now();
-  logger.toolStart('powerpoint_get_sections', _args);
   try {
     const response = await powerpointClient.powerpointGetSections();
     if (response.success) {
-      logger.toolSuccess('powerpoint_get_sections', _args, {}, Date.now() - startTime);
       return { success: true, result: JSON.stringify(response, null, 2) };
     }
-    logger.toolError('powerpoint_get_sections', _args, new Error(response.error || 'Failed to get sections'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to get sections' };
   } catch (error) {
-    logger.toolError('powerpoint_get_sections', _args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to get sections: ${error instanceof Error ? error.message : String(error)}` };
   }
 }

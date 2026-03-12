@@ -2,6 +2,8 @@
  * PowerPoint Table Tools
  *
  * Tools for adding and managing tables in PowerPoint slides.
+ *
+ * CLI parity: electron/main/tools/office/powerpoint-tools/tables.ts
  */
 
 import { ToolDefinition } from '../../../types/index.js';

@@ -7,7 +7,7 @@
 import { ToolDefinition } from '../../../types/index.js';
 import { LLMSimpleTool, ToolResult } from '../../types.js';
 import { wordClient } from '../word-client.js';
-import { saveScreenshot } from '../common/utils.js';
+import { saveScreenshot, delay, APP_LAUNCH_DELAY_MS } from '../common/utils.js';
 import { OFFICE_CATEGORIES } from '../common/constants.js';
 
 // =============================================================================
@@ -73,6 +73,8 @@ async function executeWordCreate(_args: Record<string, unknown>): Promise<ToolRe
   try {
     const response = await wordClient.wordCreate();
     if (response.success) {
+      // Wait for document to fully load before LLM proceeds
+      await delay(APP_LAUNCH_DELAY_MS);
       return { success: true, result: response.message || 'New document created' };
     }
     return { success: false, error: response.error || 'Failed to create document' };
@@ -112,6 +114,8 @@ async function executeWordOpen(args: Record<string, unknown>): Promise<ToolResul
   try {
     const response = await wordClient.wordOpen(args['path'] as string);
     if (response.success) {
+      // Wait for document to fully load before LLM proceeds
+      await delay(APP_LAUNCH_DELAY_MS);
       return { success: true, result: `Document opened: ${response['document_name'] || args['path']}` };
     }
     return { success: false, error: response.error || 'Failed to open document' };

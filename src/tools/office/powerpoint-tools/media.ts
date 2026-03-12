@@ -7,6 +7,8 @@
  * - Audio
  * - Hyperlinks
  * - Charts
+ *
+ * CLI parity: electron/main/tools/office/powerpoint-tools/media.ts
  */
 
 import { ToolDefinition } from '../../../types/index.js';

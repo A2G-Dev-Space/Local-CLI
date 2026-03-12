@@ -40,9 +40,12 @@ import { VISION_TOOLS, findVisionModel } from './llm/simple/read-image-tool';
 
 // Import office sub-agent tools (Agent as a Tool)
 import {
-  createWordWorkRequestTool,
-  createExcelWorkRequestTool,
-  createPowerPointWorkRequestTool,
+  createWordCreateRequestTool,
+  createWordModifyRequestTool,
+  createExcelCreateRequestTool,
+  createExcelModifyRequestTool,
+  createPowerPointCreateRequestTool,
+  createPowerPointModifyRequestTool,
 } from '../agents/office';
 
 // Import browser sub-agent tools (CLI parity: src/agents/browser)
@@ -100,7 +103,7 @@ function getOptionalToolGroupsConfig(): OptionalToolGroup[] {
       autoManaged: true,
     },
     // Office tools removed — now provided as sub-agent tools
-    // (word_work_request, excel_work_request, powerpoint_work_request)
+    // (word_create_agent, word_modify_agent, excel_create_agent, excel_modify_agent, powerpoint_create_agent, powerpoint_modify_agent)
   ];
 }
 
@@ -441,9 +444,12 @@ export function initializeToolRegistry(): void {
 
   // Office sub-agent tools (Agent as a Tool)
   // Electron runs on Windows, so always register
-  toolRegistry.register(createWordWorkRequestTool());
-  toolRegistry.register(createExcelWorkRequestTool());
-  toolRegistry.register(createPowerPointWorkRequestTool());
+  toolRegistry.register(createWordCreateRequestTool());
+  toolRegistry.register(createWordModifyRequestTool());
+  toolRegistry.register(createExcelCreateRequestTool());
+  toolRegistry.register(createExcelModifyRequestTool());
+  toolRegistry.register(createPowerPointCreateRequestTool());
+  toolRegistry.register(createPowerPointModifyRequestTool());
 
   // Browser sub-agent tools (CLI parity: confluence_request, jira_request, search_request)
   toolRegistry.register(createConfluenceRequestTool());

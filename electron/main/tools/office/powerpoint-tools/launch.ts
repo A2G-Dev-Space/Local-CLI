@@ -10,6 +10,7 @@ import { LLMSimpleTool, ToolResult } from '../../types';
 import { powerpointClient } from '../powerpoint-client';
 import { saveScreenshot, delay, APP_LAUNCH_DELAY_MS } from '../common/utils';
 import { OFFICE_CATEGORIES } from '../common/constants';
+import { resetLayoutCounters } from './layout-builders';
 import { logger } from '../../../utils/logger';
 
 // =============================================================================
@@ -36,6 +37,7 @@ async function executePowerPointCreate(_args: Record<string, unknown>): Promise<
   const startTime = Date.now();
   logger.toolStart('powerpoint_create', _args);
   try {
+    resetLayoutCounters();
     const response = await powerpointClient.powerpointCreate();
     if (response.success) {
       // Wait for presentation to fully load before LLM proceeds

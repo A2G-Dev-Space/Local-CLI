@@ -20,7 +20,10 @@ export {
 
 // Office sub-agents (Agent as a Tool)
 export {
-  createWordWorkRequestTool,
-  createExcelWorkRequestTool,
-  createPowerPointWorkRequestTool,
+  createWordCreateRequestTool,
+  createWordModifyRequestTool,
+  createExcelCreateRequestTool,
+  createExcelModifyRequestTool,
+  createPowerPointCreateRequestTool,
+  createPowerPointModifyRequestTool,
 } from './office/index.js';

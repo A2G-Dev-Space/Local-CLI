@@ -3,6 +3,8 @@
  *
  * Tools for managing slides in PowerPoint presentations:
  * add, delete, move, duplicate, hide, show, set layout, get count
+ *
+ * CLI parity: electron/main/tools/office/powerpoint-tools/slides.ts
  */
 
 import { ToolDefinition } from '../../../types/index.js';
@@ -43,7 +45,7 @@ async function executePowerPointAddSlide(args: Record<string, unknown>): Promise
     const layout = args['layout'] as number ?? 2;
     const response = await powerpointClient.powerpointAddSlide(layout);
     if (response.success) {
-      return { success: true, result: `Slide added (layout ${layout}), slide number: ${response['slide_number']}` };
+      return { success: true, result: `Slide ${response['slide_number']} created (layout ${layout}). ⚠ THIS SLIDE IS EMPTY. You MUST add content NOW: sidebar + title + accent line + body (text/table) + footer. Do NOT call powerpoint_add_slide again until this slide is fully built.` };
     }
     return { success: false, error: response.error || 'Failed to add slide' };
   } catch (error) {

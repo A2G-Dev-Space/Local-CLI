@@ -3,6 +3,9 @@
  * 모든 Excel 도구들을 통합하여 export
  */
 
+// Sheet builders (high-level, for Create Agent)
+export * from './sheet-builders';
+
 // Domain imports
 export * from './launch';
 export * from './cells';
@@ -33,6 +36,10 @@ import { protectionTools } from './protection';
 import { mediaTools } from './media';
 import { exportTools } from './export';
 
+import { sheetBuilderTools, excelValidatedSaveTool } from './sheet-builders';
+import { excelCreateTool, excelScreenshotTool } from './launch';
+import { excelAddSheetTool, excelRenameSheetTool } from './sheets';
+
 import type { LLMSimpleTool } from '../../types';
 
 /**
@@ -52,4 +59,17 @@ export const EXCEL_TOOLS: LLMSimpleTool[] = [
   ...protectionTools,
   ...mediaTools,
   ...exportTools,
+];
+
+/**
+ * Excel CREATE tools — high-level sheet builders + lifecycle tools
+ * Used by the Excel Create Agent
+ */
+export const EXCEL_CREATE_TOOLS: LLMSimpleTool[] = [
+  excelCreateTool,
+  excelValidatedSaveTool,  // Validated save: checks sheets, charts, CF before saving
+  excelScreenshotTool,
+  excelAddSheetTool,
+  excelRenameSheetTool,
+  ...sheetBuilderTools,
 ];

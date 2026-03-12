@@ -8,6 +8,21 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 
 /**
+ * Delay execution for specified milliseconds
+ * Used to give applications time to fully load before LLM proceeds
+ * @param ms - Milliseconds to wait
+ */
+export function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Standard delay for application launch/open operations (3 seconds)
+ * This prevents LLM from racing ahead before apps fully load
+ */
+export const APP_LAUNCH_DELAY_MS = 3000;
+
+/**
  * Save a base64-encoded screenshot to the current working directory
  * LLM이 경로를 쉽게 찾을 수 있도록 working directory에 직접 저장
  *

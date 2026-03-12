@@ -1,28 +1,32 @@
 /**
- * Word Work Request Tool
+ * Word Modify Agent
  *
- * CLI parity: src/agents/office/word-agent.ts
+ * LLMAgentTool for EDITING existing Word documents using low-level tools.
+ * For creating NEW documents, use word-create-agent.ts instead.
+ *
+ * Electron parity: src/agents/office/word-agent.ts
  */
 
 import type { LLMAgentTool } from '../../tools/types';
 import { WORD_TOOLS } from '../../tools/office/word-tools';
 import { SubAgent } from '../common/sub-agent';
-import { WORD_SYSTEM_PROMPT } from './prompts';
+import { WORD_SYSTEM_PROMPT, WORD_PLANNING_PROMPT, WORD_ENHANCEMENT_PROMPT } from './prompts';
 
-export function createWordWorkRequestTool(): LLMAgentTool {
+export function createWordModifyRequestTool(): LLMAgentTool {
   return {
     definition: {
       type: 'function',
       function: {
-        name: 'word_work_request',
+        name: 'word_modify_agent',
         description:
-          'Delegate a task to the Microsoft Word specialist agent. Capable of document creation/editing, formatting, tables, images, headers/footers, bookmarks, PDF export, and all Word operations. Describe the desired task in natural language.',
+          'Autonomous Microsoft Word MODIFY agent for editing EXISTING .docx files. Has full access to low-level Word tools (text editing, formatting, tables, styles, track changes, etc.) for precise document modification. For creating NEW documents from scratch, use word_create_agent instead.',
         parameters: {
           type: 'object',
           properties: {
             instruction: {
               type: 'string',
-              description: 'Natural language instruction for the Word task to perform',
+              description:
+                'Detailed instruction for modifying an existing Word document. Include: file path, what to change, specific formatting requirements. The agent will open the file and make precise modifications.',
             },
           },
           required: ['instruction'],
@@ -30,7 +34,7 @@ export function createWordWorkRequestTool(): LLMAgentTool {
       },
     },
     execute: async (args, llmClient) => {
-      const agent = new SubAgent(llmClient, 'word', WORD_TOOLS, WORD_SYSTEM_PROMPT, { maxIterations: 50 });
+      const agent = new SubAgent(llmClient, 'word', WORD_TOOLS, WORD_SYSTEM_PROMPT, { maxIterations: 75, planningPrompt: WORD_PLANNING_PROMPT, enhancementPrompt: WORD_ENHANCEMENT_PROMPT });
       return agent.run(args['instruction'] as string);
     },
     categories: ['llm-agent'],

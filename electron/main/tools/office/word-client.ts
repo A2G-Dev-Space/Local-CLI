@@ -19,11 +19,11 @@ export class WordClient extends OfficeClientBase {
     return this.executePowerShell(`
 try {
   $word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
-  $word.Visible = $true
+  $word.Visible = -1  # msoTrue
   @{ success = $true; message = "Connected to existing Word instance" } | ConvertTo-Json -Compress
 } catch {
   $word = New-Object -ComObject Word.Application
-  $word.Visible = $true
+  $word.Visible = -1  # msoTrue
   @{ success = $true; message = "Launched new Word instance" } | ConvertTo-Json -Compress
 }
 `);
@@ -37,7 +37,7 @@ try {
   $word = New-Object -ComObject Word.Application
 }
 $word.DisplayAlerts = 0
-$word.Visible = $true
+$word.Visible = -1  # msoTrue
 $doc = $word.Documents.Add()
 $word.DisplayAlerts = -1
 @{ success = $true; message = "Created new document"; document_name = $doc.Name } | ConvertTo-Json -Compress
@@ -46,7 +46,22 @@ $word.DisplayAlerts = -1
 
   async wordWrite(
     text: string,
-    options?: { fontName?: string; fontSize?: number; bold?: boolean; italic?: boolean; newParagraph?: boolean }
+    options?: {
+      fontName?: string;
+      fontSize?: number;
+      bold?: boolean;
+      italic?: boolean;
+      newParagraph?: boolean;
+      color?: string;
+      alignment?: 'left' | 'center' | 'right' | 'justify';
+      spaceBefore?: number;
+      spaceAfter?: number;
+      lineSpacing?: number;
+      styleName?: string;
+      bgColor?: string;
+      leftBorderColor?: string;
+      leftBorderWidth?: number;
+    }
   ): Promise<OfficeResponse> {
     // Auto-detect Korean text and set appropriate font if not specified
     // Use 'Malgun Gothic' (English name) for compatibility with all Windows language settings
@@ -78,7 +93,78 @@ $word.DisplayAlerts = -1
       }
     }).join('\n');
 
-    // Set font BEFORE typing, then apply to typed range AFTER for reliable Korean rendering
+    // Post-write formatting commands (applied to typed range)
+    const postFormatCmds: string[] = [];
+
+    // Apply paragraph style FIRST (before font overrides)
+    // Use wdStyle constants for locale-independent style application
+    if (options?.styleName) {
+      const styleIdMap: Record<string, number> = {
+        'Normal': -1, 'Heading 1': -2, 'Heading 2': -3, 'Heading 3': -4,
+        'Heading 4': -5, 'Heading 5': -6,
+      };
+      const styleId = styleIdMap[options.styleName];
+      if (styleId !== undefined) {
+        postFormatCmds.push(`$typedRange.Style = $doc.Styles.Item(${styleId})`);
+      } else {
+        const escapedStyle = options.styleName.replace(/'/g, "''");
+        postFormatCmds.push(`$typedRange.Style = '${escapedStyle}'`);
+      }
+    }
+
+    // Font color
+    if (options?.color) {
+      const hex = options.color.replace('#', '');
+      const r = parseInt(hex.substring(0, 2), 16);
+      const g = parseInt(hex.substring(2, 4), 16);
+      const b = parseInt(hex.substring(4, 6), 16);
+      const rgb = r + g * 256 + b * 65536;
+      postFormatCmds.push(`$typedRange.Font.Color = ${rgb}`);
+    }
+
+    // Paragraph alignment: 0=left, 1=center, 2=right, 3=justify
+    const alignMap: Record<string, number> = { left: 0, center: 1, right: 2, justify: 3 };
+    if (options?.alignment) {
+      postFormatCmds.push(`$typedRange.ParagraphFormat.Alignment = ${alignMap[options.alignment]}`);
+    }
+
+    // Paragraph spacing
+    if (options?.spaceBefore != null) {
+      postFormatCmds.push(`$typedRange.ParagraphFormat.SpaceBefore = ${options.spaceBefore}`);
+    }
+    if (options?.spaceAfter != null) {
+      postFormatCmds.push(`$typedRange.ParagraphFormat.SpaceAfter = ${options.spaceAfter}`);
+    }
+
+    // Line spacing (multiplier: 1.0, 1.3, 1.5, etc.)
+    if (options?.lineSpacing) {
+      postFormatCmds.push(`$typedRange.ParagraphFormat.LineSpacingRule = 5`); // wdLineSpaceMultiple
+      postFormatCmds.push(`$typedRange.ParagraphFormat.LineSpacing = ${options.lineSpacing * 12}`);
+    }
+
+    // Paragraph background shading
+    if (options?.bgColor) {
+      const bgHex = options.bgColor.replace('#', '');
+      const bgR = parseInt(bgHex.substring(0, 2), 16);
+      const bgG = parseInt(bgHex.substring(2, 4), 16);
+      const bgB = parseInt(bgHex.substring(4, 6), 16);
+      postFormatCmds.push(`$typedRange.Shading.BackgroundPatternColor = ${bgR + bgG * 256 + bgB * 65536}`);
+    }
+
+    // Left border accent
+    if (options?.leftBorderColor) {
+      const lbHex = options.leftBorderColor.replace('#', '');
+      const lbR = parseInt(lbHex.substring(0, 2), 16);
+      const lbG = parseInt(lbHex.substring(2, 4), 16);
+      const lbB = parseInt(lbHex.substring(4, 6), 16);
+      const lbWidth = (options.leftBorderWidth || 3) * 8; // pt to Word enum
+      postFormatCmds.push(`$typedRange.ParagraphFormat.Borders(-2).LineStyle = 1`); // wdBorderLeft, wdLineStyleSingle
+      postFormatCmds.push(`$typedRange.ParagraphFormat.Borders(-2).LineWidth = ${lbWidth}`);
+      postFormatCmds.push(`$typedRange.ParagraphFormat.Borders(-2).Color = ${lbR + lbG * 256 + lbB * 65536}`);
+      postFormatCmds.push(`$typedRange.ParagraphFormat.LeftIndent = 8`);
+    }
+
+    // Set font BEFORE typing, then apply style+font to typed range AFTER
     return this.executePowerShell(`
 $word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
 $doc = $word.ActiveDocument
@@ -96,13 +182,175 @@ ${fontName ? `$selection.Font.Name = '${fontName}'\n$selection.Font.NameFarEast 
 # Type text (decoded from Base64 for Unicode safety)
 ${typeCommands}
 
-# Apply font to the typed range to ensure Korean characters use correct font
-${fontName ? `$endPos = $selection.Range.End
+# Apply style, font, and paragraph formatting to the typed range
+$endPos = $selection.Range.End
 $typedRange = $doc.Range($startPos, $endPos)
-$typedRange.Font.Name = '${fontName}'
-$typedRange.Font.NameFarEast = '${fontName}'` : ''}
+${postFormatCmds.join('\n')}
+${fontName ? `$typedRange.Font.Name = '${fontName}'\n$typedRange.Font.NameFarEast = '${fontName}'` : ''}
 
 @{ success = $true; message = "Text written successfully" } | ConvertTo-Json -Compress
+`);
+  }
+
+  /**
+   * Build a professional cover page design using shapes and textboxes.
+   * Creates a colored banner, accent strip, title, subtitle, date/author, and bottom bar.
+   * All elements are floating shapes positioned relative to the page edges.
+   */
+  async wordBuildCoverDesign(options: {
+    title: string;
+    subtitle?: string;
+    dateText?: string;
+    author?: string;
+    primaryColor: string;
+    accentColor: string;
+    fontTitle?: string;
+    fontBody?: string;
+  }): Promise<OfficeResponse> {
+    const escapedTitle = options.title.replace(/'/g, "''");
+    const escapedSubtitle = (options.subtitle || '').replace(/'/g, "''");
+    const escapedDate = (options.dateText || '').replace(/'/g, "''");
+    const escapedAuthor = (options.author || '').replace(/'/g, "''");
+
+    const hasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(options.title + (options.subtitle || ''));
+    const titleFont = (options.fontTitle || (hasKorean ? 'Malgun Gothic' : 'Segoe UI')).replace(/'/g, "''");
+    const bodyFont = (options.fontBody || (hasKorean ? 'Malgun Gothic' : 'Segoe UI')).replace(/'/g, "''");
+
+    const primaryRgb = this.hexToRgb(options.primaryColor);
+    const accentRgb = this.hexToRgb(options.accentColor);
+    if (!primaryRgb || !accentRgb) {
+      return { success: false, error: 'Invalid color hex values' } as OfficeResponse;
+    }
+    const primaryWd = primaryRgb.r + primaryRgb.g * 256 + primaryRgb.b * 65536;
+    const accentWd = accentRgb.r + accentRgb.g * 256 + accentRgb.b * 65536;
+
+    const hasSubtitle = escapedSubtitle.length > 0;
+    const hasInfo = escapedDate.length > 0 || escapedAuthor.length > 0;
+
+    const subtitleBlock = hasSubtitle ? `
+$sY = $tY + 90
+$st = $doc.Shapes.AddTextbox(1, 80, $sY, ($pgW - 160), 50, $anchor)
+$st.LockAnchor = -1
+$st.WrapFormat.Type = 3
+$st.RelativeHorizontalPosition = 1
+$st.RelativeVerticalPosition = 1
+$st.Left = 80
+$st.Top = $sY
+$st.Width = $pgW - 160
+$st.Height = 50
+$st.TextFrame.TextRange.Text = '${escapedSubtitle}'
+$st.TextFrame.TextRange.Font.Name = '${bodyFont}'
+$st.TextFrame.TextRange.Font.Size = 14
+$st.TextFrame.TextRange.Font.Color = 14540253
+$st.TextFrame.TextRange.ParagraphFormat.Alignment = 1
+$st.Fill.Visible = 0
+$st.Line.Visible = 0` : '';
+
+    const infoLines: string[] = [];
+    if (escapedDate) infoLines.push(`$infoText += '${escapedDate}'`);
+    if (escapedDate && escapedAuthor) infoLines.push(`$infoText += [char]13`);
+    if (escapedAuthor) infoLines.push(`$infoText += '${escapedAuthor}'`);
+
+    const infoBlock = hasInfo ? `
+$iY = $bH + 30
+$info = $doc.Shapes.AddTextbox(1, 80, $iY, ($pgW - 160), 55, $anchor)
+$info.LockAnchor = -1
+$info.WrapFormat.Type = 3
+$info.RelativeHorizontalPosition = 1
+$info.RelativeVerticalPosition = 1
+$info.Left = 80
+$info.Top = $iY
+$info.Width = $pgW - 160
+$info.Height = 55
+$infoText = ''
+${infoLines.join('\n')}
+$info.TextFrame.TextRange.Text = $infoText
+$info.TextFrame.TextRange.Font.Name = '${bodyFont}'
+$info.TextFrame.TextRange.Font.Size = 11
+$info.TextFrame.TextRange.Font.Color = 8421504
+$info.TextFrame.TextRange.ParagraphFormat.Alignment = 1
+$info.Fill.Visible = 0
+$info.Line.Visible = 0` : '';
+
+    return this.executePowerShell(`
+$word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
+$doc = $word.ActiveDocument
+$word.Selection.HomeKey(6)  # wdStory — ensure cursor at document start
+$pgW = $doc.PageSetup.PageWidth
+$pgH = $doc.PageSetup.PageHeight
+$anchor = $doc.Range(0, 0)  # anchor all shapes to first paragraph
+
+# 1. Primary color banner (top 40%)
+$bH = [math]::Round($pgH * 0.40)
+$b = $doc.Shapes.AddShape(1, 0, 0, 10, 10, $anchor)
+$b.LockAnchor = -1
+$b.WrapFormat.Type = 3
+$b.RelativeHorizontalPosition = 1
+$b.RelativeVerticalPosition = 1
+$b.Left = 0
+$b.Top = 0
+$b.Width = $pgW
+$b.Height = $bH
+$b.Fill.Visible = -1
+$b.Fill.Solid()
+$b.Fill.ForeColor.RGB = ${primaryWd}
+$b.Line.Visible = 0
+
+# 2. Accent strip below banner
+$s = $doc.Shapes.AddShape(1, 0, 0, 10, 10, $anchor)
+$s.LockAnchor = -1
+$s.WrapFormat.Type = 3
+$s.RelativeHorizontalPosition = 1
+$s.RelativeVerticalPosition = 1
+$s.Left = 0
+$s.Top = $bH
+$s.Width = $pgW
+$s.Height = 5
+$s.Fill.Visible = -1
+$s.Fill.Solid()
+$s.Fill.ForeColor.RGB = ${accentWd}
+$s.Line.Visible = 0
+
+# 3. Title textbox (white text on dark banner)
+$tY = [math]::Round($bH * 0.32)
+$t = $doc.Shapes.AddTextbox(1, 50, $tY, ($pgW - 100), 80, $anchor)
+$t.LockAnchor = -1
+$t.WrapFormat.Type = 3
+$t.RelativeHorizontalPosition = 1
+$t.RelativeVerticalPosition = 1
+$t.Left = 50
+$t.Top = $tY
+$t.Width = $pgW - 100
+$t.Height = 80
+$t.TextFrame.TextRange.Text = '${escapedTitle}'
+$t.TextFrame.TextRange.Font.Name = '${titleFont}'
+$t.TextFrame.TextRange.Font.Size = 36
+$t.TextFrame.TextRange.Font.Bold = -1
+$t.TextFrame.TextRange.Font.Color = 16777215
+$t.TextFrame.TextRange.ParagraphFormat.Alignment = 1
+$t.TextFrame.MarginLeft = 10
+$t.TextFrame.MarginRight = 10
+$t.Fill.Visible = 0
+$t.Line.Visible = 0
+${subtitleBlock}
+${infoBlock}
+
+# 4. Bottom accent bar
+$bb = $doc.Shapes.AddShape(1, 0, 0, 10, 10, $anchor)
+$bb.LockAnchor = -1
+$bb.WrapFormat.Type = 3
+$bb.RelativeHorizontalPosition = 1
+$bb.RelativeVerticalPosition = 1
+$bb.Left = 0
+$bb.Top = $pgH - 10
+$bb.Width = $pgW
+$bb.Height = 10
+$bb.Fill.Visible = -1
+$bb.Fill.Solid()
+$bb.Fill.ForeColor.RGB = ${accentWd}
+$bb.Line.Visible = 0
+
+@{ success = $true; message = "Cover design created" } | ConvertTo-Json -Compress
 `);
   }
 
@@ -125,6 +373,15 @@ $content = $doc.Content.Text
     return this.executePowerShell(`
 $word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
 $doc = $word.ActiveDocument
+
+# Update all Tables of Contents before saving
+foreach ($toc in $doc.TablesOfContents) {
+  try { $toc.Update() } catch {}
+}
+foreach ($field in $doc.Fields) {
+  try { $field.Update() } catch {}
+}
+
 ${windowsPath ? `$doc.SaveAs([ref]'${windowsPath}')` : '$doc.Save()'}
 @{ success = $true; message = "Document saved"; path = $doc.FullName } | ConvertTo-Json -Compress
 `);
@@ -139,7 +396,7 @@ try {
   $word = New-Object -ComObject Word.Application
 }
 $word.DisplayAlerts = 0
-$word.Visible = $true
+$word.Visible = -1  # msoTrue
 $doc = $word.Documents.Open('${windowsPath}')
 $word.DisplayAlerts = -1
 @{ success = $true; message = "Document opened"; document_name = $doc.Name; path = $doc.FullName } | ConvertTo-Json -Compress
@@ -229,6 +486,12 @@ $doc.Hyperlinks.Add($range, '${escapedUrl}', '', '', '${escapedText}')
   }
 
   async wordAddTable(rows: number, cols: number, data?: string[][]): Promise<OfficeResponse> {
+    // Auto-adjust dimensions to fit data
+    if (data) {
+      rows = Math.max(rows, data.length);
+      cols = Math.max(cols, ...data.map(row => row?.length || 0));
+    }
+
     let dataScript = '';
 
     if (data) {
@@ -260,6 +523,26 @@ $doc = $word.ActiveDocument
 $range = $word.Selection.Range
 $table = $doc.Tables.Add($range, ${rows}, ${cols})
 $table.Borders.Enable = $true
+# AutoFit to page width for clean layout
+$table.AutoFitBehavior(2)  # wdAutoFitWindow = 2
+# Set consistent cell formatting for clean appearance
+$table.Range.Font.Size = 10
+$table.Range.ParagraphFormat.SpaceBefore = 2
+$table.Range.ParagraphFormat.SpaceAfter = 2
+$table.Range.ParagraphFormat.LineSpacingRule = 0  # wdLineSpaceSingle = 0
+# Set cell vertical alignment to center
+for ($r = 1; $r -le $table.Rows.Count; $r++) {
+  for ($c = 1; $c -le $table.Columns.Count; $c++) {
+    try { $table.Cell($r, $c).VerticalAlignment = 1 } catch {}  # wdCellAlignVerticalCenter = 1
+  }
+}
+# Set cell margins for better padding
+try {
+  $table.TopPadding = 4
+  $table.BottomPadding = 4
+  $table.LeftPadding = 6
+  $table.RightPadding = 6
+} catch {}
 ${dataScript}
 # Move cursor after the table and add a new paragraph
 $tableEnd = $table.Range
@@ -318,7 +601,15 @@ $found = $findObj.Execute([ref]'${escapedFind}', [ref]$false, [ref]$false, [ref]
   }
 
   async wordSetStyle(styleName: string, preserveKoreanFont: boolean = true): Promise<OfficeResponse> {
-    const escapedStyle = styleName.replace(/'/g, "''");
+    // Use wdStyle constants for locale-independent style application
+    const styleIdMap: Record<string, number> = {
+      'Normal': -1, 'Heading 1': -2, 'Heading 2': -3, 'Heading 3': -4,
+      'Heading 4': -5, 'Heading 5': -6,
+    };
+    const styleId = styleIdMap[styleName];
+    const styleExpr = styleId !== undefined
+      ? `$doc.Styles.Item(${styleId})`
+      : `'${styleName.replace(/'/g, "''")}'`;
 
     // Preserve Korean font after style change to prevent garbled text
     const fontPreserveScript = preserveKoreanFont ? `
@@ -330,10 +621,11 @@ if ($selectedText -match '[가-힣ㄱ-ㅎㅏ-ㅣ]') {
 
     return this.executePowerShell(`
 $word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
+$doc = $word.ActiveDocument
 $selection = $word.Selection
-$selection.Style = '${escapedStyle}'
+$selection.Style = ${styleExpr}
 ${fontPreserveScript}
-@{ success = $true; message = "Style '${escapedStyle}' applied" } | ConvertTo-Json -Compress
+@{ success = $true; message = "Style '${styleName}' applied" } | ConvertTo-Json -Compress
 `);
   }
 
@@ -644,6 +936,48 @@ try {
 `);
   }
 
+  async wordStyleTableHeaderRow(
+    tableIndex: number,
+    bgColor: string,
+    textColor: string = '#FFFFFF',
+  ): Promise<OfficeResponse> {
+    const bgRgb = this.hexToRgb(bgColor);
+    const textRgb = this.hexToRgb(textColor);
+    if (!bgRgb || !textRgb) {
+      return { success: false, error: 'Invalid color hex value' } as OfficeResponse;
+    }
+
+    const bgWd = bgRgb.r + bgRgb.g * 256 + bgRgb.b * 65536;
+    const textWd = textRgb.r + textRgb.g * 256 + textRgb.b * 65536;
+    const lightR = Math.round(bgRgb.r * 0.08 + 255 * 0.92);
+    const lightG = Math.round(bgRgb.g * 0.08 + 255 * 0.92);
+    const lightB = Math.round(bgRgb.b * 0.08 + 255 * 0.92);
+    const lightWd = lightR + lightG * 256 + lightB * 65536;
+
+    return this.executePowerShell(`
+$word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
+$doc = $word.ActiveDocument
+$table = $doc.Tables(${tableIndex})
+$headerRow = $table.Rows(1)
+$headerRow.Shading.BackgroundPatternColor = ${bgWd}
+$headerRow.Range.Font.Color = ${textWd}
+$headerRow.Range.Font.Bold = -1
+$headerRow.Range.Font.Size = 11
+$headerRow.Range.ParagraphFormat.Alignment = 1  # wdAlignParagraphCenter
+$headerRow.Range.ParagraphFormat.SpaceBefore = 3
+$headerRow.Range.ParagraphFormat.SpaceAfter = 3
+for ($i = 3; $i -le $table.Rows.Count; $i += 2) {
+  try { $table.Rows($i).Shading.BackgroundPatternColor = ${lightWd} } catch {}
+}
+$tableText = $table.Range.Text
+if ($tableText -match '[가-힣ㄱ-ㅎㅏ-ㅣ]') {
+  $table.Range.Font.Name = 'Malgun Gothic'
+  $headerRow.Range.Font.Name = 'Malgun Gothic'
+}
+@{ success = $true; message = "Table header row styled" } | ConvertTo-Json -Compress
+`);
+  }
+
   async wordSetTableBorder(
     tableIndex: number,
     options: { style?: 'single' | 'double' | 'thick' | 'none'; color?: string }
@@ -836,6 +1170,8 @@ $selection.TypeParagraph()`;
     return this.executePowerShell(`
 $word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
 $selection = $word.Selection
+$selection.Font.Size = 11
+$selection.Font.Name = 'Malgun Gothic'
 $selection.Range.ListFormat.ApplyBulletDefault()
 ${itemsScript}
 $selection.Range.ListFormat.RemoveNumbers()
@@ -858,6 +1194,8 @@ $selection.TypeParagraph()`;
     return this.executePowerShell(`
 $word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
 $selection = $word.Selection
+$selection.Font.Size = 11
+$selection.Font.Name = 'Malgun Gothic'
 $selection.Range.ListFormat.ApplyNumberDefault()
 ${itemsScript}
 $selection.Range.ListFormat.RemoveNumbers()
@@ -875,12 +1213,13 @@ $selection.Range.ListFormat.RemoveNumbers()
     left?: number;
     right?: number;
   }): Promise<OfficeResponse> {
-    // Points (1 inch = 72 points)
+    // Input: cm. Word COM expects points (1 cm = 28.3465 points)
+    const cmToPoints = (cm: number) => Math.round(cm * 28.3465 * 100) / 100;
     const commands: string[] = [];
-    if (options.top !== undefined) commands.push(`$pageSetup.TopMargin = ${options.top}`);
-    if (options.bottom !== undefined) commands.push(`$pageSetup.BottomMargin = ${options.bottom}`);
-    if (options.left !== undefined) commands.push(`$pageSetup.LeftMargin = ${options.left}`);
-    if (options.right !== undefined) commands.push(`$pageSetup.RightMargin = ${options.right}`);
+    if (options.top !== undefined) commands.push(`$pageSetup.TopMargin = ${cmToPoints(options.top)}`);
+    if (options.bottom !== undefined) commands.push(`$pageSetup.BottomMargin = ${cmToPoints(options.bottom)}`);
+    if (options.left !== undefined) commands.push(`$pageSetup.LeftMargin = ${cmToPoints(options.left)}`);
+    if (options.right !== undefined) commands.push(`$pageSetup.RightMargin = ${cmToPoints(options.right)}`);
 
     return this.executePowerShell(`
 $word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")

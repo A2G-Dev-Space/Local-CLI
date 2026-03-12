@@ -35,6 +35,15 @@ export const AVAILABLE_TOOLS_WITH_TODO = `
 - **tell_to_user**: Send status updates to the user
 - **ask_to_user**: Ask user a question with multiple choice options
 - **write_todos**: Update entire TODO list (replaces current list)
+
+
+### Specialist Sub-Agent Tools (autonomous agents that run independently)
+- **word_create_agent**: Autonomous Word CREATION agent — creates NEW documents from scratch with high-level section builders. Provide topic, sections, content, and save path.
+- **word_modify_agent**: Autonomous Word MODIFY agent — edits EXISTING .docx files. Provide file path and specific changes needed.
+- **excel_create_agent**: Autonomous Excel CREATION agent — creates NEW spreadsheets from scratch with high-level sheet builders. Provide data topic, columns, calculations, and save path.
+- **excel_modify_agent**: Autonomous Excel MODIFY agent — edits EXISTING .xlsx files. Provide file path and specific changes needed.
+- **powerpoint_create_agent**: Autonomous PowerPoint CREATION agent — creates NEW presentations from scratch with high-level builder tools. Provide topic, slide outline, content details, and save path.
+- **powerpoint_modify_agent**: Autonomous PowerPoint MODIFY agent — edits EXISTING .pptx files. Provide file path and specific changes needed.
 `.trim();
 
 /**

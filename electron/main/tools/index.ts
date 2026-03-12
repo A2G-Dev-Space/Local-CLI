@@ -50,4 +50,4 @@ export { BROWSER_TOOLS } from './browser';
 // Office Tools (exported from office module)
 export { WORD_TOOLS } from './office/word-tools';
 export { EXCEL_TOOLS } from './office/excel-tools';
-export { POWERPOINT_TOOLS } from './office/powerpoint-tools';
+export { POWERPOINT_TOOLS, POWERPOINT_CREATE_TOOLS } from './office/powerpoint-tools';

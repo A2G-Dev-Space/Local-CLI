@@ -3,6 +3,9 @@
  * 모든 Excel 도구들을 통합하여 export
  */
 
+// Sheet builders (high-level, for Create Agent)
+export * from './sheet-builders.js';
+
 // Domain imports
 export * from './launch.js';
 export * from './cells.js';
@@ -33,6 +36,10 @@ import { protectionTools } from './protection.js';
 import { mediaTools } from './media.js';
 import { exportTools } from './export.js';
 
+import { sheetBuilderTools, excelValidatedSaveTool } from './sheet-builders.js';
+import { excelCreateTool, excelScreenshotTool } from './launch.js';
+import { excelAddSheetTool, excelRenameSheetTool } from './sheets.js';
+
 import type { LLMSimpleTool } from '../../types.js';
 
 /**
@@ -52,4 +59,17 @@ export const EXCEL_TOOLS: LLMSimpleTool[] = [
   ...protectionTools,
   ...mediaTools,
   ...exportTools,
+];
+
+/**
+ * Excel CREATE tools — high-level sheet builders + lifecycle tools
+ * Used by the Excel Create Agent
+ */
+export const EXCEL_CREATE_TOOLS: LLMSimpleTool[] = [
+  excelCreateTool,
+  excelValidatedSaveTool,  // Validated save: checks sheets, charts, CF before saving
+  excelScreenshotTool,
+  excelAddSheetTool,
+  excelRenameSheetTool,
+  ...sheetBuilderTools,
 ];

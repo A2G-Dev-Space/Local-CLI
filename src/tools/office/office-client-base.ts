@@ -36,6 +36,8 @@ export class OfficeClientBase {
   protected commandTimeout: number = 30000; // 30 seconds
   /** COM ProgID for DisplayAlerts auto-suppression (set by subclass) */
   protected comProgId: string = '';
+  /** Expression to suppress DisplayAlerts (overridden by subclass, e.g. PowerPoint needs enum) */
+  protected displayAlertsSuppressExpr: string = '$false';
 
   constructor() {
     this.platform = getPlatform();
@@ -129,7 +131,7 @@ export class OfficeClientBase {
       let actualScript = script;
       if (this.comProgId) {
         actualScript = `$__comApp = $null
-try { $__comApp = [Runtime.InteropServices.Marshal]::GetActiveObject("${this.comProgId}"); $__savedDA = $__comApp.DisplayAlerts; $__comApp.DisplayAlerts = $false } catch {}
+try { $__comApp = [Runtime.InteropServices.Marshal]::GetActiveObject("${this.comProgId}"); $__savedDA = $__comApp.DisplayAlerts; $__comApp.DisplayAlerts = ${this.displayAlertsSuppressExpr} } catch {}
 try {
 ${script}
 } finally {
