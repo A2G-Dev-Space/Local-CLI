@@ -15,7 +15,7 @@ import { fileURLToPath } from 'url';
 import pkg from 'electron-updater';
 const { autoUpdater } = pkg;
 import { logger, LogLevel } from './utils/logger';
-import { setupIpcHandlers, setChatWindow, setTaskWindow, setJarvisWindow as setIpcJarvisWindow, setJarvisLifecycleCallbacks, cleanupIpcHandlers } from './ipc-handlers';
+import { setupIpcHandlers, setChatWindow, setTaskWindow, setJarvisWindow as setIpcJarvisWindow, setJarvisLifecycleCallbacks, cleanupIpcHandlers, updateAutoStartSettings } from './ipc-handlers';
 import { powerShellManager } from './powershell-manager';
 import { configManager } from './core/config';
 import { sessionManager } from './core/session';
@@ -502,7 +502,7 @@ function startJarvisRuntime(): void {
       // 자비스만 끄기 (config 저장 + 런타임 정리)
       const current = configManager.get('jarvis') || DEFAULT_JARVIS_CONFIG;
       await configManager.set('jarvis', { ...current, enabled: false });
-      app.setLoginItemSettings({ openAtLogin: false });
+      updateAutoStartSettings();
       destroyJarvis();
       logger.info('[Jarvis] Disabled via tray menu');
       // 채팅 창이 있으면 보여주기, 없으면 앱 종료
@@ -690,6 +690,9 @@ app.whenReady().then(async () => {
 
   // IPC 핸들러 등록
   setupIpcHandlers();
+
+  // Auto-start 설정 동기화 (디폴트 ON 반영)
+  updateAutoStartSettings();
 
   // Jarvis 실시간 활성화/비활성화 콜백 등록
   setJarvisLifecycleCallbacks({

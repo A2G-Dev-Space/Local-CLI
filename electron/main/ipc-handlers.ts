@@ -102,6 +102,22 @@ export function setJarvisWindow(win: BrowserWindow | null): void {
 }
 
 /**
+ * Auto-start 설정 통합 (Chat + Jarvis 두 토글 조합 → 하나의 레지스트리 엔트리)
+ */
+export function updateAutoStartSettings(): void {
+  const autoStartChat = configManager.get('autoStartChat') ?? true;
+  const jarvisConfig = configManager.get('jarvis') || { enabled: false, pollIntervalMinutes: 30, autoStartOnBoot: true };
+  const jarvisAutoStart = jarvisConfig.enabled && jarvisConfig.autoStartOnBoot;
+
+  const openAtLogin = autoStartChat || jarvisAutoStart;
+  // Chat OFF + Jarvis ON → jarvis-only 모드, 그 외에는 일반 모드 (Chat 창 포함)
+  const args = (!autoStartChat && jarvisAutoStart) ? ['--jarvis-only'] : [];
+
+  app.setLoginItemSettings({ openAtLogin, args });
+  logger.info('[AutoStart] Updated login item settings', { autoStartChat, jarvisAutoStart, openAtLogin, args });
+}
+
+/**
  * 양쪽 윈도우에 IPC 메시지 전송
  */
 function broadcastToAll(channel: string, ...args: unknown[]): void {
@@ -2085,13 +2101,9 @@ export function setupIpcHandlers(): void {
     const newConfig = { ...current, ...updates };
     await configManager.set('jarvis', newConfig);
 
-    // 자동 시작 설정 반영
+    // 자동 시작 설정 반영 (Chat + Jarvis 통합)
     if ('autoStartOnBoot' in updates || 'enabled' in updates) {
-      const { app: electronApp } = await import('electron');
-      electronApp.setLoginItemSettings({
-        openAtLogin: newConfig.enabled && newConfig.autoStartOnBoot,
-        args: ['--jarvis-only'],
-      });
+      updateAutoStartSettings();
     }
 
     // 실시간 활성화/비활성화 — 재시작 불필요
@@ -2138,6 +2150,22 @@ export function setupIpcHandlers(): void {
     logger.info('[IPC] jarvis:respondToQuestion', { requestId, answerLength: answer.length });
     const { jarvisService } = await import('./jarvis');
     jarvisService.respondToQuestion(requestId, answer);
+  });
+
+  // ===========================================================================
+  // App Auto-Start (Chat)
+  // ===========================================================================
+
+  ipcMain.handle('app:getAutoStartChat', async () => {
+    const value = configManager.get('autoStartChat') ?? true;
+    logger.info('[IPC] app:getAutoStartChat', { value });
+    return value;
+  });
+
+  ipcMain.handle('app:setAutoStartChat', async (_event, enabled: boolean) => {
+    logger.info('[IPC] app:setAutoStartChat', { enabled });
+    await configManager.set('autoStartChat', enabled);
+    updateAutoStartSettings();
   });
 
   logger.info('IPC handlers registered');

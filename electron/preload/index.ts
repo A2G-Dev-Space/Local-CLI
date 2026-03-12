@@ -1434,6 +1434,16 @@ const electronAPI = {
       return () => ipcRenderer.removeListener('jarvis:statusChange', handler);
     },
   },
+
+  // App auto-start settings
+  autoStart: {
+    getChat(): Promise<boolean> {
+      return ipcRenderer.invoke('app:getAutoStartChat');
+    },
+    setChat(enabled: boolean): Promise<void> {
+      return ipcRenderer.invoke('app:setAutoStartChat', enabled);
+    },
+  },
 };
 
 // API 타입 내보내기
