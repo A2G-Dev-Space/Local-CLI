@@ -1362,6 +1362,13 @@ export function setupIpcHandlers(): void {
   ipcMain.handle('llm:addEndpoint', async (_event, endpointData: Omit<EndpointConfig, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
       const endpoint = await configManager.addEndpoint(endpointData);
+      // Broadcast to workers so they can use the new endpoint immediately
+      const { endpoints, currentEndpointId, currentModelId } = configManager.getEndpoints();
+      workerManager.broadcastConfigChange({
+        endpoints,
+        currentEndpoint: currentEndpointId,
+        currentModel: currentModelId,
+      });
       return { success: true, endpoint };
     } catch (error) {
       logger.error('Failed to add LLM endpoint', error);
@@ -1376,6 +1383,13 @@ export function setupIpcHandlers(): void {
   ipcMain.handle('llm:updateEndpoint', async (_event, endpointId: string, updates: Partial<EndpointConfig>) => {
     try {
       const success = await configManager.updateEndpoint(endpointId, updates);
+      // Broadcast updated config to workers
+      const { endpoints, currentEndpointId, currentModelId } = configManager.getEndpoints();
+      workerManager.broadcastConfigChange({
+        endpoints,
+        currentEndpoint: currentEndpointId,
+        currentModel: currentModelId,
+      });
       return { success };
     } catch (error) {
       logger.error('Failed to update LLM endpoint', error);
@@ -1390,6 +1404,13 @@ export function setupIpcHandlers(): void {
   ipcMain.handle('llm:removeEndpoint', async (_event, endpointId: string) => {
     try {
       const success = await configManager.removeEndpoint(endpointId);
+      // Broadcast updated config to workers
+      const { endpoints, currentEndpointId, currentModelId } = configManager.getEndpoints();
+      workerManager.broadcastConfigChange({
+        endpoints,
+        currentEndpoint: currentEndpointId,
+        currentModel: currentModelId,
+      });
       return { success };
     } catch (error) {
       logger.error('Failed to remove LLM endpoint', error);
