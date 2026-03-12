@@ -51,7 +51,7 @@ export const SERVICE_ID = 'lcli-ui';
  * Application version (injected from package.json)
  * CLI parity: src/constants.ts
  */
-export const APP_VERSION = '5.0.2';
+export const APP_VERSION = '5.0.4';
 
 /**
  * CLI Server 포트 (Electron ↔ CLI 통신)

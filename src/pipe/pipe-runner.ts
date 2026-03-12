@@ -13,6 +13,7 @@ import { createLLMClient } from '../core/llm/llm-client.js';
 import { configManager } from '../core/config/config-manager.js';
 import { PlanExecutor } from '../orchestration/plan-executor.js';
 import type { StateCallbacks } from '../orchestration/types.js';
+import { setSubAgentToolCallLogger, setSubAgentPhaseLogger } from '../agents/common/sub-agent.js';
 
 /**
  * stderr에 상세 과정 출력 (stdout은 최종 결과 전용)
@@ -38,6 +39,22 @@ export class PipeRunner {
     this.prompt = prompt;
 
     try {
+      // Register SubAgent loggers for -ps mode
+      if (this.specific) {
+        setSubAgentToolCallLogger((_appName, toolName, args, _resultText, success, iteration, totalCalls) => {
+          const summary = this.summarizeToolArgs(toolName, args);
+          const prefix = `    [${iteration}/${totalCalls}]`;
+          if (success) {
+            log(chalk.dim(`${prefix} → ${toolName} ${summary}`));
+          } else {
+            log(chalk.red(`${prefix} → ${toolName} ${summary} FAILED`));
+          }
+        });
+        setSubAgentPhaseLogger((appName, phase, detail) => {
+          log(chalk.yellow(`  [${appName}:${phase}] ${detail}`));
+        });
+      }
+
       // 초기화
       await configManager.initialize();
 
@@ -69,6 +86,10 @@ export class PipeRunner {
     } catch (error) {
       log(chalk.red(`Error: ${error instanceof Error ? error.message : String(error)}`));
       process.exit(1);
+    } finally {
+      // Cleanup global loggers
+      setSubAgentToolCallLogger(null);
+      setSubAgentPhaseLogger(null);
     }
   }
 

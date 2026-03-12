@@ -63,6 +63,10 @@ program
         console.error('Error: -p 옵션에는 프롬프트가 필요합니다. 예: lcli -p "파일 목록 보여줘"');
         process.exit(1);
       }
+      // Setup logging for pipe mode (--verbose, --debug, --llm-log)
+      if (options.verbose || options.debug || options.llmLog) {
+        await setupLogging({ verbose: options.verbose, debug: options.debug, llmLog: options.llmLog });
+      }
       await runPipeMode(prompt, options.specific ?? false);
       return;
     }
