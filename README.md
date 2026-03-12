@@ -1,5 +1,6 @@
-# LOCAL-CLI
+# lcli
 
+[![npm version](https://img.shields.io/npm/v/local-cli-agent)](https://www.npmjs.com/package/local-cli-agent)
 [![GitHub release](https://img.shields.io/github/v/release/A2G-Dev-Space/Local-CLI)](https://github.com/A2G-Dev-Space/Local-CLI/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/Node.js-20%2B-green)](https://nodejs.org/)
@@ -10,11 +11,11 @@
 
 https://github.com/user-attachments/assets/77cc96c9-cb22-4411-8744-3a006b00c580
 
-> **Demo**: The video above shows LOCAL-CLI autonomously editing code with Plan & Execute.
+> **Demo**: The video above shows lcli autonomously editing code with Plan & Execute.
 
 ---
 
-## Why LOCAL-CLI?
+## Why lcli?
 
 | Benefit | Description |
 |---------|-------------|
@@ -24,37 +25,44 @@ https://github.com/user-attachments/assets/77cc96c9-cb22-4411-8744-3a006b00c580
 | **Autonomous Coding Agent** | Reads, searches, edits, and creates code files — not just chat. |
 | **Plan & Execute** | Breaks complex tasks into TODO steps and executes them step by step. |
 | **Safe by Default** | Supervised mode requires your approval before any file modification. |
-| **Sub-Agent Architecture** | Dedicated sub-agents for Office and Browser with specialized prompts. |
+| **Office Sub-Agents** | Dedicated create/modify sub-agents for Excel, Word, PowerPoint with structured execution. |
 | **Pipe Mode** | Non-interactive CLI mode (`-p`) for scripting and automation pipelines. |
-| **Desktop GUI (Electron)** | Dual-window desktop app with chat + real-time task monitoring. |
+| **Desktop GUI (Electron)** | Dual-window desktop app with chat + real-time task monitoring. Auto-update supported. |
 | **Vision Model Support** | Analyze images and screenshots with Vision Language Models. |
 | **Office Automation** | Control Excel, Word, PowerPoint directly via PowerShell/COM (Windows). |
 | **Browser Automation** | Chrome/Edge CDP control - navigate, click, screenshot, scrape data. |
 
 ---
 
-## Quick Start
+## Installation
 
-### CLI (Terminal)
+### CLI (npm)
 
 ```bash
-# 1. Clone & Build
-git clone https://github.com/A2G-Dev-Space/Local-CLI.git
-cd Local-CLI
-npm install && npm run build
+# Install globally
+npm install -g local-cli-agent
 
-# 2. Run
-node dist/cli.js
-
-# Optional: create a global 'lcli' command
-npm link
+# Run
+lcli
 ```
 
 The endpoint setup wizard launches automatically on first run.
 
-### Desktop App (Electron)
+### Desktop App (Windows)
 
-Download the latest Windows portable `.exe` from the [Releases](https://github.com/A2G-Dev-Space/Local-CLI/releases) page — no installation required.
+Download the latest `lcli-Windows-Setup-{version}.exe` from the [Releases](https://github.com/A2G-Dev-Space/Local-CLI/releases) page.
+
+- **NSIS installer** — installs to `%LOCALAPPDATA%\lcli (Windows)\`
+- **Auto-update** — the app automatically checks GitHub Releases for updates and notifies you when a new version is available
+
+### Build from Source
+
+```bash
+git clone https://github.com/A2G-Dev-Space/Local-CLI.git
+cd Local-CLI
+npm install && npm run build
+node dist/cli.js
+```
 
 ---
 
@@ -89,6 +97,25 @@ TODO List                            1/3
   [ ] Apply error handling
 ```
 
+### Office Sub-Agents
+
+Office automation uses a dedicated **Sub-Agent architecture** where each Office app has specialized create and modify agents:
+
+| App | Create Agent | Modify Agent | Capabilities |
+|-----|-------------|-------------|-------------|
+| **Excel** | Structured sheet builder | Tool-based editor | Charts, formatting, conditional formatting, pivot tables, formulas, sparklines |
+| **Word** | Section-by-section builder | Tool-based editor | Headers, paragraphs, tables, images, TOC, footnotes, styles, page setup |
+| **PowerPoint** | Layout-aware slide builder | Tool-based editor | Slides, text, images, shapes, themes, speaker notes, transitions |
+
+**How it works:**
+
+1. **Enhancement LLM** analyzes the user's request and generates detailed content
+2. **Planning LLM** creates a structured JSON plan (design system, sections/sheets/slides)
+3. **Execution** builds the document section-by-section using specialized builder functions
+4. **Review LLM** evaluates quality and triggers refinements if needed
+
+This architecture produces enterprise-quality Office documents with consistent formatting, proper structure, and content appropriate to the topic.
+
 ### Vision Language Model (VLM)
 
 Analyze images and screenshots directly from the chat:
@@ -105,14 +132,6 @@ Every file modification requires your explicit approval:
 - **Tab** to toggle between Auto / Supervised mode
 - Only file modification tools need approval (read and search tools are always allowed)
 - Reject with feedback to guide the agent's next attempt
-
-### Office Automation (60+ Tools)
-
-| App | Capabilities |
-|-----|-------------|
-| **Excel** | Read/write cells, create charts, formatting, conditional formatting, pivot tables, formulas |
-| **Word** | Write text, headers, tables, images, footnotes, find/replace, styles, TOC |
-| **PowerPoint** | Create slides, add text/images/shapes, apply themes, speaker notes |
 
 ### Browser Automation
 
@@ -173,7 +192,7 @@ Works well even with smaller or less capable open-source models:
 # Terminal — setup wizard launches on first run
 lcli
 
-# Inside LOCAL-CLI — open settings menu
+# Inside lcli — open settings menu
 /settings
 ```
 
@@ -194,8 +213,13 @@ vLLM, Ollama, LM Studio, Azure OpenAI, Google Gemini, or internal LLM servers.
 ## Changelog
 
 ### v5.0.2
-- Office Sub-Agent prompt refactoring for 95+ quality scores
+- **Office Sub-Agent v5** — Dedicated create agents with structured execution for Excel, Word, PowerPoint
+  - Excel: Sheet-by-sheet builder with automatic chart/formatting generation
+  - Word: Section-by-section builder with TOC, page setup, and consistent styling
+  - PowerPoint: Layout-aware slide builder with design system and review loop
 - Unified branding cleanup (removed all enterprise references)
+- Switched to npm publish + GitHub Release deployment (removed binary distribution)
+- Electron rebranded to `lcli (Windows)` with NSIS installer and auto-update via GitHub Release
 - Fixed Electron vision tool missing + worker shutdown race condition
 - Fixed Jarvis mode auto-update not triggering
 
