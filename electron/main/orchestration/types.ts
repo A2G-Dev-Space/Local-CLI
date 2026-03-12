@@ -14,7 +14,8 @@ export interface TodoItem {
   id: string;
   title: string;
   status: 'pending' | 'in_progress' | 'completed' | 'failed';
-  note?: string;
+  result?: string;
+  error?: string;
 }
 
 // =============================================================================

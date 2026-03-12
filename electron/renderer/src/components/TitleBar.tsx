@@ -18,7 +18,9 @@ interface TitleBarProps {
   onMaximize: () => void;
   onClose: () => void;
   planDisplayName?: string | null;
-  simplified?: boolean; // Task window: hides maximize button
+  simplified?: boolean; // Task window: hides maximize button and DEV badge
+  isPinned?: boolean; // Task window: always on top
+  onPinToggle?: () => void; // Task window: toggle always on top
 }
 
 const TitleBar: React.FC<TitleBarProps> = ({
@@ -30,6 +32,8 @@ const TitleBar: React.FC<TitleBarProps> = ({
   onClose,
   planDisplayName,
   simplified = false,
+  isPinned = false,
+  onPinToggle,
 }) => {
   const { t } = useTranslation();
 
@@ -43,6 +47,7 @@ const TitleBar: React.FC<TitleBarProps> = ({
       {/* Title */}
       <div className="titlebar-title drag-region">
         <span className="title-text">{title}</span>
+        {!simplified && <span className="title-dev-badge">DEV</span>}
         {planDisplayName && (
           <span className="title-plan-badge">{planDisplayName}</span>
         )}
@@ -50,6 +55,26 @@ const TitleBar: React.FC<TitleBarProps> = ({
 
       {/* Window Controls */}
       <div className="titlebar-controls no-drag">
+        {/* Pin button - only for simplified (Task) window */}
+        {simplified && onPinToggle && (
+          <button
+            className={`titlebar-btn pin ${isPinned ? 'active' : ''}`}
+            onClick={onPinToggle}
+            title={isPinned ? t('titlebar.unpin') : t('titlebar.pin')}
+            aria-label={isPinned ? t('titlebar.unpin') : t('titlebar.pin')}
+          >
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+              {isPinned ? (
+                // Filled pin icon (active)
+                <path d="M16,12V4H17V2H7V4H8V12L6,14V16H11.2V22H12.8V16H18V14L16,12Z" />
+              ) : (
+                // Outline pin icon (inactive)
+                <path d="M16,12V4H17V2H7V4H8V12L6,14V16H11.2V22H12.8V16H18V14L16,12M8.8,14L10,12.8V4H14V12.8L15.2,14H8.8Z" />
+              )}
+            </svg>
+          </button>
+        )}
+
         <button
           className="titlebar-btn minimize"
           onClick={onMinimize}

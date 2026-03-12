@@ -1,5 +1,5 @@
 /* =====================================================
-   LOCAL-CLI-UI - Global Styles
+   Hanseol PowerShell UI - Global Styles
    Modern, Professional Design with VS Code Inspiration
    ===================================================== */
 
@@ -134,23 +134,23 @@
   --syntax-operator: #ff7b72;
   --syntax-type: #7ee787;
 
-  /* Terminal Colors */
-  --terminal-black: #0d1117;
-  --terminal-red: #ff7b72;
-  --terminal-green: #3fb950;
-  --terminal-yellow: #d29922;
-  --terminal-blue: #58a6ff;
-  --terminal-magenta: #bc8cff;
-  --terminal-cyan: #39c5cf;
-  --terminal-white: #e6edf3;
-  --terminal-bright-black: #484f58;
-  --terminal-bright-red: #ffa198;
-  --terminal-bright-green: #56d364;
-  --terminal-bright-yellow: #e3b341;
-  --terminal-bright-blue: #79c0ff;
-  --terminal-bright-magenta: #d2a8ff;
-  --terminal-bright-cyan: #56d4dd;
-  --terminal-bright-white: #ffffff;
+  /* Terminal Colors - Light Theme (darker for readability on light bg) */
+  --terminal-black: #24292e;
+  --terminal-red: #d73a49;
+  --terminal-green: #22863a;
+  --terminal-yellow: #b08800;
+  --terminal-blue: #0366d6;
+  --terminal-magenta: #6f42c1;
+  --terminal-cyan: #1b7c83;
+  --terminal-white: #1e293b;
+  --terminal-bright-black: #586069;
+  --terminal-bright-red: #cb2431;
+  --terminal-bright-green: #28a745;
+  --terminal-bright-yellow: #dbab09;
+  --terminal-bright-blue: #2188ff;
+  --terminal-bright-magenta: #8a63d2;
+  --terminal-bright-cyan: #3192aa;
+  --terminal-bright-white: #0d1117;
 
   /* Spacing */
   --space-1: 4px;

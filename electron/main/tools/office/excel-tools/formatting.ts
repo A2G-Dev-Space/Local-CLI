@@ -379,6 +379,107 @@ export const excelUnmergeCellsTool: LLMSimpleTool = {
 };
 
 // =============================================================================
+// Excel Unmerge and Fill
+// =============================================================================
+
+const EXCEL_UNMERGE_AND_FILL_DEFINITION: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'excel_unmerge_and_fill',
+    description: `Unmerge cells and fill all unmerged cells with the original merged value.
+This is useful when you have merged cells with a single value and want to split them while keeping the value in all resulting cells.`,
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: { type: 'string', description: 'Why you are unmerging and filling cells' },
+        range: { type: 'string', description: 'Range containing merged cells (e.g., "A1:A10")' },
+        sheet: { type: 'string', description: 'Sheet name (optional)' },
+      },
+      required: ['reason', 'range'],
+    },
+  },
+};
+
+async function executeExcelUnmergeAndFill(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_unmerge_and_fill', args);
+  try {
+    const response = await excelClient.excelUnmergeAndFill(
+      args['range'] as string,
+      args['sheet'] as string | undefined
+    );
+    if (response.success) {
+      logger.toolSuccess('excel_unmerge_and_fill', args, { range: args['range'], cellsFilled: response['cells_filled'] }, Date.now() - startTime);
+      return { success: true, result: response.message || `Unmerged and filled cells in ${args['range']}` };
+    }
+    logger.toolError('excel_unmerge_and_fill', args, new Error(response.error || 'Failed to unmerge and fill cells'), Date.now() - startTime);
+    return { success: false, error: response.error || 'Failed to unmerge and fill cells' };
+  } catch (error) {
+    logger.toolError('excel_unmerge_and_fill', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
+    return { success: false, error: `Failed to unmerge and fill: ${error instanceof Error ? error.message : String(error)}` };
+  }
+}
+
+export const excelUnmergeAndFillTool: LLMSimpleTool = {
+  definition: EXCEL_UNMERGE_AND_FILL_DEFINITION,
+  execute: executeExcelUnmergeAndFill,
+  categories: OFFICE_CATEGORIES,
+  description: 'Unmerge Excel cells and fill with original value',
+};
+
+// =============================================================================
+// Excel Lock Cells
+// =============================================================================
+
+const EXCEL_LOCK_CELLS_DEFINITION: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: 'excel_lock_cells',
+    description: `Lock or unlock cells. Locked cells are protected when sheet protection is enabled.
+Note: You must also protect the sheet (excel_protect_sheet) for the lock to take effect.`,
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: { type: 'string', description: 'Why you are locking/unlocking cells' },
+        range: { type: 'string', description: 'Range to lock or unlock (e.g., "A1:B10")' },
+        lock: { type: 'boolean', description: 'True to lock cells, false to unlock (default: true)' },
+        sheet: { type: 'string', description: 'Sheet name (optional)' },
+      },
+      required: ['reason', 'range'],
+    },
+  },
+};
+
+async function executeExcelLockCells(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('excel_lock_cells', args);
+  try {
+    const lock = args['lock'] !== false; // default to true
+    const response = await excelClient.excelLockCells(
+      args['range'] as string,
+      lock,
+      args['sheet'] as string | undefined
+    );
+    if (response.success) {
+      logger.toolSuccess('excel_lock_cells', args, { range: args['range'], locked: lock }, Date.now() - startTime);
+      return { success: true, result: `Cells ${args['range']} ${lock ? 'locked' : 'unlocked'}` };
+    }
+    logger.toolError('excel_lock_cells', args, new Error(response.error || 'Failed to lock/unlock cells'), Date.now() - startTime);
+    return { success: false, error: response.error || 'Failed to lock/unlock cells' };
+  } catch (error) {
+    logger.toolError('excel_lock_cells', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
+    return { success: false, error: `Failed to lock/unlock cells: ${error instanceof Error ? error.message : String(error)}` };
+  }
+}
+
+export const excelLockCellsTool: LLMSimpleTool = {
+  definition: EXCEL_LOCK_CELLS_DEFINITION,
+  execute: executeExcelLockCells,
+  categories: OFFICE_CATEGORIES,
+  description: 'Lock or unlock Excel cells',
+};
+
+// =============================================================================
 // Export: Formatting Tools Array
 // =============================================================================
 
@@ -390,4 +491,6 @@ export const formattingTools: LLMSimpleTool[] = [
   excelSetAlignmentTool,
   excelMergeCellsTool,
   excelUnmergeCellsTool,
+  excelUnmergeAndFillTool,
+  excelLockCellsTool,
 ];

@@ -20,6 +20,11 @@ export * from './comments';
 export * from './protection';
 export * from './media';
 export * from './export';
+export * from './pivot-table';
+export * from './formulas';
+export * from './tables';
+export * from './page-setup';
+export * from './advanced';
 
 // Import tool arrays for aggregation
 import { launchTools } from './launch';
@@ -35,6 +40,11 @@ import { commentsTools } from './comments';
 import { protectionTools } from './protection';
 import { mediaTools } from './media';
 import { exportTools } from './export';
+import { pivotTableTools } from './pivot-table';
+import { formulasTools } from './formulas';
+import { tablesTools } from './tables';
+import { pageSetupTools } from './page-setup';
+import { advancedTools } from './advanced';
 
 import { sheetBuilderTools, excelValidatedSaveTool } from './sheet-builders';
 import { excelCreateTool, excelScreenshotTool } from './launch';
@@ -59,6 +69,11 @@ export const EXCEL_TOOLS: LLMSimpleTool[] = [
   ...protectionTools,
   ...mediaTools,
   ...exportTools,
+  ...pivotTableTools,
+  ...formulasTools,
+  ...tablesTools,
+  ...pageSetupTools,
+  ...advancedTools,
 ];
 
 /**

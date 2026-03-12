@@ -19,7 +19,6 @@ import { detectGitRepo } from '../utils/git-utils';
 import { toolRegistry, executeSimpleTool } from '../tools';
 import { executeAgentTool } from '../tools/llm/simple/simple-tool-executor';
 import { isLLMAgentTool } from '../tools/types';
-import { OptionalToolGroupId } from '../tools/types';
 import {
   setWorkingDirectory,
   setPowerShellWorkingDirectory,
@@ -56,7 +55,7 @@ import type { TodoItem, AskUserRequest, AskUserResponse } from './types';
 // =============================================================================
 
 export interface AgentConfig {
-  enabledToolGroups?: OptionalToolGroupId[];
+  enabledToolGroups?: string[];
   workingDirectory?: string;
   enablePlanning?: boolean;
   resumeTodos?: boolean;
@@ -237,8 +236,6 @@ export async function runAgentCore(
 
   // Setup callbacks
   setTodoWriteCallback(async (todos: TodoItem[]) => {
-    const oldStatusMap = new Map(agentState.currentTodos.map(t => [t.id, t.status]));
-
     agentState.currentTodos = todos;
     if (callbacks.onTodoUpdate) {
       callbacks.onTodoUpdate(todos);
@@ -324,7 +321,7 @@ export async function runAgentCore(
 
   // Get tools from registry
   const tools = toolRegistry.getLLMToolDefinitions();
-  const actualEnabledToolGroups = toolRegistry.getEnabledToolGroupIds() as OptionalToolGroupId[];
+  const actualEnabledToolGroups = toolRegistry.getEnabledToolGroupIds() as string[];
 
   logger.info('Enabled tool groups from registry', { enabledToolGroups: actualEnabledToolGroups });
 
@@ -346,7 +343,7 @@ export async function runAgentCore(
 
     try {
       const planningLLM = new PlanningLLM(
-        llmClient,
+        llmClient as any,
         () => toolRegistry.getToolSummaryForPlanning(),
         () => toolRegistry.getEnabledOptionalToolsInfo()
       );
@@ -1245,6 +1242,8 @@ Retry with correct parameter names and types.`;
     const isAbort = errorMessage === 'Agent aborted' || errorMessage === 'INTERRUPTED';
     if (isAbort) {
       logger.info('Agent terminated by user abort', { iterations });
+      // Broadcast completion so ChatApp can reset tab.isRunning
+      io.broadcast('agent:complete', { response: '' });
     } else {
       logger.errorSilent('Agent error', { error: errorMessage });
     }
@@ -1281,10 +1280,10 @@ Retry with correct parameter names and types.`;
       agentState.isRunning = false;
       agentState.abortController = null;
 
-      setTodoWriteCallback(null);
-      setTellToUserCallback(null);
-      setAskUserCallback(null);
-      setReasoningCallback(null);
+      setTodoWriteCallback(null as never);
+      setTellToUserCallback(null as never);
+      setAskUserCallback(null as never);
+      setReasoningCallback(null as never);
       clearFinalResponseCallbacks();
     }
   }

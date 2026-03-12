@@ -400,7 +400,7 @@ Choose one of your 3 tools now.`,
                 const todos: TodoItem[] = extracted.arguments.todos.map((todo: any, index: number) => ({
                   id: todo.id || `todo-${Date.now()}-${index}`,
                   title: todo.title || 'Untitled task',
-                  status: (index === 0 ? 'in_progress' : 'pending') as TodoStatus,
+                  status: (index === 0 ? 'in_progress' : 'pending') as TodoItem['status'],
                 }));
                 return {
                   todos,

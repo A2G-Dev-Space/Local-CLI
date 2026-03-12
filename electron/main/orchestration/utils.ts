@@ -122,27 +122,36 @@ export function flattenMessagesToHistory(messages: Message[]): string {
 
 /**
  * Build TODO context string to inject into user message
+ * CLI parity: src/orchestration/utils.ts
  */
 export function buildTodoContext(todos: TodoItem[]): string {
-  if (!todos || todos.length === 0) {
-    return '';
-  }
+  if (!todos || todos.length === 0) return '';
 
-  const todoLines = todos.map((t) => {
-    const statusEmoji =
-      t.status === 'completed' ? '✅' :
-      t.status === 'in_progress' ? '🔄' :
-      t.status === 'failed' ? '❌' : '⬜';
-    return `${statusEmoji} [${t.id}] ${t.title} (${t.status})${t.note ? ` - ${t.note}` : ''}`;
-  });
+  const completedCount = todos.filter(t => t.status === 'completed').length;
+  const inProgressCount = todos.filter(t => t.status === 'in_progress').length;
+  const pendingCount = todos.filter(t => t.status === 'pending').length;
+
+  const todoList = todos.map((todo, idx) => {
+    const statusIcon = todo.status === 'completed' ? '✅' :
+                       todo.status === 'in_progress' ? '🔄' :
+                       todo.status === 'failed' ? '❌' : '⏳';
+    return `${idx + 1}. ${statusIcon} [${todo.status.toUpperCase()}] ${todo.title}`;
+  }).join('\n');
 
   return `
+---
+## 📋 Current TODO List (${completedCount}/${todos.length} completed)
 
----
-## Current TODO List
-${todoLines.join('\n')}
----
-`;
+${todoList}
+
+${pendingCount > 0 || inProgressCount > 0
+  ? `**⚠️ CRITICAL: You MUST use write_todos tool to update TODO status.**
+- When starting a task: call write_todos with status "in_progress"
+- When completing a task: call write_todos with status "completed"
+- Do NOT skip calling write_todos - execution will stall without it.
+- After finishing current in_progress task, immediately mark it completed and start next pending task.`
+  : '**All TODOs are completed! Provide a brief summary of what was accomplished.**'}
+---`;
 }
 
 /**
@@ -187,10 +196,10 @@ export function markTodoCompleted(todos: TodoItem[], todoId: string): TodoItem[]
 /**
  * Mark TODO as failed
  */
-export function markTodoFailed(todos: TodoItem[], todoId: string, note?: string): TodoItem[] {
+export function markTodoFailed(todos: TodoItem[], todoId: string, error?: string): TodoItem[] {
   return todos.map((t) =>
     t.id === todoId
-      ? { ...t, status: 'failed' as const, note: note || t.note }
+      ? { ...t, status: 'failed' as const, error: error || t.error }
       : t
   );
 }

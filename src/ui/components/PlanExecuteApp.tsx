@@ -97,12 +97,9 @@ import {
   type ToolApprovalResult,
 } from '../../tools/llm/simple/file-tools.js';
 import { findVisionModel } from '../../tools/llm/simple/read-image-tool.js';
-import { createRequire } from 'module';
+import { APP_VERSION } from '../../constants.js';
 
-// Get version from package.json
-const require = createRequire(import.meta.url);
-const pkg = require('../../../package.json') as { version: string };
-const VERSION = pkg.version;
+const VERSION = APP_VERSION;
 
 // Initialization steps for detailed progress display
 type InitStep = 'git_update' | 'health' | 'config' | 'done';

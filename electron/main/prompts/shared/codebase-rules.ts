@@ -8,14 +8,15 @@
  * Codebase first rule - understand before modifying
  */
 export const CODEBASE_FIRST_RULE = `
-## CRITICAL - Read Before Write
+## CRITICAL - UNDERSTAND CODEBASE FIRST
 
-ALWAYS read existing code before making changes:
-1. Use \`read_file\` to understand current implementation
-2. Use \`list_files\` or \`find_files\` to explore project structure
-3. Only then use \`create_file\` or \`edit_file\`
+For ANY coding-related task:
+- Use list_files to understand project structure
+- Use read_file to examine existing code patterns, conventions, and dependencies
+- NEVER assume or guess about existing code - always verify first
+- Follow the existing code style, naming conventions, and architectural patterns
 
-Never modify code you haven't read. This prevents breaking existing functionality.
+This prevents breaking existing functionality and ensures consistency.
 `.trim();
 
 /**

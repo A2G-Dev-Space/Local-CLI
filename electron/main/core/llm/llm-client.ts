@@ -135,7 +135,7 @@ class LLMClient {
     const model = configManager.getCurrentModel();
 
     if (!endpoint || !model) {
-      throw new ValidationError('No endpoint or model configured', {
+      throw new ValidationError('No endpoint or model configured', undefined, undefined, {
         userMessage: 'LLM 엔드포인트나 모델이 설정되지 않았습니다. Settings에서 설정해주세요.',
       });
     }
@@ -294,6 +294,7 @@ class LLMClient {
    * Enhanced error handler with detailed logging (CLI parity)
    * Converts raw errors into typed error classes for proper upstream handling.
    */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private handleError(error: unknown, requestContext?: { method?: string; url?: string; body?: unknown }): Error {
     logger.error('LLM Client Error', { error: error instanceof Error ? error.message : error });
 

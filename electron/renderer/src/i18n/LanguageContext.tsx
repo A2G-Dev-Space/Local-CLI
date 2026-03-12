@@ -45,7 +45,7 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ initialLangu
 
   const setLanguage = useCallback((lang: Language) => {
     setLanguageState(lang);
-    window.electronAPI?.config?.set('language', lang).catch(() => {});
+    window.electronAPI?.config?.set('language' as any, lang).catch(() => {});
   }, []);
 
   const t = useCallback(

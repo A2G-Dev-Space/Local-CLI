@@ -9,56 +9,18 @@ import { LLMSimpleTool, ToolResult } from '../../types.js';
 import { wordClient } from '../word-client.js';
 import { saveScreenshot, delay, APP_LAUNCH_DELAY_MS } from '../common/utils.js';
 import { OFFICE_CATEGORIES } from '../common/constants.js';
+import { logger } from '../../../utils/logger.js';
 
 // =============================================================================
-// Word Launch
-// =============================================================================
-
-const WORD_LAUNCH_DEFINITION: ToolDefinition = {
-  type: 'function',
-  function: {
-    name: 'word_launch',
-    description: `Launch Microsoft Word for document editing.
-Use this tool to start Word before creating or editing documents.
-The Word window will be visible so you can see the changes in real-time.`,
-    parameters: {
-      type: 'object',
-      properties: {
-        reason: { type: 'string', description: 'Explanation of why you are launching Word' },
-      },
-      required: ['reason'],
-    },
-  },
-};
-
-async function executeWordLaunch(_args: Record<string, unknown>): Promise<ToolResult> {
-  try {
-    const response = await wordClient.wordLaunch();
-    if (response.success) {
-      return { success: true, result: response.message || 'Word launched successfully' };
-    }
-    return { success: false, error: response.error || 'Failed to launch Word' };
-  } catch (error) {
-    return { success: false, error: `Failed to launch Word: ${error instanceof Error ? error.message : String(error)}` };
-  }
-}
-
-export const wordLaunchTool: LLMSimpleTool = {
-  definition: WORD_LAUNCH_DEFINITION,
-  execute: executeWordLaunch,
-  categories: OFFICE_CATEGORIES,
-  description: 'Launch Microsoft Word',
-};
-
-// =============================================================================
-// Word Create
+// Word Create (auto-launches Word if not running)
 // =============================================================================
 
 const WORD_CREATE_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
     name: 'word_create',
-    description: `Create a new Word document.`,
+    description: `Create a new Word document. Automatically launches Word if it is not already running.
+Use this tool to start working with a new document.`,
     parameters: {
       type: 'object',
       properties: {
@@ -70,15 +32,20 @@ const WORD_CREATE_DEFINITION: ToolDefinition = {
 };
 
 async function executeWordCreate(_args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('word_create', _args);
   try {
     const response = await wordClient.wordCreate();
     if (response.success) {
       // Wait for document to fully load before LLM proceeds
       await delay(APP_LAUNCH_DELAY_MS);
+      logger.toolSuccess('word_create', _args, { message: response.message }, Date.now() - startTime);
       return { success: true, result: response.message || 'New document created' };
     }
+    logger.toolError('word_create', _args, new Error(response.error || 'Failed to create document'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to create document' };
   } catch (error) {
+    logger.toolError('word_create', _args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to create document: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -111,15 +78,20 @@ const WORD_OPEN_DEFINITION: ToolDefinition = {
 };
 
 async function executeWordOpen(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('word_open', args);
   try {
     const response = await wordClient.wordOpen(args['path'] as string);
     if (response.success) {
       // Wait for document to fully load before LLM proceeds
       await delay(APP_LAUNCH_DELAY_MS);
+      logger.toolSuccess('word_open', args, { document_name: response['document_name'] }, Date.now() - startTime);
       return { success: true, result: `Document opened: ${response['document_name'] || args['path']}` };
     }
+    logger.toolError('word_open', args, new Error(response.error || 'Failed to open document'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to open document' };
   } catch (error) {
+    logger.toolError('word_open', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to open document: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -152,16 +124,21 @@ const WORD_SAVE_DEFINITION: ToolDefinition = {
 };
 
 async function executeWordSave(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
   const filePath = args['path'] as string | undefined;
+  logger.toolStart('word_save', args);
 
   try {
     const response = await wordClient.wordSave(filePath);
     if (response.success) {
       const savedPath = response['path'] as string || filePath || 'current location';
+      logger.toolSuccess('word_save', args, { path: savedPath }, Date.now() - startTime);
       return { success: true, result: `Document saved to: ${savedPath}` };
     }
+    logger.toolError('word_save', args, new Error(response.error || 'Failed to save document'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to save document' };
   } catch (error) {
+    logger.toolError('word_save', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to save document: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -195,17 +172,22 @@ Use this to verify document formatting or show the user what the document looks 
 };
 
 async function executeWordScreenshot(_args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
+  logger.toolStart('word_screenshot', _args);
   try {
     const response = await wordClient.wordScreenshot();
     if (response.success && response.image) {
       const filePath = await saveScreenshot(response.image, 'word');
+      logger.toolSuccess('word_screenshot', _args, { filePath }, Date.now() - startTime);
       return {
         success: true,
         result: `Word screenshot saved to: ${filePath}\n\nTo verify this screenshot, call read_image with file_path="${filePath}"`,
       };
     }
+    logger.toolError('word_screenshot', _args, new Error(response.error || 'Failed to capture screenshot'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to capture screenshot' };
   } catch (error) {
+    logger.toolError('word_screenshot', _args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to capture screenshot: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -239,15 +221,20 @@ Optionally save before closing.`,
 };
 
 async function executeWordClose(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
   const save = args['save'] === true;
+  logger.toolStart('word_close', args);
 
   try {
     const response = await wordClient.wordClose(save);
     if (response.success) {
+      logger.toolSuccess('word_close', args, { saved: save }, Date.now() - startTime);
       return { success: true, result: `Document closed${save ? ' (saved)' : ''}` };
     }
+    logger.toolError('word_close', args, new Error(response.error || 'Failed to close document'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to close document' };
   } catch (error) {
+    logger.toolError('word_close', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to close document: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -281,15 +268,20 @@ Optionally save all documents before quitting.`,
 };
 
 async function executeWordQuit(args: Record<string, unknown>): Promise<ToolResult> {
+  const startTime = Date.now();
   const save = args['save'] === true;
+  logger.toolStart('word_quit', args);
 
   try {
     const response = await wordClient.wordQuit(save);
     if (response.success) {
+      logger.toolSuccess('word_quit', args, { saved: save }, Date.now() - startTime);
       return { success: true, result: `Word closed${save ? ' (all documents saved)' : ''}` };
     }
+    logger.toolError('word_quit', args, new Error(response.error || 'Failed to quit Word'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to quit Word' };
   } catch (error) {
+    logger.toolError('word_quit', args, error instanceof Error ? error : new Error(String(error)), Date.now() - startTime);
     return { success: false, error: `Failed to quit Word: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -306,7 +298,6 @@ export const wordQuitTool: LLMSimpleTool = {
 // =============================================================================
 
 export const launchTools: LLMSimpleTool[] = [
-  wordLaunchTool,
   wordCreateTool,
   wordOpenTool,
   wordSaveTool,

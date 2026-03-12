@@ -148,9 +148,9 @@
 
 /* Message tool (tell_to_user) - show actual message with markdown */
 .tool-name.tool-message {
-  white-space: normal;
+  white-space: pre-wrap;
   word-break: break-word;
-  line-height: 1.4;
+  line-height: 1.5;
   font-weight: var(--font-weight-normal);
 }
 
@@ -190,6 +190,10 @@
 .tool-message-markdown pre code {
   background: none;
   padding: 0;
+}
+
+.tool-execution.error.message-tool .tool-message-markdown {
+  color: #EF4444;
 }
 
 .tool-execution.message-tool .tool-execution-header {

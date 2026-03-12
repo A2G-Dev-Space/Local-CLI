@@ -177,7 +177,7 @@ export class BrowserSubAgent {
           result = await client.fill(args['selector'] as string, args['value'] as string);
           break;
         case 'browser_get_text':
-          result = await client.getText(args['selector'] as string);
+          result = await client.getText(args['selector'] as string | undefined);
           break;
         case 'browser_get_html':
           result = await client.getHtml();
@@ -199,6 +199,9 @@ export class BrowserSubAgent {
           break;
         case 'browser_wait':
           result = await client.waitFor(args['selector'] as string, args['timeout'] as number | undefined);
+          break;
+        case 'browser_send':
+          result = await client.send(args['method'] as string, args['params'] as Record<string, unknown> | undefined);
           break;
         default:
           return { success: false, error: `Unknown browser tool: ${toolName}` };

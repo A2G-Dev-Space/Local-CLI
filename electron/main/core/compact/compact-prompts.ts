@@ -60,8 +60,8 @@ export function buildCompactUserPrompt(
       const statusLabel = todo.status === 'in_progress' ? ' [IN PROGRESS]' :
                          todo.status === 'completed' ? ' [DONE]' : '';
       parts.push(`- [${statusIcon}] ${todo.title}${statusLabel}`);
-      if (todo.note) {
-        parts.push(`  Note: ${todo.note}`);
+      if (todo.result) {
+        parts.push(`  Result: ${todo.result}`);
       }
     });
   }

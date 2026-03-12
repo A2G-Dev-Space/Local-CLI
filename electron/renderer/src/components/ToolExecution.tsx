@@ -149,7 +149,8 @@ const ToolExecution: React.FC<ToolExecutionProps> = ({
   // Get display text for tool - for tell_to_user, show the actual message
   const getToolDisplayText = (exec: ToolExecutionData) => {
     if (exec.toolName === 'tell_to_user' && exec.input?.message) {
-      return String(exec.input.message);
+      // Unescape double-escaped newlines from JSON (\\n → \n)
+      return String(exec.input.message).replace(/\\n/g, '\n');
     }
     return formatToolName(exec.toolName);
   };
