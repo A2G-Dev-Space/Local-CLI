@@ -148,9 +148,9 @@ const DEFAULT_CONFIG: AppConfig = {
 function getConfigPath(): string {
   if (process.platform === 'win32') {
     const appData = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
-    return path.join(appData, 'LOCAL-CLI-UI', 'config.json');
+    return path.join(appData, 'lcli-ui', 'config.json');
   }
-  return path.join(os.homedir(), '.local-cli-ui', 'config.json');
+  return path.join(os.homedir(), '.lcli-ui', 'config.json');
 }
 
 // =============================================================================

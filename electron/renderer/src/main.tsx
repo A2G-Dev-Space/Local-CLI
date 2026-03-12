@@ -1,5 +1,5 @@
 /**
- * LOCAL-CLI-UI - Entry Point
+ * lcli (Windows) - Entry Point
  * Modern Electron React application
  */
 

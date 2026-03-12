@@ -42,7 +42,7 @@ const program = new Command();
  */
 program
   .name('lcli')
-  .description('LOCAL-CLI - OpenAI-Compatible Local CLI Coding Agent')
+  .description('lcli - OpenAI-Compatible Local CLI Coding Agent')
   .version(packageJson.version)
   .helpOption(false);  // -h, --help 비활성화 (/help 사용)
 
@@ -134,7 +134,7 @@ program
 
       // Ink UI 시작 (verbose/debug/llm-log 모드에서만 시작 메시지 표시)
       if (options.verbose || options.debug) {
-        console.log(chalk.cyan('🚀 Starting LOCAL-CLI...\n'));
+        console.log(chalk.cyan('🚀 Starting lcli...\n'));
       }
 
       // Ink UI를 같은 프로세스에서 직접 렌더링 (stdin raw mode 유지)

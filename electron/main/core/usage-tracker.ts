@@ -12,13 +12,13 @@ import { isMainThread } from 'worker_threads';
 import { logger } from '../utils/logger';
 import { contextTracker } from './compact/context-tracker';
 
-// Usage data directory (Windows: %APPDATA%\LOCAL-CLI-UI)
+// Usage data directory (Windows: %APPDATA%\lcli-ui)
 function getDataDir(): string {
   if (process.platform === 'win32') {
     const appData = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
-    return path.join(appData, 'LOCAL-CLI-UI');
+    return path.join(appData, 'lcli-ui');
   }
-  return path.join(os.homedir(), '.local-cli-ui');
+  return path.join(os.homedir(), '.lcli-ui');
 }
 
 const DATA_DIR = getDataDir();
