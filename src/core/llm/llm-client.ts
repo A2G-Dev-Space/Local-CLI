@@ -247,15 +247,17 @@ export class LLMClient {
         model: modelId,
         messages: processedMessages,
         temperature: options.temperature ?? 0.7,
-        max_tokens: options.max_tokens,
         stream: false,
+        // Only send max_tokens if provider supports it (Z.AI rejects large values)
+        ...(providerConfig.supportsMaxTokens && options.max_tokens && { max_tokens: options.max_tokens }),
         // GPT-OSS reasoning models: always use high reasoning effort
         ...(/^gpt-oss-(120b|20b)$/i.test(modelId) && { reasoning_effort: 'high' }),
         ...(options.tools && {
           tools: options.tools,
           // Only send parallel_tool_calls if provider supports it
           ...(providerConfig.supportsParallelToolCalls && { parallel_tool_calls: false }),
-          ...(options.tool_choice && {
+          // Only send tool_choice if provider supports it (Z.AI rejects even 'auto')
+          ...(options.tool_choice && providerConfig.supportsToolChoice && {
             tool_choice: (options.tool_choice === 'required' && !providerConfig.supportsToolChoiceRequired)
               ? 'auto' : options.tool_choice,
           }),

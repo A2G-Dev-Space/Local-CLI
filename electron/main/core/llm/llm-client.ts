@@ -449,8 +449,11 @@ class LLMClient {
       model: modelId,
       messages: processedMessages,
       temperature: options.temperature ?? 0.7,
-      max_tokens: options.max_tokens ?? model.maxTokens,
       stream: false,
+      // Only send max_tokens if provider supports it (Z.AI rejects large values)
+      ...(providerConfig.supportsMaxTokens && {
+        max_tokens: options.max_tokens ?? model.maxTokens,
+      }),
     };
 
     // GPT-OSS reasoning models: use high reasoning effort
@@ -463,7 +466,8 @@ class LLMClient {
       if (providerConfig.supportsParallelToolCalls) {
         requestBody.parallel_tool_calls = false;
       }
-      if (options.tool_choice) {
+      // Only send tool_choice if provider supports it (Z.AI rejects even 'auto')
+      if (options.tool_choice && providerConfig.supportsToolChoice) {
         if (options.tool_choice === 'required' && !providerConfig.supportsToolChoiceRequired) {
           requestBody.tool_choice = 'auto';
         } else {
@@ -714,8 +718,10 @@ class LLMClient {
       model: modelId,
       messages: processedMessages,
       temperature: options.temperature ?? 0.7,
-      max_tokens: options.max_tokens ?? model.maxTokens,
       stream: true,
+      ...(providerConfig.supportsMaxTokens && {
+        max_tokens: options.max_tokens ?? model.maxTokens,
+      }),
     };
 
     // GPT-OSS reasoning models: use high reasoning effort
@@ -728,7 +734,7 @@ class LLMClient {
       if (providerConfig.supportsParallelToolCalls) {
         requestBody.parallel_tool_calls = false;
       }
-      if (options.tool_choice) {
+      if (options.tool_choice && providerConfig.supportsToolChoice) {
         if (options.tool_choice === 'required' && !providerConfig.supportsToolChoiceRequired) {
           requestBody.tool_choice = 'auto';
         } else {
