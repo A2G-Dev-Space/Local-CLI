@@ -611,7 +611,6 @@ async function runDesignPhase(
         { role: 'user', content: instruction },
       ],
       temperature: 0.5,
-      max_tokens: 8000,
     });
     const msg = res.choices[0]?.message;
     const rawPlan = msg ? extractContent(msg as unknown as Record<string, unknown>) : '';
@@ -638,7 +637,6 @@ async function runDesignPhase(
             { role: 'user', content: `ERROR: ${validationError}\n\nFix the issues and output the corrected JSON. Remember: aim for 10-12 slides with REAL content data.` },
           ],
           temperature: 0.3,
-          max_tokens: 8000,
         });
         const retryMsg = retryRes.choices[0]?.message;
         const retryRaw = retryMsg ? extractContent(retryMsg as unknown as Record<string, unknown>) : '';
@@ -725,7 +723,6 @@ async function generateSingleSlideHtml(
         { role: 'user', content: 'Output the complete HTML now.' },
       ],
       temperature: 0.6,
-      max_tokens: 4000,
     });
     const msg = res.choices[0]?.message;
     const rawHtml = msg ? extractContent(msg as unknown as Record<string, unknown>) : '';
@@ -743,7 +740,6 @@ async function generateSingleSlideHtml(
         { role: 'user', content: 'Output ONLY the complete HTML document. Start with <!DOCTYPE html> and end with </html>. No explanation.' },
       ],
       temperature: 0.4,
-      max_tokens: 4000,
     });
     const retryMsg = retryRes.choices[0]?.message;
     const retryRaw = retryMsg ? extractContent(retryMsg as unknown as Record<string, unknown>) : '';

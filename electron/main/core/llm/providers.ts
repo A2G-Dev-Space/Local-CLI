@@ -29,8 +29,6 @@ export interface ProviderConfig {
   supportsToolChoiceRequired: boolean;
   /** Whether the API accepts tool_choice at all (even 'auto') */
   supportsToolChoice: boolean;
-  /** Whether the API accepts max_tokens parameter with large values */
-  supportsMaxTokens: boolean;
 }
 
 export const PROVIDER_CONFIGS: Record<LLMProvider, ProviderConfig> = {
@@ -41,7 +39,6 @@ export const PROVIDER_CONFIGS: Record<LLMProvider, ProviderConfig> = {
     supportsParallelToolCalls: true,
     supportsToolChoiceRequired: true,
     supportsToolChoice: true,
-    supportsMaxTokens: true,
   },
   anthropic: {
     id: 'anthropic',
@@ -50,7 +47,6 @@ export const PROVIDER_CONFIGS: Record<LLMProvider, ProviderConfig> = {
     supportsParallelToolCalls: true,
     supportsToolChoiceRequired: true,
     supportsToolChoice: true,
-    supportsMaxTokens: true,
   },
   gemini: {
     id: 'gemini',
@@ -59,7 +55,6 @@ export const PROVIDER_CONFIGS: Record<LLMProvider, ProviderConfig> = {
     supportsParallelToolCalls: false,
     supportsToolChoiceRequired: true,
     supportsToolChoice: true,
-    supportsMaxTokens: true,
   },
   zai: {
     id: 'zai',
@@ -68,7 +63,6 @@ export const PROVIDER_CONFIGS: Record<LLMProvider, ProviderConfig> = {
     supportsParallelToolCalls: false,
     supportsToolChoiceRequired: false,
     supportsToolChoice: false,
-    supportsMaxTokens: false,
   },
   qwen: {
     id: 'qwen',
@@ -77,7 +71,6 @@ export const PROVIDER_CONFIGS: Record<LLMProvider, ProviderConfig> = {
     supportsParallelToolCalls: true,
     supportsToolChoiceRequired: false,
     supportsToolChoice: true,
-    supportsMaxTokens: true,
   },
   deepseek: {
     id: 'deepseek',
@@ -86,7 +79,6 @@ export const PROVIDER_CONFIGS: Record<LLMProvider, ProviderConfig> = {
     supportsParallelToolCalls: false,
     supportsToolChoiceRequired: true,
     supportsToolChoice: true,
-    supportsMaxTokens: true,
   },
   ollama: {
     id: 'ollama',
@@ -95,7 +87,6 @@ export const PROVIDER_CONFIGS: Record<LLMProvider, ProviderConfig> = {
     supportsParallelToolCalls: false,
     supportsToolChoiceRequired: false,
     supportsToolChoice: false,
-    supportsMaxTokens: true,
   },
   lmstudio: {
     id: 'lmstudio',
@@ -104,7 +95,6 @@ export const PROVIDER_CONFIGS: Record<LLMProvider, ProviderConfig> = {
     supportsParallelToolCalls: false,
     supportsToolChoiceRequired: true,
     supportsToolChoice: true,
-    supportsMaxTokens: true,
   },
   xai: {
     id: 'xai',
@@ -113,7 +103,6 @@ export const PROVIDER_CONFIGS: Record<LLMProvider, ProviderConfig> = {
     supportsParallelToolCalls: true,
     supportsToolChoiceRequired: true,
     supportsToolChoice: true,
-    supportsMaxTokens: true,
   },
   other: {
     id: 'other',
@@ -122,7 +111,6 @@ export const PROVIDER_CONFIGS: Record<LLMProvider, ProviderConfig> = {
     supportsParallelToolCalls: false,
     supportsToolChoiceRequired: false,
     supportsToolChoice: false,
-    supportsMaxTokens: true,
   },
 };
 

@@ -44,7 +44,6 @@ export function getSubAgentPhaseLogger(): PhaseLoggerFn | null {
 export interface SubAgentConfig {
   maxIterations?: number;
   temperature?: number;
-  maxTokens?: number;
   planningPrompt?: string;
   enhancementPrompt?: string;
   minToolCallsBeforeComplete?: number;
@@ -60,7 +59,6 @@ export class SubAgent {
   private systemPrompt: string;
   private maxIterations: number;
   private temperature: number;
-  private maxTokens: number;
   private planningPrompt?: string;
   private enhancementPrompt?: string;
   private minToolCallsBeforeComplete: number;
@@ -79,7 +77,6 @@ export class SubAgent {
     this.systemPrompt = systemPrompt;
     this.maxIterations = config?.maxIterations ?? 15;
     this.temperature = config?.temperature ?? 0.3;
-    this.maxTokens = config?.maxTokens ?? 4000;
     this.planningPrompt = config?.planningPrompt;
     this.enhancementPrompt = config?.enhancementPrompt;
     this.minToolCallsBeforeComplete = config?.minToolCallsBeforeComplete ?? 0;
@@ -175,7 +172,6 @@ export class SubAgent {
         messages: messagesForLLM,
         tools: toolDefinitions,
         temperature: this.temperature,
-        max_tokens: this.maxTokens,
       });
 
       const assistantMessage = response.choices[0]?.message;

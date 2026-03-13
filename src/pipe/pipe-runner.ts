@@ -216,7 +216,6 @@ Reply in Korean. No explanation, just the answer.`,
           },
         ],
         temperature: 0.3,
-        max_tokens: 200,
       });
 
       const answer = response.choices?.[0]?.message?.content?.trim() || '';
