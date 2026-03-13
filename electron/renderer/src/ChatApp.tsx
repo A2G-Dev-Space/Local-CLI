@@ -236,7 +236,7 @@ const ChatApp: React.FC = () => {
       setUpdateInfo(info);
       setUpdateStatus('available');
       setUpdateModalOpen(true);
-      window.electronAPI.update.startDownload();
+      // autoDownload=true in main process, no manual startDownload needed
     });
 
     const unsubNotAvailable = window.electronAPI.update.onNotAvailable(() => {

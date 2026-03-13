@@ -602,8 +602,8 @@ function setupAutoUpdater(): void {
     debug: (message: string) => logger.debug(`[AutoUpdater] ${message}`),
   };
 
-  // 자동 다운로드 비활성화 (사용자 확인 후 다운로드)
-  autoUpdater.autoDownload = false;
+  // 강제 업데이트: 자동 다운로드 + 완료 시 자동 설치
+  autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
 
   // 업데이트 확인 시작
@@ -630,10 +630,13 @@ function setupAutoUpdater(): void {
     sendUpdateEvent('update:download-progress', progress);
   });
 
-  // 다운로드 완료 - renderer로 전달 (커스텀 UI 사용)
+  // 다운로드 완료 → 3초 후 자동 설치 (강제 업데이트)
   autoUpdater.on('update-downloaded', (info) => {
     logger.updateDownloadComplete({ version: info.version });
     sendUpdateEvent('update:downloaded', info);
+    setTimeout(() => {
+      autoUpdater.quitAndInstall(false, true);
+    }, 3000);
   });
 
   // 에러 처리
