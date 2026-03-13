@@ -269,7 +269,6 @@ export class JarvisService {
             tools: JARVIS_MANAGER_TOOLS,
             tool_choice: 'required',
             temperature: 0.5,
-            max_tokens: 2000,
           });
         } catch (error) {
           logger.errorSilent('[JarvisService] Manager LLM call failed', { type: 'jarvis', iteration: i + 1, error: String(error) });
@@ -753,7 +752,6 @@ Reply in Korean. No explanation, just the answer.`,
                 },
               ],
               temperature: 0.3,
-              max_tokens: 200,
             });
 
             const answer = response.choices?.[0]?.message?.content?.trim() || '';

@@ -54,7 +54,6 @@ export class PlanningLLM {
       tools?: ToolDefinition[];
       tool_choice?: string;
       temperature?: number;
-      max_tokens?: number;
     }) => Promise<{
       choices: Array<{
         message: Message & { tool_calls?: Array<{ function: { name: string; arguments: string } }> };
@@ -73,7 +72,6 @@ export class PlanningLLM {
         tools?: ToolDefinition[];
         tool_choice?: string;
         temperature?: number;
-        max_tokens?: number;
       }) => Promise<{
         choices: Array<{
           message: Message & { tool_calls?: Array<{ function: { name: string; arguments: string } }> };
@@ -203,7 +201,6 @@ Choose one of your 3 tools now.`,
             tools: planningToolDefs,
             tool_choice: 'required',
             temperature: 0.7,
-            max_tokens: 2000,
           });
 
           const message = response.choices?.[0]?.message;

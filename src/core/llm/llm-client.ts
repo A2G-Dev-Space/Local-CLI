@@ -248,8 +248,7 @@ export class LLMClient {
         messages: processedMessages,
         temperature: options.temperature ?? 0.7,
         stream: false,
-        // Only send max_tokens if provider supports it (Z.AI rejects large values)
-        ...(providerConfig.supportsMaxTokens && options.max_tokens && { max_tokens: options.max_tokens }),
+        // max_tokens removed: never send it (some providers reject it)
         // GPT-OSS reasoning models: always use high reasoning effort
         ...(/^gpt-oss-(120b|20b)$/i.test(modelId) && { reasoning_effort: 'high' }),
         ...(options.tools && {
@@ -271,7 +270,6 @@ export class LLMClient {
         model: modelId,
         messages: `${processedMessages.length} messages`,
         temperature: requestBody.temperature,
-        max_tokens: requestBody.max_tokens,
         tools: options.tools ? `${options.tools.length} tools` : 'none',
       });
 
@@ -324,17 +322,11 @@ export class LLMClient {
       }
 
       // Emit reasoning if present (extended thinking from o1 models)
-      // Only emit for user-facing responses (skip internal classifier calls)
       const reasoningContent = response.data.choices[0]?.message?.reasoning;
-      const maxTokens = options.max_tokens;
-      const isInternalCall = maxTokens && maxTokens < 500; // Internal calls use small max_tokens
-
-      if (reasoningContent && !isInternalCall) {
+      if (reasoningContent) {
         const { emitReasoning } = await import('../../tools/llm/simple/file-tools.js');
         emitReasoning(reasoningContent, false);
         logger.debug('Reasoning content emitted', { length: reasoningContent.length });
-      } else if (reasoningContent && isInternalCall) {
-        logger.debug('Reasoning skipped (internal call)', { maxTokens, length: reasoningContent.length });
       }
 
       // Track token usage (Phase 3) + context tracking for auto-compact
@@ -575,7 +567,6 @@ export class LLMClient {
         model: modelId,
         messages: processedMessages,
         temperature: options.temperature ?? 0.7,
-        max_tokens: options.max_tokens,
         stream: true,
         // GPT-OSS reasoning models: always use high reasoning effort
         ...(/^gpt-oss-(120b|20b)$/i.test(modelId) && { reasoning_effort: 'high' }),
@@ -594,7 +585,6 @@ export class LLMClient {
         model: modelId,
         messages: `${processedMessages.length} messages`,
         temperature: requestBody.temperature,
-        max_tokens: requestBody.max_tokens,
       });
 
       logger.verbose('Full Streaming Request Body', requestBody);
@@ -613,10 +603,6 @@ export class LLMClient {
       const stream = response.data as AsyncIterable<Buffer>;
       let buffer = '';
       let chunkCount = 0;
-
-      // Check if this is an internal call (skip reasoning for classifier calls)
-      const maxTokens = options.max_tokens;
-      const isInternalCall = maxTokens && maxTokens < 500;
 
       // Import emitReasoning once before loop
       const { emitReasoning } = await import('../../tools/llm/simple/file-tools.js');
@@ -644,13 +630,10 @@ export class LLMClient {
                 chunkCount++;
 
                 // Emit reasoning if present in stream (extended thinking)
-                // Skip for internal classifier calls
                 const reasoningDelta = data.choices[0]?.delta?.reasoning;
-                if (reasoningDelta && !isInternalCall) {
+                if (reasoningDelta) {
                   emitReasoning(reasoningDelta, true);
                   logger.debug('Reasoning delta emitted', { length: reasoningDelta.length });
-                } else if (reasoningDelta && isInternalCall) {
-                  logger.debug('Reasoning delta skipped (internal call)', { maxTokens });
                 }
 
                 yield data;
@@ -1732,7 +1715,6 @@ Retry with correct parameter names and types.`;
       const response = await this.axiosInstance.post<LLMResponse>('/chat/completions', {
         model: model.id,
         messages: [{ role: 'user', content: 'ping' }],
-        max_tokens: 5,
       });
 
       const latency = Date.now() - startTime;
@@ -1797,7 +1779,6 @@ Retry with correct parameter names and types.`;
           const response = await axiosInstance.post<LLMResponse>('/chat/completions', {
             model: model.id,
             messages: [{ role: 'user', content: 'ping' }],
-            max_tokens: 5,
           });
 
           const latency = Date.now() - startTime;
@@ -1872,7 +1853,6 @@ Retry with correct parameter names and types.`;
             content: 'test',
           },
         ],
-        max_tokens: 10,
       });
 
       const latency = Date.now() - startTime;

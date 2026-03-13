@@ -145,7 +145,6 @@ Choose one of your 3 tools now.`,
             tools: planningTools,
             tool_choice: 'required',
             temperature: 0.7,
-            max_tokens: 2000,
           });
 
           // Debug: Log raw response structure

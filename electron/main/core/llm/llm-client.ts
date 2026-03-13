@@ -90,7 +90,6 @@ export interface ChatRequestOptions {
   tools?: ToolDefinition[];
   tool_choice?: 'auto' | 'none' | 'required' | { type: 'function'; function: { name: string } };
   temperature?: number;
-  max_tokens?: number;
   stream?: boolean;
 }
 
@@ -450,10 +449,7 @@ class LLMClient {
       messages: processedMessages,
       temperature: options.temperature ?? 0.7,
       stream: false,
-      // Only send max_tokens if provider supports it (Z.AI rejects large values)
-      ...(providerConfig.supportsMaxTokens && {
-        max_tokens: options.max_tokens ?? model.maxTokens,
-      }),
+      // max_tokens removed: never send it (some providers reject it)
     };
 
     // GPT-OSS reasoning models: use high reasoning effort
@@ -488,7 +484,6 @@ class LLMClient {
       model: modelId,
       messages: `${options.messages.length} messages`,
       temperature: requestBody.temperature,
-      max_tokens: requestBody.max_tokens,
       tools: options.tools ? `${options.tools.length} tools` : 'none',
     });
 
@@ -588,12 +583,9 @@ class LLMClient {
 
       // Emit reasoning if present (CLI parity - extended thinking from o1/DeepSeek-V3 models)
       const reasoningContent = data.choices[0]?.message?.reasoning;
-      const isInternalCall = options.max_tokens && options.max_tokens < 500;
-      if (reasoningContent && !isInternalCall) {
+      if (reasoningContent) {
         emitReasoning(reasoningContent, false);
         logger.debug('Reasoning content emitted', { length: reasoningContent.length });
-      } else if (reasoningContent && isInternalCall) {
-        logger.debug('Reasoning skipped (internal call)', { maxTokens: options.max_tokens, length: reasoningContent.length });
       }
 
       // Track usage (CLI parity - with context tracking)
@@ -719,9 +711,7 @@ class LLMClient {
       messages: processedMessages,
       temperature: options.temperature ?? 0.7,
       stream: true,
-      ...(providerConfig.supportsMaxTokens && {
-        max_tokens: options.max_tokens ?? model.maxTokens,
-      }),
+      // max_tokens removed: never send it (some providers reject it)
     };
 
     // GPT-OSS reasoning models: use high reasoning effort
@@ -822,7 +812,6 @@ class LLMClient {
       const decoder = new TextDecoder();
       let fullContent = '';
       let buffer = '';
-      const isInternalCall = options.max_tokens && options.max_tokens < 500;
 
       while (true) {
         // Check for interrupt (CLI parity)
@@ -859,7 +848,7 @@ class LLMClient {
 
               // Emit reasoning delta if present (CLI parity - extended thinking)
               const reasoningDelta = chunk.choices?.[0]?.delta?.reasoning;
-              if (reasoningDelta && !isInternalCall) {
+              if (reasoningDelta) {
                 emitReasoning(reasoningDelta, true);
               }
             } catch {

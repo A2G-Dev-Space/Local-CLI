@@ -521,7 +521,6 @@ class ConfigManager {
         body: JSON.stringify({
           model: modelId,
           messages: [{ role: 'user', content: 'ping' }],
-          max_tokens: 5,
         }),
         signal: AbortSignal.timeout(30000),
       });
