@@ -27,6 +27,10 @@ export interface ProviderConfig {
   supportsParallelToolCalls: boolean;
   /** Whether the API accepts tool_choice: 'required' */
   supportsToolChoiceRequired: boolean;
+  /** Whether the API accepts tool_choice at all (even 'auto') */
+  supportsToolChoice: boolean;
+  /** Whether the API accepts max_tokens parameter with large values */
+  supportsMaxTokens: boolean;
 }
 
 export const PROVIDER_CONFIGS: Record<LLMProvider, ProviderConfig> = {
@@ -36,6 +40,8 @@ export const PROVIDER_CONFIGS: Record<LLMProvider, ProviderConfig> = {
     defaultBaseUrl: 'https://api.openai.com/v1',
     supportsParallelToolCalls: true,
     supportsToolChoiceRequired: true,
+    supportsToolChoice: true,
+    supportsMaxTokens: true,
   },
   anthropic: {
     id: 'anthropic',
@@ -43,6 +49,8 @@ export const PROVIDER_CONFIGS: Record<LLMProvider, ProviderConfig> = {
     defaultBaseUrl: 'https://api.anthropic.com/v1',
     supportsParallelToolCalls: true,
     supportsToolChoiceRequired: true,
+    supportsToolChoice: true,
+    supportsMaxTokens: true,
   },
   gemini: {
     id: 'gemini',
@@ -50,6 +58,8 @@ export const PROVIDER_CONFIGS: Record<LLMProvider, ProviderConfig> = {
     defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
     supportsParallelToolCalls: false,
     supportsToolChoiceRequired: true,
+    supportsToolChoice: true,
+    supportsMaxTokens: true,
   },
   zai: {
     id: 'zai',
@@ -57,6 +67,8 @@ export const PROVIDER_CONFIGS: Record<LLMProvider, ProviderConfig> = {
     defaultBaseUrl: 'https://api.z.ai/api/paas/v4',
     supportsParallelToolCalls: false,
     supportsToolChoiceRequired: false,
+    supportsToolChoice: false,
+    supportsMaxTokens: false,
   },
   qwen: {
     id: 'qwen',
@@ -64,6 +76,8 @@ export const PROVIDER_CONFIGS: Record<LLMProvider, ProviderConfig> = {
     defaultBaseUrl: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
     supportsParallelToolCalls: true,
     supportsToolChoiceRequired: false,
+    supportsToolChoice: true,
+    supportsMaxTokens: true,
   },
   deepseek: {
     id: 'deepseek',
@@ -71,6 +85,8 @@ export const PROVIDER_CONFIGS: Record<LLMProvider, ProviderConfig> = {
     defaultBaseUrl: 'https://api.deepseek.com',
     supportsParallelToolCalls: false,
     supportsToolChoiceRequired: true,
+    supportsToolChoice: true,
+    supportsMaxTokens: true,
   },
   ollama: {
     id: 'ollama',
@@ -78,6 +94,8 @@ export const PROVIDER_CONFIGS: Record<LLMProvider, ProviderConfig> = {
     defaultBaseUrl: 'http://localhost:11434/v1',
     supportsParallelToolCalls: false,
     supportsToolChoiceRequired: false,
+    supportsToolChoice: false,
+    supportsMaxTokens: true,
   },
   lmstudio: {
     id: 'lmstudio',
@@ -85,6 +103,8 @@ export const PROVIDER_CONFIGS: Record<LLMProvider, ProviderConfig> = {
     defaultBaseUrl: 'http://localhost:1234/v1',
     supportsParallelToolCalls: false,
     supportsToolChoiceRequired: true,
+    supportsToolChoice: true,
+    supportsMaxTokens: true,
   },
   xai: {
     id: 'xai',
@@ -92,6 +112,8 @@ export const PROVIDER_CONFIGS: Record<LLMProvider, ProviderConfig> = {
     defaultBaseUrl: 'https://api.x.ai/v1',
     supportsParallelToolCalls: true,
     supportsToolChoiceRequired: true,
+    supportsToolChoice: true,
+    supportsMaxTokens: true,
   },
   other: {
     id: 'other',
@@ -99,6 +121,8 @@ export const PROVIDER_CONFIGS: Record<LLMProvider, ProviderConfig> = {
     defaultBaseUrl: '',
     supportsParallelToolCalls: false,
     supportsToolChoiceRequired: false,
+    supportsToolChoice: false,
+    supportsMaxTokens: true,
   },
 };
 
