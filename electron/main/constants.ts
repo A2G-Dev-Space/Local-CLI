@@ -47,7 +47,7 @@ export const PROJECTS_DIR = path.join(LOCAL_HOME_DIR, 'projects');
  * Application version (injected from package.json)
  * CLI parity: src/constants.ts
  */
-export const APP_VERSION = '5.0.12';
+export const APP_VERSION = '5.0.13';
 
 /**
  * CLI Server 포트 (Electron ↔ CLI 통신)
