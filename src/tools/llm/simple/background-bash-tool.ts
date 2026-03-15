@@ -215,7 +215,7 @@ async function executeBashBackground(args: Record<string, unknown>): Promise<Too
   if (isNativeWindows()) {
     return {
       success: false,
-      error: 'bash_background tool is not available on Native Windows. Use powershell_background instead.',
+      error: 'bash_background tool is not available on Native Windows. Use powershell_background_start instead.',
     };
   }
 

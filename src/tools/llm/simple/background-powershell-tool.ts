@@ -171,15 +171,14 @@ export const backgroundPowerShellProcessManager = new BackgroundPowerShellProces
 const POWERSHELL_BACKGROUND_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
-    name: 'powershell_background',
+    name: 'powershell_background_start',
     description: `Start a PowerShell command in the background on Windows. Use this for long-running processes like:
 - npm run dev (development server)
 - npm start (application server)
 - python -m http.server (simple HTTP server)
 - docker-compose up
 
-The command will continue running after this tool returns.
-Use powershell_background_status to check output, or powershell_background_kill to stop it.`,
+The command will continue running after this tool returns.`,
     parameters: {
       type: 'object',
       properties: {
@@ -211,7 +210,7 @@ async function executePowerShellBackground(args: Record<string, unknown>): Promi
   if (!isNativeWindows()) {
     return {
       success: false,
-      error: 'powershell_background tool is only available on Native Windows. Use bash_background instead.',
+      error: 'powershell_background_start tool is only available on Native Windows. Use bash_background instead.',
     };
   }
 
@@ -236,7 +235,7 @@ async function executePowerShellBackground(args: Record<string, unknown>): Promi
 
     return {
       success: true,
-      result: `Background process started\nID: ${id}\nPID: ${pid}\nCommand: ${command}\n\nUse powershell_background_status with id="${id}" to check output.\nUse powershell_background_kill with id="${id}" to stop it.`,
+      result: `Background process started\nID: ${id}\nPID: ${pid}\nCommand: ${command}\n\nUse powershell_background_read with id="${id}" to check output.\nUse powershell_background_stop with id="${id}" to stop it.`,
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -260,9 +259,8 @@ export const powershellBackgroundTool: LLMSimpleTool = {
 const POWERSHELL_BACKGROUND_STATUS_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
-    name: 'powershell_background_status',
-    description: `Check the status and recent output of a background PowerShell process.
-Use this to see if a server started successfully or to check for errors.`,
+    name: 'powershell_background_read',
+    description: 'Read output from a background PowerShell task.',
     parameters: {
       type: 'object',
       properties: {
@@ -272,7 +270,7 @@ Use this to see if a server started successfully or to check for errors.`,
         },
         id: {
           type: 'string',
-          description: 'The process ID (e.g., "ps-bg-1") returned by powershell_background',
+          description: 'The process ID (e.g., "ps-bg-1") returned by powershell_background_start',
         },
       },
       required: ['reason', 'id'],
@@ -287,7 +285,7 @@ async function executePowerShellBackgroundStatus(args: Record<string, unknown>):
   if (!isNativeWindows()) {
     return {
       success: false,
-      error: 'powershell_background_status tool is only available on Native Windows.',
+      error: 'powershell_background_read tool is only available on Native Windows.',
     };
   }
 
@@ -345,9 +343,8 @@ export const powershellBackgroundStatusTool: LLMSimpleTool = {
 const POWERSHELL_BACKGROUND_KILL_DEFINITION: ToolDefinition = {
   type: 'function',
   function: {
-    name: 'powershell_background_kill',
-    description: `Stop a background PowerShell process.
-Use this to stop development servers, watchers, or other long-running processes.`,
+    name: 'powershell_background_stop',
+    description: 'Stop a background PowerShell task.',
     parameters: {
       type: 'object',
       properties: {
@@ -372,7 +369,7 @@ async function executePowerShellBackgroundKill(args: Record<string, unknown>): P
   if (!isNativeWindows()) {
     return {
       success: false,
-      error: 'powershell_background_kill tool is only available on Native Windows.',
+      error: 'powershell_background_stop tool is only available on Native Windows.',
     };
   }
 

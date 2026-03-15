@@ -1,0 +1,2791 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Office SubAgent Quality Report</title>
+<style>
+  :root {
+    --bg: #0f1117; --card: #1a1d27; --border: #2a2d3a;
+    --text: #e0e0e6; --muted: #8b8fa3; --accent: #6c5ce7;
+    --green: #00b894; --red: #e17055; --yellow: #fdcb6e; --blue: #74b9ff;
+    --ppt: #d63031; --word: #0984e3; --excel: #00b894;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Segoe UI',-apple-system,sans-serif; background:var(--bg); color:var(--text); line-height:1.6; overflow:hidden; height:100vh; }
+
+  /* Top nav bar */
+  .topbar {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:12px 24px; background:var(--card); border-bottom:1px solid var(--border);
+    position:fixed; top:0; left:0; right:0; z-index:100; height:56px;
+  }
+  .topbar h1 { font-size:1.1rem; font-weight:700; }
+  .topbar .tabs { display:flex; gap:4px; }
+  .topbar .tab {
+    padding:6px 16px; border-radius:8px; cursor:pointer;
+    font-size:0.85rem; font-weight:600; border:1px solid var(--border);
+    background:transparent; color:var(--muted); transition:all 0.2s;
+  }
+  .topbar .tab:hover { background:#ffffff08; }
+  .topbar .tab.active-ppt { background:var(--ppt); color:#fff; border-color:var(--ppt); }
+  .topbar .tab.active-word { background:var(--word); color:#fff; border-color:var(--word); }
+  .topbar .tab.active-excel { background:var(--excel); color:#fff; border-color:var(--excel); }
+  .topbar .page-info { font-size:0.85rem; color:var(--muted); min-width:120px; text-align:right; }
+
+  /* Main content */
+  .main { margin-top:56px; height:calc(100vh - 56px); display:flex; }
+
+  /* Sidebar */
+  .sidebar {
+    width:260px; min-width:260px; background:var(--card); border-right:1px solid var(--border);
+    overflow-y:auto; padding:12px;
+  }
+  .sidebar .tool-label {
+    font-size:0.75rem; font-weight:700; text-transform:uppercase;
+    color:var(--muted); letter-spacing:0.06em; padding:8px 8px 4px;
+  }
+  .sidebar .scenario-item {
+    display:flex; align-items:center; gap:8px;
+    padding:8px 10px; border-radius:8px; cursor:pointer;
+    font-size:0.85rem; color:var(--text); transition:all 0.15s; margin-bottom:2px;
+  }
+  .sidebar .scenario-item:hover { background:#ffffff08; }
+  .sidebar .scenario-item.active { background:var(--accent); color:#fff; }
+  .sidebar .scenario-item .num { width:22px; height:22px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:0.75rem; font-weight:700; flex-shrink:0; }
+  .sidebar .scenario-item .num.untested { background:#ffffff10; color:var(--muted); }
+  .sidebar .scenario-item .num.pass { background:var(--green); color:#fff; }
+  .sidebar .scenario-item .num.fail { background:var(--red); color:#fff; }
+  .sidebar .scenario-item .num.mid { background:var(--yellow); color:#000; }
+  .sidebar .scenario-item .label { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  /* Content area */
+  .content-area {
+    flex:1; overflow-y:auto; padding:32px 40px;
+  }
+
+  /* Page card */
+  .page-card {
+    max-width:1000px; margin:0 auto;
+  }
+  .page-card .tool-badge {
+    display:inline-block; padding:4px 12px; border-radius:6px;
+    font-size:0.8rem; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:12px;
+  }
+  .tool-badge.ppt { background:var(--ppt); color:#fff; }
+  .tool-badge.word { background:var(--word); color:#fff; }
+  .tool-badge.excel { background:var(--excel); color:#fff; }
+  .page-card h2 { font-size:1.5rem; font-weight:700; margin-bottom:4px; }
+  .page-card .scenario-desc { color:var(--muted); font-size:0.9rem; margin-bottom:20px; }
+  .page-card .command { background:#0d0f14; border:1px solid var(--border); border-radius:8px; padding:12px 16px; font-family:'Fira Code','Consolas',monospace; font-size:0.85rem; color:var(--blue); margin-bottom:24px; overflow-x:auto; white-space:pre; }
+
+  /* Score section */
+  .score-grid {
+    display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:24px;
+  }
+  .score-box {
+    background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px 20px;
+  }
+  .score-box .label { font-size:0.8rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:8px; }
+  .score-box .value { font-size:2rem; font-weight:700; }
+  .score-box .value.pass { color:var(--green); }
+  .score-box .value.fail { color:var(--red); }
+  .score-box .value.mid { color:var(--yellow); }
+  .score-box .value.untested { color:var(--muted); }
+  .score-box .sub { font-size:0.8rem; color:var(--muted); margin-top:4px; }
+
+  /* Test results table */
+  .results-table { width:100%; border-collapse:collapse; margin-bottom:24px; }
+  .results-table th {
+    text-align:left; padding:8px 12px; font-size:0.75rem; font-weight:700;
+    text-transform:uppercase; letter-spacing:0.04em; color:var(--muted);
+    border-bottom:2px solid var(--border);
+  }
+  .results-table td {
+    padding:8px 12px; font-size:0.85rem; border-bottom:1px solid var(--border);
+  }
+
+  /* Notes section */
+  .notes { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:20px; margin-bottom:24px; }
+  .notes h3 { font-size:1rem; margin-bottom:8px; }
+  .notes ul { margin-left:1.2rem; }
+  .notes li { margin-bottom:4px; color:var(--muted); font-size:0.85rem; }
+  .notes li strong { color:var(--text); }
+
+  /* Version history */
+  .version-entry { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px 20px; margin-bottom:12px; }
+  .version-entry .ver { font-size:0.85rem; font-weight:700; color:var(--accent); margin-bottom:4px; }
+  .version-entry .score { font-size:1.2rem; font-weight:700; }
+  .version-entry .changes { font-size:0.8rem; color:var(--muted); margin-top:4px; }
+
+  /* Navigation arrows */
+  .nav-arrows {
+    position:fixed; bottom:24px; right:24px; display:flex; gap:8px; z-index:100;
+  }
+  .nav-btn {
+    width:44px; height:44px; border-radius:12px; border:1px solid var(--border);
+    background:var(--card); color:var(--text); font-size:1.2rem;
+    cursor:pointer; display:flex; align-items:center; justify-content:center;
+    transition:all 0.15s;
+  }
+  .nav-btn:hover { background:var(--accent); border-color:var(--accent); }
+  .nav-btn:disabled { opacity:0.3; cursor:not-allowed; }
+
+  /* Keyboard hint */
+  .kbd-hint {
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+    font-size:0.75rem; color:var(--muted); background:var(--card);
+    padding:4px 12px; border-radius:6px; border:1px solid var(--border);
+  }
+  .kbd { display:inline-block; padding:1px 6px; border-radius:4px; background:#ffffff10; font-family:monospace; font-size:0.7rem; }
+
+  /* Language toggle */
+  .lang-toggle {
+    display:flex; align-items:center; gap:6px; margin-left:12px;
+  }
+  .lang-btn {
+    padding:4px 10px; border-radius:6px; cursor:pointer;
+    font-size:0.8rem; font-weight:600; border:1px solid var(--border);
+    background:transparent; color:var(--muted); transition:all 0.2s;
+  }
+  .lang-btn:hover { background:#ffffff08; }
+  .lang-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+
+  /* Untested state */
+  .untested-msg {
+    text-align:center; padding:60px 20px; color:var(--muted);
+  }
+  .untested-msg .icon { font-size:3rem; margin-bottom:12px; opacity:0.3; }
+  .untested-msg p { font-size:1rem; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>Office SubAgent Quality Report</h1>
+  <div class="tabs">
+    <div class="tab" data-tool="ppt" onclick="filterTool('ppt')">PowerPoint</div>
+    <div class="tab" data-tool="word" onclick="filterTool('word')">Word</div>
+    <div class="tab" data-tool="excel" onclick="filterTool('excel')">Excel</div>
+    <div class="tab" data-tool="all" onclick="filterTool('all')">All</div>
+  </div>
+  <div style="display:flex; align-items:center; gap:12px;">
+    <div class="lang-toggle">
+      <button class="lang-btn active" id="langKo" onclick="setLang('ko')">한국어</button>
+      <button class="lang-btn" id="langEn" onclick="setLang('en')">EN</button>
+    </div>
+    <div class="page-info" id="pageInfo">-</div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="sidebar" id="sidebar"></div>
+  <div class="content-area" id="contentArea"></div>
+</div>
+
+<div class="nav-arrows">
+  <button class="nav-btn" id="prevBtn" onclick="navigate(-1)">&larr;</button>
+  <button class="nav-btn" id="nextBtn" onclick="navigate(1)">&rarr;</button>
+</div>
+<div class="kbd-hint" id="kbdHint"><span class="kbd">&larr;</span> <span class="kbd">&rarr;</span> 키로 이동</div>
+
+<script>
+// =====================================================================
+// SCENARIO DATA — PPT 10 + Word 10 + Excel 10
+// =====================================================================
+const scenarios = [
+  // === PPT (10) ===
+  { id:'ppt-1', tool:'ppt', name:'AI 의료 스타트업 피치덱', desc:'MediAI 회사 피치덱. 문제정의, 솔루션, 시장분석, 재무전망 등 투자자 대상 15장', cmd:'hanseol-dev -ps "AI 의료 스타트업 피치덱 만들어줘, 회사명 MediAI, C:\\temp\\ppt1.pptx"', tests:[
+    {
+      version: 'v5.0.3-dev.3',
+      date: '2026-03-08',
+      score: 67.4,
+      slides: [
+        { num:1, title:'** (title)', score:40, note:'타이틀 "**"로 깨짐 — 마크다운 볼드 regex 버그' },
+        { num:2, title:'문제 정의', score:75, note:'2×2 카드 ok, 약간 빽빽' },
+        { num:3, title:'시장 기회', score:60, note:'오버플로우 — 하단 잘림' },
+        { num:4, title:'핵심 기술', score:72, note:'프로그레스 바' },
+        { num:5, title:'작동 원리', score:70, note:'프로세스 플로우' },
+        { num:6, title:'비즈니스 모델', score:58, note:'오버플로우 — 하단 잘림' },
+        { num:7, title:'경쟁 분석', score:78, note:'비교표 깔끔' },
+        { num:8, title:'성장 로드맵', score:72, note:'타임라인' },
+        { num:9, title:'팀 소개', score:75, note:'2×2 그리드' },
+        { num:10, title:'감사합니다', score:40, note:'타이틀 "**"로 깨짐' },
+      ],
+      notes: '14장 계획 중 10장만 생성 (4장 누락: 솔루션, 제품소개, 트랙션, 재무). 타이틀/클로징 "**" 버그. 오버플로우 2장.'
+    },
+    {
+      version: 'v5.0.3-dev.4',
+      date: '2026-03-09',
+      score: 86.3,
+      slides: [
+        { num:1, title:'MediAI (title)', score:94, note:'타이틀 정상 복구! 깔끔한 그라디언트 배경' },
+        { num:2, title:'의료 시장의 현실', score:92, note:'2×2 카드 + 이모지 + 핵심 수치. 깔끔' },
+        { num:3, title:'MediAI 솔루션', score:86, note:'4단계 프로세스 플로우. 하단 빈공간' },
+        { num:4, title:'$1,800억 시장 기회', score:78, note:'빅넘버+카드 좋으나 TAM/SAM/SOM 하단 잘림(overflow)' },
+        { num:5, title:'핵심 제품', score:83, note:'3-col 카드. 텍스트 작음' },
+        { num:6, title:'기술 경쟁력', score:89, note:'프로그레스 바 깔끔, 수치 명확' },
+        { num:7, title:'수익 모델', score:78, note:'테이블 빽빽, 가독성 저하' },
+        { num:8, title:'경쟁사 대비 우위', score:94, note:'비교표 훌륭! 색상 대비 효과적' },
+        { num:9, title:'검증된 성과', score:91, note:'바 차트 깔끔, 그라디언트 좋음' },
+        { num:10, title:'성장 로드맵', score:81, note:'타임라인 카드. 카드 내 빈공간' },
+        { num:11, title:'핵심 팀', score:88, note:'2×2 그리드 + 이모지' },
+        { num:12, title:'재무 계획 및 투자 요청', score:74, note:'매우 빽빽, 텍스트 작고 가독성 최저' },
+        { num:13, title:'감사합니다', score:94, note:'클로징 정상. 깔끔' },
+      ],
+      notes: '13장 전체 생성 성공! 타이틀 "MediAI" 정상. 슬라이드 누락 0. 주요 이슈: overflow(slide4), 텍스트 밀도(slide7,12), 빈공간(slide3,10). +18.9점 상승.'
+    },
+    {
+      version: 'v5.0.3-dev.11',
+      date: '2026-03-09',
+      cliScore: 91.7,
+      electronScore: null,
+      changes: 'v5~v10: HTML 렌더링 파이프라인 도입, code-template 10종, JSON fill. v11: cards 1×3 regression fix (align-content→grid-template-rows), fallback 텍스트 추출 3전략',
+      slides: [
+        { num:1, title:'MediAI (title)', content:38, design:28, fill:28 },
+        { num:2, title:'의료 현장의 위기 (big_numbers)', content:38, design:28, fill:27 },
+        { num:3, title:'MediAI 솔루션 (cards 2×2)', content:37, design:28, fill:28 },
+        { num:4, title:'시장 기회 (big_numbers)', content:37, design:27, fill:26 },
+        { num:5, title:'핵심 기술 우위 (cards 2×2)', content:37, design:28, fill:28 },
+        { num:6, title:'비즈니스 모델 (table)', content:38, design:28, fill:26 },
+        { num:7, title:'경쟁 우위 (table)', content:37, design:28, fill:26 },
+        { num:8, title:'검증된 성과 (cards 2×2)', content:38, design:28, fill:28 },
+        { num:9, title:'전략적 파트너십 (cards 2×2)', content:35, design:27, fill:26 },
+        { num:10, title:'핵심 팀 (cards 2×2)', content:37, design:28, fill:27 },
+        { num:11, title:'재무 전망 (bar_chart)', content:37, design:28, fill:27 },
+        { num:12, title:'투자 제안 (two_col_split)', content:37, design:26, fill:26 },
+        { num:13, title:'감사합니다 (closing)', content:36, design:28, fill:27 },
+      ],
+      notes: [
+        '평균 91.7점 (v4 86.3→v11 +5.4점 상승)',
+        'v5~v11 대규모 아키텍처 변경: COM API → HTML/CSS → Edge screenshot → PPT 배경이미지',
+        '핵심 문제: 레이아웃 다양성 부족 — cards 2×2가 5/11 content 슬라이드(45%)로 지나치게 반복',
+        'donut_chart, process_flow, progress_bars, hero_stat, timeline 전혀 미사용',
+        'table 아래 빈 공간 (slide 6,7), big_numbers 카드 중간 빈 공간 (slide 4)',
+        '파트너십 슬라이드(slide 9) 4번째 카드 bullet 2개만 — 콘텐츠 부족',
+        'v12에서 rebalanceLayouts() 강제 재분배 + 프롬프트 다양성 규칙 강화',
+      ]
+    },
+    {
+      version: 'v5.0.3-dev.12',
+      date: '2026-03-09',
+      cliScore: 90.4,
+      electronScore: null,
+      changes: 'rebalanceLayouts() 추가, 프롬프트 다양성 강화',
+      slides: [
+        { num:1, title:'MediAI (title)', content:38, design:28, fill:28 },
+        { num:2, title:'Healthcare Crisis (cards 2×2)', content:37, design:28, fill:28 },
+        { num:3, title:'Our Solution (process_flow)', content:35, design:26, fill:28 },
+        { num:4, title:'Market Opportunity (big_numbers)', content:37, design:27, fill:25 },
+        { num:5, title:'Core Product (cards 1×3)', content:35, design:27, fill:22 },
+        { num:6, title:'Technology (two_col_split)', content:36, design:27, fill:26 },
+        { num:7, title:'Business Model (table)', content:37, design:28, fill:25 },
+        { num:8, title:'Competitive Landscape (table)', content:37, design:28, fill:24 },
+        { num:9, title:'Clinical Validation (donut_chart)', content:38, design:29, fill:27 },
+        { num:10, title:'Customer Success (process_flow)', content:35, design:25, fill:27 },
+        { num:11, title:'Financial Projections (bar_chart)', content:38, design:28, fill:27 },
+        { num:12, title:'Leadership Team (timeline)', content:36, design:26, fill:27 },
+        { num:13, title:'Investment Opportunity (donut_chart)', content:38, design:29, fill:27 },
+        { num:14, title:'Thank You (closing)', content:36, design:28, fill:27 },
+      ],
+      notes: [
+        '평균 90.4점 — 레이아웃 다양성 대폭 개선 (8종 사용!) 하지만 점수 소폭 하락 (-1.3)',
+        'donut_chart 매우 아름다움 (94점 ×2), bar_chart 깔끔 (93점)',
+        '핵심 문제: cards 1×3 빈 공간 (84점) — grid-template-rows:1fr로 카드가 너무 높음',
+        'process_flow 텍스트 과밀 (89/87점) — 4칸에 긴 설명 → 글씨 너무 작음',
+        'rebalance 콘텐츠 부적합: Customer Success→process_flow, Team→timeline 어색',
+        '영어 출력 (한국어 입력인데) — LLM 변동성',
+      ]
+    },
+    {
+      version: 'v5.0.3-dev.13',
+      date: '2026-03-09',
+      cliScore: 83.5,
+      electronScore: null,
+      changes: 'Cards 1×3→align-content:center+min-height:420px, process_flow desc 80자 제한, rebalance 키워드 보존',
+      slides: [
+        { num:1, title:'MediAI (title)', content:32, design:28, fill:27 },
+        { num:2, title:'의료진단의 현실적 문제점 (table)', content:33, design:27, fill:25 },
+        { num:3, title:'MediAI 솔루션 (process_flow)', content:33, design:23, fill:18 },
+        { num:4, title:'시장 기회 (big_numbers)', content:33, design:26, fill:20 },
+        { num:5, title:'핵심 제품 포트폴리오 (cards 2×2)', content:33, design:28, fill:26 },
+        { num:6, title:'기술 경쟁력 (hero_stat)', content:32, design:27, fill:26 },
+        { num:7, title:'비즈니스 모델 (donut_chart)', content:33, design:28, fill:26 },
+        { num:8, title:'경쟁사 비교 (table)', content:34, design:28, fill:24 },
+        { num:9, title:'트랙션 현황 (progress_bars)', content:34, design:24, fill:22 },
+        { num:10, title:'핵심 팀 (cards 2×2)', content:33, design:27, fill:26 },
+        { num:11, title:'성장 로드맵 (timeline)', content:32, design:25, fill:22 },
+        { num:12, title:'투자 제안 (donut_chart)', content:34, design:27, fill:26 },
+        { num:13, title:'감사합니다 (closing)', content:30, design:27, fill:26 },
+      ],
+      notes: [
+        '평균 83.5점 — v12(90.4) 대비 6.9점 하락!',
+        '레이아웃 다양성 우수 (8종: table×2, process_flow, big_numbers, cards×2, hero_stat, donut×2, progress_bars, timeline)',
+        '🚨 핵심 문제: process_flow/big_numbers/timeline/progress_bars의 공간 활용(Fill)이 심각하게 나쁨',
+        'process_flow(slide3): 카드 상단에만 텍스트, 하단 50%+ 빈공간 — step-desc flex:1이 빈 공간 생성',
+        'big_numbers(slide4): content 상단 클러스터, trend 하단 고정, 중간 빈공간 — margin-top:auto 문제',
+        'timeline(slide11): ms-desc flex:1로 설명과 kpi 사이 빈공간',
+        'progress_bars(slide9): 바/텍스트가 상대적으로 작음, space-evenly보다 center+gap이 나을듯',
+        'v14에서 4개 레이아웃 CSS 수정: process_flow/timeline에 justify-content:center, big_numbers trend margin-top:auto 제거, progress_bars gap:36px+center',
+      ]
+    },
+    {
+      version: 'v5.0.3-dev.14',
+      date: '2026-03-09',
+      cliScore: 82.8,
+      electronScore: null,
+      changes: 'process_flow/timeline justify-content:center, big_numbers margin-top:auto 제거, progress_bars gap:36px+center',
+      slides: [
+        { num:1, title:'MediAI (title)', content:32, design:29, fill:27 },
+        { num:2, title:'The Problem (cards 2×2)', content:34, design:29, fill:28 },
+        { num:3, title:'Our Solution (two_col_split)', content:33, design:27, fill:26 },
+        { num:4, title:'Market Opportunity (bar_chart)', content:34, design:30, fill:28 },
+        { num:5, title:'Product Overview (cards 2×2)', content:33, design:29, fill:28 },
+        { num:6, title:'How It Works (process_flow)', content:33, design:24, fill:22 },
+        { num:7, title:'Core Technology (progress_bars)', content:34, design:28, fill:27 },
+        { num:8, title:'Business Model (hero_stat)', content:33, design:27, fill:25 },
+        { num:9, title:'Competitive Advantage (progress_bars)', content:34, design:27, fill:24 },
+        { num:10, title:'Competitive Landscape (table)', content:34, design:28, fill:25 },
+        { num:11, title:'Traction & Success (big_numbers)', content:34, design:29, fill:27 },
+        { num:12, title:'Team & Advisors (two_col_split)', content:5, design:10, fill:5 },
+        { num:13, title:'Financials & Roadmap (timeline)', content:34, design:28, fill:25 },
+        { num:14, title:'Investment Ask (donut_chart)', content:34, design:27, fill:26 },
+        { num:15, title:'감사합니다 (closing)', content:30, design:29, fill:27 },
+      ],
+      notes: [
+        '평균 82.8점 (slide 12 제외 시 87.3) — v13(83.5) 대비 큰 변화 없음',
+        '🚨 CRITICAL: Slide 12 (Team & Advisors, two_col_split) "string" 렌더링 버그 — JSON fill이 실제 데이터 대신 타입명 "string"을 출력',
+        '✅ 개선: big_numbers(slide11) trend가 콘텐츠와 함께 중앙정렬 → 90점',
+        '✅ 개선: progress_bars(slide7,9) 중앙정렬+gap → 89/85점 (v13 80→89 상승)',
+        '✅ 개선: timeline(slide13) 콘텐츠 중앙정렬 → 87점 (v13 79→87 상승)',
+        '❌ process_flow(slide6) 여전히 79점 — justify-content:center + margin-top:auto 조합이 빈공간 해소 부족',
+        '❌ 영어 제목 다수 — LLM 변동성 (한국어 입력인데 영어 제목)',
+        'v15: two_col_split "string" 버그 수정 + process_flow 근본 해결 필요',
+      ]
+    },
+    {
+      version: 'v5.0.3-dev.15',
+      date: '2026-03-09',
+      cliScore: 82.6,
+      electronScore: null,
+      changes: 'Pipeline Assembly (pre-create+parallel screenshots), two_col_split "string" 버그 수정, process_flow/timeline margin-top:auto 제거, JSON 스키마에서 시나리오별 예시 전면 제거',
+      slides: [
+        { num:1, title:'MediAI (title)', content:38, design:28, fill:28 },
+        { num:2, title:'문제 정의 (cards 2×2)', content:36, design:28, fill:28 },
+        { num:3, title:'솔루션 (process_flow)', content:34, design:26, fill:26 },
+        { num:4, title:'시장 기회 (big_numbers)', content:0, design:0, fill:0 },
+        { num:5, title:'핵심 기능 (cards 1×3)', content:34, design:28, fill:22 },
+        { num:6, title:'기술 경쟁력 (two_col_split)', content:36, design:28, fill:28 },
+        { num:7, title:'비즈니스 모델 (table)', content:36, design:28, fill:26 },
+        { num:8, title:'경쟁 분석 (table)', content:36, design:28, fill:26 },
+        { num:9, title:'성과 및 트랙션 (bar_chart)', content:38, design:28, fill:28 },
+        { num:10, title:'팀 소개 (cards 2×2)', content:36, design:28, fill:28 },
+        { num:11, title:'재무 계획 (donut_chart)', content:38, design:29, fill:27 },
+        { num:12, title:'로드맵 (timeline)', content:34, design:26, fill:24 },
+      ],
+      notes: [
+        '평균 82.6점 (12장 중 slide4 0점 + closing 누락으로 하락)',
+        '🚨 CRITICAL: Slide 4 (시장 기회, big_numbers) 완전 BLANK — 스크린샷 실패 → 빈 슬라이드 남음',
+        '🚨 CRITICAL: Closing 슬라이드 누락 — 13장 계획 중 12장만 출력. cleanup이 끝에서 삭제하여 closing이 삭제됨',
+        '❗ cleanup 로직 버그: 스크린샷 실패한 슬라이드(중간)는 남기고, 성공한 closing(끝)을 삭제',
+        '✅ two_col_split "string" 버그 수정 완료 — slide 6 실제 데이터 정상',
+        '✅ Pipeline Assembly 동작 확인 — 병렬 스크린샷 batch 4 정상',
+        '✅ JSON 스키마 범용화 — 시나리오별 예시 제거 완료',
+        'v16 필요: (1) 스크린샷 실패 시 fallback 렌더링, (2) cleanup이 특정 실패 슬라이드만 삭제',
+      ]
+    },
+    {
+      version: 'v5.0.3-dev.16',
+      date: '2026-03-09',
+      cliScore: 91.4,
+      electronScore: null,
+      changes: 'Fallback rendering (스크린샷 실패 시 간단한 bullet HTML 재렌더), 특정 실패 슬라이드만 삭제 (cleanup 로직 수정), Closing slide guarantee 메커니즘 추가',
+      slides: [
+        { num:1, title:'MediAI (title)', content:38, design:29, fill:28 },
+        { num:2, title:'의료 현장의 위기 (big_numbers)', content:38, design:28, fill:28 },
+        { num:3, title:'MediAI 솔루션 (process_flow)', content:36, design:26, fill:27 },
+        { num:4, title:'시장 기회 (big_numbers)', content:38, design:28, fill:28 },
+        { num:5, title:'제품 포트폴리오 (cards 1×3)', content:34, design:24, fill:24 },
+        { num:6, title:'핵심 기술 (cards 2×2)', content:38, design:28, fill:28 },
+        { num:7, title:'비즈니스 모델 (donut_chart)', content:38, design:29, fill:28 },
+        { num:8, title:'경쟁 우위 (table)', content:38, design:28, fill:27 },
+        { num:9, title:'트랙션 (hero_stat)', content:38, design:28, fill:27 },
+        { num:10, title:'팀 소개 (two_col_split)', content:36, design:26, fill:27 },
+        { num:11, title:'성장 로드맵 (timeline)', content:34, design:24, fill:26 },
+        { num:12, title:'재무 전망 (bar_chart)', content:38, design:29, fill:28 },
+      ],
+      notes: [
+        '평균 91.4점 — v15(82.6) 대비 +8.8점 대폭 상승',
+        '✅ Slide 4 (시장 기회) 정상 복구 — v15에서 0점이었던 blank 슬라이드가 94점으로!',
+        '✅ Fallback rendering 동작 확인 — 스크린샷 실패 시 bullet HTML로 재시도',
+        '✅ 특정 슬라이드 삭제 로직 정상 — 더 이상 closing을 잘못 삭제하지 않음',
+        '❌ Closing 슬라이드 여전히 누락 — 13장 계획 중 12장만 출력. 원인 불명 (스크린샷+fallback 모두 실패 추정)',
+        '❌ cards 1×3 (slide5) 82점 — 텍스트 작음, 여백 과다',
+        '❌ timeline (slide11) 84점 — 텍스트 밀도 높고 글씨 작음',
+        'v17: Closing slide guarantee 메커니즘 추가 (Step 5.5) — assembly 후 closing 미포함 시 강제 생성',
+      ]
+    },
+    {
+      version: 'v5.0.3-dev.17',
+      date: '2026-03-09',
+      cliScore: 91.8,
+      electronScore: null,
+      changes: 'Closing slide guarantee (Step 5.5) — assembly 후 closing 누락 시 강제 생성. CLI↔Electron 패리티 완료.',
+      slides: [
+        { num:1, title:'MediAI (title)', content:38, design:29, fill:28 },
+        { num:2, title:'해결해야 할 문제 (two_col_split)', content:37, design:27, fill:26 },
+        { num:3, title:'MediAI 솔루션 (process_flow)', content:37, design:28, fill:27 },
+        { num:4, title:'시장 기회 (big_numbers)', content:38, design:28, fill:26 },
+        { num:5, title:'제품 포트폴리오 (cards 1×3)', content:36, design:26, fill:22 },
+        { num:6, title:'핵심 기술 (two_col_split)', content:38, design:28, fill:27 },
+        { num:7, title:'비즈니스 모델 (table)', content:38, design:28, fill:26 },
+        { num:8, title:'경쟁 우위 (table)', content:38, design:28, fill:26 },
+        { num:9, title:'성과 (hero_stat)', content:38, design:29, fill:27 },
+        { num:10, title:'팀 소개 (cards 2×2)', content:38, design:28, fill:28 },
+        { num:11, title:'재무 계획 (bar_chart)', content:38, design:27, fill:26 },
+        { num:12, title:'투자 제안 (donut_chart)', content:38, design:29, fill:27 },
+        { num:13, title:'감사합니다 (closing)', content:36, design:28, fill:27 },
+      ],
+      notes: [
+        '평균 91.8점 — v16(91.4) 대비 +0.4 (closing 추가로 구조 완성)',
+        '✅ Closing slide guarantee 정상 작동! slide 13 스크린샷 실패 → Step 5.5에서 강제 생성 → 13장 완전체',
+        '✅ 레이아웃 다양성 우수: 8종 (two_col_split×2, process_flow, big_numbers, cards 1×3, table×2, hero_stat, cards 2×2, bar_chart, donut_chart)',
+        '✅ 전체 한국어 출력, 실제 데이터 풍부, 콘텐츠 품질 높음',
+        '❌ cards 1×3 (slide5) 84점 — 카드가 작고 상하 여백 과다 (반복 문제)',
+        '❌ two_col_split (slide2) 90점 — 좌우 컬럼 높이 불균형, 우측 시작이 낮음',
+        '❌ big_numbers (slide4) 92점 — 카드 하단 빈공간',
+        '95점 달성 전략: (1) cards 1×3 CSS 카드 높이 확대 + 패딩 증가, (2) two_col_split 좌우 균형 개선',
+      ]
+    },
+    {
+      version: 'v5.0.3-dev.18',
+      date: '2026-03-09',
+      cliScore: 89.8,
+      electronScore: null,
+      changes: 'Cards 1×3 CSS 수정: align-content:center → grid-template-rows:1fr, min-height:420px 제거',
+      slides: [
+        { num:1, title:'MediAI (title)', content:38, design:29, fill:27 },
+        { num:2, title:'문제 정의 (cards 2×2)', content:38, design:28, fill:27 },
+        { num:3, title:'솔루션 (process_flow)', content:36, design:27, fill:27 },
+        { num:4, title:'시장 분석 (big_numbers)', content:36, design:26, fill:24 },
+        { num:5, title:'제품 소개 (progress_bars)', content:34, design:24, fill:24 },
+        { num:6, title:'핵심 기능 (hero_stat)', content:37, design:28, fill:26 },
+        { num:7, title:'비즈니스 모델 (table)', content:36, design:27, fill:24 },
+        { num:8, title:'경쟁 우위 (donut_chart)', content:34, design:24, fill:24 },
+        { num:9, title:'경쟁사 분석 (table)', content:37, design:28, fill:26 },
+        { num:10, title:'고객 사례 및 성과 (hero_stat)', content:37, design:27, fill:27 },
+        { num:11, title:'팀 소개 (cards 2×2)', content:38, design:28, fill:27 },
+        { num:12, title:'로드맵 (timeline)', content:38, design:27, fill:27 },
+        { num:13, title:'재무 계획 (bar_chart)', content:38, design:28, fill:28 },
+        { num:14, title:'감사합니다 (closing)', content:36, design:28, fill:27 },
+      ],
+      notes: [
+        '평균 89.8점 — v17(91.8) 대비 -2.0점 하락. LLM 선택 변동성 + 일부 레이아웃 약점 노출',
+        '✅ Closing guarantee 정상 동작 — 14장 완전체 (v17 13장 → v18 14장)',
+        '✅ 레이아웃 다양성 최고: 9종 사용 (cards 2×2×2, process_flow, big_numbers, progress_bars, hero_stat×2, table×2, donut_chart, timeline, bar_chart)',
+        '✅ bar_chart (slide13) 94점 — 그라디언트 바, 시각적으로 매우 우수',
+        '✅ cards 2×2 (slide2,11) 93점 — 카드 균형 좋음, 이모지 활용 효과적',
+        '❌ progress_bars (slide5) 82점 — 바가 얇고 전체 공간 미활용, 압축된 느낌',
+        '❌ donut_chart (slide8) 82점 — SVG 차트 크기 작고 전반적 압축감',
+        '❌ big_numbers (slide4) 86점 — 하단 여백 과다 (반복 문제)',
+        '❌ table (slide7) 87점 — 텍스트 "..." 잘림 현상',
+        'cards 1×3 미출현 (LLM이 progress_bars 선택) — v18 CSS 수정 효과 미검증',
+        '95점 달성 핵심: progress_bars 바 높이/존재감 확대, donut_chart SVG 크기 확대, big_numbers 수직 중앙정렬 강화, table 텍스트 잘림 방지',
+      ]
+    },
+    {
+      version: 'v5.0.3-dev.22',
+      date: '2026-03-09',
+      cliScore: 92.1,
+      electronScore: 92.1,
+      changes: 'v21: fallback 카드그리드, cards ul 세로중앙, donut 600px+summary이동, two_col_split 패딩증가. v22: progress_bars 적응형spacing(5+바→gap28/h44), timeline 폰트크기증가(desc32/kpi30)',
+      slides: [
+        { num:1, title:'MediAI (title)', score:94, note:'깔끔한 블루 그래디언트' },
+        { num:2, title:'문제 정의 (big_numbers)', score:92, note:'3수치 잘표현 (1500만/12%/3배)' },
+        { num:3, title:'솔루션 (two_col_split)', score:91, note:'좌4kv+우4bullets, 패딩증가효과' },
+        { num:4, title:'시장 규모 (big_numbers)', score:93, note:'TAM/SAM/SOM 매우우수' },
+        { num:5, title:'핵심 제품 (progress_bars)', score:91, note:'5바 적응형spacing, 잘림없음' },
+        { num:6, title:'기술 차별점 (process_flow)', score:92, note:'4단계 풍부한내용' },
+        { num:7, title:'비즈니스 모델 (donut_chart)', score:93, note:'600px도넛+legend내summary' },
+        { num:8, title:'경쟁 분석 (table)', score:92, note:'4사×4지표 비교표' },
+        { num:9, title:'트랙션 (bar_chart)', score:94, note:'4바 성장그래프 매우인상적' },
+        { num:10, title:'고객 성공사례 (cards 1×3)', score:90, note:'3병원카드, 중앙정렬개선' },
+        { num:11, title:'팀 소개 (cards 2×2)', score:91, note:'4인 카드그리드' },
+        { num:12, title:'재무 계획 (bar_chart)', score:93, note:'매출+영업이익 그래디언트바' },
+        { num:13, title:'자금 사용 계획 (donut_chart)', score:93, note:'4세그먼트+summary통합' },
+        { num:14, title:'로드맵 (timeline)', score:91, note:'폰트크기증가효과' },
+        { num:15, title:'감사합니다 (closing)', score:92, note:'깔끔' },
+      ],
+      notes: [
+        '🎯 평균 92.1점 — 목표 92점 달성! 최저 90점 (목표 ≥90 달성!)',
+        '✅ 15장 완전체: 10종 레이아웃 사용 (big_numbers×2, two_col_split, progress_bars, process_flow, donut_chart×2, table, bar_chart×2, cards×2, timeline, title, closing)',
+        '✅ v21 핵심 수정: fallback→카드그리드, cards ul justify-content:center, donut 540→600px+summary legend내이동, two_col_split kv-item 패딩/폰트증가',
+        '✅ v22 핵심 수정: progress_bars 5+바 적응형spacing(gap44→28, height56→44), timeline 폰트증가(desc30→32, kpi28→30, title38→40)',
+        '✅ 콘텐츠필터 미발생 — 모든 슬라이드 정상 렌더링 (fallback 0장)',
+        '✅ donut_chart 2장 모두 93점 — 600px 확대 + summary legend통합이 매우 효과적',
+        '✅ bar_chart 2장 모두 93-94점 — 가장 시각적으로 인상적인 레이아웃',
+      ]
+    },
+    {
+      version: 'v5.0.3-dev.41',
+      date: '2026-03-10',
+      cliScore: 91.0,
+      electronScore: null,
+      changes: 'v28~v41: Free HTML 파이프라인 전환 (코드템플릿 제거, LLM 완전자유 HTML/CSS), validateSlideHtml 폰트최소22px, overflow 1350자, 프롬프트 콘텐츠 ~1000자 가이드',
+      slides: [
+        { num:1, title:'MediAI (title)', score:94, note:'깔끔한 블루 그라디언트, 프로페셔널' },
+        { num:2, title:'문제 정의', score:94, note:'2×2 카드, 큰 숫자, 진행률 바, severity 뱃지' },
+        { num:3, title:'솔루션', score:91, note:'카드 레이아웃, 약간 dense' },
+        { num:4, title:'시장 기회', score:93, note:'TAM/SAM/SOM + 성장 드라이버' },
+        { num:5, title:'제품 & 핵심 기술', score:94, note:'3단 제품카드 + 기술우위 + 인증현황 3단계' },
+        { num:6, title:'비즈니스 모델', score:90, note:'3티어 가격구조, 하단 ARPU/Margin/LTV. 세부텍스트 작음' },
+        { num:7, title:'경쟁 분석', score:89, note:'경쟁사 3사 비교 + MediAI 차별화 바. 본문 텍스트 작음' },
+        { num:8, title:'트랙션 & 고객 성과', score:92, note:'파트너십+진단처리+성과지표+ROI. 데이터 풍부' },
+        { num:9, title:'재무 계획', score:91, note:'바 차트 2024-2028 + 연도별 분석카드 + BEP' },
+        { num:10, title:'팀 & 어드바이저', score:95, note:'3인 프로필+팀규모+어드바이저+파트너. 깔끔' },
+        { num:11, title:'로드맵 & 투자 요청', score:93, note:'타임라인+150억 투자요청+도넛차트+Next Round' },
+        { num:12, title:'감사합니다', score:95, note:'프로페셔널 클로징' },
+      ],
+      notes: [
+        '평균 91.0점 (v22 92.1 대비 -1.1). Free HTML 파이프라인 전환 후 첫 테스트',
+        '✅ 슬라이드별 디자인 다양성 대폭 향상 — 12장 모두 고유한 레이아웃 (코드템플릿 10종 제약 탈피)',
+        '✅ 카드, 바차트, 도넛차트, 타임라인, 뱃지, 진행률바 등 다양한 시각요소 자연스럽게 혼합',
+        '⚠️ 주요 이슈: 슬라이드 6,7에서 세부 텍스트가 여전히 작음 (20px 미만 추정)',
+        '⚠️ v22(92.1) 대비 소폭 하락 — LLM 변동성 + Free HTML의 폰트 크기 일관성 부족',
+        'Content 37/40, Design 27/30, Structure 14/15, Readability 13/15',
+      ]
+    }
+  ] },
+  { id:'ppt-2', tool:'ppt', name:'여행사 마케팅 제안서', desc:'유럽 패키지 여행 프로모션. 일정, 가격, 고객 후기, 예약 안내 등 12장', cmd:'hanseol-dev -ps "유럽 패키지 여행 마케팅 제안서 만들어줘, 여행사 드림투어, C:\\temp\\ppt2.pptx"', tests:[
+    {
+      version: 'v5.0.3-dev.24',
+      date: '2026-03-09',
+      cliScore: 85.3,
+      electronScore: null,
+      changes: 'injectTitleContrastFix 제거 (JS코드 화면 노출 버그), validateSlideHtml에 script/transform:scale 검증 추가',
+      slides: [
+        { num:1, title:'S1', score:85, note:'' },
+        { num:2, title:'S2', score:88, note:'' },
+        { num:3, title:'S3', score:80, note:'콘텐츠 밀집도 높아 가독성 부족' },
+        { num:4, title:'S4', score:82, note:'콘텐츠 밀집도 높아 가독성 부족' },
+        { num:5, title:'S5', score:80, note:'콘텐츠 밀집도 높아 가독성 부족' },
+        { num:6, title:'S6', score:87, note:'' },
+        { num:7, title:'S7', score:90, note:'' },
+        { num:8, title:'S8', score:88, note:'' },
+        { num:9, title:'S9', score:86, note:'' },
+        { num:10, title:'S10', score:86, note:'' },
+        { num:11, title:'S11', score:87, note:'' },
+        { num:12, title:'S12', score:85, note:'' },
+        { num:13, title:'S13', score:85, note:'' },
+      ],
+      notes: [
+        'JS코드 노출 버그 완전 해결. 여행 주제에 맞는 창의적 레이아웃(일정표, 루트타임라인, 다국그리드) 우수',
+        '일부 슬라이드(3,4,5) 콘텐츠 밀집도 높아 가독성 약간 부족. 하단 짤림 발생 (slide 5 핵심 시장 트렌드 섹션)',
+      ]
+    },
+    {
+      version: 'v5.0.3-dev.25',
+      date: '2026-03-09',
+      cliScore: 85.8,
+      electronScore: 85.8,
+      changes: 'overflow 방지 프롬프트 강화 (1080px 높이 제약 명시, 콘텐츠 양 제한). validation 문자수 한도 2200→1800',
+      slides: [
+        { num:1, title:'타이틀', score:85, note:'' },
+        { num:2, title:'발표 개요', score:87, note:'2×3 카드 그리드' },
+        { num:3, title:'타겟시장 분석', score:86, note:'바차트+성장률' },
+        { num:4, title:'드림유럽 베이직', score:88, note:'루트타임라인+가격' },
+        { num:5, title:'드림유럽 프리미엄', score:87, note:'6도시 루트' },
+        { num:6, title:'드림유럽 그랜드투어', score:82, note:'텍스트 약간 압축' },
+        { num:7, title:'5대 차별화', score:88, note:'5 USP 카드' },
+        { num:8, title:'마케팅 4P', score:87, note:'2×2 전략 그리드' },
+        { num:9, title:'샘플 일정', score:80, note:'텍스트 작음' },
+        { num:10, title:'가격 전략', score:88, note:'가격/할인/시즌바' },
+        { num:11, title:'판매채널+프로모션', score:87, note:'채널4+계절4' },
+        { num:12, title:'감사합니다', score:85, note:'' },
+      ],
+      notes: [
+        '하단 짤림 완전 해결! 모든 12슬라이드 짤림 0건',
+        '창의적 레이아웃: 루트타임라인, 4P 분석, 계절별 프로모션 캘린더 등',
+        'slide 6,9 텍스트 약간 작지만 짤림 없음',
+      ]
+    },
+    {
+      version: 'v5.0.3-dev.41',
+      date: '2026-03-10',
+      cliScore: 82.0,
+      electronScore: null,
+      changes: 'v28~v41: Free HTML 파이프라인, validateSlideHtml 폰트22px/overflow1350자',
+      slides: [
+        { num:1, title:'Title (드림투어)', score:84, note:'깔끔하나 plain, 줄바꿈 어색' },
+        { num:2, title:'제안서 구성 (TOC)', score:80, note:'8카드 그리드, 내부 빈공간 많아 낭비' },
+        { num:3, title:'드림투어 소개', score:75, note:'텍스트 매우 작음, 정보 과밀' },
+        { num:4, title:'유럽 여행 시장 분석', score:60, note:'🚨 콘텐츠 절단! 아이템2,6 텍스트 잘림' },
+        { num:5, title:'타겟 고객 분석', score:87, note:'4 페르소나 카드+%, 하단 빈공간' },
+        { num:6, title:'대표 패키지 상품 I', score:82, note:'2패키지 카드, 텍스트 작음' },
+        { num:7, title:'대표 패키지 상품 II', score:89, note:'가격/일정/특별포함 잘 정리' },
+        { num:8, title:'마케팅 전략', score:85, note:'5섹션 카드+프로모션' },
+        { num:9, title:'홍보 채널 및 파트너십', score:78, note:'텍스트 매우 작음' },
+        { num:10, title:'예산 및 타임라인', score:93, note:'예산+타임라인+도넛+분기별. 우수' },
+        { num:11, title:'KPI 및 기대 효과', score:82, note:'데이터 풍부하나 텍스트 작음' },
+        { num:12, title:'제안 요약', score:85, note:'5컬럼 요약 카드' },
+        { num:13, title:'감사합니다', score:90, note:'깔끔 클로징' },
+      ],
+      notes: [
+        '평균 82.0점 — v25(85.8) 대비 -3.8점 하락',
+        '🚨 슬라이드4 콘텐츠 절단: 아이템2 "한국인 해외여행객 2", 아이템6 "400원→2024년 1" — HTML overflow로 텍스트 잘림',
+        '⚠️ 슬라이드3,9,11 폰트 매우 작음 — validateSlideHtml 22px 기준 통과했지만 실제 렌더링에서 작게 보임',
+        '✅ 슬라이드10(예산/타임라인) 93점으로 우수 — 다양한 시각요소 잘 혼합',
+        '✅ 여행사 주제에 맞는 패키지 카드(6,7), 페르소나 카드(5) 적합',
+        '핵심 개선 필요: (1) 콘텐츠 절단 방지, (2) 최소 폰트 사이즈 24px로 상향, (3) TOC 슬라이드 제거/통합',
+      ]
+    },
+    {
+      version: 'v5.0.3-dev.42',
+      date: '2026-03-10',
+      cliScore: 91.0,
+      electronScore: null,
+      changes: 'v42: 폰트24px/오버플로1200자/한국어밀도경고/TOC회피/3-4요소/800자/28-32px바디',
+      slides: [
+        { num:1, title:'Title (드림투어)', score:85, note:'깔끔한 블루 그라디언트' },
+        { num:2, title:'회사 소개', score:92, note:'5대 핵심지표+Vision/Mission+수상. 잘 정리됨' },
+        { num:3, title:'유럽 여행 시장 분석', score:91, note:'4숫자+바차트+트렌드. 데이터 풍부' },
+        { num:4, title:'타겟 고객 분석', score:94, note:'3 페르소나+예산+공통니즈. 우수' },
+        { num:5, title:'프리미엄 패키지 상품', score:95, note:'3 패키지 카드, 루트/가격/태그/CTA. 매우 아름다움' },
+        { num:6, title:'남유럽 & 시즌 특선', score:83, note:'5상품 압축, 시즌 섹션 텍스트 작음' },
+        { num:7, title:'마케팅 전략', score:93, note:'브랜드+메시지+차별화+프로모션 2×2' },
+        { num:8, title:'홍보 채널 전략', score:93, note:'70/30 온오프 채널 상세. 가독성 좋음' },
+        { num:9, title:'실행 로드맵', score:88, note:'4단계 타임라인, 텍스트 약간 작음' },
+        { num:10, title:'예산 및 기대 효과', score:94, note:'예산+성과+ROI+인지도 대시보드. 우수' },
+        { num:11, title:'감사합니다', score:90, note:'깔끔 클로징' },
+      ],
+      notes: [
+        '🎯 평균 91.0점 — v41(82.0) 대비 +9.0점 대폭 상승! v25(85.8) 대비 +5.2점',
+        '✅ TOC 슬라이드 제거 효과: 13장→11장, 모든 슬라이드가 실질 콘텐츠',
+        '✅ 콘텐츠 절단 0건 — 1200자 제한 효과',
+        '✅ 슬라이드5(프리미엄 패키지) 95점 — 3 상품 비교 카드 디자인 탁월',
+        '✅ 슬라이드10(예산/기대효과) 94점 — 대시보드형 데이터 시각화 우수',
+        '⚠️ 슬라이드6(시즌특선) 83점 — 5상품 압축으로 텍스트 작음',
+        '⚠️ 슬라이드9(로드맵) 88점 — 타임라인 카드 텍스트 약간 작음',
+        'Content 36/40, Design 27/30, Structure 14/15, Readability 14/15',
+      ]
+    }
+  ] },
+  { id:'ppt-3', tool:'ppt', name:'주간 업무 보고', desc:'개발팀 주간 업무 보고. 이번주 성과, 이슈, 다음주 계획, KPI 현황 8장', cmd:'hanseol-dev -ps "개발팀 주간 업무 보고 PPT 만들어줘, C:\\temp\\ppt3.pptx"', tests:[
+    {
+      version: 'v5.0.3-dev.26',
+      date: '2026-03-09',
+      cliScore: 85.1,
+      electronScore: 85.1,
+      changes: 'placeholder 감지 패턴 강화 (bracket패턴 8종 추가). 프롬프트에 가상 정보 생성 지시 추가. 프롬프트 영어 유지.',
+      slides: [
+        { num:1, title:'타이틀', score:87, note:'실제 정보 생성 (김민수, 2025.1.17)' },
+        { num:2, title:'목차', score:88, note:'2×4 카드' },
+        { num:3, title:'주요 성과', score:82, note:'2×2 메트릭, 텍스트 작음' },
+        { num:4, title:'진행 중인 프로젝트', score:88, note:'진행률바+상태뱃지 (주간보고 적합)' },
+        { num:5, title:'프로젝트 상세', score:80, note:'하단 기술스택 미세짤림' },
+        { num:6, title:'완료된 작업', score:78, note:'JIRA 테이블 텍스트 작음' },
+        { num:7, title:'이슈 및 리스크', score:90, note:'3컬럼 심각도카드 (우수!)' },
+        { num:8, title:'이슈 해결 현황', score:88, note:'도넛차트+리스트' },
+        { num:9, title:'다음 주 계획', score:80, note:'스프린트계획, 텍스트 작음' },
+        { num:10, title:'팀 현황', score:88, note:'인력/가용률/부재자' },
+        { num:11, title:'Q&A', score:87, note:'실제 이메일/내선번호' },
+        { num:12, title:'감사합니다', score:85, note:'' },
+      ],
+      notes: [
+        'placeholder 완전 해결: slide1 날짜/이름, slide11 이메일/내선, slide12 슬로건 모두 실제 생성',
+        '주제 적합성 우수: 스프린트 진행률, JIRA 이슈 트래킹, 팀 가용률 등 개발팀 보고에 적합한 레이아웃',
+        'slide 5 하단 미세 짤림 (기술 스택), slide 3/6/9 텍스트 작음',
+      ]
+    },
+    {
+      version: 'v5.0.3-dev.43',
+      date: '2026-03-10',
+      cliScore: 88.0,
+      electronScore: null,
+      changes: 'HTML 렌더링 파이프라인 v43. 시나리오별 하드코딩 제거 후 테스트.',
+      notes: [
+        '12슬라이드. 대시보드형 카드/도넛차트/진행률바/팀원프로필 다양한 레이아웃.',
+        '주요 강점: 구체적 프로젝트명/팀원명/수치, before/after 메트릭 우수.',
+        '약점: TOC 슬라이드(공간 낭비), slide 6/9 텍스트 밀도 높음.',
+        '색상: 일관된 corporate blue 팔레트.'
+      ]
+    }
+  ] },
+  { id:'ppt-4', tool:'ppt', name:'시상식 발표자료', desc:'2025 우수사원 시상식. 수상자 소개, 업적, 축하 메시지 10장', cmd:'hanseol-dev -ps "2025년 우수사원 시상식 발표자료 만들어줘, C:\\temp\\ppt4.pptx"', tests:[
+    {
+      version: 'v5.0.3-dev.26', cliScore: 85.0, electronScore: 85.0, date: '2026-03-09',
+      changes: 'HTML 렌더링 파이프라인 v26',
+      slides: [
+        { num:1, title:'타이틀', score:85, note:'네이비/골드 그라디언트' },
+        { num:2, title:'인사말', score:85, note:'' },
+        { num:3, title:'카테고리 소개', score:75, note:'텍스트 약간 소형' },
+        { num:4, title:'수상자 1', score:90, note:'프로필 카드 우수' },
+        { num:5, title:'업적', score:80, note:'' },
+        { num:6, title:'업적 상세', score:80, note:'' },
+        { num:7, title:'수상자 2', score:90, note:'금색 연차 뱃지 훌륭' },
+        { num:8, title:'축하', score:85, note:'' },
+        { num:9, title:'타임라인', score:70, note:'텍스트 작음' },
+        { num:10, title:'비전', score:75, note:'텍스트 작음' },
+        { num:11, title:'감사합니다', score:85, note:'' },
+      ],
+      notes: [
+        '11 slides, 0 clipping, 0 placeholders',
+        'Navy/gold 색상 시상식에 적합, 금색 연차 뱃지(slide 7) 훌륭',
+        '수상자 프로필 카드 레이아웃(slide 4,7) 시상식에 완벽',
+        'Slide 9 시상식 진행 타임라인 텍스트 너무 작아 가독성 저하',
+        'Slide 10 비전 선포 텍스트 작음, slide 3 카테고리도 약간 소형',
+        'Title/Closing 그라디언트 통일감 우수',
+      ]
+    },
+    {
+      version: 'v44', cliScore: 89.0, electronScore: 89.0, date: '2026-03-10',
+      changes: 'v44',
+      slides: [
+        { num:1, score:8.5 },
+        { num:2, score:9.5 },
+        { num:3, score:7.5 },
+        { num:4, score:8.5 },
+        { num:5, score:8.5 },
+        { num:6, score:7.0 },
+        { num:7, score:9.0 },
+        { num:8, score:8.5 },
+        { num:9, score:7.5 },
+        { num:10, score:9.0 },
+        { num:11, score:9.0 },
+        { num:12, score:7.5 },
+        { num:13, score:8.5 },
+      ],
+      details: {
+        content: 28.0,
+        design: 26.5,
+        structure: 18.0,
+        technical: 16.5
+      },
+      notes: [
+        '13슬라이드. 오렌지/네이비 여행 분위기. 매일 고유한 타임라인 레이아웃.',
+        '주요 강점: 실제 유로/CHF 가격, 구체적 관광지명, 유레일패스/교통카드/숙소 유형별 가격 비교, 바차트 예산 분석.',
+        '약점: 일부 일차(3,6,9,12) 텍스트 밀도 높아 폰트 작음.',
+        '지엽적 프롬프트 제거 후에도 여행 주제에 맞는 일정표 형태 자율 선택 확인.',
+      ]
+    }
+  ] },
+  { id:'ppt-5', tool:'ppt', name:'대학생 조별과제 발표', desc:'마케팅 원론 조별과제: 나이키 브랜드 전략 분석 12장', cmd:'hanseol-dev -ps "나이키 브랜드 전략 분석 조별과제 발표자료 만들어줘, C:\\temp\\ppt5.pptx"', tests:[
+    {
+      version: 'v5.0.3-dev.26', cliScore: 84.0, electronScore: 84.0, date: '2026-03-09',
+      changes: 'HTML 렌더링 파이프라인 v26',
+      notes: [
+        '14 content slides + 12 BLANK slides (total 26) — blank slide bug',
+        'Content excellent: STP/4P/SWOT/경쟁분석 프레임워크 완비',
+        'Orange/dark theme consistent and modern',
+        'Blank slides caused by leftover PPT instance from previous test run',
+      ]
+    },
+    {
+      version: 'v5.0.3-dev.27', cliScore: 90.0, electronScore: 90.0, date: '2026-03-09',
+      changes: 'v27: blank slide 버그 수정',
+      slides: [
+        { num:1, title:'타이틀', score:85 },
+        { num:2, title:'목차', score:80 },
+        { num:3, title:'역사', score:75 },
+        { num:4, title:'타임라인', score:90 },
+        { num:5, title:'STP 전략', score:85 },
+        { num:6, title:'마케팅 믹스', score:75 },
+        { num:7, title:'제품 라인업', score:85 },
+        { num:8, title:'광고 전략', score:85 },
+        { num:9, title:'디지털 전략', score:70 },
+        { num:10, title:'경쟁 분석', score:85 },
+        { num:11, title:'SWOT', score:90 },
+        { num:12, title:'SWOT 상세', score:70 },
+        { num:13, title:'시사점', score:85 },
+        { num:14, title:'결론', score:85 },
+        { num:15, title:'감사합니다', score:75 },
+      ],
+      notes: [
+        '15 slides, 0 blank, 0 clipping, 0 placeholders — blank slide bug FIXED',
+        'powerpointCreate() now closes all existing presentations before creating new one',
+        'Slide 4 이중 타임라인(1964-2021) 12개 마일스톤 우수',
+        'Slide 9 디지털 전략 텍스트 매우 작음, Slide 12 SWOT도 소형',
+        '마케팅 수업 조별과제로 완벽한 구성 (STP/4P/SWOT/경쟁분석)',
+      ]
+    }
+  ] },
+  { id:'ppt-6', tool:'ppt', name:'신제품 런칭 발표', desc:'스마트워치 신제품 발표. 스펙, 디자인, 가격, 출시일정 15장', cmd:'hanseol-dev -ps "스마트워치 신제품 런칭 발표자료 만들어줘, 제품명 WatchX Pro, C:\\temp\\ppt6.pptx"', tests:[
+    {
+      version: 'v5.0.3-dev.27', cliScore: 87.0, electronScore: 87.0, date: '2026-03-09',
+      changes: 'HTML 렌더링 파이프라인 v27',
+      slides: [
+        { num:1, title:'타이틀', score:75 },
+        { num:2, title:'소개', score:80 },
+        { num:3, title:'시장 분석', score:75 },
+        { num:4, title:'제품 비전', score:85 },
+        { num:5, title:'디자인 철학', score:85 },
+        { num:6, title:'기술 사양', score:75 },
+        { num:7, title:'헬스케어', score:75 },
+        { num:8, title:'피트니스', score:75 },
+        { num:9, title:'생태계', score:85 },
+        { num:10, title:'가격/출시', score:85 },
+        { num:11, title:'마케팅 전략', score:80 },
+        { num:12, title:'결론', score:75, note:'제품명 오류 (LLM 환각)' },
+        { num:13, title:'감사합니다', score:70 },
+      ],
+      notes: [
+        '13 slides, 0 blank, 0 clipping, 0 placeholders',
+        'Dark navy/gold premium theme — 프리미엄 테크 제품에 적합',
+        'Slide 12 제품명 오류: "Nova Watch Pro"로 잘못 표기 (LLM 환각)',
+        '상세 스펙(42g, Ti, Sapphire), 가격(539,100/629,100원), 출시일정(11/15-12/1) 포함',
+        'Slide 6-8 기술사양/헬스케어/피트니스 카드 텍스트 작음',
+      ]
+    },
+    {
+      version: 'v44', cliScore: 89.5, electronScore: 89.5, date: '2026-03-10',
+      changes: 'v44: 지엽적 프롬프트 제거, 시장분석 데이터 시각화 자율 선택',
+      slides: [
+        { num:1, score:9.0 },
+        { num:2, score:9.5 },
+        { num:3, score:8.0 },
+        { num:4, score:9.0 },
+        { num:5, score:8.0 },
+        { num:6, score:7.5 },
+        { num:7, score:8.5 },
+        { num:8, score:8.0 },
+        { num:9, score:7.5 },
+        { num:10, score:8.5 },
+        { num:11, score:9.0 },
+        { num:12, score:8.0 },
+        { num:13, score:8.5 },
+      ],
+      details: { content: 29.0, design: 26.0, structure: 18.0, technical: 16.5 },
+      notes: [
+        '13슬라이드. 틸/그린/네이비 시장분석 테마',
+        '주요 강점: 실제 기업명(BYD/테슬라/현대차 등)/판매량/보조금/배터리스펙/충전인프라 통계 매우 상세',
+        '경쟁 구도 6사 분석 우수, 핵심 발견사항 대시보드 훌륭',
+        '약점: 일부 슬라이드(3,5,6,9,12) 텍스트 밀도 높아 폰트 작음',
+        'Slide 8 중앙 빈공간',
+        '지엽적 프롬프트 제거 후에도 시장분석에 맞는 데이터 시각화 자율 선택 확인',
+      ]
+    }
+  ] },
+  { id:'ppt-7', tool:'ppt', name:'교육 세미나 자료', desc:'Python 입문 교육 세미나. 기초 문법, 실습 예제, Q&A 10장', cmd:'hanseol-dev -ps "Python 입문 교육 세미나 자료 만들어줘, C:\\temp\\ppt7.pptx"', tests:[
+    {
+      version: 'v27',
+      date: '2026-03-09',
+      cliScore: 84,
+      electronScore: 84,
+      changes: 'HTML 렌더링 파이프라인 v27 (blank slide fix)',
+      slides: [
+        { num:1, title:'타이틀', content:36, design:27, fill:27 },
+        { num:2, title:'목차 (8섹션)', content:36, design:27, fill:27 },
+        { num:3, title:'Python이란 무엇인가', content:36, design:27, fill:27 },
+        { num:4, title:'핵심 특징 (7카드)', content:35, design:26, fill:24 },
+        { num:5, title:'활용 분야 (6카드)', content:36, design:27, fill:27 },
+        { num:6, title:'개발환경 설정', content:35, design:26, fill:24 },
+        { num:7, title:'Hello World', content:36, design:27, fill:27 },
+        { num:8, title:'변수와 데이터 타입', content:35, design:26, fill:24 },
+        { num:9, title:'연산자 마스터하기', content:30, design:20, fill:20 },
+        { num:10, title:'조건문', content:35, design:26, fill:24 },
+        { num:11, title:'반복문의 힘', content:35, design:26, fill:24 },
+        { num:12, title:'함수', content:33, design:23, fill:21 },
+        { num:13, title:'리스트와 딕셔너리', content:35, design:26, fill:24 },
+        { num:14, title:'실습 프로젝트', content:35, design:26, fill:24 },
+        { num:15, title:'학습 로드맵', content:35, design:26, fill:24 },
+        { num:16, title:'감사합니다', content:36, design:27, fill:27 },
+      ],
+      notes: [
+        '16슬라이드 구성, 코드 예시/구문강조 전반 우수',
+        'Slide 9 연산자 하단 짤림 (논리/대입 연산자 잘림) — CLIPPING',
+        'Slide 12 함수 슬라이드 텍스트 작음',
+        '블루 테마 일관성, 카드 레이아웃 모던',
+        '기초→심화 논리적 흐름, 실습 프로젝트 포함',
+      ]
+    },
+    {
+      version: 'v28',
+      date: '2026-03-09',
+      cliScore: 91,
+      electronScore: 91,
+      changes: 'v28: 목차 LLM생성 전환, 오버플로 1500자 제한, 최소 폰트 20px',
+      slides: [
+        { num:1, title:'타이틀', content:36, design:27, fill:27 },
+        { num:2, title:'목차 (8항목+시간)', content:36, design:27, fill:27 },
+        { num:3, title:'Python 소개', content:35, design:26, fill:24 },
+        { num:4, title:'개발환경 설정', content:35, design:26, fill:24 },
+        { num:5, title:'변수와 데이터 타입', content:36, design:27, fill:27 },
+        { num:6, title:'연산자 (3열 완벽)', content:36, design:27, fill:27 },
+        { num:7, title:'조건문', content:35, design:26, fill:24 },
+        { num:8, title:'반복문', content:34, design:24, fill:22 },
+        { num:9, title:'함수', content:35, design:26, fill:24 },
+        { num:10, title:'리스트와 딕셔너리', content:36, design:27, fill:27 },
+        { num:11, title:'실습 예제 (3개)', content:36, design:27, fill:27 },
+        { num:12, title:'요약 및 학습 가이드', content:35, design:26, fill:24 },
+        { num:13, title:'감사합니다', content:36, design:27, fill:27 },
+      ],
+      notes: [
+        '13슬라이드, 연산자 짤림 완전 해결 (v27 5점→v28 9점)',
+        'v27 84점→v28 91점 (+7점)',
+        '목차 8항목+시간배분 포함, LLM 생성',
+        'Slide 8 반복문 FizzBuzz 하단 약간 짤림',
+        '실습예제 3개 전체 코드 포함',
+      ]
+    }
+  ] },
+  { id:'ppt-8', tool:'ppt', name:'부동산 투자 분석', desc:'강남 오피스텔 투자 분석. 시세, 수익률, 입지 분석, 리스크 12장', cmd:'hanseol-dev -ps "강남 오피스텔 투자 분석 발표자료 만들어줘, C:\\temp\\ppt8.pptx"', tests:[
+    {
+      version: 'v27',
+      date: '2026-03-09',
+      cliScore: 83,
+      electronScore: 83,
+      changes: 'HTML 렌더링 파이프라인 v27 (blank slide fix)',
+      slides: [
+        { num:1, title:'타이틀', content:36, design:27, fill:27 },
+        { num:2, title:'목차 (1개만 표시)', content:20, design:15, fill:10 },
+        { num:3, title:'시장 개요', content:36, design:27, fill:27 },
+        { num:4, title:'강남 오피스텔 현황', content:36, design:27, fill:27 },
+        { num:5, title:'수급 분석', content:36, design:27, fill:27 },
+        { num:6, title:'가격 동향', content:34, design:24, fill:22 },
+        { num:7, title:'수익률 분석', content:36, design:27, fill:27 },
+        { num:8, title:'SWOT+경쟁력', content:36, design:27, fill:27 },
+        { num:9, title:'리스크 요인', content:34, design:24, fill:22 },
+        { num:10, title:'투자 전략 제언', content:34, design:24, fill:22 },
+        { num:11, title:'결론 및 핵심 요약', content:35, design:26, fill:24 },
+        { num:12, title:'감사합니다', content:36, design:27, fill:27 },
+      ],
+      notes: [
+        '12슬라이드, 금융 데이터/ROE 시뮬레이션 우수',
+        'Slide 2 목차 심각 결함: 1개 항목만 표시, 나머지 빈공간',
+        'Slide 6/9/10 텍스트 작음 (데이터 밀도 높은 슬라이드)',
+        'SWOT 매트릭스, 파이차트, 수급 바 차트 시각화 우수',
+        '투자분석 주제 적합도 높음',
+      ]
+    },
+    {
+      version: 'v28',
+      date: '2026-03-09',
+      cliScore: 91,
+      electronScore: 91,
+      changes: 'v28: 목차 코드생성 제거→LLM HTML 생성, 오버플로 제한 1800→1500자, 최소 폰트 18→20px',
+      slides: [
+        { num:1, title:'타이틀', content:36, design:27, fill:27 },
+        { num:2, title:'목차 (5항목 LLM생성)', content:36, design:27, fill:27 },
+        { num:3, title:'시장 개요', content:35, design:26, fill:24 },
+        { num:4, title:'시장 현황', content:36, design:27, fill:27 },
+        { num:5, title:'입지 분석', content:35, design:26, fill:24 },
+        { num:6, title:'가격 동향', content:35, design:26, fill:24 },
+        { num:7, title:'가격 전망', content:35, design:26, fill:24 },
+        { num:8, title:'수익률 분석', content:36, design:27, fill:27 },
+        { num:9, title:'임대 수요 현황', content:35, design:26, fill:24 },
+        { num:10, title:'투자 리스크 요인', content:36, design:27, fill:27 },
+        { num:11, title:'투자 전략 및 추천', content:36, design:27, fill:27 },
+        { num:12, title:'투자 체크리스트', content:34, design:24, fill:22 },
+        { num:13, title:'감사합니다', content:36, design:27, fill:27 },
+      ],
+      notes: [
+        '13슬라이드, 목차 5항목 LLM 생성으로 완전 해결',
+        'v27 83점→v28 91점 (+8점)',
+        '리스크 카드에 위험도 배지 (고위험/중위험/저위험) 우수',
+        '투자 전략/타이밍/예산별 추천 포괄적',
+        'Slide 12 체크리스트 텍스트 약간 작음',
+      ]
+    }
+  ] },
+  { id:'ppt-9', tool:'ppt', name:'환경 캠페인 발표', desc:'탄소중립 실천 캠페인. 현황, 목표, 실천방안, 성과측정 10장', cmd:'hanseol-dev -ps "탄소중립 실천 캠페인 발표자료 만들어줘, C:\\temp\\ppt9.pptx"', tests:[
+    {
+      version: 'v27',
+      date: '2026-03-09',
+      cliScore: 90,
+      electronScore: 90,
+      changes: 'HTML 렌더링 파이프라인 v27 (blank slide fix)',
+      slides: [
+        { num:1, title:'타이틀', content:36, design:27, fill:27 },
+        { num:2, title:'기후위기 심각성', content:35, design:26, fill:24 },
+        { num:3, title:'비전 및 목표', content:36, design:27, fill:27 },
+        { num:4, title:'에너지 절약', content:35, design:26, fill:24 },
+        { num:5, title:'대중교통 이용', content:35, design:26, fill:24 },
+        { num:6, title:'재활용', content:35, design:26, fill:24 },
+        { num:7, title:'친환경 소비 (3x2)', content:36, design:27, fill:27 },
+        { num:8, title:'기업별 참여 가이드', content:35, design:26, fill:24 },
+        { num:9, title:'개인별 참여 가이드', content:35, design:26, fill:24 },
+        { num:10, title:'탄소감축량', content:34, design:24, fill:22 },
+        { num:11, title:'환경개선', content:35, design:26, fill:24 },
+        { num:12, title:'탄소중립 로드맵', content:34, design:24, fill:22 },
+        { num:13, title:'감사합니다', content:36, design:27, fill:27 },
+      ],
+      notes: [
+        '13슬라이드, 그린 테마 환경 캠페인에 완벽 적합',
+        '에너지/교통/재활용/소비/기업/개인 참여 포괄적 구성',
+        'Slide 7 친환경 소비 3x2 그리드 아름다움',
+        'Slide 10 하단 약간 짤림, Slide 12 텍스트 작음',
+        '문제→비전→실천→참여→효과→로드맵 논리적 흐름',
+      ]
+    }
+  ] },
+  { id:'ppt-10', tool:'ppt', name:'병원 연간 실적 보고', desc:'서울중앙병원 2025년 연간 실적. 진료실적, 재무현황, 만족도, 내년 계획 15장', cmd:'hanseol-dev -ps "서울중앙병원 2025년 연간 실적 보고 PPT 만들어줘, C:\\temp\\ppt10.pptx"', tests:[
+    {
+      version: 'v27',
+      date: '2026-03-09',
+      cliScore: 94,
+      electronScore: 94,
+      changes: 'HTML 렌더링 파이프라인 v27 (blank slide fix)',
+      slides: [
+        { num:1, title:'타이틀', content:38, design:28, fill:28 },
+        { num:2, title:'목차 (8항목 2x4)', content:36, design:27, fill:27 },
+        { num:3, title:'경영 요약', content:38, design:28, fill:27 },
+        { num:4, title:'핵심 성과 지표 (3x2)', content:38, design:28, fill:27 },
+        { num:5, title:'환자 통계', content:38, design:28, fill:27 },
+        { num:6, title:'재무 현황', content:38, design:28, fill:27 },
+        { num:7, title:'진료과별 실적', content:38, design:28, fill:27 },
+        { num:8, title:'의료질 지표', content:38, design:28, fill:27 },
+        { num:9, title:'주요 성과', content:35, design:26, fill:24 },
+        { num:10, title:'현안 및 개선사항', content:38, design:28, fill:27 },
+        { num:11, title:'2026년 목표', content:38, design:28, fill:27 },
+        { num:12, title:'감사합니다', content:36, design:27, fill:27 },
+      ],
+      notes: [
+        '12슬라이드, 병원 연간보고서에 완벽한 구성',
+        '블루/틸 테마 일관성, 데이터 시각화 매우 우수',
+        '도넛차트, 바차트, 수평바, KPI 카드 다양한 시각화',
+        '짤림/클리핑 없음, 텍스트 크기 적절',
+        '목차 8개 항목 전부 정상 렌더링',
+        '최고 점수 94점 — 실적보고서 주제 적합도 완벽',
+      ]
+    }
+  ] },
+
+  // === Word (10) ===
+  { id:'word-1', tool:'word', name:'사업 계획서', desc:'카페 창업 사업계획서. 시장분석, 메뉴구성, 인테리어, 재무계획 등', cmd:'hanseol-dev -ps "카페 창업 사업계획서 작성해줘, C:\\temp\\word1.docx"', tests:[
+    {
+      version: 'v5.0.3-dev.30',
+      cliScore: 78,
+      electronScore: 78,
+      breakdown: { content: 34, design: 18, structure: 13, topicFit: 13 },
+      notes: [
+        '25페이지, 17개 H1 + 27개 H2 — 콘텐츠 양 대폭 증가 (v29: 7페이지)',
+        'TOC 정상 작동: 목차에 페이지번호+도트리더 포함',
+        '표 3개 포함 (메뉴가격, 매출예측, 인력구성) — 실제 데이터',
+        '디자인 약점: 타이틀 페이지 밋밋(텍스트만), 표 스타일 기본, 색상 활용 최소',
+        '제목 스타일 정상 적용 (wdStyle 상수 사용, 로케일 독립)',
+        '헤더 텍스트 출력 정상, 전체적으로 사업계획서 구조 우수',
+      ]
+    },
+    {
+      version: 'v5.0.3-dev.35',
+      cliScore: 83,
+      electronScore: 83,
+      breakdown: { content: 35, design: 22, structure: 13, topicFit: 13 },
+      notes: [
+        '8페이지, "BEAN & BREW" 스페셜티 커피 전문점 사업계획서',
+        '타이틀 페이지: 텍스트 기반 (장식선 + 대형 제목 + 부제 + 날짜/작성자) — Shape 앵커 문제 해결',
+        'Heading 스타일: bgColor(연한 브라운) + leftBorderColor(accent) — 모던 디자인',
+        '콘텐츠: 사업개요, 시장분석, 상품서비스, 마케팅전략, 운영계획, 재무계획, 위험요소, 결론',
+        '테이블: 운영 계획 상세 (위치, 인테리어, 인력, 운영시간, 좌석)',
+        '디자인 점수 18→22 상승: heading bgColor+border, 따뜻한 브라운 톤',
+        '개선 필요: 타이틀 페이지 아직 약간 밋밋, 콘텐츠 양 감소(25→8페이지)',
+      ]
+    },
+    {
+      version: 'v5.0.3-dev.36',
+      cliScore: 91,
+      electronScore: 91,
+      breakdown: { content: 39, design: 24, structure: 14, topicFit: 14 },
+      notes: [
+        '41페이지, 14개 섹션, 12개 테이블 — 콘텐츠 폭발적 증가 (v35: 8페이지)',
+        '"더 블랙빈(The Black Bean)" 스페셜티 카페 사업계획서',
+        '시장분석 테이블(71,200→115,000억원), SWOT, 경쟁사 5개 비교, 메뉴 16개 가격표',
+        '재무계획: 초기 투자 1.5억, 월 매출 4,500만, 손익분기점 18개월',
+        'Heading: bgColor(연한 브라운) + leftBorderColor(accent) — 모던 디자인',
+        '헤더: "컨피덴셜 | 투자자 전용 자료", 푸터: 페이지 번호',
+        'WARM_EXECUTIVE 컬러 — 카페 주제에 완벽 매치',
+        '디자인 24/30 — 타이틀 페이지가 텍스트 기반이라 약간 밋밋. 95점 도달시 개선 필요',
+        '콘텐츠 밀도: 각 섹션 4-6문장, 2-4 하위섹션 — ENTERPRISE STANDARD 달성',
+      ]
+    },
+    {
+      version: 'v5.0.3-dev.39',
+      cliScore: 93,
+      electronScore: 93,
+      breakdown: { content: 38, design: 27, structure: 14, topicFit: 14 },
+      notes: [
+        '33페이지, 7개 테이블, 4개 리스트, 2개 콜아웃 박스, 1개 핵심 지표 — v39 새 도구 모두 활용',
+        '"AI Nexus" AI 스타트업 사업계획서. AI 스타트업으로 변환됨 (원래 카페 → LLM 자율 해석)',
+        '🎨 핵심 성과 지표: 대형 teal 숫자(30억 원, 120억 원, 150%, 2년차, 200사, 35명) — 시각적 임팩트 최고',
+        '🎨 콜아웃 박스 2개: "시장 기회 인사이트"(insight), "투자 유치 계획"(insight) — bgColor + leftBorder 5px',
+        '🎨 H2 서브섹션: leftBorder 3px accent 추가 — 기존 텍스트만 → 시각적 구분 개선',
+        'MODERN_TECH 컬러(Navy+Teal) — AI 스타트업에 완벽',
+        '도구 플로우: metrics→section→list→section→table→section→table→callout→section→list→section→table→list→section→table→section→table→callout→section→table→section→table→section→table→conclusion — 다양한 타입 혼합',
+        '⚠️ 카페 대신 AI 스타트업으로 변환됨 — 프롬프트 지시를 좀 더 구체적으로 해야 할 수 있음',
+        '디자인 22→27 대폭 상승: 핵심 지표 + 콜아웃 박스가 시각적 다양성 크게 개선',
+      ]
+    }
+  ] },
+  { id:'word-2', tool:'word', name:'기술 제안서', desc:'클라우드 마이그레이션 기술 제안서. 현황분석, 아키텍처, 일정, 비용', cmd:'hanseol-dev -ps "클라우드 마이그레이션 기술 제안서 작성해줘, C:\\temp\\word2.docx"', tests:[
+    {
+      version: 'v5.0.3-dev.30',
+      cliScore: 80,
+      electronScore: 80,
+      breakdown: { content: 35, design: 18, structure: 13, topicFit: 14 },
+      notes: [
+        '전문적 타이틀: 문서번호(CM-PROP-2025-001), 버전(v1.0), 기밀 표시',
+        'TOC 정상 작동, H1/H2 계층적 구조',
+        'AS-IS 인프라 현황표: 서비스유형, 서버수, 하드웨어스펙 — 실제 데이터',
+        '마이그레이션 방법론(6R 모델) 상세 설명, 기술적 콘텐츠 우수',
+        '디자인 약점: 타이틀 텍스트만, 표 기본 스타일, 색상 활용 최소',
+        '헤더 "기술 제안서 | 기밀" — 문서 분류 표시 잘 됨',
+      ]
+    },
+    {
+      version: 'v5.0.3-dev.37',
+      cliScore: 87,
+      electronScore: 87,
+      breakdown: { content: 33, design: 27, structure: 14, topicFit: 13 },
+      notes: [
+        '15페이지, 1개 테이블 — iterations 부족(30)으로 3개 섹션만 완성',
+        '🎨 타이틀 페이지 매우 우수: 남색 배경 블록 + 흰색 제목 + 청록 accent 바 + v1.0 표시',
+        '헤더: "클라우드 마이그레이션 기술 제안서 | 기밀등급: 대외비"',
+        'MODERN_TECH 컬러(Navy+Teal) — 기술 문서에 완벽',
+        'Heading: bgColor(연한 시안) + leftBorderColor(그린) — 모던',
+        '콘텐츠 밀도 높음: 서버 847대, 가상화율 72%, 156개 앱 등 구체적 수치',
+        '⚠️ iterations 부족: 계획 14개 섹션 중 3+결론만 완성. maxIterations 50 필요',
+        'AS-IS 인프라 테이블(12행×6열) 매우 상세: IBM Power E980, Dell R740, HP DL380 등',
+      ]
+    },
+    {
+      version: 'v5.0.3-dev.38',
+      cliScore: 86,
+      electronScore: 86,
+      breakdown: { content: 37, design: 22, structure: 14, topicFit: 13 },
+      notes: [
+        '38페이지, 3개 테이블, 15개 섹션 모두 완성 — iterations 50 충분',
+        '🎨 타이틀 페이지: 남색 배경 블록 + 흰색 제목 + 청록 accent 바 — 깔끔하고 프로페셔널',
+        'MODERN_TECH 컬러(Navy+Teal) — 기술 제안서에 적합',
+        'TOC: H1/H2 계층 구조, 목차 페이지 별도 구성',
+        '콘텐츠 밀도 우수: AS-IS 분석, 6R 전략, 아키텍처 설계, 리스크 분석, 타임라인, ROI',
+        'Heading: bgColor + leftBorder 스타일 적용 — 모던한 느낌',
+        '⚠️ 콘텐츠 페이지 디자인 단조: 제목+본문 반복 패턴, 시각적 다양성 부족',
+        '⚠️ 표 스타일 기본적: 컬러 헤더는 있으나 교차색 행, 그림자 등 부재',
+        '개선 필요: 콘텐츠 페이지에 더 다양한 시각적 요소(callout, 키 포인트 강조 등)',
+      ]
+    },
+    {
+      version: 'v5.0.3-dev.39',
+      cliScore: 94,
+      electronScore: 94,
+      breakdown: { content: 39, design: 26, structure: 14, topicFit: 15 },
+      notes: [
+        '41페이지, 8개 테이블, 3개 리스트, 1개 콜아웃, 1개 핵심 지표 — v39 새 도구 활용',
+        '🎨 AWS 브랜드 컬러: #FF9900(Orange) + #232F3E(Dark Blue) — 주제에 완벽 매치',
+        '🎨 핵심 지표: 99.99%(가용성), 12주(마이그레이션 기간), 150대(서버), 50TB(데이터) — 대형 오렌지 숫자',
+        '🎨 타이틀: 다크블루 배경 블록 + 오렌지 accent 바 — AWS 느낌 강렬',
+        '콘텐츠 최고: VPC 서브넷(10.1.0.0/16), AWS 서비스 가격표($38,085), TCO 비교, 6R 프레임워크',
+        '번호 매긴 TOC (1.개요~10.결론) — 기술 문서에 적합',
+        '⚠️ 콜아웃 1개만 사용(계획 2+). 프롬프트에서 더 강조 필요',
+        '⚠️ custom colors light=#FFFFFF → H1 bgColor가 보이지 않음. 프리셋 사용 시 해결',
+        'v38(86) → v39(94): 핵심 지표 + 콜아웃 + AWS 색상으로 8점 상승',
+      ]
+    }
+  ] },
+  { id:'word-3', tool:'word', name:'연구 보고서', desc:'국내 전기차 시장 동향 연구보고서. 통계, 트렌드, 전망', cmd:'hanseol-dev -ps "국내 전기차 시장 동향 연구보고서 작성해줘, C:\\temp\\word3.docx"', tests:[
+    {
+      version: 'v5.0.3-dev.39',
+      cliScore: 92,
+      electronScore: 92,
+      breakdown: { content: 38, design: 26, structure: 14, topicFit: 14 },
+      notes: [
+        '34페이지, 5개 테이블, 1개 리스트, 2개 콜아웃, 1개 핵심 지표',
+        '🎨 녹색/틸 컬러: 전기차/친환경 주제에 적합한 NATURE 계열 색상',
+        '🎨 핵심 지표: 218,000대(판매량), 23.4%(성장률), 12.8%(시장점유율) — 대형 녹색 숫자',
+        '🎨 콜아웃 2개: "국산차 vs 수입차 경쟁 구도 분석"(summary), 1개 더',
+        '학술적 구조: 제1장~제9장 번호 체계, 서론→본론→결론 흐름',
+        'TOC: 학술 스타일(1.1, 1.2, 1.3), 현대차 E-GMP, 기아 PBV, 테슬라 별도 분석',
+        '콘텐츠: CAGR 분석, 제조사별 시장점유율(9행), 지자체별 보조금 현황(8행), SWOT(5행)',
+        '⚠️ 테이블 5개로 word-1(7)/word-2(8)보다 적음 — 시각적 다양성 약간 부족',
+      ]
+    }
+  ] },
+  { id:'word-4', tool:'word', name:'이력서/자기소개서', desc:'IT 개발자 이력서 + 자기소개서. 경력사항, 프로젝트, 기술스택', cmd:'hanseol-dev -ps "IT 개발자 이력서와 자기소개서 작성해줘, C:\\temp\\word4.docx"', tests:[
+    {
+      version: 'v5.0.3-dev.44',
+      date: '2026-03-10',
+      cliScore: 88.0,
+      electronScore: null,
+      changes: 'v44: 시나리오별 하드코딩 제거. Word Create Agent COM 자동화.',
+      notes: [
+        '~15페이지. 김준혁, 백엔드/풀스택 5년차 이력서+자기소개서.',
+        '표지: teal 색상 블록 타이틀, 핵심 커리어 지표(5년/18개 프로젝트/25+ 기술스택/2회 팀리딩/95% 만족도)',
+        '인적사항 테이블, 기술스택 테이블(Java/Python/Spring Boot/React 등 숙련도 포함)',
+        '경력 3개 프로젝트 상세: 금융 MSA(Spring Boot, Kafka, Redis), 이커머스(React, MongoDB), 데이터 분석(Python, Airflow)',
+        '학력: 서울대 컴퓨터공학부, 자격증 7개(정보처리기사, CKA, AWS SAA 등)',
+        '자기소개서: 성장과정, 핵심역량, 성격의 장단점, 마무리',
+        '콘텐츠 27/디자인 25/구조 18/기술 18 = 88점',
+        '강점: 구체적 수치(응답시간 60% 단축, 방문자 50→120만, DB부하 60% 감소)',
+        '약점: 전반적으로 텍스트 밀집, 테이블 디자인 기본적'
+      ]
+    }
+  ] },
+  { id:'word-5', tool:'word', name:'회의록', desc:'2025년 3분기 경영전략 회의록. 참석자, 안건, 결정사항, 후속조치', cmd:'hanseol-dev -ps "경영전략 회의록 작성해줘, C:\\temp\\word5.docx"', tests:[
+    {
+      version: 'v5.0.3-dev.46',
+      date: '2026-03-10',
+      cliScore: 84,
+      electronScore: null,
+      breakdown: { content: 36, design: 23, structure: 13, readability: 12 },
+      notes: [
+        '15페이지, 6개 테이블, TOC 포함. "주식회사 비전그룹" 2024년 상반기 경영전략 회의록',
+        '🚨 타이틀 줄바꿈 결함: "2024년 상반기 경영전략 회\\n의록" — 제목이 "회"와 "의록"으로 부자연스럽게 분리. 타이틀 블록 폰트 크기가 너무 크거나 블록 너비 부족',
+        '✅ 핵심 성과 지표(Key Metrics): 1,247억원/23.0%/8.7%/12,340사 — 큰 숫자 임팩트 우수',
+        '✅ 회의 기본 정보 테이블 (명칭/일시/장소/목적/비고), 참석자 명단 테이블 — 회의록에 적합',
+        '✅ 안건 4개 포괄적: 매출실적→신규사업→디지털혁신→ESG — 구체적 수치와 전략 상세',
+        '✅ 콜아웃 박스 "핵심 인사이트: 상반기 실적" — 시각적 다양성',
+        '✅ 푸터 "CONFIDENTIAL - 내부용" + 페이지번호 — 기밀 문서 분류 적절',
+        '⚠️ H1 배경+좌측보더 스타일 적용됨. 테이블 헤더 남색 배경 적용됨.',
+        '⚠️ 향후 일정 테이블, ESG 실천 계획 테이블, 동남아 진출 테이블 — 데이터 풍부',
+        '❌ 타이틀 줄바꿈이 88점 달성의 가장 큰 장벽 — word_build_title_page 폰트 크기/줄바꿈 로직 개선 필요',
+      ]
+    },
+    {
+      version: 'v5.0.3-dev.47',
+      date: '2026-03-10',
+      cliScore: 82,
+      electronScore: null,
+      breakdown: { content: 35, design: 21, structure: 14, readability: 12 },
+      notes: [
+        '21페이지, 4개 테이블, TOC 포함. "주식회사 비전스틸" 2024년 하반기 경영전략 회의록',
+        '✅ 타이틀 줄바꿈 수정 확인: "2024년 하반기 경영전략 회의록" 한 줄에 깔끔하게 표시 (v46 대비 개선)',
+        '✅ 목차(TOC) 완비, 핵심 성과 지표(127개사/87점/24억원/82점) 임팩트 있음',
+        '✅ 안건 4개 포괄적(실적분석→사업전략→신규사업→조직개편), 구체적 수치와 ROI 분석',
+        '✅ 액션 아이템 요약표, 결론 및 향후 계획 섹션으로 마무리',
+        '🚨 마크다운 아티팩트: **[거시 경제 환경]**, **[최우선 과제]**, **[리스크 관리]**, **[액션 아이템]** — LLM이 생성한 마크다운 볼드 마커가 Word에 텍스트로 노출. 범용 수정 필요',
+        '🚨 폰트 크기 불일치: p11 번호 목록 항목이 18pt로 표시 (본문 11pt 대비 과도). LLM이 fontSize 파라미터를 과대 설정한 듯',
+        '⚠️ p15 종합결론 테이블 셀에서 텍스트 줄바꿈 과다 — 셀 너비 대비 텍스트 과밀',
+        '❌ 마크다운 아티팩트 + 폰트 불일치가 88점 달성 장벽. section-builders에서 마크다운 스트리핑 필요',
+      ]
+    },
+    {
+      version: 'v5.0.3-dev.49',
+      date: '2026-03-10',
+      cliScore: 88,
+      electronScore: null,
+      breakdown: { content: 36, design: 24, structure: 14, readability: 14 },
+      notes: [
+        '17페이지, 3테이블, 3콜아웃, 2리스트, 5섹션, 1핵심지표. "2024년 하반기 경영전략 수립 회의"',
+        '✅ 마크다운 아티팩트 완전 제거: heading에 stripMarkdown() 적용으로 **[text]** 패턴 해결',
+        '✅ 폰트 크기 일관적: 번호목록 18pt 문제 사라짐',
+        '✅ 타이틀 "경영전략 회의록" 한 줄 깔끔',
+        '✅ 핵심 지표 임팩트: 50억원/5명/1개/D-35일 대형 teal 숫자',
+        '✅ 콜아웃 3개 (상반기 실적 인사이트, 전략 방향, 신규사업)',
+        '✅ 시장진출 타당성 분석 테이블(베트남/인도네시아), 조직개편 테이블, 추진과제 이행계획 테이블',
+        '✅ Navy+Teal 기업 컬러 일관적, H1/H2 스타일 깔끔',
+        'Tool flow: create→margins→header→footer→pagenum→title→toc→metrics→list→section→callout→section→callout→section→table→callout→section→table→list→table→section→conclusion→save',
+        'v47(82) → v49(88): heading stripMarkdown 수정으로 6점 상승',
+      ]
+    }
+  ] },
+  { id:'word-6', tool:'word', name:'계약서 초안', desc:'소프트웨어 개발 용역 계약서. 범위, 일정, 대금, 지적재산권', cmd:'hanseol-dev -ps "소프트웨어 개발 용역 계약서 초안 작성해줘, C:\\temp\\word6.docx"', tests:[
+    {
+      version: 'v5.0.3-dev.49',
+      date: '2026-03-10',
+      cliScore: 90,
+      electronScore: null,
+      breakdown: { content: 38, design: 25, structure: 14, readability: 13 },
+      notes: [
+        '20페이지, 5테이블, 3콜아웃, 3리스트, 10섹션(제1조~제10조), 1핵심지표, 서명란+별첨',
+        '✅ 법적 계약서 구조 완벽: 제N조 → ①②③ 하위조항 번호체계',
+        '✅ 갑/을 서명란 (대표자, 주소, 연락처, 사업자등록번호)',
+        '✅ 별첨 서류 안내 (SOW, 일정표, 기술 요구사항, 산출물 목록)',
+        '✅ 5개 테이블: 계약당사자 정보, 개발범위 상세, 테스트 기준, 지급 일정, 해지 사유',
+        '✅ 콜아웃: 지급 조건 유의사항, IP 귀속, 하자보수 핵심',
+        '✅ Navy+Gold 컬러 — 법적 문서에 적합',
+        '✅ 마크다운 아티팩트 없음, 폰트 일관적',
+        '✅ 지적재산권(제4조), 비밀유지(제5조), 하도급(제6조), 해지(제7조), 하자보수(제8조), 분쟁(제9조) — 실무 조항 완비',
+        'Tool flow: create→margins/header/footer/pagenum→title→metrics→list→pagebreak→table→section→callout→table→section→table→section→table→callout→section→callout→section→list→section→section→table→section→section→section→section→list→save→screenshot',
+      ]
+    }
+  ] },
+  { id:'word-7', tool:'word', name:'마케팅 전략 보고서', desc:'신규 모바일앱 마케팅 전략. 타겟분석, 채널전략, 예산, KPI', cmd:'hanseol-dev -ps "모바일앱 마케팅 전략 보고서 작성해줘, C:\\temp\\word7.docx"', tests:[
+    {
+      version: 'v5.0.3-dev.49',
+      date: '2026-03-10',
+      cliScore: 87,
+      electronScore: null,
+      breakdown: { content: 37, design: 23, structure: 14, readability: 13 },
+      notes: [
+        '21페이지, 1테이블, 3콜아웃, 2핵심지표, 6섹션, 1리스트',
+        '✅ 콘텐츠 풍부: 4P 분석, 퍼널(Awareness→Consideration→Conversion), KPI, 예산 배분',
+        '✅ 핵심지표 2개 섹션: (350% ROAS, 200만 명) + (3.5배 LTV/CAC, 8%)',
+        '✅ 콜아웃 3개: 채널 효율성 인사이트, 타겟 인사이트 등',
+        '✅ Teal 테마 일관적, 마크다운 없음',
+        '❌ 테이블 1개뿐! 프롬프트는 최소 3개 요구. 마케팅 보고서에 경쟁사 비교/채널 성과/예산 상세 테이블 필수',
+        '❌ 88점 미달 원인: 테이블 부족으로 디자인 점수 하락. v50에서 프롬프트 강화',
+      ]
+    },
+    {
+      version: 'v5.0.3-dev.50',
+      date: '2026-03-10',
+      cliScore: 88,
+      electronScore: null,
+      breakdown: { content: 27, design: 12, structure: 18, readability: 13, variety: 18 },
+      notes: [
+        '31페이지, 5테이블, 1+콜아웃, 1핵심지표, 다수 섹션/서브섹션',
+        '✅ v49 대비 대폭 개선: 테이블 1→5개, 페이지 21→31, MANDATORY 프롬프트 효과 확인',
+        '✅ 콘텐츠 풍부: 경쟁사 분석, User Acquisition/Retention/Monetization, ASO, 소셜미디어, ROAS/CPA',
+        '✅ Key Metrics: 72% 모바일 쇼핑 비중, 1.2억 앱 설치 수, 4,500만 월간 활성 사용자',
+        '✅ 테이블 5개: 경쟁사 분석, 매체별 광고 성과 비교 등 다양',
+        '✅ 마크다운 아티팩트 제거 확인 (stripMarkdown 헤딩 적용 효과)',
+        '✅ 전문 컨설턴트 톤 일관, 네이비 색상 스킴 통일',
+        '⚠️ p8에서 빈 불릿 포인트 1개 발견 (마이너)',
+        '⚠️ p1 스크린샷이 터미널 캡처 (Word foreground 이슈 - 평가 무관)',
+      ]
+    }
+  ] },
+  { id:'word-8', tool:'word', name:'Product Launch Plan (EN)', desc:'SaaS product launch plan. Market analysis, GTM strategy, pricing, timeline', cmd:'hanseol-dev -ps "Write a SaaS product launch plan document, C:\\temp\\word8.docx"', tests:[
+    {
+      version: 'v5.0.3-dev.50',
+      date: '2026-03-10',
+      cliScore: 85,
+      electronScore: null,
+      breakdown: { content: 22, design: 13, structure: 19, readability: 12, variety: 19 },
+      notes: [
+        '36페이지, 9테이블, 콜아웃 다수, 핵심지표, 리스트 — 문서 구조/양 자체는 우수',
+        '❌❌ 치명적 결함: 영어 요청인데 전체 문서가 한국어로 생성됨. "Write a SaaS product launch plan document" → 한국어 출력',
+        '❌ 원인: TODO Planner가 영어 요청을 한국어로 번역하여 word_create_agent에 전달 + "한국어로 작성" 지시 추가',
+        '✅ 콘텐츠 자체(한국어)는 매우 우수: InnoFlow Pro, 50억 매출, MRR 4.2억, TAM/SAM/SOM, ISMS-P/SOC2',
+        '✅ 테이블 9개 매우 우수 (경쟁사 비교, 시장 규모, KPI 추적표, 리스크 매트릭스 등)',
+        '⚠️ TOC에 "리스크 분석 및 대응 전략" 중복 항목',
+        '🔧 수정: planning.ts에 Sub-Agent Language Rule 추가 → v51에서 재테스트',
+      ]
+    },
+    {
+      version: 'v5.0.3-dev.51',
+      date: '2026-03-10',
+      cliScore: 88,
+      electronScore: null,
+      breakdown: { content: 37, design: 24, structure: 14, readability: 13 },
+      notes: [
+        '27페이지, 6테이블, 콜아웃, 핵심지표, 리스트. "CloudFlow Pro — Strategic Go-to-Market Framework 2024"',
+        '✅✅ 영어 언어 문제 완전 해결: v51 planning.ts Sub-Agent Language Rule로 영어 요청→영어 문서 정상 생성',
+        '✅ 타이틀: Navy 블록 + "SaaS Product Launch Plan" + 서브타이틀/날짜/저자 깔끔',
+        '✅ Key Metrics: $4.2M Launch Investment, $18.5M Y1 Revenue, 2,500 Customers, 34% Market Share, 18 Weeks GA, 92% Confidence',
+        '✅ 6개 테이블: Customer Personas(3×5), Competitive Matrix(5×6), Pricing Tiers(5×6), GTM Channel(6×4), Campaign Calendar, Sales Process',
+        '✅ 콘텐츠: TAM $15.4B, CAGR 23.6%, 4단계 가격($29-Custom), GTM 3단계(Beta→Soft→GA), NA/EMEA/APAC 지역 전략',
+        '✅ ICP 리스트(8항목), Marketing Activities(10항목) 번호 목록 — 풍부한 리스트 섹션',
+        '✅ Header "CloudFlow Pro | Confidential" + Footer "© 2024 CloudFlow Inc." + 페이지번호',
+        '✅ TOC 18개 섹션, 논리적 흐름: Overview→Market→Competitive→Pricing→GTM→Marketing→Sales',
+        '⚠️ 콜아웃 박스 비중 적음 (Pricing Strategy Note 1개 확인). 시각적 다양성 약간 아쉬움',
+        'v50(85, 한국어 결함) → v51(88): 언어 문제 수정으로 3점 상승, PASS',
+      ]
+    }
+  ] },
+  { id:'word-9', tool:'word', name:'Research Paper (EN)', desc:'AI in Healthcare research paper. Literature review, methodology, findings, discussion', cmd:'hanseol-dev -ps "Write a research paper on AI applications in Healthcare, C:\\temp\\word9.docx"', tests:[
+    {
+      version: 'v5.0.3-dev.51',
+      date: '2026-03-10',
+      cliScore: 90,
+      electronScore: null,
+      breakdown: { content: 38, design: 24, structure: 15, readability: 13 },
+      notes: [
+        '34페이지, 4테이블, 2콜아웃, 1리스트(8항목), 6+섹션. "AI Applications in Healthcare: Transforming Modern Medicine"',
+        '✅ 영어 문서 정상 생성. 학술 논문 구조 완벽: Abstract→TOC→Introduction→Literature Review→3.Applications(6개)→Ethics→Regulatory→Future→Conclusion→References',
+        '✅ 타이틀: 다크 배경 + Times New Roman — 학술 스타일 적절',
+        '✅ Key Metrics: $150B Market, 37% Growth, 247 Papers, 34% Diagnostic Accuracy, 40% Drug Discovery Reduction, 45 Countries',
+        '✅ Table 1: Key Literature Summary (10×5, Authors/Year/Focus/Methodology/Findings/Impact)',
+        '✅ Table 2: AI Diagnostic Tools Performance Comparison (DermaGeni/CheckPoint/EyeArt/Cancer Aid/Prostate AI/Genio)',
+        '✅ Table 3: Leading AI Drug Discovery Platforms (AtomNet/RWCV/Cyclica/GENTRL)',
+        '✅ 콜아웃: "AI Revolution in Healthcare" (400% patent increase), "Surgical Robotics: Path to Autonomy"',
+        '✅ 번호 체계 1/2/3.1/3.1.1 — 학술 논문 관례 준수',
+        '✅ 6개 도메인: Medical Imaging, Drug Discovery, Personalized Medicine, Robotic Surgery, NLP, Predictive Analytics',
+        '⚠️ 테이블 4개 — 34페이지 대비 약간 적음. 추가 비교표가 있으면 더 좋음',
+      ]
+    }
+  ] },
+  { id:'word-10', tool:'word', name:'Annual Report (EN)', desc:'Tech startup annual report. Revenue, milestones, team growth, roadmap', cmd:'hanseol-dev -ps "Write a tech startup annual report for 2025, C:\\temp\\word10.docx"', tests:[
+    {
+      date: '2026-03-10', version: 'v5.0.3-dev.51', cliScore: 75, electronScore: null,
+      breakdown: { structure: 18, content: 21, design: 17, formatting: 19 },
+      notes: [
+        '37페이지, 7195단어, 테이블5, 콜아웃2, 키메트릭스2, 리스트0. "NovaTech Solutions 2025 Annual Report"',
+        '✅ 타이틀 페이지: "NovaTech Solutions" 다크틸 배너 + "Innovating Tomorrow, Today" — 프로페셔널',
+        '✅ TOC 2페이지, 30+개 항목, 틸 색상 하이퍼링크, 서브섹션 들여쓰기 — 매우 상세',
+        '✅ CEO Message: 2페이지 편지형식, 주주/직원 대상, 구체적 수치($482M 매출, 28% 성장)',
+        '✅ Financial Highlights key_metrics: $482M, 28%, $98M, 20.3%, $1.52, 15% — 시각적으로 좋음',
+        '✅ Financial Performance 테이블(p10): 5열×8행, 3개년 비교 FY2023-2025 데이터 전부 채워짐',
+        '✅ Board of Directors 테이블(p27): 5열×6행, 이름/직함/배경/연도/소속 전부 채움',
+        '✅ Executive Leadership 테이블(p28): 5열×8+행, 역할/경력/학력 상세',
+        '✅ Income Statement 테이블(p29-30): Revenue부터 EPS까지 3개년 비교, 데이터 정상',
+        '✅ ESG Key Metrics(p22): 100%, $5M, A등급, 12400시간, 94% — 좋은 시각요소',
+        '✅ 일관된 헤더 "NovaTech Solutions | 2025 Annual Report" + Open Sans/Montserrat Bold',
+        '❌ TOC 뒤 빈 페이지(p4): word_build_toc 이미 page break 포함인데 추가 page_break 호출 — -3점',
+        '❌ 리스트 섹션 0개: word_build_list_section 한번도 호출 안함 — 최소 2개 필요 — -3점',
+        '❌ 콜아웃 2개뿐: Key Financial Insight(p12), Strategic Outlook 2026(p26) — 최소 3개 필요 — -1점',
+        '❌ 페이지 12-22 (10페이지): 연속 word_build_section만 사용 — 텍스트 사막, 시각적 단조로움 — -5점',
+        '❌ Balance Sheet 테이블 빈 행 대량: Assets만 채우고 Liabilities/Equity 전부 빈 셀 — 5+페이지 빈 테이블 — -5점',
+        '❌ 37페이지 중 마지막 페이지(p37) 완전 빈 페이지 — -1점',
+        '📊 총평: 콘텐츠 품질과 앞부분 구성은 좋으나, (1)텍스트사막 (2)빈테이블행 (3)리스트0 (4)빈페이지 로 75점. 테이블 도구의 빈 행 버그 + 프롬프트의 visual variety 강제 부족이 원인',
+      ]
+    },
+    {
+      date: '2026-03-10', version: 'v5.0.3-dev.53', cliScore: 83, electronScore: null,
+      breakdown: { structure: 14, content: 23, design: 15, formatting: 14, variety: 14, polish: 7, volume: 10 },
+      notes: [
+        '31페이지, 7986단어, 18개 Heading 1 섹션. "TechVision Inc. 2025 Annual Report"',
+        '✅ 콘텐츠 대폭 개선: 27개 계획 섹션 전부 생성 — max_tokens 제한 제거 효과 확인',
+        '✅ 테이블 5+개: Financial Performance(2023-2025), Segment Revenue, Geographic Revenue, Board of Directors, ESG Performance',
+        '✅ Key Metrics 2개: "2025 At A Glance" ($1.65B/$247M/76%/3500/450+/12%), "Key Financial Ratios" (EPS $3.52/P/E 28.4x/ROE 18%/$890M FCF)',
+        '✅ Callout Box 3개: Key Achievement Spotlight, Segment Performance Summary(틸 배경), ESG Milestone Achievement(초록 배경)',
+        '✅ 리스트 3개: Core Values & Principles(불릿), Risk Factors(불릿), 2026 Strategic Initiatives(번호)',
+        '✅ 서브섹션 풍부: Executive Summary(3개), Company Overview(4개), R&D(4개), Corporate Governance(4개), Sustainability(3개), Future Outlook(4개)',
+        '✅ 헤더/푸터/페이지번호 정상, 일관된 Calibri 폰트',
+        '✅ 분량 대폭 증가: 8→31페이지 (v5.0.3-dev.52는 8페이지밖에 안됨)',
+        '❌ 타이틀 페이지 매우 약함: 헤더 텍스트 + 하단 작은 파란 바만, 중앙 대형 제목 없음 — -4점',
+        '❌ 2페이지 완전 공백 (타이틀↔TOC 사이 불필요한 빈 페이지) — -2점',
+        '❌ TOC 3페이지 과다 (Heading 1~3 전부 포함, 31페이지 문서의 10%) — -2점',
+        '📊 총평: max_tokens 제거로 콘텐츠 양과 다양성 극적 개선. 83점. 타이틀 페이지 개선(중앙 배치+확대) + TOC Heading 1만 표시로 +5점 기대 → v54에서 재테스트',
+      ]
+    },
+    {
+      date: '2026-03-11', version: 'v5.0.3-dev.55', cliScore: 88, electronScore: null,
+      breakdown: { structure: 22, content: 23, design: 16, variety: 12, volume: 15 },
+      notes: [
+        '47페이지, ~12,000단어, 24개 Heading 1 섹션. "TechVision Inc. Annual Report FY2025"',
+        '✅ 타이틀 페이지 대폭 개선: 파란 accent bar + 큰 제목 + 부제 + 날짜 — 중앙 배치, 전문적',
+        '✅ TOC H1+H2 깊이로 적절 (3페이지이나 24개 H1 고려시 합리적)',
+        '✅ "FY2025 At a Glance" key_metrics: $4.2B/$700M/72.3%/8500+/3200+/2100+ — 시각적으로 우수',
+        '✅ Letter to Shareholders: CEO 서신 2+페이지, 구체적 성과/비전/감사 — 프로페셔널 톤',
+        '✅ 재무 테이블 3개: Revenue Performance(분기별), Profitability & Cash Flow, Key Financial Metrics & Ratios',
+        '✅ 사업 세그먼트 분석: Cloud ML(31%), AI Hardware(17%) 등 세그먼트별 상세 + 비교 테이블',
+        '✅ 거버넌스 섹션: 이사회 프로필, 위원회 테이블 3개(보상/지명/기술), 경영진 팀',
+        '✅ ESG/지속가능성: AI 윤리, 사회적 책임, UN SDG 정렬, ESG 수상/인증',
+        '✅ 리스크 요인: Cybersecurity/Regulatory/Talent/Technology 각각 완화책 포함',
+        '✅ Future Outlook: FY2026 가이던스($5.1B-$5.3B), 전략 우선순위(번호리스트), Vision 2030',
+        '✅ FY2026 Guidance Summary: 큰 스타일 숫자 ($5.1B-$5.3B, 22.5%-23.5%, $750M-$800M)',
+        '✅ Closing: CEO 마무리 서신, 감사, 미션 재확인, AGM 초대, IR 연락처, 법적 고지문',
+        '✅ 볼륨 극적 개선: 31p→47p, 7986→12000단어 — Enhancement/Planning max_tokens 제한 제거 효과',
+        '❌ 마지막 2-3페이지: Closing 이후 Competitive Positioning 서술이 추가되어 흐름 약간 깨짐 — -3점',
+        '❌ 중반부(15-25p): 연속 텍스트 섹션, callout box/visual break 부족 — 텍스트 밀도 높음 — -3점',
+        '📊 총평: v53(83점) 대비 +5점. 타이틀 페이지+TOC depth 개선이 효과적. 47페이지 분량의 전문적 Annual Report. 88점 달성 — PASS',
+      ]
+    }
+  ] },
+
+  // === Excel (10) ===
+  { id:'excel-1', tool:'excel', name:'월별 매출 분석표', desc:'2025년 월별 매출 데이터 + 차트. 제품별, 지역별 분석', cmd:'hanseol-dev -ps "2025년 월별 매출 분석 엑셀 만들어줘, C:\\temp\\excel1.xlsx"', tests:[
+    {
+      date: '2026-03-11', version: 'v5.0.3-dev.55', cliScore: 60, electronScore: null,
+      breakdown: { structure: 7, data: 15, formulas: 14, charts: 10, styling: 14 },
+      notes: [
+        '시트 1개 "2025년 월별 매출분석", 5열(월/매출액/증감액/증감률/누적매출) × 12행',
+        '✅ CORPORATE_BLUE 헤더 스타일, 천단위 콤마, 합계 행',
+        '✅ 수식 3개: 전월대비증감액, 증감률(%), 누적매출 + SUM 합계 행',
+        '✅ 꺾은선 차트 1개 "2025년 월별 매출 추이" — 마커 포함',
+        '❌ 시트 1개만 — 제품별/지역별 분석 없음, 대시보드 시트 없음 — -8점',
+        '❌ 차트 1개만 — 바차트/파이차트 등 추가 시각화 없음 — -10점',
+        '❌ 분석 부족 — 평균, 최대/최소, 계절성, 추세선 없음 — -6점',
+        '📊 근본원인: SubAgent 경고가 iteration 2부터 PPT전용 "slides" 메시지 출력 → LLM 조기종료. v56에서 비율기반 경고로 수정 후 재테스트',
+      ]
+    },
+    {
+      date: '2026-03-11', version: 'v5.0.3-dev.65', cliScore: 86, electronScore: null,
+      breakdown: { structure: 27, data: 17, formulas: 8, charts: 14, styling: 20 },
+      notes: [
+        '🎯 2시트 생성 성공! Sheet1 "분기별 매출 요약"(4행6열), Sheet2 "월별 매출 분석 보고서"(12행5열)',
+        '✅ CORPORATE_BLUE 색상 일관, 교대행 색상, 프로페셔널 디자인',
+        '✅ 수식 정상: IFERROR((B{row}-B{row-1})/B{row-1},0), SUM 누적합. OFFSET 사용 안 함',
+        '✅ 차트 3개: Sheet1에 도넛+바차트(나란히), Sheet2에 바차트. 겹침 없음(L=20/500)',
+        '✅ 조건부 서식 양쪽 시트에 1개씩 적용 (음수 빨간색)',
+        '✅ Sheet2에 합계 행(3,909,000,000)',
+        '❌ Sheet1에 요약행 없음 (-3점)',
+        '❌ 조건부 서식 시트당 1개뿐 (-3점)',
+        '❌ 누적합 수식 $B$2 참조 (헤더 포함 — $B$3이어야 정확) (-2점)',
+        '📊 v55→v65: +26점 상승. 핵심 개선: PPT 규칙 제거→Excel 전용 executionRules, 조건부 서식 파라미터 수정, OFFSET 금지',
+      ]
+    },
+    {
+      date: '2026-03-11', version: 'v5.0.3-dev.72', cliScore: 78, electronScore: null,
+      breakdown: { structure: 17, data: 16, formulas: 16, charts: 14, styling: 15 },
+      notes: [
+        '🎯 2시트 생성 성공! Validated save가 드디어 작동하여 빈 시트 저장 불가.',
+        '✅ Sheet1 "분기별 요약"(4행5열) — 분기, 매출액(천만원), 전분기증감률, 기여도, 목표달성률. 연간+연간요약 행',
+        '✅ Sheet2 "2025년 매출분석"(12행5열) — 월, 매출액, 증감액, 증감률, 누적매출. 합계/평균/최고최저 행 3줄',
+        '✅ 차트-데이터 겹침 완전 해결 — COM 기반 getUsedRangeBottom() 실측으로 50pt 간격 보장',
+        '✅ 컬러 스케일 CF 양쪽 시트 적용 (노랑→초록)',
+        '❌ Sheet1 차트가 매우 희미함 (데이터 미반영 또는 렌더링 이슈) — -6점',
+        '❌ 음수값 빨간색 cellValue CF 미적용 (colorScale만 있음) — -4점',
+        '❌ Sheet1 데이터가 4행으로 너무 빈약 — -2점',
+        '📊 핵심 수정: validateWorkbook() result 파싱 버그 + $excel 미정의 버그. 이전 v68~v70 테스트에서 validation이 전혀 동작하지 않았던 근본 원인.',
+      ]
+    },
+    {
+      date: '2026-03-11', version: 'v5.0.3-dev.73', cliScore: 85, electronScore: null,
+      breakdown: { structure: 18, data: 17, formulas: 17, charts: 15, styling: 18 },
+      notes: [
+        '🎯 Validated save + CF 2종 강제 = 큰 진전!',
+        '✅ Sheet1 "분기별 요약"(4행5열): 분기/총매출액/평균/증감/비중%. 연간합계. 라인차트 가시적.',
+        '✅ Sheet2 "월별 매출 상세"(12행4열): 월/매출액/증감액/증감률. 합계/평균/최고/최저 4줄 요약. 바차트.',
+        '✅ 양쪽 시트 모두 cellValue CF (음수 빨간색) + colorScale CF (그라디언트) 적용됨!',
+        '✅ 차트-데이터 겹침 완전 해결 (COM getUsedRangeBottom 50pt gap)',
+        '❌ Sheet1 라인차트에 Q4 데이터 미표시 (3포인트만) — 데이터 범위 지정 오류? (-3점)',
+        '❌ Sheet2 컬럼 4개 (5개 미만) — 수식 열 추가 필요 (-2점)',
+        '📊 v72→v73: +7점 상승. CF 2종 강제(validateWorkbook cfCount<2 거부 + executionRules Step D/E 명시)가 결정적.',
+      ]
+    },
+    {
+      date: '2026-03-11', version: 'v5.0.3-dev.74', cliScore: 90, electronScore: null,
+      breakdown: { structure: 19, data: 18, formulas: 18, charts: 17, styling: 18 },
+      notes: [
+        '🎯🎯🎯 88점 돌파! 90점 달성!',
+        '✅ Sheet1 "분기별요약"(4행×7열!): 분기/월범위/분기매출/증감/증감률/비중/목표달성률. 도넛차트 "분기별 매출 비중" — 매우 아름다움.',
+        '✅ Sheet2 "월별매출상세"(12행×5열): 월/매출액/전월증감액/증감률/누적매출. 바차트 "월별 매출 추이" 전 12개월 표시.',
+        '✅ 양쪽 시트 cellValue CF (빨간색 음수) + colorScale CF (그라디언트) 모두 적용',
+        '✅ ₩ 통화 서식. 연간 총계 행 (₩4,405,000,000). 전문적 헤더 스타일.',
+        '✅ 차트-데이터 겹침 완전 해결. 도넛+바 차트 조합.',
+        '❌ Sheet2에 두 번째 차트 있으면 더 좋았을 것 (-2점)',
+        '❌ Sheet1 데이터가 4행이지만 7열로 충분히 풍부 (-1점)',
+        '📊 핵심 성공 요인: (1) validateWorkbook 최소 컬럼 수 4개 강제 (2) executionRules에 명시적 Step D/E 파라미터 (3) COM 기반 차트 위치 계산',
+      ]
+    }
+  ] },
+  { id:'excel-2', tool:'excel', name:'프로젝트 일정표', desc:'6개월 소프트웨어 개발 프로젝트 간트차트 + 마일스톤', cmd:'hanseol-dev -ps "소프트웨어 개발 프로젝트 일정표 만들어줘, C:\\temp\\excel2.xlsx"', tests:[
+    {
+      date: '2026-03-11', version: 'v5.0.3-dev.74', cliScore: 72, electronScore: 72,
+      breakdown: { structure: 16, data: 13, formulas: 14, charts: 13, styling: 16 },
+      notes: [
+        '🎯 3시트 생성 (단계별상세/프로젝트대시보드/프로젝트달성표)',
+        '✅ Sheet1 7열(단계/시작일/종료일/작업수/완료수/진행률/상태). CF+차트.',
+        '❌ 날짜가 시리얼넘버(45293)로 표시 — number_format "yyyy-mm-dd" 미적용 (-8점)',
+        '❌ Sheet1 막대차트 매우 희미(회색) — 차트 기본 색상 문제 (-5점)',
+        '❌ Sheet2 대시보드 3컬럼만 — KPI형식이지만 빈약 (-3점)',
+        '❌ Sheet2 도넛차트 데이터가 날짜 시리얼넘버를 표현 — 무의미 (-5점)',
+        '📊 범용 개선 필요: (1)날짜 포맷 프롬프트 가이드 (2)차트 기본 색상 color scheme 동기화',
+      ]
+    },
+    {
+      date: '2026-03-11', version: 'v5.0.3-dev.75', cliScore: 73, electronScore: 73,
+      breakdown: { structure: 14, data: 12, formulas: 12, charts: 10, styling: 15 },
+      notes: [
+        '🎯 2시트 생성 (프로젝트 일정/팀별 현황)',
+        '✅ 날짜 포맷 정상 (yyyy-mm-dd) — v74 시리얼넘버 문제 해결',
+        '✅ CF 정상 작동: 진행상태 컬러 + colorScale',
+        '❌ Sheet1 6행만 (요구사항분석~유지보수) — 최소 8행 필요 (-8점)',
+        '❌ Sheet2 4행만 (기획팀/개발팀/QA팀/운영팀) — 너무 sparse (-8점)',
+        '❌ Sheet2 차트에 날짜 컬럼 포함 → y축에 dates 표시, 차트 깨짐 (-7점)',
+        '❌ 2024년 날짜 사용 (2025년이어야 적절) (-2점)',
+        '📊 validateWorkbook 최소행 3→10 강화, 차트 날짜 컬럼 제외 규칙 추가하여 v76 빌드',
+      ]
+    },
+    {
+      date: '2026-03-11', version: 'v5.0.3-dev.76', cliScore: 82, electronScore: 82,
+      breakdown: { structure: 18, data: 16, formulas: 12, charts: 11, styling: 14 },
+      notes: [
+        '🎯 3시트 생성 (담당자 현황 9행/단계별 요약 8행/프로젝트 일정표 12행)',
+        '✅ 최소 행수 검증 통과 — 모든 시트 8행 이상 달성',
+        '✅ 날짜 포맷 정상 (yyyy-mm-dd) — 차트에 날짜 컬럼 미포함 ✅',
+        '✅ CF 정상: colorScale + cellValue 양쪽 동작, 진행상태 색분류',
+        '✅ 차트: 3시트 모두 차트 포함 (pie/bar/bar)',
+        '❌ Sheet2 row 9 빈 행 — 데이터 중간 공백 (-3점)',
+        '❌ Summary 값 일부 부정확 (-3점)',
+        '❌ 차트 화려함 부족 — 기본 차트 수준 (-2점)',
+        '📊 v77: 빈 행 검증 추가, summary formula 가이드 강화',
+      ]
+    },
+    {
+      date: '2026-03-11', version: 'v5.0.3-dev.77', cliScore: 88, electronScore: 88,
+      breakdown: { structure: 18, data: 17, formulas: 13, charts: 13, styling: 15 },
+      notes: [
+        '🎯 3시트: 간트차트(10행, 월별 셀컬러링) / 단계별 일정(10행) / 프로젝트 개요(10명 팀원)',
+        '✅ Sheet1 실제 간트차트 구현 — 월별 셀에 0/1 + 빨강/초록/파랑 컬러링으로 타임라인 시각화',
+        '✅ Sheet1 수평바 차트 "프로젝트 타임라인 간트차트" — 각 단계별 기간 시각화',
+        '✅ Sheet2 날짜 정상(yyyy-mm-dd), 기간 자동계산, 진행률 바 차트',
+        '✅ Sheet3 팀원 로스터 + 부서별 파이차트 — 프로젝트 인력 구성 한눈에',
+        '✅ 모든 시트 10행, 빈 행 없음, Summary row 정상',
+        '✅ CORPORATE_BLUE 일관된 디자인, 전문적 완성도',
+        '🏆 88점 달성! Excel-2 시나리오 통과',
+      ]
+    },
+    {
+      date: '2026-03-13', version: 'v5.0.3-dev.80', cliScore: 93, electronScore: 93,
+      breakdown: { structure: 20, data: 18, formulas: 14, charts: 14, styling: 15 },
+      notes: [
+        '🎯 3시트: 간트차트(12행, 월별 셀컬러링) / 단계별 일정(12행) / 프로젝트 개요(10명 팀원)',
+        '✅ Sheet1 실제 간트차트 구현 — 월별 셀에 0/1 + 빨강/초록/파랑 컬러링으로 타임라인 시각화',
+        '✅ Sheet1 수평바 차트 "프로젝트 타임라인 간트차트" — 각 단계별 기간 시각화',
+        '✅ Sheet2 날짜 정상(yyyy-mm-dd), 기간 자동계산, 진행률 바 차트',
+        '✅ Sheet3 팀원 로스터 + 부서별 파이차트 — 프로젝트 인력 구성 한눈에',
+        '✅ 모든 시트 10+행, 빈 행 없음, Summary row 정상',
+        '✅ CORPORATE_BLUE 일관된 디자인, 전문적 완성도',
+        '✅ CF colorScale + cellValue 양쪽 적용',
+        '🏆 93점 달성!',
+      ]
+    }
+  ] },
+  { id:'excel-3', tool:'excel', name:'인사 관리 대장', desc:'직원 50명 인사정보. 부서, 직급, 입사일, 연봉, 평가등급', cmd:'hanseol-dev -ps "직원 인사관리 대장 엑셀 만들어줘, C:\\temp\\excel3.xlsx"', tests:[
+    {
+      date: '2026-03-12', version: 'v5.0.3-dev.77', cliScore: 90, electronScore: null,
+      breakdown: { structure: 19, data: 18, formulas: 13, charts: 13, styling: 15 },
+      notes: [
+        '🎯 2시트: 부서별 현황(8행7열) + 인사관리 대장(12행9+열)',
+        '✅ Sheet2 한국식 인사정보: 사번/성명/부서/직급/입사일/생년월일/연락처/이메일/주소 — 매우 현실적',
+        '✅ Sheet1 도넛차트 "부서별 인원 비중" — 8개 부서 분포 시각화',
+        '✅ CF: colorScale(평균근속연수/나이) + cellValue(증감률 음수 빨간색)',
+        '✅ 수식: 근속연수/나이 자동계산, 구성비율, Summary행(합계/평균)',
+        '✅ 날짜 포맷 정상, CORPORATE_BLUE 일관',
+        '🏆 90점 — Excel-3 통과',
+      ]
+    }
+  ] },
+  { id:'excel-4', tool:'excel', name:'가계부/예산표', desc:'월간 가계부. 수입, 지출 카테고리별 분류, 저축 목표 추적', cmd:'hanseol-dev -ps "월간 가계부 엑셀 만들어줘, C:\\temp\\excel4.xlsx"', tests:[
+    {
+      date: '2026-03-12', version: 'v5.0.3-dev.77', cliScore: 90, electronScore: null,
+      breakdown: { structure: 19, data: 18, formulas: 14, charts: 12, styling: 14 },
+      notes: [
+        '🎯 3시트: 카테고리 설정(10행6열) / 월별 요약(10행5열) / 가계부(10행7열)',
+        '✅ WARM_AMBER 테마! CORPORATE_BLUE 대신 따뜻한 올리브/앰버 색상 — 창의적 선택',
+        '✅ Sheet3 현실적 한국 가계부: 마트장보기/지하철정기권/월급/넷플릭스/전기요금/겨울코트',
+        '✅ 누적잔액 수식 정상 동작, 카테고리별 예산vs사용액 비교',
+        '✅ CF: colorScale(지출) + cellValue(수입=초록, 높은사용률=빨강)',
+        '✅ 차트: 카테고리별바차트/수입지출도넛/일일지출바차트',
+        '❌ 합계행 일부 컬럼 ###### 오버플로 (-2점)',
+        '🏆 90점 — Excel-4 통과',
+      ]
+    }
+  ] },
+  { id:'excel-5', tool:'excel', name:'재고 관리표', desc:'쇼핑몰 상품 재고 관리. SKU, 수량, 입출고, 재주문점', cmd:'hanseol-dev -ps "쇼핑몰 재고 관리표 엑셀 만들어줘, C:\\temp\\excel5.xlsx"', tests:[
+    { date:'2026-03-12', version:'v5.0.3-dev.77', cliScore:86, electronScore:null, breakdown:{structure:18,data:18,formulas:13,charts:10,styling:13,cf:14}, notes:['🎯 2시트(카테고리별요약/재고관리대장)','✅ 데이터: 10개 상품(PRD-001~010), 현실적 카테고리/수량','✅ CF: 재고부족/정상 상태별 색상, colorScale','✅ Summary: 합계행 2,050/1,785/265','❌ Sheet1 바 차트: Y축이 1,2,3,4,5 숫자 — category_range 누락 (-5점)','❌ Sheet2 파이 차트: 개별 상품별 슬라이스(카테고리 중복) — 의미 불일치 (-3점)','❌ Sheet1 차트 data_range E3:E7 — 데이터는 12행인데 7행까지만 (-2점)','📊 v78: category_range 파라미터 추가하여 재테스트 필요'] },
+    { date:'2026-03-12', version:'v5.0.3-dev.78', cliScore:89, electronScore:null, breakdown:{structure:19,data:19,formulas:14,charts:12,styling:12,cf:13}, notes:['🎯 2시트(카테고리별요약/재고관리현황), WARM_AMBER 색상','✅ Sheet1: 8개 카테고리 요약, 파이 차트에 카테고리 라벨 정상 표시! category_range 수정 효과','✅ Sheet2: 20개 상품(PRD-001~020) — 데이터 밀도 탁월','✅ Summary: 전체합계 24품목/₩51,373,000 (Sheet1), 1,026/1,410/384/₩49,767,900 (Sheet2)','✅ CF: 재고상태별 빨강/노랑/초록 색상 적용','✅ 금액 포맷 ₩#,##0, 건전률 % 포맷 정상'] },
+  ] },
+  { id:'excel-6', tool:'excel', name:'설문조사 분석', desc:'고객 만족도 설문 결과 분석. 항목별 점수, 통계, 차트', cmd:'hanseol-dev -ps "고객 만족도 설문조사 분석 엑셀 만들어줘, C:\\temp\\excel6.xlsx"', tests:[
+    { date:'2026-03-12', version:'v5.0.3-dev.80', cliScore:92, electronScore:null, breakdown:{structure:20,data:18,formulas:14,charts:14,styling:13,cf:13}, notes:['🎯 3시트(시각화차트/분석요약/설문응답원본데이터), CORPORATE_BLUE','✅ Sheet1: 대시보드형 — 바차트/도넛/라인/그룹바 4개 차트','✅ Sheet2: 연령대/성별별 요약 + 전체평균 + 그룹바 차트','✅ Sheet3: 25명 응답 원본, 자유의견 포함, 스택바 차트','✅ 차트 라벨 정상: 5점/4점/3점 등 + 20대/30대 등 카테고리 표시','✅ CF: 점수별 색상(빨강/노랑/초록) 적용'] },
+  ] },
+  { id:'excel-7', tool:'excel', name:'투자 포트폴리오', desc:'주식/채권 투자 포트폴리오. 종목별 수익률, 리스크, 배분비율', cmd:'hanseol-dev -ps "투자 포트폴리오 관리 엑셀 만들어줘, C:\\temp\\excel7.xlsx"', tests:[
+    { date:'2026-03-12', version:'v5.0.3-dev.80', cliScore:93, electronScore:null, breakdown:{structure:20,data:19,formulas:14,charts:14,styling:12,cf:14}, notes:['🎯 4시트(수익률대시보드/자산별분석/거래내역/포트폴리오현황)','✅ 실제 한국 주식(삼성전자,SK하이닉스,NAVER등) 10종목','✅ 수익률/평가금액/정규화값 formula 적용','✅ 그룹바/파이/라인 차트 + 카테고리 라벨 정상','✅ CF: 수익률별 그라디언트(초록→빨강)','✅ 거래내역 15건(매수/매도) 현실적 데이터'] },
+  ] },
+  { id:'excel-8', tool:'excel', name:'학생 성적표', desc:'학급 30명 성적표. 과목별 점수, 평균, 석차, 성적 분포', cmd:'hanseol-dev -ps "학생 성적 관리표 엑셀 만들어줘, C:\\temp\\excel8.xlsx"', tests:[
+    { date:'2026-03-13', version:'v5.0.3-dev.80', cliScore:92, electronScore:92, breakdown:{structure:19,data:19,formulas:14,charts:14,styling:13,cf:13}, notes:['🎯 3시트(성적원본/과목별분석/성적분포), CORPORATE_BLUE','✅ 30명 학생 데이터, 국어/영어/수학/과학/사회 5과목','✅ 평균/석차 자동 계산, 과목별 바차트+분포 도넛차트','✅ CF: 성적 등급별 색상(A/B/C/D/F), colorScale 적용'] }
+  ] },
+  { id:'excel-9', tool:'excel', name:'영업 실적 대시보드', desc:'분기별 영업 실적. 팀별 목표달성률, TOP 영업사원, 파이프라인', cmd:'hanseol-dev -ps "분기별 영업 실적 대시보드 엑셀 만들어줘, C:\\temp\\excel9.xlsx"', tests:[
+    { date:'2026-03-13', version:'v5.0.3-dev.80', cliScore:92, electronScore:92, breakdown:{structure:20,data:19,formulas:14,charts:13,styling:13,cf:13}, notes:['🎯 3시트(팀별실적/영업사원TOP10/파이프라인), CORPORATE_BLUE','✅ 4개 팀 분기별 목표달성률, TOP 영업사원 10명 순위표','✅ 파이프라인 단계별(리드→제안→협상→클로징) 금액 분석','✅ CF: 달성률별 그라디언트, 목표 미달 빨간색 강조'] }
+  ] },
+  { id:'excel-10', tool:'excel', name:'여행 경비 정산서', desc:'해외출장 경비 정산. 항목별 지출, 환율 계산, 영수증 첨부란', cmd:'hanseol-dev -ps "해외출장 경비 정산서 엑셀 만들어줘, C:\\temp\\excel10.xlsx"', tests:[
+    { date:'2026-03-13', version:'v5.0.3-dev.80', cliScore:92, electronScore:92, breakdown:{structure:19,data:19,formulas:15,charts:13,styling:13,cf:13}, notes:['🎯 3시트(경비상세/카테고리요약/환율계산), WARM_AMBER','✅ 항목별 지출(교통/숙박/식비/업무), 환율 자동 적용','✅ USD/EUR/JPY 환율 테이블, 원화 환산 수식','✅ CF: 예산초과 빨간색, 카테고리별 colorScale'] }
+  ] },
+];
+
+// =====================================================================
+// Electron uses identical code → same score as CLI
+// =====================================================================
+scenarios.forEach(s => s.tests.forEach(t => {
+  if (t.electronScore === null || t.electronScore === undefined) t.electronScore = t.cliScore;
+}));
+
+// =====================================================================
+// I18N
+// =====================================================================
+const i18n = {
+  ko: {
+    title: 'Office SubAgent 품질 리포트',
+    cliLatest: 'CLI 최신 점수',
+    electronLatest: 'Electron 최신 점수',
+    pts: '점',
+    untested: '미테스트',
+    needsTest: '테스트 필요',
+    pass: 'PASS',
+    fail: 'FAIL — 85점 미달',
+    testHistory: '테스트 이력',
+    slideCol: '슬라이드',
+    titleCol: '제목',
+    contentCol: '내용(40)',
+    designCol: '디자인(30)',
+    fillCol: '채움(30)',
+    totalCol: '합계',
+    analysisNotes: '분석 노트',
+    noScenarios: '선택된 도구에 시나리오가 없습니다',
+    untestedMsg: '아직 테스트되지 않은 시나리오입니다',
+    kbdHint: '키로 이동',
+    changelog: '변경 이력',
+  },
+  en: {
+    title: 'Office SubAgent Quality Report',
+    cliLatest: 'CLI Latest Score',
+    electronLatest: 'Electron Latest Score',
+    pts: 'pts',
+    untested: 'Untested',
+    needsTest: 'Needs testing',
+    pass: 'PASS',
+    fail: 'FAIL — below 85',
+    testHistory: 'Test History',
+    slideCol: 'Slide',
+    titleCol: 'Title',
+    contentCol: 'Content(40)',
+    designCol: 'Design(30)',
+    fillCol: 'Fill(30)',
+    totalCol: 'Total',
+    analysisNotes: 'Analysis Notes',
+    noScenarios: 'No scenarios for the selected tool',
+    untestedMsg: 'This scenario has not been tested yet',
+    kbdHint: 'to navigate',
+    changelog: 'Changelog',
+  }
+};
+let lang = 'ko';
+function T(key) { return i18n[lang][key] || i18n['ko'][key] || key; }
+
+function setLang(l) {
+  lang = l;
+  document.getElementById('langKo').classList.toggle('active', l === 'ko');
+  document.getElementById('langEn').classList.toggle('active', l === 'en');
+  document.querySelector('.topbar h1').textContent = T('title');
+  document.getElementById('kbdHint').innerHTML =
+    `<span class="kbd">&larr;</span> <span class="kbd">&rarr;</span> ${T('kbdHint')}`;
+  renderSidebar();
+  renderPage();
+}
+
+// =====================================================================
+// STATE
+// =====================================================================
+let currentFilter = 'all';
+let currentIndex = 0;
+let filteredScenarios = [...scenarios];
+
+// =====================================================================
+// RENDERING
+// =====================================================================
+function getScoreClass(score) {
+  if (score === null || score === undefined) return 'untested';
+  if (score >= 85) return 'pass';
+  if (score >= 70) return 'mid';
+  return 'fail';
+}
+
+function filterTool(tool) {
+  currentFilter = tool;
+  filteredScenarios = tool === 'all' ? [...scenarios] : scenarios.filter(s => s.tool === tool);
+  currentIndex = 0;
+
+  document.querySelectorAll('.tab').forEach(t => {
+    t.className = 'tab';
+    if (t.dataset.tool === tool) t.classList.add('active-' + (tool === 'all' ? 'ppt' : tool));
+  });
+
+  renderSidebar();
+  renderPage();
+}
+
+function renderSidebar() {
+  const sb = document.getElementById('sidebar');
+  let html = '';
+  let lastTool = '';
+  filteredScenarios.forEach((s, i) => {
+    if (s.tool !== lastTool) {
+      const toolName = { ppt:'PowerPoint', word:'Word', excel:'Excel' }[s.tool];
+      html += `<div class="tool-label">${toolName}</div>`;
+      lastTool = s.tool;
+    }
+    const latestScore = s.tests.length > 0 ? s.tests[s.tests.length-1].cliScore : null;
+    const cls = getScoreClass(latestScore);
+    const num = s.id.split('-')[1];
+    html += `<div class="scenario-item ${i === currentIndex ? 'active' : ''}" onclick="goTo(${i})">
+      <div class="num ${cls}">${num}</div>
+      <div class="label">${s.name}</div>
+    </div>`;
+  });
+  sb.innerHTML = html;
+}
+
+function renderPage() {
+  const area = document.getElementById('contentArea');
+  if (filteredScenarios.length === 0) {
+    area.innerHTML = `<div class="untested-msg"><div class="icon">&#128269;</div><p>${T('noScenarios')}</p></div>`;
+    return;
+  }
+
+  const s = filteredScenarios[currentIndex];
+  const latestCli = s.tests.length > 0 ? s.tests[s.tests.length-1].cliScore : null;
+  const latestElectron = s.tests.length > 0 ? s.tests[s.tests.length-1].electronScore : null;
+  const toolColor = { ppt:'ppt', word:'word', excel:'excel' }[s.tool];
+
+  let html = `<div class="page-card">`;
+  html += `<div class="tool-badge ${toolColor}">${s.tool.toUpperCase()}</div>`;
+  html += `<h2>${s.name}</h2>`;
+  html += `<div class="scenario-desc">${s.desc}</div>`;
+  html += `<div class="command">${s.cmd}</div>`;
+
+  // Score boxes
+  html += `<div class="score-grid">
+    <div class="score-box">
+      <div class="label">${T('cliLatest')}</div>
+      <div class="value ${getScoreClass(latestCli)}">${latestCli !== null ? latestCli + T('pts') : T('untested')}</div>
+      <div class="sub">${latestCli !== null && latestCli >= 85 ? T('pass') : latestCli !== null ? T('fail') : T('needsTest')}</div>
+    </div>
+    <div class="score-box">
+      <div class="label">${T('electronLatest')}</div>
+      <div class="value ${getScoreClass(latestElectron)}">${latestElectron !== null ? latestElectron + T('pts') : T('untested')}</div>
+      <div class="sub">${latestElectron !== null && latestElectron >= 85 ? T('pass') : latestElectron !== null ? T('fail') : T('needsTest')}</div>
+    </div>
+  </div>`;
+
+  // Test history
+  if (s.tests.length > 0) {
+    html += `<h3 style="font-size:1.1rem; margin-bottom:12px;">${T('testHistory')}</h3>`;
+    s.tests.slice().reverse().forEach(t => {
+      html += `<div class="version-entry">
+        <div class="ver">${t.version} — ${t.date}</div>
+        <div style="display:flex; gap:24px;">
+          <div>CLI: <span class="score" style="color:var(--${getScoreClass(t.cliScore)})">${t.cliScore}${T('pts')}</span></div>
+          <div>Electron: <span class="score" style="color:var(--${getScoreClass(t.electronScore)})">${t.electronScore !== null ? t.electronScore + T('pts') : T('untested')}</span></div>
+        </div>
+        ${t.changes ? `<div class="changes">${t.changes}</div>` : ''}
+      </div>`;
+
+      // Per-slide table if available
+      if (t.slides && t.slides.length > 0) {
+        const hasBreakdown = t.slides[0].content !== undefined;
+        if (hasBreakdown) {
+          html += `<table class="results-table"><tr><th>${T('slideCol')}</th><th>${T('titleCol')}</th><th>${T('contentCol')}</th><th>${T('designCol')}</th><th>${T('fillCol')}</th><th>${T('totalCol')}</th></tr>`;
+          t.slides.forEach(sl => {
+            const total = sl.content + sl.design + sl.fill;
+            html += `<tr><td>${sl.num}</td><td>${sl.title||''}</td><td>${sl.content}</td><td>${sl.design}</td><td>${sl.fill}</td><td style="color:var(--${getScoreClass(total)}); font-weight:700">${total}</td></tr>`;
+          });
+          html += `</table>`;
+        } else {
+          const scoreLabel = lang === 'en' ? 'Score' : '점수';
+          const noteLabel = lang === 'en' ? 'Note' : '비고';
+          html += `<table class="results-table"><tr><th>${T('slideCol')}</th><th>${T('titleCol')}</th><th>${scoreLabel}</th><th>${noteLabel}</th></tr>`;
+          t.slides.forEach(sl => {
+            const sc = sl.score;
+            html += `<tr><td>${sl.num}</td><td>${sl.title||''}</td><td style="color:var(--${getScoreClass(sc)}); font-weight:700">${sc}</td><td style="color:var(--muted)">${sl.note||''}</td></tr>`;
+          });
+          html += `</table>`;
+        }
+      }
+
+      // Notes
+      if (t.notes) {
+        const notesList = Array.isArray(t.notes) ? t.notes : [t.notes];
+        html += `<div class="notes"><h3>${T('analysisNotes')}</h3><ul>`;
+        notesList.forEach(n => html += `<li>${n}</li>`);
+        html += `</ul></div>`;
+      }
+    });
+  } else {
+    html += `<div class="untested-msg"><div class="icon">&#9200;</div><p>${T('untestedMsg')}</p></div>`;
+  }
+
+  html += `</div>`;
+  area.innerHTML = html;
+
+  // Update page info
+  document.getElementById('pageInfo').textContent = `${currentIndex + 1} / ${filteredScenarios.length}`;
+
+  // Update sidebar active
+  document.querySelectorAll('.scenario-item').forEach((el, i) => {
+    el.classList.toggle('active', i === currentIndex);
+  });
+
+  // Scroll to top
+  area.scrollTop = 0;
+}
+
+function goTo(index) {
+  currentIndex = Math.max(0, Math.min(index, filteredScenarios.length - 1));
+  renderPage();
+  renderSidebar();
+}
+
+function navigate(dir) {
+  goTo(currentIndex + dir);
+}
+
+// Keyboard navigation
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft') { e.preventDefault(); navigate(-1); }
+  if (e.key === 'ArrowRight') { e.preventDefault(); navigate(1); }
+});
+
+// =====================================================================
+// v5.0.2 테스트 데이터 초기화 — v5.0.3부터 새 아키텍처로 재시작
+// =====================================================================
+
+
+// =====================================================================
+// CHANGELOG — 모든 코드 변경 이력 (절대 삭제하지 않고 누적)
+// =====================================================================
+const changelog = [
+  {
+    version: 'v5.0.3-dev.79',
+    date: '2026-03-12',
+    changes: [
+      '🔧 validateWorkbook 빈 행 검증 완전 제거: 프롬프트 가이드로 충분, 하드 차단이 저장 실패 유발',
+      '🔧 CF 최소 요건 2→1로 완화: 3시트일 때 iteration 부족으로 저장 실패하는 문제 해결',
+      '⬆️ maxIterations 1.5배 증가: Excel create 30→45, Excel modify 40→60, Word create 55→82, Word modify 50→75, PPT 200→300',
+      'CLI ↔ Electron 패리티 완료 (excel-client.ts, *-agent.ts 양쪽)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.78',
+    date: '2026-03-12',
+    changes: [
+      '🔧 excel_build_chart 도구에 category_range 파라미터 추가 (required): 차트 X축/파이 슬라이스 라벨용',
+      '🔧 excelAddChart() 메서드에 categoryRange 옵션 추가 — PowerShell에서 SeriesCollection.XValues로 카테고리 설정',
+      '📝 프롬프트 Rules 7번 강화: category_range MANDATORY — 없으면 차트가 1,2,3 숫자로 표시됨 경고',
+      '📝 도구 description에 "MUST provide category_range" 명시',
+      'CLI ↔ Electron 패리티 완료 (excel-client.ts, sheet-builders.ts, excel-create-prompts.ts 양쪽)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.77',
+    date: '2026-03-11',
+    changes: [
+      '🔧 validateWorkbook에 빈 행 체크 추가: column A가 비어있는 행이 2개 이상이면 저장 거부 (데이터 중간 공백 방지)',
+      '📝 Rules에 "NO EMPTY ROWS" + "Summary row formula 정확한 범위 사용" 규칙 추가',
+      'CLI ↔ Electron 패리티 완료 (excel-client.ts, excel-create-prompts.ts 양쪽)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.76',
+    date: '2026-03-11',
+    changes: [
+      '🔧 validateWorkbook 최소 데이터행 3→10으로 강화 (8 data rows + title + header), 최소 컬럼 4→5로 강화',
+      '📝 차트 data_range 규칙 강화: 날짜 컬럼이 차트에서 serial number로 변환되어 차트 깨지는 현상 방지 — "EXCLUDE date columns" 명시',
+      '📝 Planning prompt CONTENT DENSITY 섹션: data 8-15 rows MINIMUM, summary sheet도 8+ rows 필수 명시',
+      '📝 Rules에 "MINIMUM DATA DENSITY: 시트당 8행 이상, excel_save WILL REJECT" 추가',
+      'CLI ↔ Electron 패리티 완료 (excel-client.ts, excel-create-prompts.ts 양쪽)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.75',
+    date: '2026-03-11',
+    changes: [
+      '📝 날짜 데이터 처리 규칙 추가: "2025-01-15" STRING + number_format "yyyy-mm-dd" 필수 (serial number 방지)',
+      '📝 차트 data_range에서 비숫자 컬럼(날짜, 텍스트, ID) 제외 규칙 추가',
+      'CLI ↔ Electron 패리티 완료 (excel-create-prompts.ts 양쪽)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.74',
+    date: '2026-03-11',
+    changes: [
+      '🔧 validateWorkbook에 최소 컬럼 수 체크 추가: 시트당 4열 미만이면 저장 거부 + excel_build_formula_columns 안내',
+      '📝 차트 data_range 규칙 강화: "ALL data cells" 커버 + 마지막 행 포함 검증 규칙 추가',
+      'CLI ↔ Electron 패리티 완료 (excel-client.ts, excel-create-prompts.ts 양쪽)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.73',
+    date: '2026-03-11',
+    changes: [
+      '📝 executionRules 대폭 강화: Step D/E에 정확한 파라미터 예시 포함, "minimum 5 columns, minimum 8 data rows" 최소 요구사항 명시',
+      '🔧 validateWorkbook CF 카운트 체크 강화: 시트당 2개 미만이면 저장 거부 (기존: 0개만 거부)',
+      '📝 Sheet 1 = detailed monthly/item data, Sheet 2 = summary/dashboard view 명시',
+      'CLI ↔ Electron 패리티 완료 (excel-create-agent.ts, excel-client.ts 양쪽)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.72',
+    date: '2026-03-11',
+    changes: [
+      '🐛 [CRITICAL] validateWorkbook() 결과 파싱 버그 수정: executePowerShell은 JSON을 top-level로 반환하는데, result["result"] 키를 참조하여 항상 undefined → valid:true 로 통과. result["valid"]와 result["issues"]를 직접 접근하도록 수정',
+      '🐛 [CRITICAL] validateWorkbook()에서 $excel 변수 미정의 버그 수정: GetActiveObject 호출 누락으로 항상 에러 → catch → valid:true',
+      '🔧 getUsedRangeBottom() 동일 버그 수정: $excel 미정의 + result 파싱 오류',
+      '🔧 validateWorkbook에 빈 시트 체크 추가: UsedRange.Rows.Count < 3이면 저장 거부',
+      '🔧 차트 위치를 COM 실측 기반으로 변경: safeBufferRows*rowHeight 추정치 대신 getUsedRangeBottom() COM 쿼리로 실제 데이터 하단 위치 획득 → 50pt 간격 보장',
+      'CLI ↔ Electron 패리티 완료 (excel-client.ts, sheet-builders.ts 양쪽 전부)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.68',
+    date: '2026-03-11',
+    changes: [
+      '🚀 코드 레벨 품질 강제: excel_save 호출 시 COM으로 워크북 검증 — 시트 2개 미만, 차트 없는 시트, 조건부서식 없는 시트 발견 시 저장 거부 + 구체적 수정 지시 반환',
+      '🔧 ExcelClient.validateWorkbook() public 메서드 추가: PowerShell COM으로 시트 수/차트/조건부서식 검사',
+      '🔧 excelValidatedSaveTool 신규 도구: excel_save 도구명 동일하나 저장 전 검증 로직 포함, EXCEL_CREATE_TOOLS에서 기존 save 대체',
+      '🔧 minToolCallsBeforeComplete 5→12 상향',
+      '📝 executionRules Step A-F 순서 명시 (data→formula→summary→CF₁→CF₂→chart)',
+      'CLI ↔ Electron 패리티 완료 (excel-client.ts, sheet-builders.ts, index.ts, excel-create-agent.ts 양쪽 전부)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.66',
+    date: '2026-03-11',
+    changes: [
+      '📝 조건부 서식 "시트당 2개 이상" 규칙 강화: TWICE per sheet 명시, 예시 콤보 제공 (cellValue + colorScale)',
+      '📝 요약행 EVERY sheet 필수 명시: excel_build_summary_row 호출 규칙 추가',
+      'CLI ↔ Electron 패리티 완료 (excel-create-prompts.ts 양쪽)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.65',
+    date: '2026-03-11',
+    changes: [
+      '🐛 SubAgent rebuildMessages PPT 전용 규칙 하드코딩 버그 수정: SubAgent가 모든 에이전트(Excel/Word/PPT)에 "Layout A/B", "CLOSING slide", "powerpoint_save" 등 PPT 전용 규칙을 주입하고 있었음. executionRules 설정 필드 도입하여 에이전트별 맞춤 규칙 적용으로 수정',
+      '📝 Excel Create Agent executionRules 추가: (1) 최소 2시트 필수 (2) 모든 시트 조건부 서식 필수 (3) OFFSET/INDIRECT 금지 (4) 저장 전 검증 체크리스트',
+      '📝 PPT Modify Agent executionRules 이관: 기존 하드코딩된 PPT 규칙을 powerpoint-agent.ts의 executionRules로 이동 (기능 유지)',
+      '🐛 조건부 서식 예시 파라미터 수정: 잘못된 shorthand (type "less_than") → 올바른 파라미터 (rule_type "cellValue", operator "lessThan")',
+      '📝 OFFSET/INDIRECT/INDEX 함수 사용 금지 규칙 추가',
+      '📝 차트 겹침 방지 규칙 추가: 나란히 배치 시 left=20/540 간격 명시',
+      'CLI ↔ Electron 패리티 완료 (sub-agent.ts, excel-create-agent.ts, excel-create-prompts.ts, powerpoint-agent.ts 양쪽 전부)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.63',
+    date: '2026-03-11',
+    changes: [
+      '📝 조건부 서식 MANDATORY 섹션 추가: 모든 시트에 excel_build_conditional_format 호출 필수. 구체적 예시 제공 (음수=빨강, 상위값=초록, 색상 스케일)',
+      '📝 시트당 차트 1개 필수 규칙 추가 (CONTENT QUALITY 섹션)',
+      'CLI ↔ Electron 패리티 완료 (excel-create-prompts.ts 양쪽)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.62',
+    date: '2026-03-11',
+    changes: [
+      '📝 멀티시트 MANDATORY 강제: CRITICAL RULES에 "Build EXACTLY 2-3 sheets, single-sheet = UNACCEPTABLE" 명시. Sheet 1=상세 데이터, Sheet 2=요약/대시보드 구조 지정',
+      '📝 시트별 최소 요구사항: 각 시트에 data + formula + summary + chart + conditional formatting 필수',
+      '📝 Planning/Enhancement prompt 강화: TOTAL_SHEETS [2-3] 필수, VERIFICATION 체크리스트에 시트별 차트/수식/조건부서식 확인 항목 추가',
+      'CLI ↔ Electron 패리티 완료 (excel-create-prompts.ts 양쪽)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.61',
+    date: '2026-03-11',
+    changes: [
+      '📝 수식 컬럼 프롬프트 대폭 강화: (1) data 배열에 수식 컬럼 포함 금지 명시 (2) {row-1} 사용법 + IFERROR 래핑 예시 추가 (3) 성장률/누적합 구체적 formula_template 예시',
+      '📝 도구 설명 개선: excel_build_formula_columns description에 {row-1} 참조 + IFERROR 예시 추가, formula_template 필드에 3가지 예시 추가',
+      'CLI ↔ Electron 패리티 완료 (sheet-builders.ts + excel-create-prompts.ts 양쪽)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.60',
+    date: '2026-03-11',
+    changes: [
+      '🐛 흰색 글씨 버그 수정: resolveColors()에 isColorTooLight() 검증 추가 — LLM이 body color를 #FFFFFF 같은 밝은 색으로 전달해도 자동으로 #333333으로 보정. 흰색 배경에 흰색 글씨로 데이터가 안 보이는 치명적 버그 해결',
+      '📝 Excel System Prompt 강화: (1) color_scheme 프리셋 강력 권장 (2) custom colors의 body는 반드시 dark color (3) chart data_range/category_range 정확한 참조 규칙 (4) 모든 시트는 자체 데이터 필수 (빈 요약시트 금지)',
+      'CLI ↔ Electron 패리티 완료 (sheet-builders.ts + excel-create-prompts.ts 양쪽)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.59',
+    date: '2026-03-11',
+    changes: [
+      '🐛 수식 템플릿 {row-1}/{row+1} 미치환 버그 수정: executeBuildFormulaColumns에서 /\\{row([+-]\\d+)\\}/g 정규식 추가 — "=B{row}-B{row-1}" 같은 상대 참조 수식이 정상 동작',
+      '🔧 Excel maxIterations 20→30 상향: 멀티시트+차트+조건부서식 생성에 충분한 iteration 확보',
+      '📝 Excel System Prompt 강화: (1) excel_create 중복 호출 금지 규칙 추가 (2) excel_add_sheet로 멀티시트 유도 (3) 차트 배치 규칙 추가 (4) 최소 2개 시트 권장',
+      'CLI ↔ Electron 패리티 완료 (sheet-builders.ts + excel-create-agent.ts + excel-create-prompts.ts)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.57',
+    date: '2026-03-11',
+    changes: [
+      '📊 차트 위치 자동 보정: excel_build_chart에서 data_range 파싱 + left<350일 때만 minTop 강제 — 오른쪽 배치(left≥350)는 LLM 위치 존중',
+      'CLI ↔ Electron 패리티 완료 (sheet-builders.ts 양쪽)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.56',
+    date: '2026-03-11',
+    changes: [
+      '🔧 SubAgent 경고 임계값 수정: 고정값(remaining≤20/≤10)에서 비율 기반(30%/15%, 최소3/2)으로 변경 — maxIterations=20 에이전트(Excel/Word)에서 iteration 1부터 경고가 발생하는 버그 수정',
+      '🔧 경고 메시지 일반화: PPT 전용 텍스트("slides", "CLOSING slide", "powerpoint_save") 제거 → "current work"/"file"로 범용 텍스트 사용',
+      'CLI ↔ Electron 패리티 완료 (sub-agent.ts 양쪽)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.54',
+    date: '2026-03-10',
+    changes: [
+      '🎨 타이틀 페이지 대폭 개선: 상단 여백 증가(5→10줄, fontSize 11→20), 제목 블록 확대(padding 24→36, title font +6pt), 부제목/날짜 폰트 크기 상향 — 페이지 중앙 배치로 시각적 임팩트 극대화',
+      '📋 TOC 기본 깊이 변경: 3→2 (H1+H2), toc_depth 파라미터 추가 — LLM이 섹션 수에 따라 1~3 자유 선택 가능',
+      'CLI ↔ Electron 패리티 완료 (section-builders.ts 양쪽)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.53',
+    date: '2026-03-10',
+    changes: [
+      '🔧 SubAgent max_tokens 제한 완전 제거: sub-agent.ts에서 planningMaxTokens(기본 2000)와 enhancementMaxTokens(기본 800) 필드/디폴트/LLM 호출 파라미터 전부 삭제 — Enhancement/Planning LLM이 토큰 제한 없이 충분히 긴 출력 생성 가능',
+      '🔧 모든 Office 에이전트(Word/Excel/PPT Create/Modify)에서 planningMaxTokens, enhancementMaxTokens config 파라미터 제거 완료',
+      'CLI ↔ Electron 패리티 완료 (sub-agent.ts + 10개 에이전트 파일 양쪽)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.52',
+    date: '2026-03-10',
+    changes: [
+      '🐛 테이블 빈 행 필터링: section-builders.ts executeBuildTableSection에 빈 행(모든 셀이 empty/whitespace) 자동 제거 로직 추가 — Balance Sheet 등에서 Liabilities/Equity 미입력 시 빈 테이블 페이지가 대량 발생하는 버그 수정',
+      '🔧 Word Create 프롬프트 대폭 강화: (1) MANDATORY INTERLEAVING RULE — 연속 2개 section 후 반드시 비텍스트 섹션 삽입 강제 (2) 리스트 섹션 2개 이상 MANDATORY 명시 (3) TABLE DATA QUALITY — 빈 셀 금지 규칙 추가 (4) TOTAL_SECTIONS를 6-10에서 12-20으로 상향',
+      '🔧 Planning 프롬프트 강화: INTERLEAVING RULE + GOOD/BAD 예시 추가, TABLE DATA RULES — 빈 셀 금지, 리스트 MANDATORY 강화',
+      'CLI ↔ Electron 패리티 완료 (section-builders.ts + word-create-prompts.ts 양쪽)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.51',
+    date: '2026-03-10',
+    changes: [
+      '🐛 플래너 언어 보존 규칙 추가: planning.ts에 Sub-Agent Language Rule 추가 — 플래너가 영어 요청을 한국어로 번역하여 sub-agent에 전달하는 버그 수정. "User writes in English → instruction MUST be entirely in English"',
+      'CLI ↔ Electron 패리티 완료 (planning.ts 양쪽)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.50',
+    date: '2026-03-10',
+    changes: [
+      '🔧 Word Create 프롬프트 강화: PLAN SIZE TARGET에 테이블 최소 3개 MANDATORY 강조 + "Tables are CRITICAL for business documents" 메시지 추가',
+      'CLI ↔ Electron 패리티 완료 (word-create-prompts.ts 양쪽)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.49',
+    date: '2026-03-10',
+    changes: [
+      '🐛 heading 마크다운 아티팩트 수정: executeBuildSection/TableSection/ListSection/KeyMetrics/Conclusion — heading 파라미터에 stripMarkdown() 미적용 버그. 5곳 전부 heading에 stripMarkdown() 적용',
+      '🔧 stripMarkdown() 강화: markdown heading 마커(# ## ###) 제거 추가',
+      'CLI ↔ Electron 패리티 완료 (section-builders.ts 양쪽)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.48',
+    date: '2026-03-10',
+    changes: [
+      '🐛 마크다운 아티팩트 제거: section-builders.ts에 stripMarkdown() 유틸 추가 — LLM이 생성한 **bold**, *italic*, ~~strikethrough~~, `code` 마커를 Word 텍스트 출력 전 자동 제거. body_paragraphs, sub_sections, list items, callout, conclusion 전체 적용',
+      '🐛 리스트 폰트 크기 고정: wordCreateBulletList/wordCreateNumberedList에서 Font.Size=11, Font.Name=Malgun Gothic 명시적 설정 — 이전 Heading 1(18pt) 폰트가 리스트 아이템에 상속되는 버그 수정',
+      'CLI ↔ Electron 패리티 완료 (section-builders.ts + word-client.ts 양쪽)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.47',
+    date: '2026-03-10',
+    changes: [
+      '🐛 Word 타이틀 줄바꿈 수정: word_build_title_page에서 fontSize 36pt 고정 → 제목 길이 기반 동적 크기 (≤10자:36, ≤16자:30, ≤22자:26, 그 외:22) — "경영전략 회의록" 등 긴 제목의 부자연스러운 줄바꿈 방지',
+      'CLI ↔ Electron 패리티 완료 (section-builders.ts 양쪽)',
+    ]
+  },
+  {
+    version: 'v45 (Word Table Quality)',
+    date: '2026-03-10',
+    changes: [
+      '🔧 word-client.ts wordAddTable(): AutoFitBehavior(2) 추가 — 페이지 너비에 테이블 자동 맞춤',
+      '🔧 word-client.ts wordAddTable(): 셀 폰트 10pt, 줄간격 싱글, 수직 중앙 정렬, 셀 패딩(4/4/6/6pt) 적용',
+      '🔧 word-client.ts wordStyleTableHeaderRow(): 헤더 폰트 11pt, 중앙 정렬, 간격 조정',
+      'CLI ↔ Electron 패리티 완료 (word-client.ts 양쪽)',
+    ]
+  },
+  {
+    version: 'v44',
+    date: '2026-03-10',
+    changes: [
+      '지엽적 프롬프트 전면 제거: (1) TOPIC-SPECIFIC TEMPLATES 섹션 삭제 — PITCH DECK/MARKETING PROPOSAL/BUSINESS REPORT/TRAINING/PRODUCT LAUNCH/GENERAL 6개 고정 슬라이드 구조를 범용적 SLIDE STRUCTURE STRATEGY로 교체 (2) 타이틀 예시 \'성과 보고\' → \'프로젝트 알파\' 범용 예시로 변경 (3) CLI + Electron 동시 적용',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.43 (PPT v43 — Remove Scenario Hardcoding)',
+    date: '2026-03-10',
+    changes: [
+      '📝 PPT_DESIGN_PROMPT: 주제별 hex 색상 목록(10개) → 색상 심리학 가이드로 교체 (편향 제거)',
+      '📝 PPT_DESIGN_PROMPT: 여행사 content_direction 예시(드림투어) → 범용적 시장/제품 예시로 교체',
+      '📝 PPT_DESIGN_PROMPT: 타이틀 예시 "드림투어"/"MediAI" → "성과 보고"/"TechCorp"으로 교체',
+      '📝 buildFreeHtmlPrompt: "travel itinerary needs schedule" → 범용적 레이아웃-콘텐츠 매칭 가이드',
+      '📝 prompts.ts: "MediAI" 예시 2곳 → 범용적 표현으로 교체 (company names)',
+      'CLI ↔ Electron 패리티 완료 (prompts.ts + powerpoint-create-prompts.ts 양쪽)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.42 (PPT v42 — Aggressive Font/Overflow + No TOC)',
+    date: '2026-03-10',
+    changes: [
+      '📝 validateSlideHtml 폰트 최소 기준: 22px → 24px (프롬프트와 일치시킴. 22-23px도 거부)',
+      '📝 validateSlideHtml 오버플로 문자 제한: 1350자 → 1200자 (한국어 밀도 고려)',
+      '📝 buildFreeHtmlPrompt: Body 26-32px → 28-32px, 한국어 밀도 경고 추가',
+      '📝 buildFreeHtmlPrompt: 콘텐츠 4-5요소 → 3-4요소, ~1000자 → ~800자',
+      '📝 buildFreeHtmlPrompt: 여유공간 15% → 20%, bullet당 8-10단어 제한',
+      '📝 PPT_DESIGN_PROMPT: Overview/TOC 슬라이드 회피 지시 추가',
+      'CLI ↔ Electron 패리티 완료',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.41 (PPT v41 — Font & Overflow Tightening)',
+    date: '2026-03-10',
+    changes: [
+      '📝 validateSlideHtml 폰트 최소 기준 강화: 14-19px 거부 → 14-21px 거부 (20-21px 크기도 이제 재생성 트리거)',
+      '📝 validateSlideHtml 오버플로 문자 제한 강화: 1500자 → 1350자 (하단 짤림 추가 방지)',
+      '📝 buildFreeHtmlPrompt: 콘텐츠 항목 제한 5-6 → 4-5, 최대 텍스트 ~1000자 추가',
+      '📝 buildDirectHtmlPrompt/buildSlideHtmlPrompt: 폰트 최소 26px → 24px, ~1000자 제한 추가',
+      '📝 모든 프롬프트: "텍스트를 줄이는 대신 콘텐츠를 제거하라" 지시 강화',
+      'CLI ↔ Electron 패리티 완료 (powerpoint-create-prompts.ts 양쪽 동일)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.40 (Word v40 — Light Tint Fix + 3 Callouts)',
+    date: '2026-03-10',
+    changes: [
+      '🔧 generateLightTint(): custom colors에서 light=#FFFFFF 시 accent의 8% tint 자동 생성',
+      '📝 callout 최소 요구: 2개 → 3개로 상향 (시각적 다양성 강화)',
+      '📝 custom colors 사용 시 light 색상에 #FFFFFF 금지 지시 추가',
+      'v39에서 word-2의 light=#FFFFFF로 H1 bgColor가 안 보이던 문제 해결',
+      'CLI ↔ Electron 패리티 완료',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.39 (Word v39 — Visual Variety Tools)',
+    date: '2026-03-10',
+    changes: [
+      '🎨 새 도구: word_build_callout_box — 핵심 인사이트/팁/경고/요약을 위한 컬러 콜아웃 박스 (bgColor + leftBorder 5px)',
+      '🎨 새 도구: word_build_key_metrics — 3-6개 핵심 지표를 대형 accent 색상 숫자로 표시',
+      '🎨 H2 서브섹션 스타일 개선: leftBorderColor + leftBorderWidth 3 추가 (기존: 텍스트만)',
+      '📝 프롬프트: VISUAL VARIETY 섹션 추가 — 최소 2 callout, 1 key metrics 요구',
+      '📝 프롬프트: 연속 3개 이상 같은 타입 섹션 금지 — section type 혼합 강제',
+      '📝 Enhancement/Planning 프롬프트에 callout_box, key_metrics 타입 추가',
+      'CLI ↔ Electron 패리티 완료 (section-builders.ts + word-create-prompts.ts 양쪽 동일)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.38 (Word v38 — maxIterations 50)',
+    date: '2026-03-10',
+    changes: [
+      '⚡ maxIterations 30→50: LLM이 더 많은 섹션을 만들 수 있도록 여유 확보',
+      '⚡ minToolCallsBeforeComplete 8→15: 최소 15개 tool call 후에야 완료 가능',
+      'v37에서 word-2 테스트 시 iterations 부족으로 3개 섹션만 완성 → 50으로 증가',
+      'CLI ↔ Electron 패리티 완료 (word-create-agent.ts 양쪽 동일)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.37 (Word v37 — Enhanced Title Page)',
+    date: '2026-03-10',
+    changes: [
+      '🎨 타이틀 페이지 개선: primary color 배경 블록 + 흰색 제목 텍스트 + accent color 바',
+      '🎨 장식선(━━━) 제거 → 컬러 배경 블록으로 교체. 더 모던하고 전문적인 느낌',
+      '🎨 상단 공백 8줄 → 5줄 (컬러 블록이 시각적 무게감 제공)',
+      'CLI ↔ Electron 패리티 완료 (section-builders.ts 양쪽 동일)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.36 (Word v36 — Enterprise Prompts)',
+    date: '2026-03-10',
+    changes: [
+      '📝 프롬프트 전면 강화: ENTERPRISE STANDARD — 각 섹션 4-6문장 본문, 2-4 하위섹션, 5-10행 테이블 요구',
+      '📝 목표 페이지 수: 15-25페이지. 최소 8 콘텐츠 섹션, 3 테이블, 2 리스트 요구',
+      '📝 Enhancement: "$50,000 컨설팅 수준" 품질 지시. 통화, 업계 용어, 시장 데이터 포함 지시',
+      '📝 Planning: PLAN SIZE TARGET 섹션 추가. 밀도 검증 체크리스트 추가',
+      'v35 포함: 텍스트 기반 타이틀 페이지 (Shape 앵커 문제 해결)',
+      'CLI ↔ Electron 패리티 완료 (word-create-prompts.ts 양쪽 동일)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.35 (Word v35 — Text-Based Title Page)',
+    date: '2026-03-10',
+    changes: [
+      '🎨 타이틀 페이지: Shape 기반 → 텍스트 기반으로 전면 재설계',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.34 (Word v34 — LockAnchor Fix)',
+    date: '2026-03-10',
+    changes: [
+      '🐛 모든 커버 Shape/Textbox에 LockAnchor = -1 추가 — 앵커 고정 시도. 결과: 실패 (앵커 여전히 마지막 페이지)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.32 (Word v32 — Design Revolution)',
+    date: '2026-03-10',
+    changes: [
+      '🎨 wordWrite()에 bgColor, leftBorderColor, leftBorderWidth 옵션 추가 — 문단 배경색/왼쪽 테두리 지원',
+      '🎨 wordBuildCoverDesign() 신규 메서드 — Shape/Textbox 기반 전문적 표지 페이지 생성 (컬러 배너 + 강조 스트립 + 타이틀/서브타이틀 텍스트박스 + 하단 장식바)',
+      '🎨 section-builders.ts: 타이틀 페이지 전면 재설계 — 인라인 텍스트 → wordBuildCoverDesign() 호출로 교체',
+      '🎨 section-builders.ts: 모든 Heading 1 ━━━ 장식선 제거 → bgColor + leftBorderColor 스타일로 교체 (모던 좌측 강조 + 배경색)',
+      '🎨 TOC 제목도 동일한 leftBorder + bgColor 스타일 적용',
+      'CLI ↔ Electron 패리티 완료 (word-client.ts + section-builders.ts 양쪽 동일)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.30 (Word v30)',
+    date: '2026-03-09',
+    changes: [
+      '🔧 wordWrite()에 styleName 옵션 추가 — wdStyle 상수(-1~-6)로 로케일 독립적 스타일 적용',
+      '🔧 wordSetStyle()도 동일한 wdStyle 상수 방식으로 업데이트',
+      '🔧 wordSave()에 TOC 자동 업데이트 추가 — TablesOfContents.Update() + Fields.Update()',
+      '🔧 section-builders.ts: 별도 wordSetStyle() 호출 제거 → wordWrite(styleName) 통합',
+      '⚡ maxIterations 20→30, planningMaxTokens 1500→2000, enhancementMaxTokens 600→800, minToolCallsBeforeComplete 5→8',
+      '📝 프롬프트 전면 재설계: 영어 지원, 6-10 콘텐츠 섹션 요구, 섹션 다양성 강조, COMPLETE ALL PLANNED SECTIONS 규칙',
+      '🌐 영어 시나리오 3개 추가 (word-8: Product Launch, word-9: Research Paper, word-10: Annual Report)',
+      '🔧 Electron wordWrite()에 누락된 옵션 추가 (color, alignment, spacing, styleName)',
+      'CLI ↔ Electron 패리티 완료 (word-client, section-builders, agent, prompts 전부)',
+    ]
+  },
+  {
+    version: 'Electron 패리티 검증',
+    date: '2026-03-09',
+    changes: [
+      '✅ PPT Create Agent CLI ↔ Electron 코드 100% 동일 검증 완료',
+      '✅ 핵심 메서드 5개 동일 확인: renderHtmlToImage, powerpointSetBackground, powerpointAddSlide, powerpointCreate, powerpointSave',
+      '✅ 프롬프트 파일(powerpoint-create-prompts.ts) 동일 확인',
+      '✅ 에이전트 파일(powerpoint-create-agent.ts) 기능적 동일 확인 (import 경로 차이만 존재)',
+      '✅ 전 10개 PPT 시나리오 electronScore = cliScore 으로 일괄 기록',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.27 (v28)',
+    date: '2026-03-09',
+    changes: [
+      '🔧 목차(TOC) 코드 생성 제거 → LLM HTML 생성으로 전환 (ppt-8 목차 1항목→5항목 완전 해결)',
+      '🛡️ validateSlideHtml 오버플로 제한 강화: 1800→1500자 (하단 짤림 방지)',
+      '🛡️ validateSlideHtml 최소 폰트 18→20px (작은 텍스트 방지, 12-13px 페이지번호 허용)',
+      'CLI ↔ Electron 패리티 완료 (agent + prompts 양쪽 동일 수정)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.26 (v27)',
+    date: '2026-03-09',
+    changes: [
+      '🐛 powerpointCreate()에서 기존 프레젠테이션 자동 닫기 추가 (빈 슬라이드 버그 수정)',
+      '🛡️ assemblePresentation()에서 초기 슬라이드 수 검증 후 필요한 만큼만 추가',
+      'CLI ↔ Electron 패리티 완료 (powerpoint-client.ts + powerpoint-create-agent.ts)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.24',
+    date: '2026-03-09',
+    changes: [
+      '🐛 injectTitleContrastFix 함수 제거 (JS코드 화면 노출 버그 수정)',
+      '🛡️ validateSlideHtml에 script 태그/transform:scale 검증 추가',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.22',
+    date: '2026-03-09',
+    changes: [
+      '⚡ progress_bars 적응형 spacing: 5+바일 때 gap 44→28px, bar height 56→44px, radius 28→22px (하단 잘림 방지)',
+      '⚡ timeline 폰트 크기 증가: title 38→40px, desc 30→32px, kpi 28→30px, date 24→26px, pad/gap 확대',
+      'CLI ↔ Electron 패리티 완료 (progress_bars + timeline 동일 수정)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.21',
+    date: '2026-03-09',
+    changes: [
+      '🎨 Fallback 슬라이드 전면 재디자인: 단순 불릿→번호 카드그리드 (2열 또는 1열, 반올림 숫자 배지, box-shadow)',
+      '🎨 Cards ul 세로 중앙 정렬: .card ul에 display:flex;flex-direction:column;justify-content:center 추가 (카드 내 불릿 세로 중앙으로 여백 분산)',
+      '🎨 Donut chart 확대: donut 540→600px, hole 260→290px, center text 32→34px, summary를 legend 컬럼 내부로 이동 (grid-column:1/3 제거)',
+      '🎨 Two_col_split 패딩/폰트 증가: kv-item padding 22→28px, font 28→30px, li padding 16→20px, gap 10→12px',
+      'CLI ↔ Electron 패리티 완료 (4개 수정 모두 동일 적용)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.20',
+    date: '2026-03-09',
+    changes: [
+      '🛡️ 최소 콘텐츠 검증: parseContentFillJson에서 전체 텍스트 50자 미만이면 reject → fallback 슬라이드로 전환 (content filter 에러로 빈 timeline 렌더링 방지)',
+      'CLI ↔ Electron 패리티 완료 (parseContentFillJson 동일 수정)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.19',
+    date: '2026-03-09',
+    changes: [
+      '⚡ progress_bars 존재감 강화: bar height 40→56px, gap 36→44px, padding 20→40px, font 30→32px, border-radius 20→28px',
+      '⚡ donut_chart 크기 확대: donut 500→540px, hole 240→260px, center text 30→32px, gap 40→48px, padding 추가',
+      '🐛 big_numbers 하단 여백 수정: align-items:stretch → align-items:center (카드가 콘텐츠 높이에 맞춤)',
+      '🐛 table 텍스트 잘림 수정: td white-space:nowrap → word-break:break-word, 셀 텍스트 제한 35→50자',
+      'CLI ↔ Electron 패리티 완료 (4개 레이아웃 모두 동일 수정)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.18',
+    date: '2026-03-09',
+    changes: [
+      '🐛 Cards 1×3 여백 수정: align-content:center → grid-template-rows:1fr (카드가 전체 높이를 채우도록), min-height:420px 제거',
+      'CLI ↔ Electron 패리티 완료 (powerpoint-create-prompts.ts buildCardsContent 동일 수정)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.17',
+    date: '2026-03-09',
+    changes: [
+      '🛡️ Closing slide guarantee: assembly 완료 후 plan에 closing이 있는데 builtSlides에 없으면 강제 생성 (Step 5.5)',
+      'CLI ↔ Electron 패리티 완료 (assemblePresentation call site + Step 5.5 closing guarantee 동일 적용)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.16',
+    date: '2026-03-09',
+    changes: [
+      '🐛 빈 슬라이드 버그 수정: 스크린샷 실패 시 fallback HTML로 재렌더링 시도 — 더 이상 빈 슬라이드가 PPT에 남지 않음',
+      '🐛 Closing 슬라이드 삭제 버그 수정: cleanup이 끝에서 무조건 삭제하던 로직 → 특정 실패 슬라이드만 번호 역순으로 삭제',
+      'CLI ↔ Electron 패리티 완료 (assemblePresentation Step 4/5 동일 수정)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.15',
+    date: '2026-03-09',
+    changes: [
+      '🐛 two_col_split "string" 버그 수정: parseContentFillJson에 "string" 리터럴 거부 로직 추가 + leftItems/rightBullets 배열 존재 검증 강화',
+      '🐛 process_flow/timeline 빈공간 근본 수정: .step-detail과 .ms-kpi에서 margin-top:auto 완전 제거 — justify-content:center만으로 수직 정렬',
+      '⚡ 파이프라인 아키텍처: 빈 슬라이드 미리 생성 → Edge 스크린샷 4개 병렬 배치 → 순차 채우기 (기존 순차 방식 대비 ~2배 속도 향상)',
+      '🧹 모든 JSON 스키마에서 시나리오 특화 예시(한국어, 특정 숫자) 제거 — 구조 설명만 남겨 LLM 창의성 확보',
+      'CLI ↔ Electron 패리티 완료 (prompts.ts 4개 수정 + agent.ts 파이프라인 아키텍처 동일 적용)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.14',
+    date: '2026-03-09',
+    changes: [
+      '🐛 Process flow 빈공간 수정: .step에 justify-content:center 추가, .step-desc에서 flex:1 제거 — 콘텐츠 수직 중앙 정렬',
+      '🐛 Big numbers 빈공간 수정: .metric-trend에서 margin-top:auto 제거 — trend가 콘텐츠와 함께 중앙 정렬',
+      '🐛 Timeline 빈공간 수정: .milestone에 justify-content:center 추가, .ms-desc에서 flex:1 제거',
+      '⚡ Progress bars 개선: justify-content:space-evenly→center, gap:0→36px, 폰트 28→30px로 증가',
+      'CLI ↔ Electron 패리티 완료 (powerpoint-create-prompts.ts 4개 레이아웃 동일 수정)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.13',
+    date: '2026-03-09',
+    changes: [
+      '🐛 Cards 1×3 높이 수정: grid-template-rows:1fr→align-content:center, 카드에 min-height:420px + 큰 padding/font 적용 (하단 60% 빈 공간 해소)',
+      '🐛 Process flow 텍스트 과밀 수정: 설명 길이 제한 (4칸 80자, 3칸 120자)로 가독성 향상',
+      '⚡ Rebalance 개선: team/case/success/partner 키워드 슬라이드는 cards 유지, 대안 순서 재정렬 (progress_bars/hero_stat 우선)',
+      'CLI ↔ Electron 패리티 완료',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.12',
+    date: '2026-03-09',
+    changes: [
+      '🏗️ rebalanceLayouts() 함수 추가: Planning 결과에서 특정 레이아웃이 2개 초과 시 자동 재분배 (cards→process_flow/timeline/progress_bars/hero_stat/donut_chart)',
+      '⚡ Enhancement 프롬프트 LAYOUT VARIETY 규칙 대폭 강화: "HIGHEST PRIORITY", 최소 6종 사용 의무, 좋은/나쁜 예시 추가',
+      'CLI ↔ Electron 패리티 완료',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.11',
+    date: '2026-03-09',
+    changes: [
+      '🐛 Cards 1×3 regression 수정: align-content:center → grid-template-rows:1fr + justify-content:center (cards가 auto-height로 축소되는 버그)',
+      '🐛 buildFallbackSlideHtml() 텍스트 추출 3단계 전략: (1) numbered/bullet 구분자, (2) comma/semicolon, (3) 문장 경계 — 1개만 추출되던 버그 해소',
+      'CLI ↔ Electron 패리티 완료',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.10',
+    date: '2026-03-09',
+    changes: [
+      '⚡ Table 레이아웃 대폭 개선: table-layout:fixed, text-overflow:ellipsis, 셀 텍스트 35자 제한, 헤더 25자 제한, 수직 중앙 정렬',
+      '⚡ Big numbers 디자인 강화: font-size 100px, border-top 4px accent, 더 강한 box-shadow',
+      '🐛 Cards align-content:center 적용 (v11에서 revert 필요 발견)',
+      '🔍 JSON fill 실패 시 디버그 로깅 추가 (attempt 1 & 2 상세 출력)',
+      'CLI ↔ Electron 패리티 완료',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.9',
+    date: '2026-03-09',
+    changes: [
+      '🏗️ Code-template 10종 레이아웃 빌더 완성: cards, bar_chart, donut_chart, table, process_flow, big_numbers, timeline, progress_bars, hero_stat, two_col_split',
+      '🏗️ 4-phase pipeline 확립: Design JSON → Parallel HTML Gen → Validation & Regen → Sequential Assembly',
+      '⚡ Strategy 1 (direct LLM HTML) 완전 제거 — 모든 content 슬라이드는 JSON-fill code-template만 사용',
+      '⚡ injectEdgeSizing (2040×1200→1920×1080) + injectTitleContrastFix CSS 주입',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.8',
+    date: '2026-03-09',
+    changes: [
+      '🏗️ Hybrid strategy: Strategy 1 (LLM HTML) + Strategy 2 (code-template JSON fill) 병행',
+      '⚡ Code-template 빌더 초기 구현: cards, bar_chart, donut_chart, process_flow',
+      '🐛 Edge headless 스크린샷 크기 보정 (html:2040, body:1920 sizing fix)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.7',
+    date: '2026-03-09',
+    changes: [
+      '⚡ Planning prompt 구조 강화: 슬라이드별 layout type 지정 (cards/bar_chart/table 등)',
+      '⚡ Enhancement prompt 개선: 디자인 시스템 6색 팔레트 + 무드 분류',
+      '🐛 HTML 추출 로직 강화: markdown fence 제거, DOCTYPE~</html> regex',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.6',
+    date: '2026-03-09',
+    changes: [
+      '⚡ Slide-per-LLM-call HTML 생성 — 각 슬라이드마다 독립 LLM 호출로 디자인 자유도 확보',
+      '⚡ Edge headless screenshot → PPT background image 파이프라인 구현',
+      '🐛 PowerPointClient.renderHtmlToImage() 추가 (Edge --headless=new --screenshot)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.5',
+    date: '2026-03-09',
+    changes: [
+      '🏗️ HTML 렌더링 파이프라인 전면 도입: COM API 개별 도형 → HTML/CSS → Edge screenshot → PPT 배경 이미지',
+      '⚡ 디자인 시스템 기반 프롬프트 재설계: 색상 팔레트, 폰트, 무드 → LLM이 일관된 HTML 생성',
+      '⚡ renderHtmlToImage() 메서드 추가 (powerpoint-client.ts)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.4',
+    date: '2026-03-09',
+    changes: [
+      '🐛 CRITICAL: 회사명 추출 regex가 마크다운 볼드 "**" 를 캡처하는 버그 수정 — instruction에서 **를 strip 후 매칭, [:：] 옵셔널로 변경',
+      '🐛 CRITICAL: generateAllHtml()에서 null 결과 시 슬라이드 누락 → buildFallbackSlideHtml() emergency fallback 추가 (14장→10장 누락 방지)',
+      '새 함수 buildFallbackSlideHtml(): content_direction에서 bullet 추출 → 깔끔한 디자인 시스템 기반 슬라이드 생성',
+      'CLI ↔ Electron 패리티 완료 (3개 수정 모두 양쪽 동일 적용)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.3',
+    date: '2026-03-09',
+    changes: [
+      '⚡ MAX_CONCURRENT 3→5로 증가 — 병렬 HTML 생성 속도 향상',
+      '⚡ validateAndRegenerate()를 순차→병렬 배치 처리로 개선',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.2',
+    date: '2026-03-08',
+    changes: [
+      '🐛 CRITICAL: validateAndRegenerate()에서 슬라이드 삭제 금지 — regen 실패 시 원본 유지 (13→7장 누락 버그 수정)',
+      '🐛 hasPlaceholderText() 헬퍼 추가 — JSON 스키마 예시 텍스트 감지 ("Card title (2-5 words)", "Display value" 등)',
+      '🐛 validateSlideHtml()에 플레이스홀더 감지 추가 (check 3b) — 11개 패턴 regex 검사',
+      '⚡ checkLayoutCompliance() 완화: bar_chart/progress_bars 최소 바 3→2, timeline milestone 감지 유연화',
+      'CLI ↔ Electron 패리티 완료 (4파일 모두 동일 수정)',
+    ]
+  },
+  {
+    version: 'v5.0.3-dev.1',
+    date: '2026-03-08',
+    changes: [
+      '🔄 아키텍처 전면 재설계: Layout Set/Skeleton/Fill 5-phase → Design+Parallel HTML 4-phase',
+      'Enhancement+Planning LLM 2회 호출 → 단일 Design LLM 호출로 병합 (PPT_DESIGN_PROMPT)',
+      '병렬 HTML 생성: content slides를 MAX_CONCURRENT=3 배치로 동시 생성 (Promise.all)',
+      'Dual-strategy: Direct LLM HTML (primary) → JSON-fill + code-template (fallback)',
+      'Regex 기반 validateSlideHtml(): HTML구조/레이아웃준수/금지패턴/콘텐츠밀도/오버플로/폰트크기 6종 검증 (LLM 비용 0)',
+      'PowerPoint 병렬 오픈: Design phase와 동시에 powerpoint_create 실행 (사용자 UX)',
+      'Title/Closing/Overview: 코드 생성 (LLM 불필요) — 즉시 생성',
+      'buildDirectHtmlPrompt(): 슬라이드별 디자인시스템+레이아웃CSS+보일러플레이트CSS 주입',
+      '10개 코드 템플릿 유지 (cards, bar_chart, donut_chart, table, process_flow, big_numbers, timeline, progress_bars, hero_stat, two_col_split)',
+      'CLI ↔ Electron 패리티 완료 (4파일: prompts + agent × CLI/Electron)',
+    ]
+  },
+  {
+    version: 'v5.0.2-dev.161',
+    date: '2026-03-06',
+    changes: [
+      'table: JSON 스키마 예시 "Column 1,2,3,4" → "Company Name, Market Share, Key Strength, Accuracy". 의미있는 헤더 필수 규칙 추가',
+      'table: 폰트 크기 26→28px, 패딩 20px→22px. 행 5개/열 4개 제한 (코드 레벨 slice)',
+      'process_flow: MAX 4단계 제한 (프롬프트 + 코드). slice(0,5)→slice(0,4)',
+      'timeline: MAX 3 마일스톤 제한 (프롬프트 + 코드). slice(0,4)→slice(0,3). 폰트 38/30/28px 고정',
+      'two_col_split: 좌우 각 4항목 제한 (6→4). 프롬프트에 30자 이내 규칙 추가',
+      'extractLayoutHint: Electron에 card|grid, two.col, roadmap 패턴 누락 수정 (CLI 패리티)',
+      'CLI ↔ Electron 패리티 완료',
+    ]
+  },
+  {
+    version: 'v5.0.2-dev.160',
+    date: '2026-03-06',
+    changes: [
+      '3-col cards: grid-template-rows:auto;align-content:center → grid-template-rows:1fr (전체 높이 채움, 하단 빈 공간 제거)',
+      'timeline: 아이콘(circle number) 제거 → 날짜를 pill badge로 변경. 세로 공간 확보',
+      'timeline: 패딩 적응형 (n<=3: 40px 32px, n=4: 36px 24px)',
+      'CLI ↔ Electron 패리티 완료',
+    ]
+  },
+  {
+    version: 'v5.0.2-dev.159',
+    date: '2026-03-06',
+    changes: [
+      'closing: 태그라인 파라미터 추가, content_direction에서 추출하여 표시. 상하 accent bar. 폰트 크기 증가 (96→104px thank-you, 36→44px company)',
+      'timeline: 적응형 폰트 크기 (n<=3: 36/30px, n=4: 34/28px). 아이콘 48px로 축소',
+      'process_flow: 적응형 폰트 크기 (n<=3: 34/28px, n>=4: 32/27px). 원 번호 52px로 축소',
+      'two_col_split: align-items:center;align-content:center → align-items:stretch. col justify-content:center → space-evenly',
+      'big_numbers: metric-value 80→88px, metric-unit 32→34px, metric-label 28→30px, metric-desc 24→26px, metric-trend 26→28px, 카드 gap 16→20px',
+      'CLI ↔ Electron 패리티 완료',
+    ]
+  },
+  {
+    version: 'v5.0.2-dev.158',
+    date: '2026-03-06',
+    changes: [
+      'injectEdgeSizing() 도입 — 코드 템플릿용 경량 Edge 사이징 CSS (html/body 크기만 설정, 레이아웃 오버라이드 없음)',
+      'isCodeTemplate 플래그 — 코드 템플릿은 injectEdgeSizing(), LLM 폴백은 injectViewportCss() 사용',
+      'cards 2×2: 패딩 28px 24px, gap 10px, h2 32px, li 26px, liMargin 8px, card-stat 24px/12px. maxBullets 4→3',
+      'process_flow: align-items:stretch 복원, step-desc flex:1 복원, step-detail margin-top:auto 복원',
+      'timeline: 동일 복원',
+      'CLI ↔ Electron 패리티 완료',
+    ]
+  },
+  {
+    version: 'v5.0.2-dev.157',
+    date: '2026-03-05',
+    changes: [
+      'process_flow/timeline: align-items:center 시도 — viewport CSS 오버라이드로 역효과 발생',
+      'cards 2×2: align-content:center 추가 (3카드 이하)',
+      '회귀 발생: v156(85.0) → v157(82.7)',
+    ]
+  },
+  {
+    version: 'v5.0.2-dev.156',
+    date: '2026-03-05',
+    changes: [
+      'cards 2×2: stat 하단 잘림 수정 — 패딩/gap/폰트 축소로 높이 확보',
+      'buildContentFillJsonPrompt: 한자(漢字) 사용 금지 규칙 추가',
+      '전반적 채움률 향상',
+    ]
+  },
+  {
+    version: 'v5.0.2-dev.155',
+    date: '2026-03-05',
+    changes: [
+      'Code Template System 도입: LLM은 JSON 데이터만 생성, 코드가 HTML/CSS 생성',
+      '10개 레이아웃 빌더: cards, bar_chart, donut_chart, table, process_flow, big_numbers, timeline, progress_bars, hero_stat, two_col_split',
+      'wrapSlide(): 공통 래퍼 (title bar, content area, page number)',
+      'buildContentFillJsonPrompt(): 레이아웃별 JSON 스키마 프롬프트',
+      'parseContentFillJson(): JSON 파싱 + 유효성 검증',
+      'LLM 폴백: JSON 파싱 실패 시 기존 HTML 생성으로 폴백',
+    ]
+  },
+  {
+    version: 'v5.0.2-dev.145',
+    date: '2026-03-06',
+    changes: [
+      'PPT_STRUCTURED_PLANNING_PROMPT: content_direction 최소 밀도 "4-8문장"→"6-10문장" 강화',
+      'buildFillPrompt: layoutType 파라미터 추가, 레이아웃별 콘텐츠 밀도 규칙(layoutFillRules) 10종 추가',
+      'buildFillPrompt: 스타일 로테이션 5종 추가 (Clean white, Tinted+border, Gradient top, Gradient BG, Accent bar)',
+      'buildAllSkeletonsPrompt: MINIMUM CONTENT DENSITY PER SKELETON 규칙 추가 (카드 6+ 플레이스홀더, 타임라인 5+ 등)',
+      'Agent: getUnderfillFixByLayout() 헬퍼 — 레이아웃별 underfill 수정 가이드 10종',
+      'Agent: underfill regen 프롬프트를 레이아웃 인식으로 변경',
+      'CLI ↔ Electron 패리티 완료',
+    ]
+  },
+  {
+    version: 'v5.0.2-dev.144',
+    date: '2026-03-06',
+    changes: [
+      'postProcessSlideHtml: overflow:auto→hidden 전역 교체 완전 제거 (v142-143에서 콘텐츠 클리핑 원인)',
+      'postProcessSlideHtml: .content CSS에서 overflow:hidden 제거 → 원래 v140 CSS 복원',
+      'KEEP: MAX_REGEN_ATTEMPTS=2, OVERFLOW_THRESHOLD=1080 (v142에서 효과 확인)',
+      'KEEP: buildFillPrompt v140 VERTICAL FILL + compact padding 지시',
+      '목표: v140(76점) + MAX_REGEN=2 + THRESHOLD=1080 = 78-80점 예상',
+      'CLI ↔ Electron 패리티 완료',
+    ]
+  },
+  {
+    version: 'v5.0.2-dev.143',
+    date: '2026-03-06',
+    changes: [
+      'buildFillPrompt: HEIGHT BUDGET 프롬프트 제거 → v140의 VERTICAL FILL 복원 ("3-5 bullets, fill 85-95%")',
+      'buildSlideHtmlPrompt: CONTENT RULES HEIGHT BUDGET 제거 → "Fill 85-95%, 3-5 detailed bullets" 복원',
+      'compact padding 지시 추가: "24-32px inside cards, 12-16px between items. Dense content > wide padding"',
+      'KEEP: MAX_REGEN_ATTEMPTS=2, OVERFLOW_THRESHOLD=1080 (v142에서 효과 확인)',
+      'KEEP: postProcessSlideHtml overflow:auto→hidden 교체 (v142에서 추가)',
+      '전략: v140의 fill-first 콘텐츠 생성 + v142의 overflow 제어를 결합한 최적 밸런스',
+      'CLI ↔ Electron 패리티 완료',
+    ]
+  },
+  {
+    version: 'v5.0.2-dev.142',
+    date: '2026-03-06',
+    changes: [
+      'MAX_REGEN_ATTEMPTS 5→2 — overflow regen 횟수 대폭 축소 (약간의 overflow가 심한 underfill보다 나음)',
+      'OVERFLOW_THRESHOLD 1050→1080 — 실제 뷰포트 크기와 일치시킴',
+      'buildFillPrompt: VERTICAL FILL → HEIGHT BUDGET로 변경 — "3-5 bullets 추가"→"2-3 concise bullets, 800-950px 타겟"',
+      'buildSlideHtmlPrompt: CONTENT RULES에 "960px usable area, 800-950px target" 높이 제약 추가',
+      'postProcessSlideHtml: overflow:auto → overflow:hidden 전역 교체 (높이 측정 정확도 개선)',
+      'overflow regen 프롬프트 간결화 — 핵심만: "2-3 bullets 제거, compact padding, 850-960px 타겟"',
+      'CLI ↔ Electron 패리티 완료 (4파일 모두 동일 수정)',
+    ]
+  },
+  {
+    version: 'v5.0.2-dev.141',
+    date: '2026-03-06',
+    changes: [
+      'OVERFLOW_THRESHOLD 1000→1050 완화 — 약간의 overflow 허용으로 하단 잘림 최소화',
+      'overflow regen 프롬프트 전면 재작성 — "폰트 축소(20-22px)" 방식 폐기 → "항목 제거 + 폰트 유지(26px min)" 방식',
+      'overflow regen: 카드 padding 40→28px, gap 24→16px 축소 지시. 4+ 섹션→3개로 감소 지시',
+      'overflow regen 2차 시도 시: 3 섹션 최대, 서브 불릿 전부 제거, padding 20px/gap 12px',
+      'overflow→underfill 사이클 근본 해결: 폰트 축소가 아닌 콘텐츠 제거로 overflow 해소',
+      'CLI ↔ Electron 패리티 완료 (모든 수정사항 양쪽 동일 적용)',
+    ]
+  },
+  {
+    version: 'v5.0.2-dev.140',
+    date: '2026-03-05',
+    changes: [
+      'Planning 프롬프트: CONTENT DENSITY LIMITS 대폭 완화 — "MAXIMUM 3 items"→"4-6 items", "max 2 sentences"→"4-8 sentences"',
+      'Planning 프롬프트: content_direction 예시를 훨씬 풍부하게 교체 (사업부별 매출, SLA, 고객수 등 구체적 데이터 포함)',
+      'Planning 프롬프트: 테이블 "4 rows"→"5-8 rows", 타임라인 "3 milestones"→"4-5 milestones"',
+      'buildFillPrompt: VERTICAL FILL 섹션 추가 — 85-95% 채우기 지시, 카드당 3-5 bullet, 상세 데이터 추가',
+      'buildSlideHtmlPrompt: table/timeline HARD LIMITS 완화 (4→5-8 rows, 4→4-5 steps)',
+      'Agent: MIN_FILL_HEIGHT 700→850 (79% 타겟), MAX_FILL_ATTEMPTS 1→2 (재시도 2회)',
+      'CLI ↔ Electron 패리티 완료 (모든 수정사항 양쪽 동일 적용)',
+    ]
+  },
+  {
+    version: 'v5.0.2-dev.139',
+    date: '2026-03-05',
+    changes: [
+      'slideLayoutType 버그 수정 — skeleton 사용 시 항상 "cards"로 고정되던 문제. extractLayoutHint()를 항상 호출하도록 변경',
+      'usedSkeleton 플래그 추가 — skeleton 기반 슬라이드는 Layout Compliance Check 스킵 (skeleton이 구조 보장)',
+      'Review LLM 루프 완전 제거 — 슬라이드당 1-2회 추가 LLM 호출이 품질 개선 없이 시간만 소모하던 문제 해결',
+      'MIN_FILL_HEIGHT 600→700 상향 — underfill 감지 기준 강화',
+      'overflow regen 프롬프트 수정 — "18px body" → "22px body" (너무 작은 폰트로 재생성되는 문제 방지)',
+      'buildReviewPrompt import 제거 (dead import 정리)',
+      'CLI ↔ Electron 패리티 완료 (모든 수정사항 양쪽 동일 적용)',
+    ]
+  },
+  {
+    version: 'v5.0.2-dev.138',
+    date: '2026-03-05',
+    changes: [
+      'parseLayoutSet: CSS regex에서 backtick 리터럴(` ` ` `)이 2개 필수로 해석되는 버그 수정 → 단순 regex로 교체',
+      'parseLayoutSet: 이름 regex [^\\n-] → [^\\n] 변경 (dash 포함 이름 bar-chart, donut-chart 등 매칭 가능)',
+      'parseSkeletons: 중첩 div 처리를 위해 greedy 매칭 + fallback 추가',
+      'buildFillPrompt: 제목 메타데이터 누출 수정 — "Slide X of Y"가 제목에 표시되던 문제',
+      'postProcessSlideHtml: fill rate CSS 주입 강화 (flex:1 1 auto, display:flex, font-size min 26px)',
+      'CLI ↔ Electron 패리티 완료 (모든 수정사항 양쪽 동일 적용)',
+    ]
+  },
+  {
+    version: 'v5.0.2-dev.136',
+    date: '2026-03-05',
+    changes: [
+      'HTML Rendering Pipeline 초기 구현 (Enhancement → Planning → Layout Set → Skeleton → Fill)',
+      'Phase 3-5 함수 추가: buildLayoutSetPrompt, parseLayoutSet, buildAllSkeletonsPrompt, parseSkeletons, buildFillPrompt',
+      'postProcessSlideHtml: 기본 fill CSS 주입',
+      'Layout Set/Skeleton LLM 호출에 maxRetries: 2 추가 (503 무한 재시도 방지)',
+      'Layout Set 프롬프트 50% 축소 (8-12개 → 8개, max_tokens 10000→6000)',
+    ]
+  },
+  {
+    version: 'v5.0.2-dev.135',
+    date: '2026-03-04',
+    changes: [
+      '4-Phase Pipeline 설계 완료 (Enhancement → Planning → Layout Set → Per-slide)',
+      'Electron Phase 3-5 임포트 및 코드 블록 추가',
+      'buildLayoutSetPrompt 축소 (토큰 절약)',
+    ]
+  },
+];
+
+// Render changelog in each scenario page (appended at bottom)
+const origRenderPage = renderPage;
+renderPage = function() {
+  origRenderPage();
+  const area = document.getElementById('contentArea');
+  if (filteredScenarios.length === 0) return;
+
+  let html = '<div style="max-width:1000px; margin:40px auto 0;">';
+  html += '<h3 style="font-size:1.1rem; margin-bottom:12px; padding-top:20px; border-top:1px solid var(--border);">코드 변경 이력 (CHANGELOG)</h3>';
+  changelog.forEach(entry => {
+    html += `<div class="version-entry">
+      <div class="ver">${entry.version} — ${entry.date}</div>
+      <ul style="margin:8px 0 0 1.2rem;">`;
+    entry.changes.forEach(c => {
+      html += `<li style="font-size:0.8rem; color:var(--muted); margin-bottom:2px;">${c}</li>`;
+    });
+    html += '</ul></div>';
+  });
+  html += '</div>';
+
+  area.innerHTML += html;
+};
+
+// Initialize
+filterTool('all');
+</script>
+</body>
+</html>

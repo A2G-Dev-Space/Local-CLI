@@ -236,6 +236,14 @@ export async function runAgentCore(
 
   // Setup callbacks
   setTodoWriteCallback(async (todos: TodoItem[]) => {
+    // Cap TODOs at 3 to prevent executor from creating excessive TODOs
+    const MAX_WRITE_TODOS = 3;
+    if (todos.length > MAX_WRITE_TODOS) {
+      todos = todos.slice(0, MAX_WRITE_TODOS);
+    }
+
+    const oldStatusMap = new Map(agentState.currentTodos.map(t => [t.id, t.status]));
+
     agentState.currentTodos = todos;
     if (callbacks.onTodoUpdate) {
       callbacks.onTodoUpdate(todos);
@@ -443,7 +451,7 @@ export async function runAgentCore(
   const toolLoopMessages: Message[] = [];
 
   const hasVision = toolRegistry.isToolGroupEnabled('vision');
-  const criticalReminders = getCriticalReminders(hasVision);
+  const criticalReminders = getCriticalReminders(hasVision, workingDirectory);
   const rebuildMessages = (loopMessages: Message[]): Message[] => {
     const allMessages = [...baseHistory, { role: 'user' as const, content: userMessage }, ...loopMessages];
 

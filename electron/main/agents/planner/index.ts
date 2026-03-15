@@ -161,7 +161,7 @@ export class PlanningLLM {
     }
 
     const MAX_RETRIES = 5;
-    const MAX_ASK_ITERATIONS = 5;
+    const MAX_ASK_ITERATIONS = 2;
     let askIterations = 0;
     let lastError: Error | null = null;
 
@@ -338,6 +338,13 @@ Choose one of your 3 tools now.`,
                 continue; // Retry
               }
 
+              // Cap TODOs at 2 — fewer TODOs = faster execution, less timeout risk
+              const MAX_TODOS = 2;
+              if (rawTodos.length > MAX_TODOS) {
+                logger.info(`Trimming ${rawTodos.length} TODOs to ${MAX_TODOS}`);
+                rawTodos = rawTodos.slice(0, MAX_TODOS);
+              }
+
               const todos: TodoItem[] = rawTodos.map((todo: any, index: number) => ({
                 id: todo.id || `todo-${Date.now()}-${index}`,
                 title: todo.title || 'Untitled task',
@@ -394,7 +401,13 @@ Choose one of your 3 tools now.`,
               });
               // Directly handle extracted tool call
               if (extracted.name === 'create_todos' && Array.isArray(extracted.arguments?.todos)) {
-                const todos: TodoItem[] = extracted.arguments.todos.map((todo: any, index: number) => ({
+                // Cap TODOs at 2 (same as main path)
+                let extractedTodos = extracted.arguments.todos;
+                if (extractedTodos.length > 2) {
+                  logger.info(`Trimming extracted ${extractedTodos.length} TODOs to 2`);
+                  extractedTodos = extractedTodos.slice(0, 2);
+                }
+                const todos: TodoItem[] = extractedTodos.map((todo: any, index: number) => ({
                   id: todo.id || `todo-${Date.now()}-${index}`,
                   title: todo.title || 'Untitled task',
                   status: (index === 0 ? 'in_progress' : 'pending') as TodoItem['status'],

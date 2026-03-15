@@ -4,6 +4,9 @@
  * -p 모드의 핵심 실행 로직
  * Non-interactive: CLI 인자로 프롬프트 받아 처리 후 결과 출력
  * ask_to_user는 Manager LLM이 자동 답변 (Jarvis 방식)
+ *
+ * -ps 모드: Full observability — 모든 LLM 호출, tool call, tool result,
+ *   에이전트 응답, TODO 진행상황을 stderr에 실시간 출력
  */
 
 import chalk from 'chalk';
@@ -22,6 +25,17 @@ function log(msg: string): void {
   process.stderr.write(msg + '\n');
 }
 
+/** Timestamp prefix for -ps logs */
+function ts(): string {
+  return chalk.gray(`[${new Date().toISOString().slice(11, 23)}]`);
+}
+
+/** Truncate long strings for display (configurable limit) */
+function truncate(s: string, max = 1000): string {
+  if (s.length <= max) return s;
+  return s.slice(0, max) + chalk.gray(` ...(${s.length - max} chars truncated)`);
+}
+
 export class PipeRunner {
   private specific: boolean;
   private llmClient: ReturnType<typeof createLLMClient> | null = null;
@@ -29,6 +43,7 @@ export class PipeRunner {
   private lastResponse: string = '';
   private todos: TodoItem[] = [];
   private prompt: string = '';
+  private toolCallTimers: Map<string, number> = new Map();
 
   constructor(specific: boolean) {
     this.specific = specific;
@@ -41,17 +56,23 @@ export class PipeRunner {
     try {
       // Register SubAgent loggers for -ps mode
       if (this.specific) {
-        setSubAgentToolCallLogger((_appName, toolName, args, _resultText, success, iteration, totalCalls) => {
-          const summary = this.summarizeToolArgs(toolName, args);
+        setSubAgentToolCallLogger((_appName, toolName, args, resultText, success, iteration, totalCalls) => {
+          const summary = this.formatToolArgs(toolName, args);
           const prefix = `    [${iteration}/${totalCalls}]`;
           if (success) {
-            log(chalk.dim(`${prefix} → ${toolName} ${summary}`));
+            log(chalk.dim(`${prefix} ${ts()} → ${chalk.blue(toolName)} ${summary}`));
+            if (resultText) {
+              log(chalk.dim(`${prefix}   ← ${truncate(resultText, 500)}`));
+            }
           } else {
-            log(chalk.red(`${prefix} → ${toolName} ${summary} FAILED`));
+            log(chalk.red(`${prefix} ${ts()} → ${toolName} ${summary} FAILED`));
+            if (resultText) {
+              log(chalk.red(`${prefix}   ← ${truncate(resultText, 500)}`));
+            }
           }
         });
         setSubAgentPhaseLogger((appName, phase, detail) => {
-          log(chalk.yellow(`  [${appName}:${phase}] ${detail}`));
+          log(chalk.yellow(`  ${ts()} [${appName}:${phase}] ${detail}`));
         });
       }
 
@@ -65,10 +86,21 @@ export class PipeRunner {
 
       this.llmClient = createLLMClient();
 
+      if (this.specific) {
+        const endpoint = configManager.getCurrentEndpoint();
+        const model = configManager.getCurrentModel();
+        log(chalk.cyan(`\n${'═'.repeat(80)}`));
+        log(chalk.cyan(`  Pipe Mode (-ps) | Model: ${model?.name || 'unknown'} | Endpoint: ${endpoint?.name || 'unknown'}`));
+        log(chalk.cyan(`  Prompt: ${truncate(prompt, 200)}`));
+        log(chalk.cyan(`${'═'.repeat(80)}\n`));
+      }
+
       // 실행
       const messages: Message[] = [];
       const isInterruptedRef = { current: false };
       const callbacks = this.createCallbacks();
+
+      const startTime = Date.now();
 
       await this.planExecutor.executeAutoMode(
         prompt,
@@ -78,6 +110,15 @@ export class PipeRunner {
         isInterruptedRef,
         callbacks
       );
+
+      if (this.specific) {
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+        const completed = this.todos.filter(t => t.status === 'completed').length;
+        const failed = this.todos.filter(t => t.status === 'failed').length;
+        log(chalk.cyan(`\n${'═'.repeat(80)}`));
+        log(chalk.cyan(`  Done in ${elapsed}s | TODOs: ${completed} completed, ${failed} failed / ${this.todos.length} total`));
+        log(chalk.cyan(`${'═'.repeat(80)}\n`));
+      }
 
       // 최종 결과 출력 (stdout)
       if (this.lastResponse) {
@@ -106,22 +147,16 @@ export class PipeRunner {
           for (const todo of newTodos) {
             const existing = this.todos.find(t => t.id === todo.id);
             if (!existing) {
-              log(chalk.dim(`  #${newTodos.indexOf(todo) + 1} ${todo.title}`));
+              log(chalk.dim(`  ${ts()} #${newTodos.indexOf(todo) + 1} ${todo.title}`));
             } else if (existing.status !== todo.status) {
               if (todo.status === 'in_progress') {
-                log(chalk.cyan(`\n[Executing] #${newTodos.indexOf(todo) + 1} ${todo.title}`));
+                log(chalk.cyan(`\n${ts()} ${chalk.bold(`[Executing] #${newTodos.indexOf(todo) + 1} ${todo.title}`)}`));
               } else if (todo.status === 'completed') {
-                log(chalk.green(`  ✓ ${todo.title}`));
+                log(chalk.green(`  ${ts()} ✓ ${todo.title}`));
               } else if (todo.status === 'failed') {
-                log(chalk.red(`  ✗ ${todo.title}`));
+                log(chalk.red(`  ${ts()} ✗ ${todo.title}`));
               }
             }
-          }
-
-          // 첫 TODO 배치 생성 시 헤더
-          if (this.todos.length === 0 && newTodos.length > 0) {
-            // 위에서 이미 개별 TODO를 출력했으므로, 헤더만 앞에 삽입
-            // (setTodos는 배치로 호출되므로 헤더를 먼저 출력)
           }
         }
 
@@ -131,7 +166,7 @@ export class PipeRunner {
       setCurrentTodoId: () => {},
       setExecutionPhase: (phase) => {
         if (this.specific && phase === 'planning') {
-          log(chalk.yellow('\n[Planning] TODO 생성 중...'));
+          log(chalk.yellow(`\n${ts()} [Planning] TODO 생성 중...`));
         }
       },
       setIsInterrupted: () => {},
@@ -156,27 +191,43 @@ export class PipeRunner {
                 this.lastResponse = args['message'];
               }
 
-              // -ps 모드: tool call 출력
+              // -ps 모드: tool call 상세 출력
               if (this.specific) {
-                const summary = this.summarizeToolArgs(toolCall.function.name, args);
-                log(chalk.dim(`  → ${toolCall.function.name} ${summary}`));
+                const toolName = toolCall.function.name;
+                const formatted = this.formatToolArgs(toolName, args);
+                log(`  ${ts()} ${chalk.blue('→')} ${chalk.bold(toolName)} ${formatted}`);
+                this.toolCallTimers.set(toolCall.id || toolName, Date.now());
               }
             }
           }
 
           // Tool result 출력 (-ps)
           if (this.specific && msg.role === 'tool') {
-            const isSuccess = !msg.content?.startsWith('Error:');
-            if (isSuccess) {
-              log(chalk.dim(`  ← OK`));
+            const content = msg.content || '';
+            const isError = content.startsWith('Error:') || content.startsWith('error:');
+            const toolCallId = (msg as unknown as Record<string, unknown>)['tool_call_id'] as string | undefined;
+            const elapsed = toolCallId && this.toolCallTimers.has(toolCallId)
+              ? `${Date.now() - this.toolCallTimers.get(toolCallId)!}ms`
+              : '';
+            if (toolCallId) this.toolCallTimers.delete(toolCallId);
+
+            const elapsedStr = elapsed ? chalk.gray(` (${elapsed})`) : '';
+
+            if (isError) {
+              log(chalk.red(`  ${ts()} ← ERROR${elapsedStr}: ${truncate(content, 500)}`));
             } else {
-              log(chalk.red(`  ← Error: ${msg.content?.slice(0, 100)}`));
+              // Show meaningful content preview
+              const preview = this.formatToolResult(content);
+              log(chalk.dim(`  ${ts()} ← OK${elapsedStr}${preview ? ': ' + preview : ''}`));
             }
           }
 
-          // 최종 응답 추적
+          // Assistant text 응답 출력 (-ps)
           if (msg.role === 'assistant' && !msg.tool_calls && msg.content) {
             this.lastResponse = msg.content;
+            if (this.specific) {
+              log(chalk.white(`  ${ts()} ${chalk.bold('[Agent Response]')} ${truncate(msg.content, 500)}`));
+            }
           }
         }
 
@@ -226,36 +277,99 @@ Reply in Korean. No explanation, just the answer.`,
         const selected: string = exact ?? partial ?? request.options[0] ?? '';
 
         if (this.specific) {
-          log(chalk.magenta(`  [Auto] Q: ${request.question} → A: ${selected}`));
+          log(chalk.magenta(`  ${ts()} [Auto] Q: ${request.question} → A: ${selected}`));
         }
         return { selectedOption: selected, isOther: false };
       }
 
       if (this.specific) {
-        log(chalk.magenta(`  [Auto] Q: ${request.question} → A: ${answer || 'Yes'}`));
+        log(chalk.magenta(`  ${ts()} [Auto] Q: ${request.question} → A: ${answer || 'Yes'}`));
       }
       return { selectedOption: answer || 'Yes', isOther: true };
     } catch {
       const fallback = request.options[0] || 'Yes';
       if (this.specific) {
-        log(chalk.magenta(`  [Auto] Q: ${request.question} → A: ${fallback} (fallback)`));
+        log(chalk.magenta(`  ${ts()} [Auto] Q: ${request.question} → A: ${fallback} (fallback)`));
       }
       return { selectedOption: fallback, isOther: false };
     }
   }
 
   /**
-   * Tool 인자를 한 줄 요약
+   * Format tool arguments for display — full detail, no truncation on critical info
    */
-  private summarizeToolArgs(toolName: string, args: Record<string, unknown>): string {
-    if (toolName === 'bash' && args['command']) return String(args['command']).slice(0, 80);
-    if (toolName.includes('file') && args['path']) return String(args['path']);
-    if (toolName.includes('search') && args['query']) return String(args['query']).slice(0, 60);
+  private formatToolArgs(toolName: string, args: Record<string, unknown>): string {
+    // Bash: show full command
+    if (toolName === 'bash' && args['command']) {
+      return chalk.yellow(String(args['command']));
+    }
+
+    // File ops: show path + relevant detail
+    if (toolName === 'read_file' && args['path']) {
+      return String(args['path']);
+    }
+    if (toolName === 'create_file' && args['path']) {
+      const content = args['content'] ? String(args['content']) : '';
+      return `${args['path']} (${content.length} chars)`;
+    }
+    if (toolName === 'edit_file' && args['path']) {
+      const old_text = args['old_text'] ? String(args['old_text']).slice(0, 80) : '';
+      return `${args['path']} "${old_text}..."`;
+    }
+    if (toolName === 'list_files' && args['path']) {
+      return String(args['path']);
+    }
+    if (toolName === 'find_files' && args['pattern']) {
+      return `pattern=${args['pattern']}${args['path'] ? ` in ${args['path']}` : ''}`;
+    }
+
+    // Search: show query
+    if (toolName === 'search_content' && args['query']) {
+      return `"${args['query']}"${args['path'] ? ` in ${args['path']}` : ''}`;
+    }
+
+    // final_response: show message preview
+    if (toolName === 'final_response' && args['message']) {
+      return truncate(String(args['message']), 200);
+    }
+
+    // tell_to_user / ask_to_user
+    if (toolName === 'tell_to_user' && args['message']) {
+      return truncate(String(args['message']), 200);
+    }
+    if (toolName === 'ask_to_user' && args['question']) {
+      return `Q: ${truncate(String(args['question']), 150)}`;
+    }
+
+    // create_todos / write_todos
+    if (toolName === 'create_todos' && args['todos']) {
+      const todos = args['todos'] as Array<{ title?: string }>;
+      return `${todos.length} TODOs`;
+    }
+
+    // Generic: show all args as JSON (compact)
     const keys = Object.keys(args);
     if (keys.length === 0) return '';
-    const firstKey = keys[0];
-    if (!firstKey) return '';
-    return String(args[firstKey]).slice(0, 60);
+    try {
+      const compact = JSON.stringify(args);
+      return truncate(compact, 200);
+    } catch {
+      return '';
+    }
+  }
+
+  /**
+   * Format tool result for display — show meaningful preview
+   */
+  private formatToolResult(content: string): string {
+    if (!content) return '';
+    // Multi-line: show first line + line count
+    const lines = content.split('\n');
+    if (lines.length > 3) {
+      const firstLine = lines[0]!.slice(0, 100);
+      return `${firstLine} (${lines.length} lines)`;
+    }
+    return truncate(content.replace(/\n/g, ' '), 200);
   }
 }
 
