@@ -209,10 +209,10 @@ local-cli-git은 직접 LLM API를 호출하므로 클라이언트 측에서 pro
 | Gemini | ❌ | ✅ |
 | DeepSeek | ❌ | ✅ |
 | Qwen | ✅ | ❌ (auto로 대체) |
-| Z.AI (GLM) | ❌ | ❌ (auto로 대체) |
-| Ollama | ❌ | ❌ |
-| LM Studio | ❌ | ❌ |
-| Other | ❌ | ❌ (안전한 기본값) |
+| Z.AI (GLM) | ❌ | ❌ (tool_choice 자체 거부) |
+| Ollama | ✅ | ✅ |
+| LM Studio | ✅ | ✅ |
+| Other | ✅ | ✅ |
 
 ### main/main-dev와의 차이점
 
