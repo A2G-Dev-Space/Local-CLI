@@ -118,7 +118,8 @@ export function getShellConfig(): ShellConfig {
  * Bash dangerous command patterns (WSL/Linux)
  */
 export const BASH_DANGEROUS_PATTERNS: RegExp[] = [
-  /\brm\s+-rf\s+[\/~]/i,           // rm -rf / or ~
+  /\brm\s+-rf\s+\/(?:\s|$|\*)/i,   // rm -rf / or rm -rf /* (root only, allows /tmp/path)
+  /\brm\s+-rf\s+~(?:\/(?:\s|$|\*)|(?:\s|$))/i, // rm -rf ~ or ~/ or ~/* (home only, allows ~/specific-dir)
   /\brm\s+-rf\s+\*/i,              // rm -rf *
   /\bdd\s+if=/i,                   // dd if=
   /\bmkfs\b/i,                     // mkfs

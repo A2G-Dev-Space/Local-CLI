@@ -251,7 +251,7 @@ export class PlanExecutor {
       // 매 LLM 호출마다 [system, user(<CURRENT_TASK> + <CONVERSATION_HISTORY> + <CURRENT_REQUEST>)] 형태로 재구성
       const systemPrompt = buildSystemPrompt();
       const hasVision = toolRegistry.isToolGroupEnabled('vision');
-      const criticalReminders = getCriticalReminders(hasVision);
+      const criticalReminders = getCriticalReminders(hasVision, process.cwd());
       let baseHistory: Message[] = [...historyBeforeExecution, { role: 'assistant' as const, content: planMessage }];
 
       const rebuildMessages = (toolLoopMessages: Message[]): Message[] => {
@@ -473,7 +473,7 @@ export class PlanExecutor {
       // Build rebuildMessages callback for per-iteration message reconstruction
       const systemPrompt = buildSystemPrompt();
       const hasVision = toolRegistry.isToolGroupEnabled('vision');
-      const criticalReminders = getCriticalReminders(hasVision);
+      const criticalReminders = getCriticalReminders(hasVision, process.cwd());
       let baseHistory: Message[] = [...messages]; // messages param = history without current userMessage
 
       const rebuildMessages = (toolLoopMessages: Message[]): Message[] => {
@@ -761,6 +761,13 @@ export class PlanExecutor {
 
     // write_todos callback: 전체 목록 교체
     setTodoWriteCallback(async (newTodos: TodoInput[]) => {
+      // Cap TODOs at 3 to prevent executor from creating excessive TODOs
+      const MAX_WRITE_TODOS = 3;
+      if (newTodos.length > MAX_WRITE_TODOS) {
+        logger.info(`write_todos: Trimming ${newTodos.length} TODOs to ${MAX_WRITE_TODOS}`);
+        newTodos = newTodos.slice(0, MAX_WRITE_TODOS);
+      }
+
       // Find status changes for UI events
       const oldStatusMap = new Map(todosRef.map(t => [t.id, t.status]));
 

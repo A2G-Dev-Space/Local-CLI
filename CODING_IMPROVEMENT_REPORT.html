@@ -1,0 +1,1172 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Coding SubAgent Quality Report</title>
+<style>
+  :root {
+    --bg: #0f1117; --card: #1a1d27; --border: #2a2d3a;
+    --text: #e0e0e6; --muted: #8b8fa3; --accent: #6c5ce7;
+    --green: #00b894; --red: #e17055; --yellow: #fdcb6e; --blue: #74b9ff;
+    --bugfix: #e17055; --feature: #0984e3; --refactor: #6c5ce7;
+    --analysis: #00b894; --debug: #fdcb6e; --review: #e84393; --testing: #00cec9;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Segoe UI',-apple-system,sans-serif; background:var(--bg); color:var(--text); line-height:1.6; overflow:hidden; height:100vh; }
+
+  .topbar {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:12px 24px; background:var(--card); border-bottom:1px solid var(--border);
+    position:fixed; top:0; left:0; right:0; z-index:100; height:56px;
+  }
+  .topbar h1 { font-size:1.1rem; font-weight:700; }
+  .topbar .tabs { display:flex; gap:4px; flex-wrap:wrap; }
+  .topbar .tab {
+    padding:5px 12px; border-radius:8px; cursor:pointer;
+    font-size:0.8rem; font-weight:600; border:1px solid var(--border);
+    background:transparent; color:var(--muted); transition:all 0.2s;
+  }
+  .topbar .tab:hover { background:#ffffff08; }
+  .topbar .tab.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .topbar .page-info { font-size:0.85rem; color:var(--muted); min-width:120px; text-align:right; }
+  .topbar .lang-filter select {
+    background:var(--card); color:var(--text); border:1px solid var(--border);
+    border-radius:8px; padding:5px 10px; font-size:0.8rem; font-weight:600;
+    cursor:pointer; outline:none;
+  }
+  .topbar .lang-filter select:hover { border-color:var(--accent); }
+  .topbar .summary-badges { display:flex; gap:8px; align-items:center; }
+  .topbar .badge { font-size:0.75rem; padding:3px 10px; border-radius:6px; font-weight:700; }
+  .topbar .badge.pass { background:var(--green); color:#fff; }
+  .topbar .badge.fail { background:var(--red); color:#fff; }
+  .topbar .badge.untested { background:var(--border); color:var(--muted); }
+
+  .main { margin-top:56px; height:calc(100vh - 56px); display:flex; }
+
+  .sidebar {
+    width:280px; min-width:280px; background:var(--card); border-right:1px solid var(--border);
+    overflow-y:auto; padding:12px;
+  }
+  .sidebar .cat-label {
+    font-size:0.7rem; font-weight:700; text-transform:uppercase;
+    color:var(--muted); letter-spacing:0.06em; padding:10px 8px 4px;
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  .sidebar .cat-label .cat-avg { font-size:0.7rem; font-weight:600; }
+  .sidebar .scenario-item {
+    display:flex; align-items:center; gap:8px;
+    padding:7px 10px; border-radius:8px; cursor:pointer;
+    font-size:0.82rem; color:var(--text); transition:all 0.15s; margin-bottom:1px;
+  }
+  .sidebar .scenario-item:hover { background:#ffffff08; }
+  .sidebar .scenario-item.active { background:var(--accent); color:#fff; }
+  .sidebar .scenario-item .num {
+    width:22px; height:22px; border-radius:6px; display:flex;
+    align-items:center; justify-content:center; font-size:0.7rem;
+    font-weight:700; flex-shrink:0;
+  }
+  .sidebar .scenario-item .num.untested { background:#ffffff10; color:var(--muted); }
+  .sidebar .scenario-item .num.pass { background:var(--green); color:#fff; }
+  .sidebar .scenario-item .num.fail { background:var(--red); color:#fff; }
+  .sidebar .scenario-item .num.mid { background:var(--yellow); color:#000; }
+  .sidebar .scenario-item .label { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .sidebar .scenario-item .diff {
+    margin-left:auto; font-size:0.65rem; padding:2px 6px;
+    border-radius:4px; font-weight:600; flex-shrink:0;
+  }
+  .sidebar .scenario-item .diff.easy { background:#00b89422; color:var(--green); }
+  .sidebar .scenario-item .diff.medium { background:#fdcb6e22; color:var(--yellow); }
+  .sidebar .scenario-item .diff.hard { background:#e1705522; color:var(--red); }
+
+  .content-area { flex:1; overflow-y:auto; padding:32px 40px; }
+
+  .page-card { max-width:1000px; margin:0 auto; }
+  .page-card .cat-badge {
+    display:inline-block; padding:4px 12px; border-radius:6px;
+    font-size:0.8rem; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:8px;
+  }
+  .page-card .diff-badge {
+    display:inline-block; padding:3px 10px; border-radius:6px;
+    font-size:0.75rem; font-weight:600; margin-left:8px;
+  }
+  .page-card .lang-badge {
+    display:inline-block; padding:3px 8px; border-radius:4px;
+    font-size:0.7rem; font-weight:600; margin-left:4px;
+    background:#ffffff10; color:var(--muted);
+  }
+  .page-card h2 { font-size:1.4rem; font-weight:700; margin-bottom:4px; }
+  .page-card .scenario-desc { color:var(--muted); font-size:0.9rem; margin-bottom:16px; line-height:1.7; }
+  .page-card .command {
+    background:#0d0f14; border:1px solid var(--border); border-radius:8px;
+    padding:12px 16px; font-family:'Fira Code','Consolas',monospace;
+    font-size:0.82rem; color:var(--blue); margin-bottom:20px; overflow-x:auto; white-space:pre-wrap;
+  }
+
+  .criteria-box {
+    background:var(--card); border:1px solid var(--border); border-radius:12px;
+    padding:16px 20px; margin-bottom:20px;
+  }
+  .criteria-box h3 { font-size:0.95rem; margin-bottom:10px; }
+  .criteria-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
+  .criteria-item {
+    background:#0d0f14; border-radius:8px; padding:12px;
+  }
+  .criteria-item .c-label { font-size:0.75rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:4px; }
+  .criteria-item .c-points { font-size:1.3rem; font-weight:700; color:var(--accent); }
+  .criteria-item .c-desc { font-size:0.78rem; color:var(--muted); margin-top:4px; line-height:1.5; }
+
+  .score-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:24px; }
+  .score-box {
+    background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px 20px;
+  }
+  .score-box .label { font-size:0.8rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:8px; }
+  .score-box .value { font-size:2rem; font-weight:700; }
+  .score-box .value.pass { color:var(--green); }
+  .score-box .value.fail { color:var(--red); }
+  .score-box .value.mid { color:var(--yellow); }
+  .score-box .value.untested { color:var(--muted); }
+  .score-box .sub { font-size:0.8rem; color:var(--muted); margin-top:4px; }
+
+  .results-table { width:100%; border-collapse:collapse; margin-bottom:20px; }
+  .results-table th {
+    text-align:left; padding:8px 12px; font-size:0.75rem; font-weight:700;
+    text-transform:uppercase; letter-spacing:0.04em; color:var(--muted);
+    border-bottom:2px solid var(--border);
+  }
+  .results-table td { padding:8px 12px; font-size:0.85rem; border-bottom:1px solid var(--border); }
+
+  .notes { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:20px; margin-bottom:20px; }
+  .notes h3 { font-size:1rem; margin-bottom:8px; }
+  .notes ul { margin-left:1.2rem; }
+  .notes li { margin-bottom:4px; color:var(--muted); font-size:0.85rem; }
+  .notes li strong { color:var(--text); }
+
+  .version-entry { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px 20px; margin-bottom:12px; }
+  .version-entry .ver { font-size:0.85rem; font-weight:700; color:var(--accent); margin-bottom:4px; }
+  .version-entry .changes { font-size:0.8rem; color:var(--muted); margin-top:4px; }
+
+  .setup-box {
+    background:#0d0f14; border:1px solid var(--border); border-radius:8px;
+    padding:16px; margin-bottom:20px; font-family:'Fira Code','Consolas',monospace;
+    font-size:0.8rem; color:var(--text); max-height:300px; overflow-y:auto;
+    white-space:pre-wrap; line-height:1.5;
+  }
+
+  .nav-arrows { position:fixed; bottom:24px; right:24px; display:flex; gap:8px; z-index:100; }
+  .nav-btn {
+    width:44px; height:44px; border-radius:12px; border:1px solid var(--border);
+    background:var(--card); color:var(--text); font-size:1.2rem;
+    cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.15s;
+  }
+  .nav-btn:hover { background:var(--accent); border-color:var(--accent); }
+  .nav-btn:disabled { opacity:0.3; cursor:not-allowed; }
+
+  .kbd-hint {
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+    font-size:0.75rem; color:var(--muted); background:var(--card);
+    padding:4px 12px; border-radius:6px; border:1px solid var(--border);
+  }
+  .kbd { display:inline-block; padding:1px 6px; border-radius:4px; background:#ffffff10; font-family:monospace; font-size:0.7rem; }
+
+  .lang-toggle { display:flex; gap:2px; }
+  .lang-toggle button {
+    padding:4px 10px; border-radius:6px; border:1px solid var(--border);
+    background:transparent; color:var(--muted); font-size:0.75rem; font-weight:700;
+    cursor:pointer; transition:all 0.15s;
+  }
+  .lang-toggle button:hover { background:#ffffff08; }
+  .lang-toggle button.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+
+  .untested-msg { text-align:center; padding:60px 20px; color:var(--muted); }
+  .untested-msg .icon { font-size:3rem; margin-bottom:12px; opacity:0.3; }
+  .untested-msg p { font-size:1rem; }
+
+  .overview-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:16px; margin-bottom:32px; }
+  .overview-card {
+    background:var(--card); border:1px solid var(--border); border-radius:12px;
+    padding:20px; text-align:center;
+  }
+  .overview-card .oc-label { font-size:0.8rem; color:var(--muted); margin-bottom:8px; }
+  .overview-card .oc-value { font-size:2.2rem; font-weight:700; }
+  .overview-card .oc-sub { font-size:0.75rem; color:var(--muted); margin-top:4px; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>Coding Ability Quality Report</h1>
+  <div class="tabs" id="tabsContainer"></div>
+  <div class="lang-filter">
+    <select id="langSelect" onchange="filterLang(this.value)"></select>
+  </div>
+  <div class="lang-toggle">
+    <button id="btnKo" class="active" onclick="setUiLang('ko')">KO</button>
+    <button id="btnEn" onclick="setUiLang('en')">EN</button>
+  </div>
+  <div class="summary-badges" id="summaryBadges"></div>
+  <div class="page-info" id="pageInfo">-</div>
+</div>
+
+<div class="main">
+  <div class="sidebar" id="sidebar"></div>
+  <div class="content-area" id="contentArea"></div>
+</div>
+
+<div class="nav-arrows">
+  <button class="nav-btn" id="prevBtn" onclick="navigate(-1)">&larr;</button>
+  <button class="nav-btn" id="nextBtn" onclick="navigate(1)">&rarr;</button>
+</div>
+<div class="kbd-hint"><span class="kbd">&larr;</span> <span class="kbd">&rarr;</span> 키로 이동</div>
+
+<script>
+// =====================================================================
+// CATEGORY DEFINITIONS
+// =====================================================================
+const categories = {
+  tooluse:  { label:'Tool Usage',     color:'var(--blue)',     count:10 },
+  bugfix:   { label:'Bug Fixing',     color:'var(--bugfix)',   count:25 },
+  feature:  { label:'Feature Impl',   color:'var(--feature)',  count:20 },
+  refactor: { label:'Refactoring',    color:'var(--refactor)', count:15 },
+  analysis: { label:'Code Analysis',  color:'var(--analysis)', count:15 },
+  debug:    { label:'Debugging',      color:'var(--debug)',    count:10 },
+  review:   { label:'Code Review',    color:'var(--review)',   count:10 },
+  testing:  { label:'Testing',        color:'var(--testing)',  count:5  },
+};
+
+// =====================================================================
+// 110 CODING SCENARIOS (100 Coding + 10 Tool Usage)
+// =====================================================================
+const scenarios = [
+  // ==================== TOOL USAGE (10) ====================
+  { id:'tool-1', cat:'tooluse', name:'Bash 로그 파싱', diff:'medium', lang:'Bash',
+    desc:'application.log 파일을 분석하여 ERROR/WARN/INFO 카운트, 에러 빈도 Top 5, 시간대별 에러 분포를 추출.',
+    prompt:'이 디렉토리에 application.log 파일이 있어. bash 도구만 사용해서 로그 분석을 수행해줘.',
+    criteria:{ correctness:'정확한 카운트와 분류', quality:'bash 명령 활용', completeness:'3개 분석 파일 모두 생성' },
+    tests:[{version:'5.0.9-dev.0',date:'2026-03-13',cliScore:94,changes:'정확한 분석. 불필요한 clarification 질문 1회'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:96,changes:'로그 분석 4개 파일 완벽 생성. ERROR/INFO/WARN 집계+Top3 에러+시간대별 빈도 정확'}] },
+  { id:'tool-2', cat:'tooluse', name:'Bash 파일 시스템 분석', diff:'medium', lang:'Bash',
+    desc:'파일 중복 탐지(MD5 해시), 빈 파일 탐색, 총 용량 계산, 확장자별 통계를 수행.',
+    prompt:'이 디렉토리 구조를 분석해줘. 중복 파일, 빈 파일, 총 크기, 확장자별 통계.',
+    criteria:{ correctness:'정확한 해시 기반 중복 탐지', quality:'bash 도구만 사용', completeness:'4개 분석 파일 모두 생성' },
+    tests:[{version:'5.0.9-dev.0',date:'2026-03-13',cliScore:92,changes:'python→python3 에러 복구. analyze_files.py 아티팩트 잔류'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:89,changes:'4개 분석 파일 생성 완료. 중복/빈파일/크기/확장자 집계 정확'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:88,changes:'중복/빈파일/총크기/확장자별개수 올바르게 생성. 확장자 없는 파일(data,cache) 누락'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:83,changes:'자기 출력파일을 total_size에 포함(1197 vs 288B). ext_count에서 무확장자 파일 누락'},{version:'5.0.9-dev.4',date:'2026-03-13',cliScore:78,changes:'total_size 3995B(정답 288). 에이전트 py 스크립트가 디렉토리 오염. ext_count에 .py:1 혼입'},{version:'5.0.9-dev.4',date:'2026-03-14',cliScore:78,changes:'analyze_files.py를 작업 디렉토리에 생성하여 total_size 오염(4306 vs 288). ext_count에 .py:1 혼입'},{version:'5.0.9-dev.5',date:'2026-03-14',cliScore:85,changes:'total_size=288 정확! 오염 해결. 단 .gitkeep/.placeholder 확장자 처리 불일치, 빈파일 중복그룹 포함'},{version:'5.0.9-dev.5',date:'2026-03-14',cliScore:97,changes:'중복3그룹/빈파일3개/총크기288B/확장자16개 완벽. 자기오염 없음. (no extension):4 정확 분류'}] },
+  { id:'tool-3', cat:'tooluse', name:'Git merge + conflict resolution', diff:'hard', lang:'Git',
+    desc:'main과 feature 브랜치 머지 시 config.json(port=feature), app.ts(양쪽 라우트), README(feature) 규칙으로 충돌 해결.',
+    prompt:'feature/user-auth 브랜치를 main에 머지하고 충돌을 규칙에 따라 해결해줘.',
+    criteria:{ correctness:'필드 단위 정밀 머지', quality:'브랜치별 값 보존', completeness:'모든 충돌 파일 해결' },
+    tests:[{version:'5.0.9-dev.0',date:'2026-03-13',cliScore:85,changes:'config.json cacheEnabled 필드 누락 (FAIL)'},{version:'5.0.9-dev.0+prompt',date:'2026-03-13',cliScore:95,changes:'PRECISION 지침 적용 후 필드 단위 머지 성공'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:88,changes:'3파일 Git 머지 충돌 해결 규칙 대체로 준수. config.json cacheEnabled 소실 정보 손실'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:93,changes:'git merge 3개 충돌 규칙대로 해결+커밋 정확. README 제목 main값 잔존 미세 결함'}] },
+  { id:'tool-4', cat:'tooluse', name:'Git cherry-pick + 브랜딩 보존', diff:'hard', lang:'Git',
+    desc:'main의 2개 커밋을 enterprise 브랜치에 cherry-pick하되 브랜딩(enterprise-app, Enterprise App, .enterprise) 유지.',
+    prompt:'main의 최근 2개 커밋을 enterprise에 cherry-pick하고 브랜딩을 유지해줘.',
+    criteria:{ correctness:'2/2 cherry-pick 완료', quality:'브랜딩 정확 보존', completeness:'기능 코드 + 브랜딩 모두 정확' },
+    tests:[{version:'5.0.9-dev.0',date:'2026-03-13',cliScore:55,changes:'타임아웃 300s. 1/2 cherry-pick만 완료 (FAIL)'},{version:'5.0.9-dev.0+prompt',date:'2026-03-13',cliScore:96,changes:'PRECISION+EFFICIENCY 지침 적용 후 2/2 완료'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:98,changes:'cherry-pick 2커밋+enterprise 브랜딩 3개 값 완벽 보존. 기능 코드 올바르게 적용'}] },
+  { id:'tool-5', cat:'tooluse', name:'Git release workflow', diff:'medium', lang:'Git',
+    desc:'커밋 히스토리에서 CHANGELOG.md 생성, 버전 bump, release 브랜치, 태그 생성.',
+    prompt:'릴리스 작업을 수행해줘. CHANGELOG, 버전 bump, release 브랜치, 태그.',
+    criteria:{ correctness:'conventional commits 분류', quality:'정확한 버전/태그', completeness:'모든 요소 생성' },
+    tests:[{version:'5.0.9-dev.0',date:'2026-03-13',cliScore:95,changes:'conventional commits 분류 정확. 모든 요소 생성 완료'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:91,changes:'Git 릴리스 5개 작업(CHANGELOG,버전bump,브랜치,태그,커밋) 모두 정확히 완료'}] },
+  { id:'tool-6', cat:'tooluse', name:'SSH NAS 헬스체크', diff:'medium', lang:'Bash/SSH',
+    desc:'NAS에 SSH 접속하여 디스크/메모리/Docker/uptime 점검 후 판정 보고서 작성.',
+    prompt:'NAS 서버에 SSH로 접속해서 상태 점검하고 health_report.txt를 만들어줘.',
+    criteria:{ correctness:'4개 항목 정확 수집', quality:'판정 기준 적용', completeness:'종합 보고서 생성' },
+    tests:[{version:'5.0.9-dev.0',date:'2026-03-13',cliScore:96,changes:'4개 항목 전부 정확 수집. 판정 기준 적용 완벽'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:95,changes:'SSH NAS 헬스체크 4개 항목 수집+판정 기준 포함 107줄 보고서 완벽 생성'}] },
+  { id:'tool-7', cat:'tooluse', name:'SSH rsync 배포 + 검증', diff:'hard', lang:'Bash/SSH',
+    desc:'프로젝트를 NAS에 rsync 배포, 동기화 확인, 정리, 보고서 작성.',
+    prompt:'이 디렉토리를 NAS에 rsync로 배포하고 검증해줘.',
+    criteria:{ correctness:'파일 동기화 정확', quality:'제외 규칙 적용', completeness:'5단계 전부 완료' },
+    tests:[{version:'5.0.9-dev.0+prompt',date:'2026-03-13',cliScore:91,changes:'rsync 실패→tar+ssh 대안 사용. 5단계 전부 완료'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:62,changes:'rsync 실패를 tar+ssh로 극복했으나 5개 작업 중 정리+deploy_report 2개 미완료'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:62,changes:'rsync실패→tar+ssh 동기화 성공했으나 NAS 정리(4번)+deploy_report.txt(5번) 누락'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:63,changes:'rsync 실패 후 echo 대체. rm -rf 안전정책 차단으로 디렉토리 삭제 실패'},{version:'5.0.9-dev.4',date:'2026-03-13',cliScore:55,changes:'rsync code12 실패(환경). deploy_report.txt 파일 미생성. sync_result만 성공'},{version:'5.0.9-dev.4',date:'2026-03-14',cliScore:84,changes:'rsync 환경실패→tar+SSH 대체 성공. deploy_report.txt 생성됨. 단 rm -rf 안전필터 차단으로 NAS 정리 실패'},{version:'5.0.9-dev.5',date:'2026-03-14',cliScore:94,changes:'v5.0.9-dev.5 rm -rf 안전필터 수정. 5개 작업 전부 완료. rsync→SSH fallback→NAS 정리(rm -rf 성공). deploy_report 상세'}] },
+  { id:'tool-8', cat:'tooluse', name:'Bash CSV 매출 데이터 파이프라인', diff:'medium', lang:'Bash',
+    desc:'CSV 파일들을 awk로 분석하여 총 매출, 지역별, 제품별, 월별 분석 파일 생성.',
+    prompt:'CSV 파일들을 bash 도구로 분석해서 4개 분석 파일을 만들어줘.',
+    criteria:{ correctness:'정확한 합계/분류', quality:'awk 활용', completeness:'4개 파일 모두 생성' },
+    tests:[{version:'5.0.9-dev.0',date:'2026-03-13',cliScore:94,changes:'4개 분석 파일 정확 생성. awk 활용 깔끔'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:98,changes:'4개 CSV 파일 분석 awk/sort로 완벽 수행. FNR 버그 자가 수정. 전 수치 정확'}] },
+  { id:'tool-9', cat:'tooluse', name:'PowerShell Windows 시스템 정보', diff:'medium', lang:'PowerShell',
+    desc:'WSL에서 PowerShell로 Windows OS/프로세스/디스크/사용자 정보를 수집하여 파일로 저장.',
+    prompt:'WSL에서 PowerShell로 Windows 시스템 정보를 수집해줘.',
+    criteria:{ correctness:'4개 항목 정확 수집', quality:'UTF-8 인코딩 정상', completeness:'파일 저장 완료' },
+    tests:[{version:'5.0.9-dev.0',date:'2026-03-13',cliScore:88,changes:'한글 인코딩 깨짐 (FAIL)'},{version:'5.0.9-dev.0+prompt',date:'2026-03-13',cliScore:94,changes:'ENCODING 지침 적용 후 한글 인코딩 정상'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:95,changes:'PowerShell로 Windows 시스템 정보 4항목 정확 수집. heredoc 실수 자가 수정'}] },
+  { id:'tool-10', cat:'tooluse', name:'Git+Bash CI 파이프라인', diff:'medium', lang:'Git/Bash',
+    desc:'lint→build→test 파이프라인 실행, 실패 시 코드 수정, 전체 통과 후 커밋.',
+    prompt:'CI 파이프라인을 실행하고 실패 시 수정해줘.',
+    criteria:{ correctness:'lint/test 에러 수정', quality:'최소 변경', completeness:'전체 통과 + 커밋' },
+    tests:[{version:'5.0.9-dev.0',date:'2026-03-13',cliScore:96,changes:'lint+test 에러 수정 완벽. 커밋+보고서 생성'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:57,changes:'lint/build/test 수정 완벽하나 git commit+ci_report.txt 미생성으로 핵심 요구사항 2개 누락'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:98,changes:'lint/build/test 전부 통과+git commit+ci_report.txt 완벽. 최소 수정 원칙 준수'}] },
+
+  // ==================== BUG FIXING (25) ====================
+  { id:'bug-1', cat:'bugfix', name:'Off-by-one 페이지네이션', diff:'easy', lang:'TypeScript',
+    desc:'REST API 페이지네이션에서 마지막 페이지 계산이 잘못되어 마지막 항목이 누락되는 버그. Math.floor를 Math.ceil로 수정해야 함.',
+    prompt:'이 Express API의 GET /users 엔드포인트에서 페이지네이션 버그를 찾아 수정해줘. 마지막 페이지에 항목이 빠지는 것 같아.',
+    criteria:{ correctness:'버그를 정확히 찾고 Math.ceil로 수정', quality:'최소한의 변경, 관련 없는 코드 수정 금지', completeness:'edge case (빈 배열, 1페이지) 확인' },
+    tests:[{version:'5.0.9-dev.0+prompt',date:'2026-03-13',cliScore:92,changes:'Math.floor→Math.ceil 정확 수정. 타임아웃이었지만 수정 완료'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:98,changes:'Math.floor→Math.ceil. Verification script tested 3 scenarios.'}] },
+  { id:'bug-2', cat:'bugfix', name:'비동기 레이스 컨디션', diff:'hard', lang:'TypeScript',
+    desc:'동시 요청 시 카운터가 올바르지 않게 증가하는 비동기 큐. async/await에서 공유 상태 접근 문제.',
+    prompt:'이 비동기 작업 큐에서 동시에 여러 태스크를 처리할 때 processedCount가 실제 처리된 개수와 맞지 않아. 레이스 컨디션이 있는 것 같은데 찾아서 수정해줘.',
+    criteria:{ correctness:'mutex/lock으로 공유 상태 보호', quality:'기존 인터페이스 유지, 최소 변경', completeness:'동시성 테스트 통과 확인' },
+    tests:[{version:'5.0.9-dev.0+prompt',date:'2026-03-13',cliScore:93,changes:'read-modify-write→this.processedCount++로 원자적 증가. 검증 완료'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:94,changes:'Fixed read-copy-update race: atomic increment post-await. Test passed.'}] },
+  { id:'bug-3', cat:'bugfix', name:'이벤트 리스너 메모리 누수', diff:'medium', lang:'TypeScript',
+    desc:'React 컴포넌트에서 useEffect cleanup 함수가 이벤트 리스너를 제거하지 않아 메모리 누수 발생.',
+    prompt:'이 React 컴포넌트에서 메모리 누수가 발생하는 것 같아. 컴포넌트가 마운트/언마운트를 반복할 때마다 resize 이벤트 핸들러가 계속 쌓여. useEffect 클린업을 확인해줘.',
+    criteria:{ correctness:'cleanup 함수에서 removeEventListener 추가', quality:'이벤트 핸들러 참조 관리 정확', completeness:'모든 이벤트 리스너 확인', browserVerify:'browser_get_console로 이벤트 리스너 누적 확인, browser_execute_script로 메모리 상태 점검' },
+    tests:[{version:'5.0.9-dev.0+prompt',date:'2026-03-13',cliScore:95,changes:'useEffect cleanup에 removeEventListener 추가. handleResize를 내부로 이동'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:100,changes:'useEffect cleanup 정확히 추가, 파일 검증 완료'}] },
+  { id:'bug-4', cat:'bugfix', name:'SQL 인젝션 취약점', diff:'medium', lang:'TypeScript',
+    desc:'사용자 입력이 SQL 쿼리에 직접 삽입되는 보안 취약점. Parameterized query로 수정 필요.',
+    prompt:'이 사용자 검색 API에 보안 취약점이 있어. SQL 인젝션 공격이 가능한 부분을 찾아서 파라미터화된 쿼리로 수정해줘.',
+    criteria:{ correctness:'SQL 인젝션 식별 및 parameterized query 적용', quality:'기존 기능 유지', completeness:'모든 SQL 쿼리 확인' },
+    tests:[{version:'5.0.9-dev.0+prompt',date:'2026-03-13',cliScore:95,changes:'템플릿 리터럴→$1 플레이스홀더 파라미터화 쿼리 적용'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:96,changes:'SQL injection 파라미터화 쿼리로 정확히 수정'}] },
+  { id:'bug-5', cat:'bugfix', name:'XSS 취약점 수정', diff:'medium', lang:'TypeScript',
+    desc:'사용자 입력이 innerHTML로 DOM에 삽입되어 스크립트 실행 가능. DOMPurify 또는 textContent 사용 필요.',
+    prompt:'이 채팅 컴포넌트에 XSS 보안 취약점이 있어. 사용자 메시지가 HTML로 렌더링되면서 스크립트 인젝션이 가능해. 안전하게 수정해줘.',
+    criteria:{ correctness:'innerHTML→textContent 또는 sanitize 적용', quality:'기존 마크다운 렌더링 기능 유지', completeness:'다른 입력 포인트도 확인', browserVerify:'browser_execute_script로 XSS 페이로드 실행 여부 확인, browser_screenshot으로 sanitized 렌더링 검증' },
+    tests:[{version:'5.0.9-dev.0+prompt',date:'2026-03-13',cliScore:94,changes:'innerHTML→JSX 텍스트 렌더링. useRef/useEffect 제거'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:90,changes:'innerHTML→React text 렌더링 전환 정확'}] },
+  { id:'bug-6', cat:'bugfix', name:'Go nil pointer dereference', diff:'easy', lang:'Go',
+    desc:'Go 주문 처리 함수에서 nil 포인터 역참조로 panic 발생. Customer, Shipping, Address 등이 nil일 때 접근 시 크래시.',
+    prompt:'이 Go 주문 처리 함수에서 가끔 nil pointer panic이 발생해. 원인을 찾아 수정해줘.',
+    criteria:{ correctness:'nil 체크 추가로 panic 방지', quality:'과도한 방어 코딩 금지', completeness:'모든 nil 가능 포인터 확인' },
+    tests:[{version:'5.0.9-dev.0+prompt',date:'2026-03-13',cliScore:95,changes:'Customer/Shipping/Address에 nil 체크 추가'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:92,changes:'Go nil pointer 모든 지점 nil 체크 추가 정확'}] },
+  { id:'bug-7', cat:'bugfix', name:'Go 타임존 출석 체크 오류', diff:'hard', lang:'Go',
+    desc:'Go 출석 체크 시스템에서 KST(UTC+9) 자정 근처 체크인 시 UTC 기준으로 날짜를 계산하여 날짜가 어긋남.',
+    prompt:'이 Go 출석 체크 시스템에서 한국(KST, UTC+9) 사용자가 자정 근처에 체크인하면 날짜가 어긋나. 수정해줘.',
+    criteria:{ correctness:'UTC↔KST 변환 로직 수정', quality:'time.LoadLocation 활용', completeness:'모든 날짜 연산 확인' },
+    tests:[{version:'5.0.9-dev.0+prompt',date:'2026-03-13',cliScore:94,changes:'time.LoadLocation("Asia/Seoul")로 KST 타임존 처리'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:94,changes:'KST timezone 적용 정확(LoadLocation+In)'}] },
+  { id:'bug-8', cat:'bugfix', name:'부동소수점 금액 계산', diff:'medium', lang:'TypeScript',
+    desc:'0.1 + 0.2 !== 0.3 문제로 결제 금액이 미세하게 틀리는 버그.',
+    prompt:'이 쇼핑몰 장바구니에서 할인 적용 후 총액이 1~2원 차이가 나는 경우가 있어. 부동소수점 연산 때문인 것 같은데, 정확한 금액 계산이 되도록 수정해줘.',
+    criteria:{ correctness:'정수 연산(원 단위) 또는 decimal 라이브러리 사용', quality:'기존 API 인터페이스 유지', completeness:'모든 금액 계산 포인트 확인' },
+    tests:[{version:'5.0.9-dev.0+prompt',date:'2026-03-13',cliScore:92,changes:'정수 연산(cents 단위) + Math.round 적용'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:5,changes:'플래닝만 완료, 실행 결과 없음'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:90,changes:'floating-point fix correct with roundCurrency(). 테스트 검증 완료.'}] },
+  { id:'bug-9', cat:'bugfix', name:'C 버퍼 오버플로우', diff:'medium', lang:'C',
+    desc:'C 문자열 처리 프로그램에서 고정 크기 버퍼에 긴 입력을 넣으면 버퍼 오버플로우로 크래시 발생.',
+    prompt:'이 C 문자열 처리 프로그램에서 긴 입력을 넣으면 크래시가 나. 버퍼 오버플로우를 찾아서 안전하게 수정해줘.',
+    criteria:{ correctness:'버퍼 크기 검증 및 안전한 함수 사용', quality:'최소 변경으로 수정', completeness:'모든 버퍼 접근 확인' },
+    tests:[{version:'5.0.9-dev.0+prompt',date:'2026-03-13',cliScore:95,changes:'strcpy→strncpy, sprintf→snprintf 사용. null 터미네이터 보장'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:94,changes:'all buffer overflows fixed (strcpy→strncpy, sprintf→snprintf), 컴파일+테스트 완료'}] },
+  { id:'bug-10', cat:'bugfix', name:'React 상태 변이 버그', diff:'medium', lang:'TypeScript',
+    desc:'배열 state를 push()로 직접 변이하여 리렌더링이 안 되는 버그.',
+    prompt:'이 할 일 목록 앱에서 새 항목을 추가하면 state는 변경되는데 화면이 업데이트되지 않아. React 상태 업데이트 방식에 문제가 있는 것 같은데 찾아서 수정해줘.',
+    criteria:{ correctness:'push() → spread 또는 concat으로 교체', quality:'불필요한 리팩토링 금지', completeness:'모든 상태 변이 패턴 확인', browserVerify:'browser_fill + browser_click으로 항목 추가 후 browser_screenshot으로 UI 업데이트 확인' },
+    tests:[{version:'5.0.9-dev.0+prompt',date:'2026-03-13',cliScore:94,changes:'push()→spread 연산자로 불변 상태 업데이트'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:97,changes:'Fixed React state mutation: spread+map for immutability.'}] },
+  { id:'bug-11', cat:'bugfix', name:'C++ use-after-free 버그', diff:'easy', lang:'C++',
+    desc:'C++ 연결 리스트에서 노드를 삭제한 후 접근하면 use-after-free로 크래시 발생.',
+    prompt:'이 C++ 연결 리스트에서 노드를 삭제한 후 접근하면 크래시가 나. use-after-free 버그를 찾아 수정해줘.',
+    criteria:{ correctness:'삭제 후 접근 방지', quality:'기존 인터페이스 유지', completeness:'모든 삭제 경로 확인' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:95,changes:'Fixed both use-after-free: save before delete, runner advance logic.'}] },
+  { id:'bug-12', cat:'bugfix', name:'JS 비교 연산자 버그', diff:'easy', lang:'JavaScript',
+    desc:'JavaScript 유틸리티에서 특정 값이 있는데도 없다고 판단하는 비교 연산 버그.',
+    prompt:'이 JavaScript 유틸리티에서 특정 값이 있는데도 없다고 판단하는 버그가 있어. 비교 연산을 점검해서 수정해줘.',
+    criteria:{ correctness:'비교 연산 수정', quality:'최소 변경', completeness:'파일 내 유사 패턴 확인' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:45,changes:'Partial. parseConfigValue fixed. findUserById ==0 bug NOT fixed.'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:96,changes:'JS 느슨한 비교(==) falsy 오처리 전 함수 수정→===. node 실행 테스트 전부 통과'}] },
+  { id:'bug-13', cat:'bugfix', name:'missing await 비동기', diff:'easy', lang:'TypeScript',
+    desc:'async 함수 호출에 await 누락으로 Promise 객체가 반환되는 버그.',
+    prompt:'이 TypeScript 코드에서 주문 처리 후 재고 업데이트가 제대로 반영되지 않아. processOrder 함수가 완료되기 전에 응답이 나가는 것 같아. 원인을 찾아서 수정해줘.',
+    criteria:{ correctness:'누락된 await 추가', quality:'불필요한 async/await 추가 금지', completeness:'호출 체인 전체 확인' },
+    tests:[{version:'5.0.9-dev.0+prompt',date:'2026-03-13',cliScore:95,changes:'saveOrder()+sendConfirmationEmail()에 await 추가'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:98,changes:'Added await to both saveOrder+sendConfirmationEmail. Tested.'}] },
+  { id:'bug-14', cat:'bugfix', name:'순환 의존성 undefined', diff:'hard', lang:'TypeScript',
+    desc:'모듈 A→B→A 순환 참조로 인해 import 시점에 undefined가 되는 버그.',
+    prompt:'이 TypeScript 프로젝트에서 런타임에 \'Cannot read properties of undefined\' 에러가 발생해. 모듈 간 순환 참조가 원인인 것 같은데 찾아서 수정해줘.',
+    criteria:{ correctness:'순환 참조 해소 (의존성 역전, lazy import 등)', quality:'아키텍처를 최소한으로 변경', completeness:'다른 순환 참조도 탐지' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:95,changes:'Extracted user-store.ts to break circular dep. Tested.'}] },
+  { id:'bug-15', cat:'bugfix', name:'Python 정렬 비교 버그', diff:'easy', lang:'Python',
+    desc:'Python 리더보드에서 점수가 문자열 비교로 정렬되어 순서가 잘못되고, 이름 정렬도 대소문자 처리가 안 됨.',
+    prompt:'이 Python 리더보드에서 점수 정렬이 이상해. 점수 1000이 9보다 앞에 오고, 이름 정렬도 대소문자가 섞여. 수정해줘.',
+    criteria:{ correctness:'올바른 정렬 비교 함수', quality:'안정 정렬 고려', completeness:'모든 정렬 로직 확인' },
+    tests:[{version:'5.0.9-dev.0+prompt',date:'2026-03-13',cliScore:55,changes:'sort_by_score에 int() 추가, sort_by_name에 lower() 추가했으나 근본원인(str저장) 미수정. get_players_above 여전히 문자열비교 (FAIL)'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:97,changes:'Fixed sort_by_score int() and sort_by_name lower(). Tested.'}] },
+  { id:'bug-16', cat:'bugfix', name:'Python 에러 전파 누락', diff:'medium', lang:'Python',
+    desc:'Python API 클라이언트에서 API 호출 실패 시 에러가 조용히 무시되어 silent failure 발생.',
+    prompt:'이 Python 코드에서 API 호출이 실패해도 에러가 조용히 무시돼. 에러 처리를 올바르게 수정해줘.',
+    criteria:{ correctness:'에러 전파 수정', quality:'일관된 에러 핸들링 패턴', completeness:'모든 에러 경로 확인' },
+    tests:[{version:'5.0.9-dev.0+prompt',date:'2026-03-13',cliScore:0,changes:'파일 미수정. bare except:pass 전부 그대로 (FAIL)'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:92,changes:'All bare except:pass replaced with typed handlers+logging+re-raise. Verified.'}] },
+  { id:'bug-17', cat:'bugfix', name:'JS 클로저 스코프 문제', diff:'medium', lang:'JavaScript',
+    desc:'JavaScript 작업 스케줄러에서 클로저가 var 변수를 캡처하여 모든 콜백이 마지막 작업 정보만 출력.',
+    prompt:'이 JavaScript 코드에서 작업 스케줄러가 5개의 작업을 각각 다른 지연시간으로 실행해야 하는데, 모든 콜백이 마지막 작업의 정보만 출력해. 클로저 스코프 문제를 찾아서 수정해줘.',
+    criteria:{ correctness:'let 사용 또는 IIFE/클로저로 수정', quality:'모던 JS 문법 사용', completeness:'유사 패턴 전체 확인' },
+    tests:[{version:'5.0.9-dev.0+prompt',date:'2026-03-13',cliScore:95,changes:'var→let 변환으로 클로저 스코프 문제 해결'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:95,changes:'var→let for block scope in for-loop. Canonical fix. Verified.'}] },
+  { id:'bug-18', cat:'bugfix', name:'Python 캐시 무효화 버그', diff:'hard', lang:'Python',
+    desc:'Python 캐시 시스템에서 데이터 업데이트 후 캐시가 갱신되지 않아 오래된 데이터가 계속 반환됨.',
+    prompt:'이 Python 캐시 시스템에서 데이터를 업데이트해도 캐시가 갱신 안 돼. 오래된 데이터가 계속 반환됨. 수정해줘.',
+    criteria:{ correctness:'cache invalidation 구현', quality:'캐시 전략 일관성', completeness:'모든 캐시 사용처 확인' },
+    tests:[{version:'5.0.9-dev.0+prompt',date:'2026-03-13',cliScore:95,changes:'is_expired 로직반전, delete 실제삭제, has 로직반전, update/delete시 캐시무효화 6개 버그 수정'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:96,changes:'Fixed 6 bugs: inverted is_expired, get branch, delete missing del, cache invalidation.'}] },
+  { id:'bug-19', cat:'bugfix', name:'C 정수 오버플로우', diff:'medium', lang:'C',
+    desc:'C 계산기 프로그램에서 큰 숫자 연산 시 정수 오버플로우로 잘못된 결과 반환.',
+    prompt:'이 C 계산기 프로그램에서 큰 숫자 연산 시 잘못된 결과가 나와. 정수 오버플로우 문제를 찾아 수정해줘.',
+    criteria:{ correctness:'오버플로우 검출 및 방지', quality:'최소 변경', completeness:'모든 연산 경로 확인' },
+    tests:[{version:'5.0.9-dev.0+prompt',date:'2026-03-13',cliScore:95,changes:'int→long long 변환, (long long)캐스트, %lld 포맷'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:93,changes:'long long return types, overflow guards, %lld format. Compiled+ran OK.'}] },
+  { id:'bug-20', cat:'bugfix', name:'JS Prototype Pollution', diff:'medium', lang:'JavaScript',
+    desc:'JavaScript 객체 병합 유틸리티에서 __proto__ 주입으로 전역 객체가 오염되는 보안 버그.',
+    prompt:'이 JavaScript 객체 병합 유틸리티에서 특정 입력을 넣으면 전역 객체가 오염돼. 원인을 찾아 수정해줘.',
+    criteria:{ correctness:'prototype pollution 방지', quality:'최소 변경', completeness:'모든 병합 경로 확인' },
+    tests:[{version:'5.0.9-dev.0+prompt',date:'2026-03-13',cliScore:97,changes:'isSafeKey() 가드 추가. __proto__/constructor/prototype 필터링'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:96,changes:'prototype pollution 5개 함수 전부 수정, 검증 완료'}] },
+  { id:'bug-21', cat:'bugfix', name:'C++ 스레드풀 경쟁 조건', diff:'hard', lang:'C++',
+    desc:'C++ 스레드 풀에서 여러 스레드가 동시에 작업을 가져갈 때 간헐적으로 크래시하는 동시성 버그.',
+    prompt:'이 C++ 스레드 풀에서 여러 스레드가 동시에 작업을 가져갈 때 간헐적으로 크래시가 나. 동시성 버그를 찾아 수정해줘.',
+    criteria:{ correctness:'mutex/lock으로 공유 상태 보호', quality:'C++ 표준 동시성 패턴 사용', completeness:'모든 공유 자원 확인' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:98,changes:'mutex/condition_variable+atomic counter로 수정, Counter=1000 검증'}] },
+  { id:'bug-22', cat:'bugfix', name:'Python SyntaxError 진단', diff:'medium', lang:'Python',
+    desc:'Python 파일에서 SyntaxError가 발생하지만 코드가 정상처럼 보이는 숨겨진 구문 오류.',
+    prompt:'이 Python 파일에서 SyntaxError가 나는데 코드가 맞아보여. 원인을 찾아 수정해줘.',
+    criteria:{ correctness:'구문 오류 정확히 식별 및 수정', quality:'최소 변경', completeness:'유사 문제 확인' },
+    tests:[{version:'5.0.9-dev.0+prompt',date:'2026-03-13',cliScore:0,changes:'merge conflict 마커 미해결. 파일 파싱 불가 (FAIL)'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:100,changes:'git merge conflict 마커 정확히 탐지 제거, py_compile 통과'}] },
+  { id:'bug-23', cat:'bugfix', name:'C 선형 탐색 성능 문제', diff:'medium', lang:'C',
+    desc:'C 프로그램에서 사용자 목록 검색이 선형 탐색으로 매우 느림. 해시 기반 검색 등으로 개선 필요.',
+    prompt:'이 C 프로그램에서 사용자 목록 조회가 매우 느려. 프로파일링 결과 대부분의 시간이 검색에 소비돼. 성능 문제를 찾아 수정해줘.',
+    criteria:{ correctness:'탐색 알고리즘 개선', quality:'최소 변경', completeness:'모든 검색 경로 확인' },
+    tests:[{version:'5.0.9-dev.0+prompt',date:'2026-03-13',cliScore:93,changes:'해시 테이블 추가 (user_id/order_id O(1)), generate_user_report 인라인 최적화'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:96,changes:'해시 테이블+체이닝으로 O(n²)→O(1) 최적화, 빌드 검증 완료'}] },
+  { id:'bug-24', cat:'bugfix', name:'Flask CORS 설정 오류', diff:'easy', lang:'Python',
+    desc:'Flask 서버에서 프론트엔드가 쿠키를 포함한 API 요청을 보내면 CORS 에러 발생.',
+    prompt:'이 Flask 서버에서 프론트엔드가 쿠키를 포함한 API 요청을 보내면 CORS 에러가 나. 수정해줘.',
+    criteria:{ correctness:'올바른 CORS 설정', quality:'credentials 포함 시 specific origin 필수', completeness:'preflight 처리도 확인' },
+    tests:[{version:'5.0.9-dev.0+prompt',date:'2026-03-13',cliScore:92,changes:'origins=* → 환경변수 기반 specific origin 리스트. credentials 호환'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:94,changes:'origins=* + credentials 충돌 식별, 명시적 origin으로 수정'}] },
+  { id:'bug-25', cat:'bugfix', name:'Node.js 환경변수 미적용', diff:'easy', lang:'JavaScript',
+    desc:'Node.js 앱에서 .env 파일이 있지만 환경 변수가 undefined로 나오는 설정 버그.',
+    prompt:'이 Node.js 앱에서 환경 변수가 undefined로 나와. .env 파일은 있는데 값이 안 읽혀. 수정해줘.',
+    criteria:{ correctness:'dotenv 설정 수정', quality:'비밀값 관리', completeness:'모든 환경변수 확인' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:96,changes:'dotenv.config() 누락 식별 수정, server 실행 검증'}] },
+
+  // ==================== FEATURE IMPLEMENTATION (20) ====================
+  { id:'feat-1', cat:'feature', name:'REST API 페이지네이션 추가', diff:'easy', lang:'TypeScript',
+    desc:'기존 GET /items 엔드포인트에 cursor 기반 페이지네이션 추가.',
+    prompt:'Add cursor-based pagination to the GET /items endpoint. Requirements: limit (default 10, max 50), cursor (base64-encoded item ID), return { items, nextCursor }, ordered by createdAt desc, input validation.',
+    criteria:{ correctness:'cursor 페이지네이션 정상 동작', quality:'기존 API 호환성 유지', completeness:'빈 결과, 마지막 페이지 처리' },
+    tests:[{version:'5.0.9-dev.0+prompt',date:'2026-03-13',cliScore:95,changes:'base64 cursor, limit 1-50 검증, createdAt desc, {items,nextCursor} 응답'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:96,changes:'커서 기반 페이지네이션 완전 구현. limit검증+base64 cursor+nextCursor 응답. 서버 테스트 통과'}] },
+  { id:'feat-2', cat:'feature', name:'JWT 인증 미들웨어', diff:'medium', lang:'TypeScript',
+    desc:'Express 앱에 JWT 기반 인증 미들웨어 구현.',
+    prompt:'Add JWT authentication to this Express app. Requirements: signup/login endpoints, bcrypt password hashing, JWT with expiration, auth middleware for protected routes, /me endpoint.',
+    criteria:{ correctness:'토큰 발급/검증/만료 처리', quality:'secret을 env로 분리, bcrypt 사용', completeness:'refresh token, 에러 응답 형식' },
+    tests:[{version:'5.0.9-dev.0+prompt',date:'2026-03-13',cliScore:10,changes:'파일 미수정. JWT/bcrypt/login/register 미구현 (FAIL)'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:87,changes:'JWT 인증 전체(register/login/middleware/profile) 완벽 구현+빌드 성공. 타입 캐스팅 미숙'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:94,changes:'JWT 인증 미들웨어(bcrypt+토큰 만료구분+라우트 보호) 완전 구현. 시드 유저 미해싱 소감점'}] },
+  { id:'feat-3', cat:'feature', name:'WebSocket 실시간 알림', diff:'hard', lang:'TypeScript',
+    desc:'기존 REST API에 WebSocket 서버를 추가하여 실시간 알림 기능 구현.',
+    prompt:'Add WebSocket real-time notifications to this order management API. Requirements: ws server alongside Express, broadcast new orders to connected admin clients, auth via token query param, heartbeat/reconnection.',
+    criteria:{ correctness:'ws 연결, 메시지 브로드캐스트 동작', quality:'인증된 연결만 허용', completeness:'연결 끊김 재연결, heartbeat' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:72,changes:'WebSocket 코드 구현 완벽하나 타임아웃으로 테스트 미완+stdout 없음'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:97,changes:'WebSocket 실시간 알림(동일포트 upgrade+브로드캐스트+heartbeat+연결추적) 완전 구현. 빌드 성공'}] },
+  { id:'feat-4', cat:'feature', name:'파일 업로드 + 검증', diff:'medium', lang:'TypeScript',
+    desc:'이미지 업로드 엔드포인트 구현. 크기/타입 제한, S3 업로드.',
+    prompt:'Add a profile picture upload endpoint to this user profile API. Requirements: PUT /users/:id/avatar with multipart, max 5MB jpg/png/webp, sharp resize to 200x200, store in uploads/ dir, return avatar URL.',
+    criteria:{ correctness:'multer + S3 upload 동작', quality:'파일 검증 선행, 에러 메시지 명확', completeness:'리사이즈, 중복 파일명 처리' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:94,changes:'multer 파일 업로드 전 요구사항 구현+실제 동작 검증 완료'}] },
+  { id:'feat-5', cat:'feature', name:'검색 + 필터 + 정렬', diff:'medium', lang:'TypeScript',
+    desc:'상품 목록 API에 전문 검색, 카테고리 필터, 다중 정렬 기능 추가.',
+    prompt:'Add search, filtering, and sorting capabilities to the GET /products endpoint. Requirements: text search (q), category filter, price range (minPrice/maxPrice), multi-field sort (sort=price,-name), pagination.',
+    criteria:{ correctness:'모든 파라미터 조합 정상 동작', quality:'SQL 인젝션 방지, 인덱스 활용', completeness:'빈 결과, 잘못된 파라미터 처리' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:97,changes:'검색/필터/정렬/페이지네이션 전 요구사항 구현+6가지 복합 쿼리 검증 완료'}] },
+  { id:'feat-6', cat:'feature', name:'Rate Limiting 미들웨어', diff:'medium', lang:'TypeScript',
+    desc:'IP 기반 rate limiting 미들웨어 구현. Redis sliding window 알고리즘.',
+    prompt:'Add IP-based rate limiting middleware to this Express API. Requirements: sliding window algorithm, configurable limits per route, 429 with Retry-After header, X-RateLimit-* headers, in-memory store.',
+    criteria:{ correctness:'sliding window 정확한 카운팅', quality:'Redis 연결 실패 시 graceful degradation', completeness:'X-RateLimit 헤더 포함' },
+    tests:[{version:'5.0.9-dev.0+prompt',date:'2026-03-13',cliScore:93,changes:'sliding window 100req/60s, X-RateLimit-* 헤더, 429 응답, cleanup interval'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:91,changes:'Rate Limiting 전 요구사항(슬라이딩윈도우,429,헤더,status 엔드포인트) 완전 구현+검증'}] },
+  { id:'feat-7', cat:'feature', name:'C++ Undo/Redo 시스템', diff:'hard', lang:'C++',
+    desc:'C++ 텍스트 에디터에 Command 패턴 기반 undo/redo 구현. insert, delete, replace 작업 지원.',
+    prompt:'이 C++ 텍스트 에디터에 undo/redo 기능을 Command 패턴으로 추가해줘. insert, delete, replace 작업을 모두 지원하고, history는 50개 제한.',
+    criteria:{ correctness:'모든 작업의 undo/redo 동작', quality:'Command 패턴 사용, 메모리 효율', completeness:'history 제한, 분기 처리' },
+    tests:[{version:'5.0.9-dev.0+prompt',date:'2026-03-13',cliScore:5,changes:'파일 미수정. Command 패턴/undo/redo 미구현 (FAIL)'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:93,changes:'Command 패턴 Undo/Redo 3종 구현+50개 제한 deque 기반 CommandManager. 빌드+동작 검증 완료'}] },
+  { id:'feat-8', cat:'feature', name:'C++ CSV 내보내기', diff:'easy', lang:'C++',
+    desc:'C++ 학생 성적 관리 시스템에 CSV 내보내기 기능 추가. UTF-8 BOM, 특수문자 처리.',
+    prompt:'이 C++ 학생 성적 관리 시스템에 CSV 내보내기 기능을 추가해줘. UTF-8 BOM, 쉼표 포함 필드는 따옴표로 감싸기, 헤더 행 포함.',
+    criteria:{ correctness:'올바른 CSV 파일 생성', quality:'UTF-8 인코딩 처리', completeness:'특수문자, 헤더 포함' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:97,changes:'CSV 내보내기 UTF-8 BOM+쉼표+이중따옴표 이스케이프 전부 정확. xxd 바이너리 검증'}] },
+  { id:'feat-9', cat:'feature', name:'드래그앤드롭 정렬', diff:'medium', lang:'TypeScript',
+    desc:'React 리스트에 드래그앤드롭으로 순서 변경 기능 추가. 서버 동기화 포함.',
+    prompt:'Add drag-and-drop reordering to this React todo list application. Requirements: HTML5 DnD API, visual drag indicator, optimistic update, PATCH /todos/reorder to persist order, handle concurrent edits.',
+    criteria:{ correctness:'DnD 동작 + 서버 동기화', quality:'낙관적 업데이트, 롤백 처리', completeness:'터치 디바이스, 접근성', browserVerify:'browser_click으로 드래그 동작 시뮬레이션, browser_screenshot으로 순서 변경 확인, browser_get_network로 서버 동기화 확인' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:76,changes:'JWT 인증 미들웨어 기본 구현. 토큰 검증은 했으나 refresh 미구현'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:78,changes:'Express reorder API+드래그앤드롭 구현했으나 라우트 순서 버그(/:id가 /reorder보다 먼저 매칭)+cursor 미구현'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:82,changes:'DnD 구현했으나 Express 라우팅 순서 버그(/todos/:id가 /todos/reorder보다 앞)'},{version:'5.0.9-dev.4',date:'2026-03-13',cliScore:70,changes:'DnD 구현했으나 /todos/reorder를 /todos/:id 뒤에 등록(Express 라우팅 순서 버그). 4회 연속 동일'},{version:'5.0.9-dev.4',date:'2026-03-14',cliScore:95,changes:'v5.0.9-dev.4 self-review룰 효과. 라우팅 순서 올바르게 /todos/reorder BEFORE /todos/:id. DnD 8개 요구사항 전부 충족'}] },
+  { id:'feat-10', cat:'feature', name:'JS RBAC 미들웨어', diff:'hard', lang:'JavaScript',
+    desc:'Express API에 역할 기반 접근 제어 추가. admin은 모든 권한, editor는 콘텐츠 CRUD, viewer는 읽기만.',
+    prompt:'이 Express API에 역할 기반 접근 제어를 추가해줘. admin은 모든 권한, editor는 콘텐츠 CRUD, viewer는 읽기만.',
+    criteria:{ correctness:'역할별 접근 제어 동작', quality:'미들웨어 패턴', completeness:'역할 계층, 에러 응답' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:82,changes:'JWT+RBAC 완전 구현(admin/editor/viewer 역할 분리). 타임아웃 발생했으나 코드 완성'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:0,changes:'타임아웃(420초). 기존 헤더 인증 무시하고 JWT 전체 구현 시도하다 중단. RBAC 미생성'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:93,changes:'RBAC 3계층(admin/editor/viewer) 미들웨어+라우트 권한 적용 완료. express 미설치 실행검증 불가'}] },
+  { id:'feat-11', cat:'feature', name:'JS API 버전 관리', diff:'medium', lang:'JavaScript',
+    desc:'Express API에 /v1, /v2 라우트 분리. v2에서 응답 형식 변경해도 v1은 기존대로 동작.',
+    prompt:'이 Express API에 버전 관리를 추가해줘. /v1/과 /v2/ 라우트를 분리하고, v2에서 응답 형식을 변경해도 v1은 기존대로 동작하게.',
+    criteria:{ correctness:'두 버전 동시 동작', quality:'코드 중복 최소화', completeness:'deprecated 경고 헤더' },
+    tests:[{version:'5.0.9-dev.0+prompt',date:'2026-03-13',cliScore:92,changes:'/v1,/v2 라우트 분리. v2는 {success,data,meta} 엔벨로프'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:52,changes:'v1/v2 라우트 파일은 생성했으나 app.js 마운트 코드 없이 타임아웃. 핵심 연결 미완성'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:94,changes:'Express /v1, /v2 버전 라우트 분리+v2 래퍼 응답 형식 구현. 공유 store 패턴 우아'}] },
+  { id:'feat-12', cat:'feature', name:'Go 워커 풀 구현', diff:'hard', lang:'Go',
+    desc:'Go API에서 이메일 발송을 goroutine 기반 워커 풀로 비동기 처리. 최대 5개 워커, 큐 크기 100.',
+    prompt:'이 Go API에서 이메일 발송을 동기적으로 처리하고 있어. goroutine 기반 워커 풀로 비동기 처리하도록 만들어줘. 최대 5개 워커, 큐 크기 100.',
+    criteria:{ correctness:'워커 풀 동작', quality:'goroutine 안전성', completeness:'큐 상태 조회' },
+    tests:[{version:'5.0.9-dev.0+prompt',date:'2026-03-13',cliScore:5,changes:'파일 미수정. goroutine 워커풀 미구현 (FAIL)'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:88,changes:'Go 워커 풀(5워커,큐100) 완전 구현+비동기 전환. Go 미설치로 컴파일 미검증'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:99,changes:'Go goroutine 워커 풀(5 workers, 큐 100) 완벽 구현. graceful shutdown+SIGTERM 처리'}] },
+  { id:'feat-13', cat:'feature', name:'FastAPI Health Check', diff:'easy', lang:'Python',
+    desc:'FastAPI 앱에 종합 헬스체크 엔드포인트 구현. DB, Redis, 디스크, 메모리 체크.',
+    prompt:'이 FastAPI 앱에 종합 헬스체크 엔드포인트를 추가해줘. DB 연결, Redis 연결, 디스크 용량, 메모리 사용량을 체크하고 JSON으로 반환.',
+    criteria:{ correctness:'각 서비스 상태 체크 동작', quality:'타임아웃 처리', completeness:'Kubernetes readiness/liveness 구분' },
+    tests:[{version:'5.0.9-dev.0+prompt',date:'2026-03-13',cliScore:5,changes:'파일 미수정. /health 엔드포인트 미구현 (FAIL)'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:88,changes:'FastAPI /health 엔드포인트 4가지 체크(DB,Redis,디스크,메모리) 완전 구현. psutil 대체로 /proc/meminfo 파싱'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:98,changes:'FastAPI 헬스체크 4항목(DB/Redis/디스크/메모리) 완벽 구현. psutil+에러처리+syntax검증'}] },
+  { id:'feat-14', cat:'feature', name:'SQLAlchemy DB 마이그레이션', diff:'medium', lang:'Python',
+    desc:'SQLAlchemy 프로젝트의 User 모델에 fullName 필드 추가 + 기존 first_name/last_name 데이터 마이그레이션.',
+    prompt:'이 SQLAlchemy 프로젝트의 User 모델에 fullName 필드를 추가하고, 기존 first_name + last_name을 합쳐서 마이그레이션해줘.',
+    criteria:{ correctness:'마이그레이션 정상 실행, 롤백 가능', quality:'데이터 손실 방지', completeness:'null 처리, 인덱스' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:72,changes:'User 모델+Alembic 마이그레이션 파일 작성했으나 DB 연결 불가로 실행 검증 실패, app.py fullName 노출 누락'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:95,changes:'SQLAlchemy fullName+Alembic 마이그레이션(NULL처리 포함) 정확 구현. DB 미실행 검증 불가'}] },
+  { id:'feat-15', cat:'feature', name:'C 해시 테이블 구현', diff:'hard', lang:'C',
+    desc:'C 해시 테이블에 delete, resize, iteration 기능 추가. 체이닝 충돌 처리, 로드 팩터 0.75 초과 시 자동 리사이즈.',
+    prompt:'이 C 해시 테이블 구현에 delete, resize, iteration 기능을 추가해줘. 충돌 처리는 체이닝 방식 유지. 로드 팩터 0.75 초과 시 자동 리사이즈.',
+    criteria:{ correctness:'해시 테이블 CRUD 동작', quality:'메모리 관리', completeness:'리사이즈, 반복자' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:42,changes:'C 해시테이블 기능 구현 완료했으나 타임아웃으로 검증 미완+최종 응답 없음'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:99,changes:'C 해시테이블 delete/resize/iteration 3기능. 로드팩터0.75 자동리사이즈. gcc -Wall 경고0'}] },
+  { id:'feat-16', cat:'feature', name:'Python 플러그인 시스템', diff:'hard', lang:'Python',
+    desc:'Python DataProcessor에 plugins/ 디렉토리에서 플러그인을 자동 로드하는 확장 시스템 추가.',
+    prompt:'이 Python 앱의 DataProcessor가 하드코딩된 변환만 지원해. plugins/ 디렉토리에서 플러그인을 자동 로드하는 시스템을 추가해줘.',
+    criteria:{ correctness:'플러그인 로드/실행', quality:'인터페이스 설계', completeness:'에러 격리' },
+    tests:[{version:'5.0.9-dev.0+prompt',date:'2026-03-13',cliScore:90,changes:'PluginBase ABC, PluginLoader 자동탐색, 우선순위 정렬, 샘플 플러그인 2개'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:88,changes:'importlib 기반 플러그인 동적 로딩 완전 구현+python3 실행 검증. config.yaml 연동 미구현'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:95,changes:'플러그인 자동 로드(importlib, PluginBase, 우선순위정렬, 에러수집) 완전 구현+검증'}] },
+  { id:'feat-17', cat:'feature', name:'Go Audit 로그 미들웨어', diff:'medium', lang:'Go',
+    desc:'Go HTTP 서버에 감사 로그 미들웨어 추가. 누가 언제 어떤 리소스를 변경했는지 JSON 형식으로 파일에 기록.',
+    prompt:'이 Go HTTP 서버에 감사 로그(audit log) 미들웨어를 추가해줘. 누가 언제 어떤 리소스를 변경했는지 기록. JSON 형식으로 파일에 저장.',
+    criteria:{ correctness:'CRUD 작업 로깅 동작', quality:'미들웨어 패턴, 성능 영향 최소화', completeness:'조회 API, 필터링' },
+    tests:[{version:'5.0.9-dev.0+prompt',date:'2026-03-13',cliScore:62,changes:'audit 미들웨어 구현했으나 stdout 로깅(파일 미사용), 변수 충돌, Resource 필드 오류 (FAIL)'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:82,changes:'Go HTTP auditMiddleware+JSON 파일 저장 구현 완료. go 환경 부재로 실행 검증 불가'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:93,changes:'Go AuditMiddleware+audit.go JSON감사로그 구현. mutex동시성+IP감지+body기록. Go미설치 검증불가'}] },
+  { id:'feat-18', cat:'feature', name:'이메일 알림 시스템', diff:'medium', lang:'TypeScript',
+    desc:'Express API에 EventEmitter 기반 이메일 알림 시스템. 템플릿, 큐, 자동 flush.',
+    prompt:'이 Express API에 이벤트 기반 이메일 알림 시스템을 추가해주세요. EventEmitter 기반 NotificationService, 이메일 템플릿, EmailQueue 클래스 구현.',
+    criteria:{ correctness:'이벤트 → 템플릿 → 발송 파이프라인', quality:'큐 처리, 재시도 로직', completeness:'queue API, flush, 로깅' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:31,changes:'타임아웃으로 NotificationService 부분 구현만 완료. 알림 라우트 추가 미완'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:87,changes:'EventEmitter+EmailQueue+TemplateService 구현. register만 교체 확인, change-password/deactivate 미확인'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:94,changes:'EventEmitter+템플릿+큐 완전 구현. timeout에도 파일 5개 모두 완성'}] },
+  { id:'feat-19', cat:'feature', name:'Python Redis 캐싱', diff:'medium', lang:'Python',
+    desc:'Python API의 인기 상품 목록에 Redis 캐시 적용. TTL, 캐시 무효화, 캐시 미스 시 DB 폴백.',
+    prompt:'이 API의 인기 상품 목록 조회가 느려. Redis 캐시를 추가해서 빠르게 만들어줘. TTL, 캐시 무효화, 캐시 미스 시 DB 폴백.',
+    criteria:{ correctness:'캐시 hit/miss 동작', quality:'cache-aside 패턴', completeness:'Redis 장애 시 fallback' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:87,changes:'TTL+캐시무효화+DB폴백 포함 Redis 캐시 완전 구현. 단건 조회 캐시 누락'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:97,changes:'Flask Redis 캐시(TTL5분+무효화+DB폴백+cache_hit응답) 완벽 구현. py_compile 통과'}] },
+  { id:'feat-20', cat:'feature', name:'데이터 검증 미들웨어 (Zod)', diff:'easy', lang:'TypeScript',
+    desc:'Zod 스키마로 요청 body/params/query 검증하는 범용 미들웨어.',
+    prompt:'이 POST /users 핸들러의 수동 검증 코드가 너무 길어. Zod 스키마로 깔끔하게 리팩토링하고, 재사용 가능한 validateRequest 미들웨어를 만들어줘.',
+    criteria:{ correctness:'유효/무효 입력 처리', quality:'에러 메시지 사용자 친화적', completeness:'중첩 객체, 배열, 커스텀 타입' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:92,changes:'120줄 수동 검증을 30줄 Zod 스키마로 교체. validateRequest 제네릭+z.infer 타입 중복 제거'}] },
+
+  // ==================== REFACTORING (15) ====================
+  { id:'ref-1', cat:'refactor', name:'Go God 함수 분리', diff:'hard', lang:'Go',
+    desc:'Go processOrder() 함수가 비대. 주문 검증, 결제, 재고, 배송, 알림을 각각 분리.',
+    prompt:'processOrder() 함수가 너무 비대해. 주문 검증, 결제 처리, 재고 업데이트, 배송 예약, 알림 발송이 전부 한 함수에 있어. 분리해줘. 동작은 동일해야 해.',
+    criteria:{ correctness:'분리 후 동일 동작', quality:'SRP 준수, 명확한 함수명', completeness:'에러 처리 일관성 유지' },
+    tests:[{version:'5.0.9-dev.0+prompt',date:'2026-03-13',cliScore:95,changes:'processOrder→5개 함수 분리 (validate/calculate/payment/inventory/delivery/notification)'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:97,changes:'Express→Fastify 마이그레이션 완벽. 라우트+미들웨어+에러핸들러 전환 완료'}] },
+  { id:'ref-2', cat:'refactor', name:'Go Strategy 패턴 전환', diff:'hard', lang:'Go',
+    desc:'Go calculateShipping()의 if/else 6단계 체인을 배송 전략 인터페이스로 분리.',
+    prompt:'calculateShipping() 함수의 if/else 체인이 6단계나 돼. 배송 전략을 인터페이스로 분리해줘.',
+    criteria:{ correctness:'모든 배송 전략 동작 유지', quality:'Strategy 인터페이스 설계', completeness:'새 전략 추가 용이' },
+    tests:[{version:'5.0.9-dev.0+prompt',date:'2026-03-13',cliScore:97,changes:'ShippingStrategy 인터페이스, 6개 전략 구조체, map 기반 dispatch'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:88,changes:'Go if/else→전략 패턴 인터페이스 분리 완료. 6개 전략 클래스+레지스트리 구현. Go 미설치로 빌드 미검증'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:93,changes:'Go if/else→ShippingStrategy 인터페이스+전략 레지스트리(map). 150줄→25줄 단순화'}] },
+  { id:'ref-3', cat:'refactor', name:'C++ 콜백 → future/promise', diff:'medium', lang:'C++',
+    desc:'C++ 중첩 콜백 패턴을 std::future와 std::promise를 사용한 비동기 패턴으로 전환.',
+    prompt:'이 C++ 코드의 중첩 콜백 패턴을 std::future와 std::promise를 사용한 비동기 패턴으로 리팩토링해줘. 동작은 동일해야 해.',
+    criteria:{ correctness:'동일한 실행 순서 유지', quality:'modern C++ 패턴', completeness:'모든 콜백 변환' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:97,changes:'C++ 콜백 헬→future/promise 비동기 패턴 완벽 변환. make 빌드+실행 동일 출력 검증 완료'}] },
+  { id:'ref-4', cat:'refactor', name:'JS 유틸리티 추출', diff:'easy', lang:'JavaScript',
+    desc:'userController, orderController, productController에 중복된 검증/포맷팅/에러 처리를 공통 유틸로 추출.',
+    prompt:'userController.js, orderController.js, productController.js에 동일한 검증, 포맷팅, 에러 처리 코드가 반복돼. 공통 유틸로 추출해줘.',
+    criteria:{ correctness:'기존 동작 유지', quality:'재사용 가능', completeness:'모든 중복 제거' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:93,changes:'3개 컨트롤러 중복 유틸→common.js 추출. 7개 함수 분리, node --check 검증 통과'}] },
+  { id:'ref-5', cat:'refactor', name:'Python 매직 넘버 상수화', diff:'easy', lang:'Python',
+    desc:'Python 코드 내 86400, 3600, 1024*1024, 0.08 등 하드코딩된 숫자를 의미 있는 상수로 추출.',
+    prompt:'이 Python 코드에 86400, 3600, 1024*1024, 0.08 같은 매직 넘버가 많아. 의미 있는 상수로 추출해줘.',
+    criteria:{ correctness:'값 변경 없음', quality:'상수명이 의미를 명확히 전달', completeness:'파일 전체 매직 넘버 처리' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:91,changes:'매직 넘버 21개→의미 상수 추출. python3 실행 검증 완료. 0.50 하드코딩 1개 잔존'}] },
+  { id:'ref-6', cat:'refactor', name:'C 구조체 조합 패턴', diff:'hard', lang:'C',
+    desc:'C Shape 코드의 4단계 함수 포인터 체인을 구조체 조합(composition) 패턴으로 리팩토링.',
+    prompt:'이 C Shape 코드가 4단계 함수 포인터 체인이야. 구조체 조합(composition) 패턴으로 리팩토링해줘.',
+    criteria:{ correctness:'모든 기능 유지', quality:'조합 패턴 설계', completeness:'테스트 업데이트' },
+    tests:[{version:'5.0.9-dev.0+prompt',date:'2026-03-13',cliScore:35,changes:'조합 구조체 정의했으나 기존 코드 미연결. 컴파일 불가 (FAIL)'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:95,changes:'C Shape→ColorTrait/BorderTrait composition 패턴. gcc -Wall 경고 0, 빌드+실행 검증 완료'}] },
+  { id:'ref-7', cat:'refactor', name:'중첩 삼항 연산자 정리', diff:'easy', lang:'TypeScript',
+    desc:'3단 중첩 삼항 연산자를 가독성 좋은 코드로 변환.',
+    prompt:'이 렌더링 코드의 삼항 연산자가 4단 중첩이야. 가독성 좋게 리팩토링해줘.',
+    criteria:{ correctness:'동일한 결과', quality:'early return 또는 맵핑 활용', completeness:'유사 패턴도 정리', browserVerify:'browser_screenshot으로 리팩토링 전후 UI 동일성 확인' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:93,changes:'4단 중첩 삼항→early return+컴포넌트 분리+sortFunctions 매핑. 가독성 대폭 향상'}] },
+  { id:'ref-8', cat:'refactor', name:'Python 하드코딩 설정 추출', diff:'medium', lang:'Python',
+    desc:'Python 서버 코드 내 URL, 비밀번호, 포트 등 하드코딩 값을 환경변수와 설정 파일로 분리.',
+    prompt:'이 Python 서버에 URL, 비밀번호, 포트 등이 전부 하드코딩되어 있어. 환경변수와 설정 파일로 분리해줘.',
+    criteria:{ correctness:'기존 동작 유지', quality:'dotenv + config 구조', completeness:'모든 하드코딩 값 추출' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:91,changes:'하드코딩 설정→.env+Config 클래스 4개 파일 리팩토링. DB/Redis/JWT/SMTP 전부 처리'}] },
+  { id:'ref-9', cat:'refactor', name:'Python 함수형 스타일 전환', diff:'medium', lang:'Python',
+    desc:'Python 데이터 처리 코드의 for 루프와 임시 변수를 map, filter, comprehension으로 전환.',
+    prompt:'이 Python 데이터 처리 코드에 for 루프와 임시 변수가 많아. 함수형 스타일(map, filter, comprehension)로 리팩토링해줘.',
+    criteria:{ correctness:'동일한 결과', quality:'Pythonic 스타일', completeness:'성능 고려' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:90,changes:'for루프/range(len())→map/filter/comprehension 8개 함수 전환. python3 실행 검증 완료'}] },
+  { id:'ref-10', cat:'refactor', name:'Python 서비스 중복 제거', diff:'medium', lang:'Python',
+    desc:'user_service, order_service, product_service에 중복된 검증/포맷팅/에러 처리 코드를 공통 유틸로 추출.',
+    prompt:'user_service.py, order_service.py, product_service.py에 거의 동일한 검증, 포맷팅, 에러 처리 코드가 반복돼. 공통 유틸로 추출해줘.',
+    criteria:{ correctness:'기존 동작 유지', quality:'decorator 또는 base class 패턴', completeness:'모든 서비스 적용' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:52,changes:'타임아웃(420초). utils 3개 생성+user/order 리팩토링 완료했으나 product_service.py 미처리(33% 누락)'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:97,changes:'3개 서비스 중복→common_utils.py 완전 추출. 데코레이터 패턴+검증함수7개+포맷4개. 구문검증 통과'}] },
+  { id:'ref-11', cat:'refactor', name:'Error Boundary 패턴 도입', diff:'medium', lang:'TypeScript',
+    desc:'React 앱에 Error Boundary 적용으로 부분 에러 격리.',
+    prompt:'이 React 앱에서 DataChart 컴포넌트가 에러나면 전체 화면이 하얗게 변해. Error Boundary를 추가해줘.',
+    criteria:{ correctness:'에러 격리 동작', quality:'사용자 친화적 fallback UI', completeness:'라우트/섹션별 적절한 배치', browserVerify:'browser_get_console로 에러 격리 확인, browser_screenshot으로 폴백 UI 렌더링 확인' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:96,changes:'ErrorBoundary 정확 구현(getDerivedStateFromError+componentDidCatch). DataChart 개별 래핑, 복구 버튼 포함'}] },
+  { id:'ref-12', cat:'refactor', name:'Python Pydantic 스키마 전환', diff:'medium', lang:'Python',
+    desc:'핸들러의 수동 검증 코드 50줄을 Pydantic 모델로 전환.',
+    prompt:'이 핸들러의 수동 검증 코드가 50줄이야. Pydantic 모델로 깔끔하게 바꿔줘.',
+    criteria:{ correctness:'동일한 검증 결과', quality:'스키마 재사용 가능', completeness:'에러 메시지 품질 유지' },
+    tests:[{version:'5.0.9-dev.0+prompt',date:'2026-03-13',cliScore:72,changes:'Pydantic 모델 2개 파일 생성했으나 handlers.py에서 실제 사용 안함 (FAIL)'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:95,changes:'Pydantic 모델 6개로 수동검증 완전 교체. 204줄→73줄(64%감소). field_validator+model_validator 활용'}] },
+  { id:'ref-13', cat:'refactor', name:'JS Repository 패턴 추출', diff:'medium', lang:'JavaScript',
+    desc:'Express 라우트에 직접 작성된 SQL 쿼리를 Repository 계층으로 분리.',
+    prompt:'이 Express 라우트에 SQL 쿼리가 직접 들어있어. Repository 패턴으로 분리해줘.',
+    criteria:{ correctness:'기존 동작 유지', quality:'인터페이스 분리, 테스트 용이성', completeness:'모든 라우트 적용' },
+    tests:[{version:'5.0.9-dev.0+prompt',date:'2026-03-13',cliScore:25,changes:'파일 미수정. Repository 패턴 미구현 (FAIL)'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:52,changes:'타임아웃. Repository 3개 생성했으나 publish/comment 라우트 미교체, pool import 누락으로 런타임 에러'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:98,changes:'Express SQL→BaseRepository 상속 3개 Repository 완전 분리. routes.js 전면 리팩토링'}] },
+  { id:'ref-14', cat:'refactor', name:'C++ raw→smart pointer', diff:'medium', lang:'C++',
+    desc:'C++ 코드의 raw pointer를 전부 unique_ptr, shared_ptr로 리팩토링. 메모리 누수 방지.',
+    prompt:'이 C++ 코드의 raw pointer를 전부 smart pointer(unique_ptr, shared_ptr)로 리팩토링해줘. 메모리 누수 없이 동일하게 동작해야 해.',
+    criteria:{ correctness:'기존 동작 유지', quality:'modern C++ 패턴', completeness:'모든 raw pointer 전환' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:90,changes:'C++ raw→smart pointer 완벽 리팩토링. 소유권 분석 정확(unique_ptr/raw 관찰자). 컴파일+동작 검증 완료'}] },
+  { id:'ref-15', cat:'refactor', name:'Python 상태 머신 단순화', diff:'hard', lang:'Python',
+    desc:'Python 주문 상태 전이의 if/else 100줄을 상태 전이 테이블 패턴으로 리팩토링.',
+    prompt:'이 주문 상태 전이가 if/else 100줄이야. 상태 전이 테이블 패턴으로 리팩토링해줘.',
+    criteria:{ correctness:'모든 상태 전이 유지', quality:'상태 테이블로 이해 가능', completeness:'잘못된 전이 방지' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:95,changes:'if/else 187줄→TRANSITION_TABLE+14개 핸들러 함수. 전이 테이블 패턴 교과서적 구현. 실행 검증 완료'}] },
+
+  // ==================== CODE ANALYSIS (15) ====================
+  { id:'anal-1', cat:'analysis', name:'Go 성능 병목 분석', diff:'hard', lang:'Go',
+    desc:'Go 데이터 처리 모듈의 성능 병목 식별. 각 함수의 시간 복잡도 분석 및 개선 방안 제시.',
+    prompt:'이 Go 데이터 처리 모듈의 성능 병목을 분석해줘. 각 함수의 시간 복잡도를 파악하고 개선 방안을 제시해줘.',
+    criteria:{ correctness:'병목 정확히 식별', quality:'Big-O 분석 포함', completeness:'개선 코드 제시' },
+    tests:[{version:'5.0.9-dev.0+prompt',date:'2026-03-13',cliScore:20,changes:'분석 출력 없음. 코드 미수정 (FAIL)'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:88,changes:'All 7 functions optimized O(n²)→O(n). Build failed (no Go). Near-pass.'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:90,changes:'Go 7개 함수 복잡도 분석+최적화 코드+분석 보고서 생성. 빌드 미검증(Go 미설치)'}] },
+  { id:'anal-2', cat:'analysis', name:'Flask 인증 보안 분석', diff:'hard', lang:'Python',
+    desc:'Flask 인증 시스템의 보안 취약점 탐지. 잠재적 공격 벡터와 수정 방안 제시.',
+    prompt:'이 Flask 인증 시스템의 보안 취약점을 분석해줘. 잠재적인 공격 벡터와 수정 방안을 제시해줘.',
+    criteria:{ correctness:'실제 취약점만 정확히 식별', quality:'OWASP 기준 체계적 분석', completeness:'수정 방안 포함' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:68,changes:'Timeout. Fixed SQL injection+MD5+hardcoded secrets. search_users SQLi unfixed.'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:95,changes:'Flask 14개 보안취약점 식별+전부 수정: SQL Injection파라미터화, bcrypt, CSRF, Rate Limit'}] },
+  { id:'anal-3', cat:'analysis', name:'Go 메모리/goroutine 누수 분석', diff:'hard', lang:'Go',
+    desc:'Go 서버의 메모리 사용 패턴 분석. 메모리 누수, goroutine 누수, 개선 방안 제시.',
+    prompt:'이 Go 서버 코드의 메모리 사용 패턴을 분석해줘. 메모리 누수, goroutine 누수, 개선 방안을 제시해줘.',
+    criteria:{ correctness:'누수 원인 정확히 식별', quality:'근거 있는 분석', completeness:'모든 누수 포인트 발견' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:83,changes:'Timeout. Added ctx propagation, TTL cache, goroutine leak fix. Partial.'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:0,changes:'타임아웃(420초). TODO#1 완료 후 TODO#2에서 시간 초과. stdout 없음'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:91,changes:'Go 메모리/Goroutine 누수 7개 식별+코드 수정. eventLog/cache 크기제한, stream context종료'}] },
+  { id:'anal-4', cat:'analysis', name:'C 메모리 안전성 분석', diff:'hard', lang:'C',
+    desc:'C 프로그램의 메모리 사용 패턴 분석. 메모리 누수, dangling pointer, double free 등.',
+    prompt:'이 C 프로그램의 메모리 사용 패턴을 분석해줘. 메모리 누수, dangling pointer, double free 등의 문제를 모두 찾아서 설명해줘.',
+    criteria:{ correctness:'메모리 문제 정확히 식별', quality:'재현 시나리오 설명', completeness:'모든 메모리 문제 분석' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:93,changes:'Fixed dangling ptr, NULL checks, memory leaks. Built+tested with ASAN.'}] },
+  { id:'anal-5', cat:'analysis', name:'API 계약 위반 탐지', diff:'medium', lang:'Python',
+    desc:'프론트엔드 TypeScript 타입과 백엔드 Python API 핸들러 사이의 불일치 탐지.',
+    prompt:'이 프론트엔드 TypeScript 타입과 백엔드 Python API 핸들러 사이에 불일치가 있어. 모든 불일치를 찾아줘.',
+    criteria:{ correctness:'불일치 정확히 식별', quality:'체계적 비교', completeness:'모든 엔드포인트 확인' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:93,changes:'Comprehensive TYPE_MISMATCH_REPORT.md covering all 5 entities.'}] },
+  { id:'anal-6', cat:'analysis', name:'Python 코드 스멜 식별', diff:'medium', lang:'Python',
+    desc:'Python 프로젝트의 코드 스멜 탐지. Long method, feature envy, data clumps 등.',
+    prompt:'이 Python 프로젝트의 코드 품질을 분석해줘. 코드 스멜, 디자인 문제, 개선 포인트를 찾아줘.',
+    criteria:{ correctness:'실제 문제만 지적', quality:'우선순위 제시', completeness:'주요 스멜 유형 전부 확인' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:87,changes:'CODE_QUALITY_REPORT.md with God Function, dead code, magic numbers.'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:87,changes:'Dead Code 4개 제거+세율 중복 제거+constants.py 생성. create_order 13파라미터 미수정'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:95,changes:'Python 코드스멜 10개 식별+CODE_REVIEW.md 228줄. Long Parameter/God Function/Dead Code 전부 분석'}] },
+  { id:'anal-7', cat:'analysis', name:'접근성(a11y) 이슈 탐지', diff:'medium', lang:'TypeScript',
+    desc:'React 컴포넌트의 접근성 문제 식별 (WCAG 2.1 기준).',
+    prompt:'이 React 컴포넌트들의 접근성을 분석해줘. WCAG 2.1 기준으로 문제가 있는 부분을 찾아줘.',
+    criteria:{ correctness:'실제 접근성 위반 식별', quality:'WCAG 기준 명시', completeness:'수정 코드 제시', browserVerify:'browser_press_key로 키보드 네비게이션 검증, browser_get_content로 ARIA 속성 확인, browser_screenshot으로 색상 대비 확인' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:61,changes:'Timeout. 3/5 components fixed (Dropdown, Notification, DataTable). Incomplete.'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:94,changes:'WCAG 2.1 기준 5개 React 컴포넌트 접근성 분석 591줄 보고서. alt/label/aria/키보드/시맨틱 전부 분석'}] },
+  { id:'anal-8', cat:'analysis', name:'JS 에러 핸들링 갭 분석', diff:'medium', lang:'JavaScript',
+    desc:'Node.js Express 서버의 에러 처리 갭 분석. 미처리 에러 경로, 보안 문제 탐지.',
+    prompt:'이 Node.js 서버 코드의 에러 처리를 분석해줘. 처리 안 되는 에러 경로와 보안 문제를 찾아줘.',
+    criteria:{ correctness:'미처리 에러 경로 식별', quality:'체계적 분석', completeness:'모든 엔드포인트 확인' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:70,changes:'Timeout. Fixed async errors, removed stack exposure, NaN page/limit.'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:97,changes:'Express 에러처리 8건+보안 4건 코드 수정 완료. JWT하드코딩→env, connection leak 수정 등'}] },
+  { id:'anal-9', cat:'analysis', name:'C++ RAII 패턴 분석', diff:'medium', lang:'C++',
+    desc:'C++ 코드의 리소스 관리 패턴 분석. RAII 원칙 위반, 예외 안전성 문제, 리소스 누수 가능성.',
+    prompt:'이 C++ 코드의 리소스 관리 패턴을 분석해줘. RAII 원칙 위반, 예외 안전성 문제, 리소스 누수 가능성을 모두 찾아서 설명해줘.',
+    criteria:{ correctness:'RAII 위반 정확히 식별', quality:'우선순위별 정리', completeness:'모든 리소스 확인' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:91,changes:'unique_ptr RAII, FileCloser, string for NetworkSocket. Built OK.'}] },
+  { id:'anal-10', cat:'analysis', name:'JS 의존성 취약점 분석', diff:'easy', lang:'JavaScript',
+    desc:'Node.js 프로젝트의 의존성 취약점 분석. 보안 취약점, 업데이트 필요한 패키지, deprecated 패키지.',
+    prompt:'이 프로젝트의 의존성을 분석해줘. 보안 취약점, 업데이트 필요한 패키지, 대안을 제시해줘.',
+    criteria:{ correctness:'실제 취약점 식별', quality:'심각도 분류', completeness:'직접/간접 의존성 모두' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:93,changes:'384-line report with 17 CVEs, CVSS scores, fix commands, alternatives.'}] },
+  { id:'anal-11', cat:'analysis', name:'JS DB 쿼리 성능 분석', diff:'hard', lang:'JavaScript',
+    desc:'Express API의 DB 쿼리 성능 문제 식별. N+1, full table scan, 미싱 인덱스.',
+    prompt:'이 API가 느려. DB 쿼리를 분석해서 성능 문제를 찾고 개선안을 제시해줘.',
+    criteria:{ correctness:'성능 이슈 정확히 식별', quality:'EXPLAIN 기반 분석', completeness:'인덱스 추가, 쿼리 최적화 포함' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:92,changes:'Fixed N+1 with JOINs, CTE subquery, removed duplicate dashboard query.'}] },
+  { id:'anal-12', cat:'analysis', name:'JS 아키텍처 안티패턴', diff:'hard', lang:'JavaScript',
+    desc:'JavaScript 프로젝트의 아키텍처 문제 탐지. 순환 의존성, 계층 위반, 과도한 결합.',
+    prompt:'이 프로젝트의 아키텍처를 분석해줘. 계층 위반, 순환 의존성, 결합도 문제를 찾아줘.',
+    criteria:{ correctness:'안티패턴 정확히 식별', quality:'의존성 그래프 기반 분석', completeness:'개선 아키텍처 제안' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:90,changes:'372-line report: circular deps, God Object, 3 DB pools, utils mixing.'}] },
+  { id:'anal-13', cat:'analysis', name:'국제화(i18n) 이슈 분석', diff:'medium', lang:'TypeScript',
+    desc:'하드코딩된 문자열, 날짜/숫자 형식, RTL 미지원 등 i18n 문제 탐지.',
+    prompt:'이 앱을 다국어 지원하려고 해. 현재 코드에서 국제화 관련 문제를 모두 찾아줘.',
+    criteria:{ correctness:'i18n 이슈 정확히 식별', quality:'체계적 카테고리화', completeness:'UI, 데이터, 형식 전부', browserVerify:'browser_screenshot으로 하드코딩된 텍스트 식별, browser_get_content로 locale 의존 렌더링 확인' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:88,changes:'32 i18n issues: hardcoded strings, USD-only, CSS content text, LTR-only.'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:93,changes:'i18n 완전 구현: react-i18next+3개 locale+RTL CSS+Intl.NumberFormat/DateTimeFormat'}] },
+  { id:'anal-14', cat:'analysis', name:'C++ 하위 호환성 분석', diff:'medium', lang:'C++',
+    desc:'C++ 라이브러리 업데이트가 기존 사용자 코드를 깨뜨리는지 분석. breaking change 식별.',
+    prompt:'이 C++ 라이브러리 업데이트가 기존 사용자 코드를 깨뜨리는지 분석해줘. breaking change를 모두 찾아줘.',
+    criteria:{ correctness:'breaking change 정확히 식별', quality:'영향 범위 분석', completeness:'마이그레이션 가이드 제시' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:13,changes:'Failed — timeout after TODO creation only. Zero output.'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:95,changes:'C++ 라이브러리 업데이트 13개 breaking change 전부 식별+마이그레이션 가이드 504줄'}] },
+  { id:'anal-15', cat:'analysis', name:'C 비즈니스 로직 해석', diff:'hard', lang:'C',
+    desc:'C calculate_price 함수 200줄의 복잡한 비즈니스 로직을 분석하고 문서화.',
+    prompt:'이 C calculate_price 함수가 200줄인데 주석도 문서도 없어. 이 함수가 정확히 무엇을 하는지 단계별로 설명해줘.',
+    criteria:{ correctness:'로직 정확히 해석', quality:'명확한 설명', completeness:'모든 분기/조건 포함' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:53,changes:'Timeout. Partial Doxygen comments. Only covered beginning of function.'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:95,changes:'C calculate_price 200줄 역공학: 12단계 가격계산 로직 완벽 문서화 455줄'}] },
+
+  // ==================== DEBUGGING (10) ====================
+  { id:'dbg-1', cat:'debug', name:'OOM 크래시 진단', diff:'hard', lang:'TypeScript',
+    desc:'Node.js 앱의 메모리 부족 크래시. heap dump 분석 필요.',
+    prompt:'프로덕션 서버가 약 2시간 운영 후 반복적으로 OOM으로 크래시됩니다. 에러 로그와 소스 코드를 분석해서 메모리 누수의 근본 원인을 찾고 수정해주세요. 서버 기능(이벤트 로깅, 파일 처리)은 유지하되 메모리가 무한 증가하지 않도록.',
+    criteria:{ correctness:'OOM 원인 정확히 진단', quality:'근거 있는 추론', completeness:'수정 코드 + 모니터링 방안' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:95,changes:'OOM 3개 원인 식별(unbounded eventLog, file cache, bulk query), LRU cap+streaming 적용, tsc 검증'}] },
+  { id:'dbg-2', cat:'debug', name:'C segfault 크래시 진단', diff:'hard', lang:'C',
+    desc:'C 프로그램이 특정 입력에서 segfault로 크래시. 에러 로그와 코드 분석으로 원인 진단.',
+    prompt:'이 C 프로그램이 특정 입력에서 segfault로 크래시됩니다. 에러 로그와 코드를 분석해서 크래시 원인을 찾고 수정해주세요.',
+    criteria:{ correctness:'segfault 원인 정확히 식별', quality:'근거 있는 추론', completeness:'수정 코드 제시' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:88,changes:'C segfault 3개 버그 수정. edit_file 실패→sed 우회. 빌드+테스트 성공'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:92,changes:'C segfault 2개 버그(인덱스 초과+off-by-one) 정확 수정. 실행 검증 완료'}] },
+  { id:'dbg-3', cat:'debug', name:'Python 500 에러 진단', diff:'medium', lang:'Python',
+    desc:'Python Flask/FastAPI의 POST /api/orders에서 특정 요청 시 KeyError/AttributeError로 500 에러 발생.',
+    prompt:'프로덕션에서 POST /api/orders 엔드포인트가 특정 요청에서 500 에러를 반환합니다. 에러 로그와 코드를 분석해서 원인을 찾고 수정해주세요.',
+    criteria:{ correctness:'에러 원인 정확히 진단', quality:'로그 기반 체계적 분석', completeness:'재발 방지 조치' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:93,changes:'Flask 500 에러 2개 버그 수정(KeyError, TypeError). curl로 실제 서버 검증 완료'}] },
+  { id:'dbg-4', cat:'debug', name:'CORS 에러 디버깅', diff:'easy', lang:'TypeScript',
+    desc:'브라우저 콘솔의 CORS 에러 메시지로 원인 진단.',
+    prompt:'프론트엔드에서 API 호출하면 CORS 에러가 나: \'Access to XMLHttpRequest at http://localhost:3000/api/users from origin http://localhost:5173 has been blocked by CORS policy\'. preflight도 실패해.',
+    criteria:{ correctness:'CORS 설정 문제 정확히 식별', quality:'단계적 디버깅', completeness:'모든 관련 헤더 확인', browserVerify:'browser_get_network로 CORS preflight 요청/응답 확인, browser_get_console로 CORS 에러 해소 확인' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:90,changes:'CORS origin 불일치 수정, credentials+OPTIONS 추가. 런타임 미검증'}] },
+  { id:'dbg-5', cat:'debug', name:'Python Docker 크래시 진단', diff:'medium', lang:'Python',
+    desc:'Docker Compose에서 Python API 컨테이너가 시작 후 3초만에 종료. healthcheck, 환경변수, depends_on 문제.',
+    prompt:'docker compose up 하면 api 컨테이너가 시작 후 3초만에 죽어. 로그를 보고 원인을 찾아 수정해줘.',
+    criteria:{ correctness:'시작 실패 원인 식별', quality:'체계적 디버깅 접근', completeness:'Dockerfile, compose, 앱 코드 모두 확인' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:10,changes:'로그 11줄만 기록. TODO만 생성, 실행 없음'},{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:96,changes:'Docker compose 크래시 원인 2개 정확 진단+수정. health check+API 검증 완료'}] },
+  { id:'dbg-6', cat:'debug', name:'C++ TLS/SSL 설정 디버깅', diff:'medium', lang:'C++',
+    desc:'C++ HTTPS 서버의 SSL 설정 오류. 잘못된 인증서 경로, CN 불일치, 약한 cipher 설정.',
+    prompt:'이 C++ HTTPS 서버에 접속하면 SSL 에러가 나. 설정을 확인하고 수정해줘.',
+    criteria:{ correctness:'SSL 설정 문제 해결', quality:'보안 기준 준수', completeness:'인증서, cipher, 프로토콜 모두 확인' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:93,changes:'C++ HTTPS SSL 에러 4가지 원인 모두 진단+수정. 빌드 성공 확인'}] },
+  { id:'dbg-7', cat:'debug', name:'Go WebSocket 타임아웃', diff:'hard', lang:'Go',
+    desc:'Go WebSocket 서버에서 Nginx proxy_read_timeout 기본 60초로 연결이 끊기는 문제. heartbeat 미구현.',
+    prompt:'WebSocket 연결이 정확히 60초마다 끊겨. Nginx 프록시를 쓰고 있어. 원인을 찾아 수정해줘.',
+    criteria:{ correctness:'타임아웃 원인 식별', quality:'근본 원인 해결', completeness:'keepalive, heartbeat 설정' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:88,changes:'WebSocket 60초 끊김 = Nginx 타임아웃. nginx.conf 수정 완료. reload 미검증'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:72,changes:'Nginx timeout 원인 진단 정확하나 해결책이 타임아웃 연장에 그침. Go heartbeat 미구현'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:80,changes:'Nginx proxy_read_timeout 3600s 수정. Go heartbeat/ping 미구현으로 근본해결 절반 누락'},{version:'5.0.9-dev.4',date:'2026-03-13',cliScore:75,changes:'Nginx timeout만 수정(proxy_read_timeout 3600s). Go heartbeat 미구현. v5.0.9-dev.4 self-review룰 추가에도 동일 패턴'},{version:'5.0.9-dev.4',date:'2026-03-14',cliScore:68,changes:'Nginx timeout만 수정. Go heartbeat 미구현(main.go 미수정). self-review룰에도 동일 패턴'},{version:'5.0.9-dev.5',date:'2026-03-14',cliScore:70,changes:'Nginx timeout만 수정. Go heartbeat 미구현. v5.0.9-dev.5에서도 동일'},{version:'5.0.9-dev.6',date:'2026-03-14',cliScore:93,changes:'Nginx timeout 수정 + Go WebSocket ping/pong heartbeat 완전 구현 (PongHandler+ReadDeadline+ping ticker). Multi-layer completeness 룰 효과'}] },
+  { id:'dbg-8', cat:'debug', name:'JS Knex 마이그레이션 실패', diff:'medium', lang:'JavaScript',
+    desc:'Knex 마이그레이션에서 NOT NULL 컬럼 추가 시 기존 데이터 때문에 실패.',
+    prompt:'Knex 마이그레이션이 실패해. \'column cannot be null\' 에러가 나. 마이그레이션 스크립트를 수정해줘.',
+    criteria:{ correctness:'마이그레이션 실패 원인 해결', quality:'데이터 손실 방지', completeness:'롤백 계획 포함' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:90,changes:'Knex 마이그레이션 NOT NULL 컬럼에 defaultTo() 기본값 추가. 14개 컬럼 처리'}] },
+  { id:'dbg-9', cat:'debug', name:'JS CI/CD 파이프라인 실패', diff:'medium', lang:'JavaScript',
+    desc:'JavaScript 프로젝트의 GitHub Actions CI 실패. 잘못된 Node 버전, working-directory, 환경변수 누락.',
+    prompt:'GitHub Actions CI가 실패해. 로컬에선 빌드 성공하는데. 워크플로우를 분석해서 수정해줘.',
+    criteria:{ correctness:'CI 실패 원인 해결', quality:'재현 가능한 환경 설정', completeness:'캐싱, 타임아웃 최적화' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:96,changes:'GitHub Actions CI 4가지 문제(Node버전,working-dir,DB컨테이너,하드코딩토큰) 전부 수정+YAML검증'}] },
+  { id:'dbg-10', cat:'debug', name:'Go JWT 인증 실패 디버깅', diff:'easy', lang:'Go',
+    desc:'Go 앱에서 JWT secret 미설정으로 로그인 후 모든 API 호출이 401 반환. 에러 메시지 없음.',
+    prompt:'Go 앱이 시작은 되는데 로그인 후 다른 API 호출하면 전부 401이야. 로그와 코드를 분석해줘.',
+    criteria:{ correctness:'누락 환경변수 식별', quality:'시작 시 env 검증 추가', completeness:'모든 필수 환경변수 확인' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:87,changes:'JWT_SECERT 오타 발견(정확). godotenv 추가는 과도. Go 미설치로 검증 불가'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:92,changes:'Go JWT_SECERT 오타 정확 진단→JWT_SECRET 1줄 수정. Go 미설치로 빌드 미검증'}] },
+
+  // ==================== CODE REVIEW (10) ====================
+  { id:'rev-1', cat:'review', name:'JS 에러 핸들링 리뷰', diff:'medium', lang:'JavaScript',
+    desc:'JavaScript PR에서 에러를 삼키거나, 스택 트레이스를 노출하는 코드 리뷰.',
+    prompt:'이 PR을 리뷰해줘. 에러 처리가 적절한지 중점적으로 봐줘.',
+    criteria:{ correctness:'에러 처리 문제 정확히 식별', quality:'구체적 수정 제안', completeness:'모든 에러 경로 확인' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:58,changes:'에러 처리 문제 전체 파악+수정 완성했으나 create_file 에러+타임아웃으로 파일 저장 실패'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:94,changes:'에러처리 PR 리뷰: unhandled rejection+내부에러노출+입력검증 전부 식별+코드수정+REVIEW.md 230줄'}] },
+  { id:'rev-2', cat:'review', name:'JS N+1 쿼리 리뷰', diff:'medium', lang:'JavaScript',
+    desc:'JavaScript PR에서 루프 내 DB 쿼리가 있는 N+1 문제 탐지.',
+    prompt:'이 PR을 리뷰해줘. 특히 DB 쿼리 성능 관점에서.',
+    criteria:{ correctness:'N+1 문제 식별', quality:'구체적 개선 코드 제시', completeness:'관련 쿼리 전부 확인' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:94,changes:'N+1 쿼리 3중 루프+부서통계+피드 전 이슈 정확 식별. REVIEW.md+코드 최적화 실제 적용'}] },
+  { id:'rev-3', cat:'review', name:'Breaking API 변경 리뷰', diff:'medium', lang:'TypeScript',
+    desc:'PR이 기존 API 응답 형식을 변경하여 하위 호환성 깨뜨림.',
+    prompt:'이 PR을 리뷰해줘. API 하위 호환성에 문제가 없는지 확인해줘.',
+    criteria:{ correctness:'breaking change 정확히 식별', quality:'호환성 유지 방안 제시', completeness:'모든 공개 API 확인' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:97,changes:'Breaking Change 5개(필드명+단위+구조+에러포맷) 전부 식별. 등급별 분류+버전닝 권고 완성'}] },
+  { id:'rev-4', cat:'review', name:'Python IDOR 취약점 리뷰', diff:'hard', lang:'Python',
+    desc:'Python PR에서 인가 검증 없이 다른 사용자 리소스에 접근 가능한 취약점.',
+    prompt:'이 PR을 보안 관점에서 리뷰해줘. 인증/인가 관련 문제를 찾아줘.',
+    criteria:{ correctness:'IDOR 취약점 식별', quality:'OWASP 기준 분석', completeness:'모든 엔드포인트 확인' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:89,changes:'Flask PR에서 7개 IDOR+권한 상승 취약점 정확 식별+코드 수정. PII노출 GET/SHA256/SECRET_KEY 미언급'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:97,changes:'보안 리뷰: IDOR 6개 식별(role상승+무단열람/삭제+billing탈취)+SECURITY_REVIEW.md 246줄'}] },
+  { id:'rev-5', cat:'review', name:'C++ 성능 저하 리뷰', diff:'hard', lang:'C++',
+    desc:'C++ PR에서 핫 패스에 O(n^2) 연산을 추가하는 성능 문제. 템플릿 관점 분석.',
+    prompt:'이 PR을 리뷰해줘. C++ 템플릿과 성능 관점에서 문제를 찾아줘.',
+    criteria:{ correctness:'성능 문제 정확히 식별', quality:'벤치마크 기반 분석', completeness:'대안 알고리즘 제시' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:94,changes:'C++ 템플릿 PR O(n²)정렬 회귀+불필요 복사+타입 안전성 핵심 이슈 전부 식별. 448줄 REVIEW.md 완성'}] },
+  { id:'rev-6', cat:'review', name:'Go 입력 검증 누락 리뷰', diff:'easy', lang:'Go',
+    desc:'Go PR에서 SQL injection, 길이 제한 없음, path traversal 등 입력 검증 누락.',
+    prompt:'이 PR을 리뷰해줘. 사용자 입력 처리가 안전한지 확인해줘.',
+    criteria:{ correctness:'검증 누락 식별', quality:'적절한 검증 방법 제시', completeness:'모든 입력 포인트 확인' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:0,changes:'타임아웃으로 결과물 없음. SQL Injection+Path Traversal 보안 취약점 발견 실패'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:95,changes:'SQL Injection 4건+Path Traversal 1건 식별·패치+정렬 화이트리스트+REVIEW.md. 완성도 높은 보안 리뷰'}] },
+  { id:'rev-7', cat:'review', name:'C++ 네이밍/컨벤션 리뷰', diff:'easy', lang:'C++',
+    desc:'C++ PR에서 프로젝트 컨벤션과 맞지 않는 네이밍, 스타일 문제.',
+    prompt:'이 PR을 코드 스타일/컨벤션 관점에서 리뷰해줘.',
+    criteria:{ correctness:'일관성 위반 식별', quality:'프로젝트 컨벤션 기반', completeness:'모든 변경 파일 확인' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:89,changes:'C++ 컨벤션 위반(헝가리안+PascalCase 혼재) 전부 식별+수정. REVIEW.md 체계적 작성 완료'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:92,changes:'C++ 헝가리안→snake_case+PascalCase→snake_case+C캐스트→static_cast 전부 수정. g++ 컴파일 검증'}] },
+  { id:'rev-8', cat:'review', name:'Go 트랜잭션 오용 리뷰', diff:'hard', lang:'Go',
+    desc:'Go PR에서 주문+재고 작업에 tx.Begin/tx.Commit 없이 원자성이 보장되지 않는 문제.',
+    prompt:'이 PR을 리뷰해줘. DB 트랜잭션 사용이 올바른지 확인해줘.',
+    criteria:{ correctness:'트랜잭션 문제 식별', quality:'원자성/일관성 분석', completeness:'모든 DB 작업 확인' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:92,changes:'Go 주문 서비스 트랜잭션 누락 4개 함수 전부 식별+수정. FOR UPDATE 락+defer 롤백 패턴 적용'}] },
+  { id:'rev-9', cat:'review', name:'Python 테스트 품질 리뷰', diff:'medium', lang:'Python',
+    desc:'Python PR의 테스트가 의미 없거나, 실제 로직을 검증하지 않는 문제.',
+    prompt:'이 PR의 테스트 코드를 리뷰해줘. 테스트가 실제로 유의미한지 확인해줘.',
+    criteria:{ correctness:'테스트 문제 정확히 식별', quality:'좋은 테스트 패턴 제시', completeness:'누락 시나리오 지적' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:91,changes:'테스트 코드 28개 무의미한 assertion/불필요 mock/중복/엣지케이스 누락 핵심 문제 전부 파악. TEST_REVIEW.md 작성'}] },
+  { id:'rev-10', cat:'review', name:'하위 호환성 리뷰', diff:'medium', lang:'TypeScript',
+    desc:'라이브러리 API 변경이 기존 사용자에게 미치는 영향 리뷰.',
+    prompt:'이 라이브러리 업데이트 PR을 리뷰해줘. 기존 사용자가 코드를 변경해야 하는 부분이 있는지 확인.',
+    criteria:{ correctness:'호환성 문제 식별', quality:'마이그레이션 가이드 제시', completeness:'deprecation 경고 추가' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:92,changes:'breaking changes 7개 모두 정확 식별. 278줄 마이그레이션 가이드+codemod 예시 완성'}] },
+
+  // ==================== TESTING (5) ====================
+  { id:'test-1', cat:'testing', name:'C 문자열 유틸 단위 테스트', diff:'easy', lang:'C',
+    desc:'C 문자열 유틸리티 라이브러리(strutil.c)에 대한 단위 테스트 작성. 경계 조건, NULL 입력 포함.',
+    prompt:'이 C 문자열 유틸리티 라이브러리에 대한 단위 테스트를 작성해줘. 경계 조건, NULL 입력, 빈 문자열 케이스를 포함.',
+    criteria:{ correctness:'모든 함수 커버', quality:'edge case, NULL 테스트', completeness:'모든 분기 커버리지' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:95,changes:'C 문자열 유틸리티 7개 함수 76개 테스트 케이스(NULL/빈문자열/경계조건 포함). gcc 컴파일+실행 검증 통과'}] },
+  { id:'test-2', cat:'testing', name:'Go HTTP API 통합 테스트', diff:'medium', lang:'Go',
+    desc:'Go HTTP API의 통합 테스트 작성. httptest 사용. CRUD 전체 흐름, 에러 응답, 동시 요청 커버.',
+    prompt:'이 Go HTTP API의 통합 테스트를 작성해줘. httptest 사용. CRUD 전체 흐름, 에러 응답, 동시 요청을 커버해야 해.',
+    criteria:{ correctness:'모든 엔드포인트 커버', quality:'테스트 격리', completeness:'에러 케이스, 동시성' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:87,changes:'Go HTTP API httptest 통합테스트 작성(CRUD/에러/동시성/필터링 커버). Go 환경 부재로 실행 검증 불가'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:97,changes:'Go httptest CRUD+에러+100고루틴 동시요청 676줄 통합테스트. sync.WaitGroup+t.Run subtests'}] },
+  { id:'test-3', cat:'testing', name:'E2E 사용자 플로우 테스트', diff:'hard', lang:'TypeScript',
+    desc:'로그인 → 대시보드 확인 → 로그아웃 전체 플로우 E2E 테스트. Playwright 사용.',
+    prompt:'Playwright로 로그인 → 대시보드 확인 → 로그아웃 전체 E2E 테스트를 작성해줘.',
+    criteria:{ correctness:'전체 플로우 동작', quality:'안정적 (no flaky)', completeness:'에러 시나리오 포함', browserVerify:'browser_navigate + browser_fill + browser_click으로 전체 로그인→대시보드→로그아웃 플로우 검증' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:17,changes:'Playwright E2E 테스트 파일 작성 중 타임아웃. 실행 검증 미완+최종 출력 없음'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:95,changes:'Playwright E2E 6개 케이스 작성. data-testid 셀렉터 소스에서 직접 추출. 미실행 소감점'}] },
+  { id:'test-4', cat:'testing', name:'Python 자료구조 단위 테스트', diff:'medium', lang:'Python',
+    desc:'Python Stack과 Queue 구현에 대한 단위 테스트 작성. pytest 사용. 경계 조건, 에러 케이스 포함.',
+    prompt:'이 Python Stack과 Queue 구현에 대한 단위 테스트를 작성해줘. pytest 사용. 경계 조건, 에러 케이스를 모두 커버해야 해.',
+    criteria:{ correctness:'모든 메서드 커버', quality:'경계 조건 테스트', completeness:'모든 에러 경로 커버' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:94,changes:'pytest Stack/Queue 63개 테스트 전부 통과(0.22s). 경계조건+에러케이스 완벽 커버'}] },
+  { id:'test-5', cat:'testing', name:'JS 성능/부하 테스트', diff:'hard', lang:'JavaScript',
+    desc:'Express 검색 API에 대한 성능 테스트. autocannon 사용. 동시 50명, p99 레이턴시 200ms 이하.',
+    prompt:'이 Express 검색 API에 대한 성능 테스트를 작성해줘. autocannon 사용. 동시 50명 접속, p99 레이턴시 200ms 이하 목표.',
+    criteria:{ correctness:'성능 메트릭 측정 동작', quality:'현실적 부하 시나리오', completeness:'병목 지점 식별 포함' },
+    tests:[{version:'5.0.9-dev.2',date:'2026-03-13',cliScore:89,changes:'autocannon 성능 테스트 p99=147ms(목표200ms이하) 달성. npm install 자가수정 후 서버 검증 완료'},{version:'5.0.9-dev.3',date:'2026-03-13',cliScore:99,changes:'autocannon 성능테스트(동시50명, p99 200ms) 7시나리오 실제 실행 검증. 정직한 결과 보고'}] },
+];
+
+// =====================================================================
+// CHANGELOG
+// =====================================================================
+const changelog = [
+  {
+    version: 'v5.0.9-dev.6',
+    date: '2026-03-14',
+    changes: [
+      'Self-Review #2 강화: "Fix ALL causes at EVERY layer" — config-only fix 불완전 명시',
+      'Self-Review #5 추가: Multi-layer completeness — config 수정 시 application 레벨 처리 의무화',
+      'dbg-7 통과 (93점) — Nginx timeout + Go WebSocket heartbeat 양쪽 구현',
+      '전체 110/110 시나리오 통과 달성',
+    ]
+  },
+  {
+    version: 'v5.0.9-dev.5',
+    date: '2026-03-14',
+    changes: [
+      'BASH_DANGEROUS_PATTERNS rm -rf 안전 필터 정밀화 — /tmp/path 허용, root/home만 차단',
+      'tool-7 통과 (94점) — NAS 배포 시 rm -rf 정리 성공',
+      'tool-2 통과 (97점) — 파일 시스템 분석 자기오염 해소',
+    ]
+  },
+  {
+    version: 'v5.0.9-dev.4',
+    date: '2026-03-13',
+    changes: [
+      'Self-Review Before Completion 섹션 추가 (4개 규칙)',
+      'getCriticalReminders #13 self-review 항목 추가',
+      'feat-9 통과 (95점) — Express 라우팅 순서 올바르게 처리',
+    ]
+  },
+  {
+    version: 'v5.0.9-dev.3',
+    date: '2026-03-13',
+    changes: [
+      '프롬프트 강화: 코드 수정 의무화, 도구 사용 가이드, 정밀도 향상',
+      '70 → 106/110 시나리오 통과',
+    ]
+  },
+  {
+    version: 'v5.0.9-dev.2',
+    date: '2026-03-13',
+    changes: [
+      '초기 프롬프트 개선: PRECISION, EFFICIENCY, ENCODING 지침 적용',
+      '110개 시나리오 첫 전수 테스트 수행',
+    ]
+  },
+  {
+    version: 'v1.0.0 (Initial)',
+    date: '2026-03-11',
+    changes: [
+      '110개 시나리오 정의 (Bug Fix 25, Feature 20, Refactor 15, Analysis 15, Debug 10, Review 10, Testing 5, Tool Usage 10)',
+      '8개 카테고리별 평가 체계 수립',
+      '평가 기준: Correctness(40) + Quality(30) + Completeness(30) = 100점',
+      '목표 점수: 90점 이상 PASS',
+    ]
+  },
+];
+
+// =====================================================================
+// RENDERING LOGIC
+// =====================================================================
+let currentFilter = 'all';
+let currentLang = 'all';
+let filteredScenarios = [...scenarios];
+let currentIndex = 0;
+let uiLang = 'ko';
+
+const catColors = {
+  tooluse:'var(--blue)', bugfix:'var(--bugfix)', feature:'var(--feature)', refactor:'var(--refactor)',
+  analysis:'var(--analysis)', debug:'var(--debug)', review:'var(--review)', testing:'var(--testing)'
+};
+
+// =====================================================================
+// I18N TRANSLATIONS
+// =====================================================================
+const i18n = {
+  ko: {
+    title: 'Coding Ability Quality Report',
+    all: '전체',
+    evalCriteria: '평가 기준',
+    cliLatest: 'CLI 최신 점수',
+    electronLatest: 'Electron 최신 점수',
+    notTested: '미테스트',
+    testNeeded: '테스트 필요',
+    failBelow90: 'FAIL (90점 미달)',
+    testHistory: '테스트 이력',
+    changelog: '코드 변경 이력 (CHANGELOG)',
+    noScenario: '선택된 필터 조건에 맞는 시나리오가 없습니다',
+    untestedMsg: '아직 테스트되지 않은 시나리오입니다',
+    navHint: '키로 이동',
+    analysisNotes: '분석 노트',
+    item: '항목',
+    total: '합계',
+    score: '점',
+    allLangs: '전체 언어',
+  },
+  en: {
+    title: 'Coding Ability Quality Report',
+    all: 'All',
+    evalCriteria: 'Evaluation Criteria',
+    cliLatest: 'CLI Latest Score',
+    electronLatest: 'Electron Latest Score',
+    notTested: 'Not Tested',
+    testNeeded: 'Test Required',
+    failBelow90: 'FAIL (Below 90)',
+    testHistory: 'Test History',
+    changelog: 'Code Change History (CHANGELOG)',
+    noScenario: 'No scenarios match the selected filter',
+    untestedMsg: 'This scenario has not been tested yet',
+    navHint: 'Navigate with keys',
+    analysisNotes: 'Analysis Notes',
+    item: 'Item',
+    total: 'Total',
+    score: '',
+    allLangs: 'All Languages',
+  }
+};
+
+function t(key) { return i18n[uiLang][key] || i18n['ko'][key] || key; }
+
+function setUiLang(lang) {
+  uiLang = lang;
+  document.getElementById('btnKo').className = lang === 'ko' ? 'active' : '';
+  document.getElementById('btnEn').className = lang === 'en' ? 'active' : '';
+  buildTabs();
+  buildLangSelect();
+  updateSummaryBadges();
+  renderSidebar();
+  renderPage();
+  document.querySelector('.kbd-hint').innerHTML = `<span class="kbd">&larr;</span> <span class="kbd">&rarr;</span> ${t('navHint')}`;
+}
+
+function buildLangSelect() {
+  const langs = [...new Set(scenarios.map(s => s.lang))].sort();
+  const select = document.getElementById('langSelect');
+  let html = `<option value="all">${t('allLangs')}</option>`;
+  langs.forEach(l => {
+    const count = scenarios.filter(s => s.lang === l).length;
+    html += `<option value="${l}" ${currentLang === l ? 'selected' : ''}>${l} (${count})</option>`;
+  });
+  select.innerHTML = html;
+}
+
+function getScoreClass(score) {
+  if (score === null || score === undefined) return 'untested';
+  if (score >= 90) return 'pass';
+  if (score >= 75) return 'mid';
+  return 'fail';
+}
+
+function buildTabs() {
+  const container = document.getElementById('tabsContainer');
+  let html = `<div class="tab${currentFilter==='all'?' active':''}" data-cat="all" onclick="filterCat('all')">${t('all')} (${scenarios.length})</div>`;
+  for (const [key, cat] of Object.entries(categories)) {
+    html += `<div class="tab${currentFilter===key?' active':''}" data-cat="${key}" onclick="filterCat('${key}')">${cat.label} (${cat.count})</div>`;
+  }
+  container.innerHTML = html;
+}
+
+function updateSummaryBadges() {
+  const el = document.getElementById('summaryBadges');
+  let pass=0, fail=0, untested=0;
+  scenarios.forEach(s => {
+    const latest = s.tests.length > 0 ? s.tests[s.tests.length-1] : null;
+    if (!latest) { untested++; return; }
+    const score = latest.cliScore ?? latest.score;
+    if (score >= 90) pass++; else fail++;
+  });
+  el.innerHTML = `
+    <span class="badge pass">${pass} PASS</span>
+    <span class="badge fail">${fail} FAIL</span>
+    <span class="badge untested">${untested} UNTESTED</span>
+  `;
+}
+
+function applyFilters() {
+  filteredScenarios = scenarios.filter(s => {
+    const catMatch = currentFilter === 'all' || s.cat === currentFilter;
+    const langMatch = currentLang === 'all' || s.lang === currentLang;
+    return catMatch && langMatch;
+  });
+  currentIndex = 0;
+  renderSidebar();
+  renderPage();
+}
+
+function filterCat(cat) {
+  currentFilter = cat;
+  document.querySelectorAll('.tab').forEach(t => {
+    t.className = 'tab';
+    if (t.dataset.cat === cat) t.classList.add('active');
+  });
+  applyFilters();
+}
+
+function filterLang(lang) {
+  currentLang = lang;
+  applyFilters();
+}
+
+function renderSidebar() {
+  const sb = document.getElementById('sidebar');
+  let html = '';
+  let lastCat = '';
+  filteredScenarios.forEach((s, i) => {
+    if (s.cat !== lastCat) {
+      const cat = categories[s.cat];
+      // Calculate category average
+      const catScenarios = scenarios.filter(x => x.cat === s.cat);
+      const tested = catScenarios.filter(x => x.tests.length > 0);
+      let avgStr = '-';
+      if (tested.length > 0) {
+        const avg = tested.reduce((sum, x) => sum + (x.tests[x.tests.length-1].cliScore ?? x.tests[x.tests.length-1].score ?? 0), 0) / tested.length;
+        avgStr = avg.toFixed(1) + t('score');
+      }
+      html += `<div class="cat-label" style="color:${catColors[s.cat]}">${cat.label} <span class="cat-avg">${avgStr}</span></div>`;
+      lastCat = s.cat;
+    }
+    const latest = s.tests.length > 0 ? s.tests[s.tests.length-1] : null;
+    const score = latest ? (latest.cliScore ?? latest.score) : null;
+    const cls = getScoreClass(score);
+    const num = s.id.split('-')[1];
+    html += `<div class="scenario-item ${i === currentIndex ? 'active' : ''}" onclick="goTo(${i})">
+      <div class="num ${cls}">${num}</div>
+      <div class="label">${s.name}</div>
+      <div class="diff ${s.diff}">${s.diff}</div>
+    </div>`;
+  });
+  sb.innerHTML = html;
+}
+
+function renderPage() {
+  const area = document.getElementById('contentArea');
+  if (filteredScenarios.length === 0) {
+    area.innerHTML = `<div class="untested-msg"><div class="icon">&#128269;</div><p>${t('noScenario')}</p></div>`;
+    return;
+  }
+
+  const s = filteredScenarios[currentIndex];
+  const latest = s.tests.length > 0 ? s.tests[s.tests.length-1] : null;
+  const latestScore = latest ? (latest.cliScore ?? latest.score) : null;
+
+  let html = `<div class="page-card">`;
+
+  // Badges
+  html += `<div>`;
+  html += `<span class="cat-badge" style="background:${catColors[s.cat]}; color:#fff;">${categories[s.cat].label}</span>`;
+  html += `<span class="diff-badge ${s.diff}" style="background:${s.diff==='easy'?'#00b89422':s.diff==='medium'?'#fdcb6e22':'#e1705522'}; color:${s.diff==='easy'?'var(--green)':s.diff==='medium'?'var(--yellow)':'var(--red)'};">${s.diff}</span>`;
+  html += `<span class="lang-badge">${s.lang}</span>`;
+  html += `</div>`;
+
+  html += `<h2 style="margin-top:12px;">${s.name}</h2>`;
+  html += `<div class="scenario-desc">${s.desc}</div>`;
+  html += `<div class="command">${s.prompt}</div>`;
+
+  // Criteria
+  html += `<div class="criteria-box"><h3>${t('evalCriteria')}</h3><div class="criteria-grid">`;
+  html += `<div class="criteria-item"><div class="c-label">Correctness</div><div class="c-points">40${t('score')}</div><div class="c-desc">${s.criteria.correctness}</div></div>`;
+  html += `<div class="criteria-item"><div class="c-label">Code Quality</div><div class="c-points">30${t('score')}</div><div class="c-desc">${s.criteria.quality}</div></div>`;
+  html += `<div class="criteria-item"><div class="c-label">Completeness</div><div class="c-points">30${t('score')}</div><div class="c-desc">${s.criteria.completeness}</div></div>`;
+  html += `</div></div>`;
+
+  // Score boxes
+  html += `<div class="score-grid">
+    <div class="score-box">
+      <div class="label">${t('cliLatest')}</div>
+      <div class="value ${getScoreClass(latestScore)}">${latestScore !== null ? latestScore + t('score') : t('notTested')}</div>
+      <div class="sub">${latestScore !== null && latestScore >= 90 ? 'PASS' : latestScore !== null ? t('failBelow90') : t('testNeeded')}</div>
+    </div>
+    <div class="score-box">
+      <div class="label">${t('electronLatest')}</div>
+      <div class="value ${getScoreClass(latest ? latest.electronScore : null)}">${latest && latest.electronScore !== null && latest.electronScore !== undefined ? latest.electronScore + t('score') : t('notTested')}</div>
+      <div class="sub">${latest && latest.electronScore >= 90 ? 'PASS' : latest && latest.electronScore ? t('failBelow90') : t('testNeeded')}</div>
+    </div>
+  </div>`;
+
+  // Test history
+  if (s.tests.length > 0) {
+    html += `<h3 style="font-size:1.1rem; margin-bottom:12px;">${t('testHistory')}</h3>`;
+    s.tests.slice().reverse().forEach(te => {
+      const tScore = te.cliScore ?? te.score;
+      html += `<div class="version-entry">
+        <div class="ver">${te.version} — ${te.date}</div>
+        <div style="display:flex; gap:24px; margin-top:4px;">
+          <div>CLI: <span style="color:var(--${getScoreClass(tScore)}); font-weight:700;">${tScore}${t('score')}</span></div>
+          <div>Electron: <span style="color:var(--${getScoreClass(te.electronScore)}); font-weight:700;">${te.electronScore !== null && te.electronScore !== undefined ? te.electronScore + t('score') : t('notTested')}</span></div>
+        </div>
+        ${te.changes ? `<div class="changes" style="margin-top:8px;">${te.changes}</div>` : ''}`;
+
+      // Detail scores table if present
+      if (te.details && te.details.length > 0) {
+        html += `<table class="results-table" style="margin-top:12px;"><tr><th>${t('item')}</th><th>Correctness(40)</th><th>Quality(30)</th><th>Completeness(30)</th><th>${t('total')}</th></tr>`;
+        te.details.forEach(d => {
+          const total = d.correctness + d.quality + d.completeness;
+          html += `<tr><td>${d.item}</td><td>${d.correctness}</td><td>${d.quality}</td><td>${d.completeness}</td><td style="color:var(--${getScoreClass(total)}); font-weight:700">${total}</td></tr>`;
+        });
+        html += `</table>`;
+      }
+
+      // Notes
+      if (te.notes) {
+        const notesList = Array.isArray(te.notes) ? te.notes : [te.notes];
+        html += `<div class="notes" style="margin-top:12px;"><h3>${t('analysisNotes')}</h3><ul>`;
+        notesList.forEach(n => html += `<li>${n}</li>`);
+        html += `</ul></div>`;
+      }
+
+      html += `</div>`;
+    });
+  } else {
+    html += `<div class="untested-msg"><div class="icon">&#9200;</div><p>${t('untestedMsg')}</p></div>`;
+  }
+
+  html += `</div>`;
+
+  // Changelog (appended at bottom)
+  html += '<div style="max-width:1000px; margin:40px auto 0;">';
+  html += `<h3 style="font-size:1.1rem; margin-bottom:12px; padding-top:20px; border-top:1px solid var(--border);">${t('changelog')}</h3>`;
+  changelog.forEach(cEntry => {
+    html += `<div class="version-entry">
+      <div class="ver">${cEntry.version} — ${cEntry.date}</div>
+      <ul style="margin:8px 0 0 1.2rem;">`;
+    cEntry.changes.forEach(c => {
+      html += `<li style="font-size:0.8rem; color:var(--muted); margin-bottom:2px;">${c}</li>`;
+    });
+    html += '</ul></div>';
+  });
+  html += '</div>';
+
+  area.innerHTML = html;
+
+  // Update page info
+  document.getElementById('pageInfo').textContent = `${currentIndex + 1} / ${filteredScenarios.length}`;
+
+  // Update sidebar active
+  document.querySelectorAll('.scenario-item').forEach((el, i) => {
+    el.classList.toggle('active', i === currentIndex);
+  });
+
+  area.scrollTop = 0;
+}
+
+function goTo(index) {
+  currentIndex = Math.max(0, Math.min(index, filteredScenarios.length - 1));
+  renderSidebar();
+  renderPage();
+}
+
+function navigate(dir) { goTo(currentIndex + dir); }
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft') { e.preventDefault(); navigate(-1); }
+  if (e.key === 'ArrowRight') { e.preventDefault(); navigate(1); }
+});
+
+// Initialize
+buildTabs();
+buildLangSelect();
+updateSummaryBadges();
+filterCat('all');
+</script>
+</body>
+</html>
