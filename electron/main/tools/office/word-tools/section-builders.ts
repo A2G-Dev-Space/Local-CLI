@@ -61,7 +61,16 @@ function stripMarkdown(text: string): string {
     .replace(/(?<!\w)\*(.+?)\*(?!\w)/g, '$1')
     .replace(/(?<!\w)_(.+?)_(?!\w)/g, '$1')
     .replace(/~~(.+?)~~/g, '$1')
-    .replace(/`(.+?)`/g, '$1');
+    .replace(/`(.+?)`/g, '$1')
+    // Strip HTML tags: <br>, <b>text</b>, <div>...</div>, self-closing <hr/>, etc.
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/?[a-z][a-z0-9]*\b[^>]*>/gi, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'");
 }
 
 function generateLightTint(hexColor: string): string {
@@ -147,55 +156,40 @@ async function executeBuildTitlePage(args: Record<string, unknown>): Promise<Too
     const dateText = (args['date_text'] as string) || '';
     const author = (args['author'] as string) || '';
 
-    // Professional title page — vertically centered with colored blocks
-    // Top spacing to push title block to vertical center (~40% down the page)
-    for (let i = 0; i < 10; i++) {
-      await wordClient.wordWrite(' ', { fontSize: 20, newParagraph: true, spaceAfter: 0, spaceBefore: 0 });
-    }
-
-    // Accent color bar (full-width colored block)
-    await wordClient.wordWrite('                                                                                    ', {
-      fontSize: 6, newParagraph: true, spaceAfter: 0, spaceBefore: 0,
-      bgColor: colors.accent,
+    // Use Shape-based cover design for professional full-page title
+    const result = await wordClient.wordBuildCoverDesign({
+      title,
+      subtitle: subtitle || undefined,
+      dateText: dateText || undefined,
+      author: author || undefined,
+      primaryColor: colors.primary,
+      accentColor: colors.accent,
+      fontTitle: fonts.title,
+      fontBody: fonts.body,
     });
 
-    // Primary color block with white title text — generous padding for visual impact
-    const titleFontSize = title.length <= 10 ? 42 : title.length <= 16 ? 36 : title.length <= 22 ? 30 : 26;
-    await wordClient.wordWrite(' ', {
-      fontSize: 36, newParagraph: true, spaceAfter: 0, spaceBefore: 0,
-      bgColor: colors.primary,
-    });
-    await wordClient.wordWrite(title, {
-      fontName: fonts.title, fontSize: titleFontSize, bold: true, color: '#FFFFFF',
-      alignment: 'center', newParagraph: true, spaceAfter: 0, spaceBefore: 12,
-      bgColor: colors.primary,
-    });
-    await wordClient.wordWrite(' ', {
-      fontSize: 36, newParagraph: true, spaceAfter: 0, spaceBefore: 0,
-      bgColor: colors.primary,
-    });
-
-    // Accent color bar below title
-    await wordClient.wordWrite('                                                                                    ', {
-      fontSize: 6, newParagraph: true, spaceAfter: 24, spaceBefore: 0,
-      bgColor: colors.accent,
-    });
-
-    // Subtitle
-    if (subtitle) {
-      await wordClient.wordWrite(subtitle, {
-        fontName: fonts.body, fontSize: 18, color: '#444444',
-        alignment: 'center', newParagraph: true, spaceAfter: 10,
+    if (!result.success) {
+      // Fallback: simple text-based title if Shape method fails
+      for (let i = 0; i < 8; i++) {
+        await wordClient.wordWrite(' ', { fontSize: 20, newParagraph: true, spaceAfter: 0, spaceBefore: 0 });
+      }
+      const titleFontSize = title.length <= 10 ? 42 : title.length <= 16 ? 36 : title.length <= 22 ? 30 : 26;
+      await wordClient.wordWrite(title, {
+        fontName: fonts.title, fontSize: titleFontSize, bold: true, color: colors.primary,
+        alignment: 'center', newParagraph: true, spaceAfter: 12, spaceBefore: 12,
       });
-    }
-
-    // Date and author
-    if (dateText || author) {
-      const infoText = [dateText, author].filter(Boolean).join('  |  ');
-      await wordClient.wordWrite(infoText, {
-        fontName: fonts.body, fontSize: 12, color: '#777777',
-        alignment: 'center', newParagraph: true, spaceAfter: 0,
-      });
+      if (subtitle) {
+        await wordClient.wordWrite(subtitle, {
+          fontName: fonts.body, fontSize: 16, color: '#444444',
+          alignment: 'center', newParagraph: true, spaceAfter: 10,
+        });
+      }
+      if (dateText || author) {
+        await wordClient.wordWrite([dateText, author].filter(Boolean).join('  |  '), {
+          fontName: fonts.body, fontSize: 11, color: '#777777',
+          alignment: 'center', newParagraph: true, spaceAfter: 0,
+        });
+      }
     }
 
     // Page break after title page
