@@ -808,6 +808,12 @@ const electronAPI = {
       return () => ipcRenderer.removeListener('agent:toolResult', handler);
     },
 
+    onSubAgentPhase: (callback: (data: { appName: string; phase: string; detail: string }) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, data: { appName: string; phase: string; detail: string }) => callback(data);
+      ipcRenderer.on('agent:subAgentPhase', handler);
+      return () => ipcRenderer.removeListener('agent:subAgentPhase', handler);
+    },
+
     onTodoUpdate: (callback: (todos: TodoItem[], sessionId?: string) => void): (() => void) => {
       const handler = (_event: IpcRendererEvent, todos: TodoItem[], sessionId?: string) => callback(todos, sessionId);
       ipcRenderer.on('agent:todoUpdate', handler);
