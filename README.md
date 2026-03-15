@@ -13,6 +13,41 @@ https://github.com/user-attachments/assets/77cc96c9-cb22-4411-8744-3a006b00c580
 
 > **Demo**: The video above shows Local CLI autonomously editing code with Plan & Execute.
 
+### Office Automation Demos
+
+Create professional Word, Excel, and PowerPoint documents with AI:
+
+<table>
+  <tr>
+    <td align="center">
+      <a href="https://www.youtube.com/watch?v=ZOZ9Gg3FWZ8">
+        <img src="https://img.youtube.com/vi/ZOZ9Gg3FWZ8/maxresdefault.jpg" width="400" alt="Word Creation Demo"/>
+        <br/><b>Word Document Creation</b>
+      </a>
+    </td>
+    <td align="center">
+      <a href="https://www.youtube.com/watch?v=00RhfMNDn6c">
+        <img src="https://img.youtube.com/vi/00RhfMNDn6c/maxresdefault.jpg" width="400" alt="Excel Creation Demo"/>
+        <br/><b>Excel Spreadsheet Creation</b>
+      </a>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <a href="https://www.youtube.com/watch?v=xgy6aRGm7fU">
+        <img src="https://img.youtube.com/vi/xgy6aRGm7fU/maxresdefault.jpg" width="400" alt="PowerPoint Creation Demo"/>
+        <br/><b>PowerPoint Presentation Creation</b>
+      </a>
+    </td>
+    <td align="center">
+      <a href="https://www.youtube.com/watch?v=VmvmUn1_TdU">
+        <img src="https://img.youtube.com/vi/VmvmUn1_TdU/maxresdefault.jpg" width="400" alt="Windows Auto Update Demo"/>
+        <br/><b>Windows Auto Update</b>
+      </a>
+    </td>
+  </tr>
+</table>
+
 ---
 
 ## Why Local CLI?
