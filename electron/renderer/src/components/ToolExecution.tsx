@@ -24,6 +24,8 @@ export interface ToolExecutionData {
   duration?: number;
   timestamp: number;
   reason?: string; // Reason for tool execution (shown by default)
+  subAgentPhase?: string; // Current sub-agent phase (enhancement, planning, execution, etc.)
+  subAgentDetail?: string; // Phase detail text
 }
 
 interface ToolExecutionProps {
@@ -167,6 +169,21 @@ const ToolExecution: React.FC<ToolExecutionProps> = ({
     return undefined;
   };
 
+  // Format sub-agent phase for display
+  const formatPhase = (phase: string): string => {
+    const phaseMap: Record<string, string> = {
+      'enhancement': 'Enhancement',
+      'planning': 'Planning',
+      'execution': 'Execution',
+      'init': 'Initializing',
+      'design': 'Design',
+      'html-generation': 'Generating',
+      'validation': 'Validation',
+      'assembly': 'Assembly',
+    };
+    return phaseMap[phase] || phase.charAt(0).toUpperCase() + phase.slice(1);
+  };
+
   if (executions.length === 0) return null;
 
   return (
@@ -195,6 +212,10 @@ const ToolExecution: React.FC<ToolExecutionProps> = ({
                 {/* Reason displayed by default (except for tell_to_user) */}
                 {reason && !isMessageTool(exec.toolName) && (
                   <span className="tool-reason">{reason}</span>
+                )}
+                {/* Sub-agent phase indicator (only when running) */}
+                {exec.status === 'running' && exec.subAgentPhase && (
+                  <span className={`tool-phase phase-${exec.subAgentPhase}`}>{formatPhase(exec.subAgentPhase)}</span>
                 )}
               </div>
               <div className="tool-status">

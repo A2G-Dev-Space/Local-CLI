@@ -448,6 +448,26 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
       })
     );
 
+    // Sub-agent phase event — update the running tool's phase info
+    if (window.electronAPI.agent.onSubAgentPhase) {
+      unsubscribes.push(
+        window.electronAPI.agent.onSubAgentPhase((data) => {
+          setToolExecutions(prev => {
+            const updated = [...prev];
+            const lastRunning = updated.findLastIndex(t => t.status === 'running');
+            if (lastRunning !== -1) {
+              updated[lastRunning] = {
+                ...updated[lastRunning],
+                subAgentPhase: data.phase,
+                subAgentDetail: data.detail,
+              };
+            }
+            return updated;
+          });
+        })
+      );
+    }
+
     // TODO update event — sessionId passed as second arg from WorkerManager
     unsubscribes.push(
       window.electronAPI.agent.onTodoUpdate((agentTodos, eventSessionId?: string) => {

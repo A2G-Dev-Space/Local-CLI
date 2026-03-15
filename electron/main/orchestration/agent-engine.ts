@@ -32,6 +32,7 @@ import {
   setToolResponseCallback,
 } from '../tools';
 import { setReasoningCallback, setToolApprovalCallback, requestToolApproval } from '../tools/llm/simple/simple-tool-executor';
+import { setSubAgentPhaseLogger } from '../agents/common/sub-agent';
 import type { ToolApprovalResult } from '../tools/llm/simple/simple-tool-executor';
 import { ContextLengthError, QuotaExceededError, LLMRetryExhaustedError, APIError } from '../errors';
 import { buildPlanExecutePrompt, getCriticalReminders, VISION_VERIFICATION_RULE } from '../prompts';
@@ -325,6 +326,11 @@ export async function runAgentCore(
   // Reasoning callback
   setReasoningCallback((content: string, isStreaming: boolean) => {
     io.broadcast('agent:reasoning', { content, isStreaming });
+  });
+
+  // Sub-agent phase callback — surface internal phases (enhancement, planning, execution, etc.) to renderer
+  setSubAgentPhaseLogger((appName: string, phase: string, detail: string) => {
+    io.broadcast('agent:subAgentPhase', { appName, phase, detail });
   });
 
   // Get tools from registry

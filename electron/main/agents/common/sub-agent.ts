@@ -146,6 +146,7 @@ export class SubAgent {
     // Execution iteration loop
     while (iterations < this.maxIterations) {
       iterations++;
+      if (globalPhaseLogger) globalPhaseLogger(this.appName, 'execution', `Step ${iterations}/${this.maxIterations}`);
       logger.flow(`SubAgent[${this.appName}] iteration ${iterations}`);
 
       const messagesForLLM: Message[] = plan

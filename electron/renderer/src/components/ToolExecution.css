@@ -127,8 +127,7 @@
   font-weight: var(--font-weight-medium);
   color: var(--color-text-primary);
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  flex-shrink: 0;
 }
 
 /* Reason - shown by default after tool name */
@@ -144,6 +143,66 @@
   padding-left: var(--space-2);
   border-left: 1px solid var(--color-border-muted);
   margin-left: var(--space-2);
+}
+
+/* Sub-agent phase indicator */
+.tool-phase {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-weight: var(--font-weight-medium);
+  letter-spacing: 0.02em;
+  border: 1px solid;
+}
+
+.tool-phase.phase-enhancement {
+  color: #8B5CF6;
+  background: rgba(139, 92, 246, 0.1);
+  border-color: rgba(139, 92, 246, 0.3);
+}
+
+.tool-phase.phase-planning {
+  color: #F59E0B;
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.tool-phase.phase-execution {
+  color: #10B981;
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.tool-phase.phase-init {
+  color: #6B7280;
+  background: rgba(107, 114, 128, 0.1);
+  border-color: rgba(107, 114, 128, 0.3);
+}
+
+.tool-phase.phase-design {
+  color: #EC4899;
+  background: rgba(236, 72, 153, 0.1);
+  border-color: rgba(236, 72, 153, 0.3);
+}
+
+.tool-phase.phase-html-generation {
+  color: #0EA5E9;
+  background: rgba(14, 165, 233, 0.1);
+  border-color: rgba(14, 165, 233, 0.3);
+}
+
+.tool-phase.phase-validation {
+  color: #F97316;
+  background: rgba(249, 115, 22, 0.1);
+  border-color: rgba(249, 115, 22, 0.3);
+}
+
+.tool-phase.phase-assembly {
+  color: #14B8A6;
+  background: rgba(20, 184, 166, 0.1);
+  border-color: rgba(20, 184, 166, 0.3);
 }
 
 /* Message tool (tell_to_user) - show actual message with markdown */
