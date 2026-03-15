@@ -9,9 +9,15 @@
 
 > Use your own LLM (vLLM, Ollama, LM Studio, Azure OpenAI, or any OpenAI-compatible API) as a full coding agent - no cloud dependency, no API key costs.
 
+### Quick Demo — Tool Usage
+
+[![Quick Demo](https://img.youtube.com/vi/4pfKEyp2RQE/maxresdefault.jpg)](https://www.youtube.com/watch?v=4pfKEyp2RQE)
+
+> **Quick Demo**: Watch Local CLI use tools to automate real tasks.
+
 https://github.com/user-attachments/assets/77cc96c9-cb22-4411-8744-3a006b00c580
 
-> **Demo**: The video above shows Local CLI autonomously editing code with Plan & Execute.
+> **Plan & Execute Demo**: Local CLI autonomously editing code with Plan & Execute.
 
 ### Office Automation Demos
 
