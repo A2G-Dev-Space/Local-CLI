@@ -51,7 +51,9 @@ const stripHtml = (html: string): string => {
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
-    .replace(/&nbsp;/g, ' ');
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 };
 
 const UpdateModal: React.FC<UpdateModalProps> = ({

@@ -648,14 +648,14 @@ function setupAutoUpdater(): void {
   // 앱 시작 후 업데이트 확인 (5초 후)
   setTimeout(() => {
     autoUpdater.checkForUpdates().catch((error) => {
-      logger.error('Failed to check for updates', { error: error.message });
+      logger.errorSilent('Failed to check for updates', { error: error.message });
     });
   }, 5000);
 
   // Jarvis 모드에서 앱이 장시간 실행되므로 4시간마다 주기적 업데이트 체크
   setInterval(() => {
     autoUpdater.checkForUpdates().catch((error) => {
-      logger.error('Failed to check for updates (periodic)', { error: error.message });
+      logger.errorSilent('Failed to check for updates (periodic)', { error: error.message });
     });
   }, 4 * 60 * 60 * 1000);
 }
