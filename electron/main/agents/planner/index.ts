@@ -111,7 +111,9 @@ export class PlanningLLM {
   private buildSystemPrompt(): string {
     const toolSummary = this.getToolSummary();
     const optionalToolsInfo = this.getOptionalToolsInfo();
-    return buildPlanningSystemPrompt(toolSummary, optionalToolsInfo);
+    const userProfile = process.env['USERPROFILE'];
+    const desktopPath = userProfile ? `${userProfile}\\Desktop` : undefined;
+    return buildPlanningSystemPrompt(toolSummary, optionalToolsInfo, desktopPath);
   }
 
   /**

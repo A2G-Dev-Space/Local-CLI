@@ -42,6 +42,7 @@ import { GIT_COMMIT_RULES } from '../prompts/shared/git-rules.js';
 import { logger } from '../utils/logger.js';
 import { getStreamLogger } from '../utils/json-stream-logger.js';
 import { detectGitRepo } from '../utils/git-utils.js';
+import { getWindowsUserDesktopPath } from '../utils/platform-utils.js';
 
 import type { StateCallbacks } from './types.js';
 import { formatErrorMessage, buildTodoContext, flattenMessagesToHistory, findActiveTodo, getTodoStats } from './utils.js';
@@ -55,7 +56,11 @@ import { LLMRetryExhaustedError } from '../errors/llm.js';
 function buildSystemPrompt(): string {
   const isGitRepo = detectGitRepo();
   const hasVision = toolRegistry.isToolGroupEnabled('vision');
+  const desktopPath = getWindowsUserDesktopPath();
   let prompt = PLAN_PROMPT;
+  if (desktopPath) {
+    prompt = prompt.replace(/\{WINDOWS_DESKTOP\}/g, desktopPath);
+  }
   if (isGitRepo) {
     prompt += `\n\n${GIT_COMMIT_RULES}`;
   }
@@ -251,7 +256,7 @@ export class PlanExecutor {
       // 매 LLM 호출마다 [system, user(<CURRENT_TASK> + <CONVERSATION_HISTORY> + <CURRENT_REQUEST>)] 형태로 재구성
       const systemPrompt = buildSystemPrompt();
       const hasVision = toolRegistry.isToolGroupEnabled('vision');
-      const criticalReminders = getCriticalReminders(hasVision, process.cwd());
+      const criticalReminders = getCriticalReminders(hasVision, process.cwd(), getWindowsUserDesktopPath() || undefined);
       let baseHistory: Message[] = [...historyBeforeExecution, { role: 'assistant' as const, content: planMessage }];
 
       const rebuildMessages = (toolLoopMessages: Message[]): Message[] => {
@@ -473,7 +478,7 @@ export class PlanExecutor {
       // Build rebuildMessages callback for per-iteration message reconstruction
       const systemPrompt = buildSystemPrompt();
       const hasVision = toolRegistry.isToolGroupEnabled('vision');
-      const criticalReminders = getCriticalReminders(hasVision, process.cwd());
+      const criticalReminders = getCriticalReminders(hasVision, process.cwd(), getWindowsUserDesktopPath() || undefined);
       let baseHistory: Message[] = [...messages]; // messages param = history without current userMessage
 
       const rebuildMessages = (toolLoopMessages: Message[]): Message[] => {

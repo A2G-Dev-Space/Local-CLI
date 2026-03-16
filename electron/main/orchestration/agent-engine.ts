@@ -137,12 +137,19 @@ export const NO_APPROVAL_TOOLS = new Set([
 // System Prompt Builder (CLI parity: plan-executor.ts buildSystemPrompt)
 // =============================================================================
 
+function getWindowsDesktopPath(): string | undefined {
+  const userProfile = process.env['USERPROFILE'];
+  if (userProfile) return `${userProfile}\\Desktop`;
+  return undefined;
+}
+
 function buildSystemPrompt(workingDirectory: string): string {
   const isGitRepo = detectGitRepo(workingDirectory);
   const hasVision = toolRegistry.isToolGroupEnabled('vision');
+  const windowsDesktopPath = getWindowsDesktopPath();
 
   const toolSummary = toolRegistry.getToolSummaryForPlanning();
-  let prompt = buildPlanExecutePrompt({ toolSummary, workingDirectory });
+  let prompt = buildPlanExecutePrompt({ toolSummary, workingDirectory, windowsDesktopPath });
 
   if (isGitRepo) {
     prompt += `\n\n${GIT_COMMIT_RULES}`;
@@ -457,7 +464,7 @@ export async function runAgentCore(
   const toolLoopMessages: Message[] = [];
 
   const hasVision = toolRegistry.isToolGroupEnabled('vision');
-  const criticalReminders = getCriticalReminders(hasVision, workingDirectory);
+  const criticalReminders = getCriticalReminders(hasVision, workingDirectory, getWindowsDesktopPath());
   const rebuildMessages = (loopMessages: Message[]): Message[] => {
     const allMessages = [...baseHistory, { role: 'user' as const, content: userMessage }, ...loopMessages];
 

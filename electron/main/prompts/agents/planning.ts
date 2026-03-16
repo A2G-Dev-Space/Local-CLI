@@ -80,7 +80,7 @@ Each extra TODO creates a SEPARATE file, destroying the document.
   ...
 
 - ✅ CORRECT (creates 1 complete document):
-  "#1 PowerPoint 에이전트에게 MediAI 피치덱 전체 생성 요청 (15-20장, 포함: 커버/문제정의/솔루션/시장분석/제품/비즈니스모델/경쟁분석/고객사례/재무/팀소개/로드맵/투자조건/연락처, 저장경로: C:\\Users\\...\\pitch.pptx)"
+  "#1 PowerPoint 에이전트에게 MediAI 피치덱 전체 생성 요청 (15-20장, 포함: 커버/문제정의/솔루션/시장분석/제품/비즈니스모델/경쟁분석/고객사례/재무/팀소개/로드맵/투자조건/연락처, 저장경로: {WINDOWS_DESKTOP}\\pitch.pptx)"
 
 The instruction should include: topic, ALL desired sections listed in parentheses, specific data, formatting preferences, and save path.
 Sub-agents work best with ONE detailed instruction. The more context you provide in that single TODO, the better the result.
@@ -339,7 +339,7 @@ This overrides "Default to Korean" for sub-agent instructions only.
  * @param toolSummary - Formatted list of available tools
  * @param optionalToolsInfo - Info about enabled optional tools
  */
-export function buildPlanningSystemPrompt(toolSummary: string, optionalToolsInfo: string = ''): string {
+export function buildPlanningSystemPrompt(toolSummary: string, optionalToolsInfo: string = '', windowsDesktopPath?: string): string {
   const toolSection = `
 ## Available Tools for Execution LLM
 
@@ -351,7 +351,11 @@ ${optionalToolsInfo}
 **Plan tasks that fully leverage these tools to deliver the most complete and professional results possible.**
 `;
 
-  return PLANNING_BASE_PROMPT + toolSection;
+  let prompt = PLANNING_BASE_PROMPT + toolSection;
+  if (windowsDesktopPath) {
+    prompt = prompt.replace(/\{WINDOWS_DESKTOP\}/g, windowsDesktopPath);
+  }
+  return prompt;
 }
 
 /**
