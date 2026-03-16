@@ -18,6 +18,7 @@ import {
   getPowerShellPath,
   Platform,
 } from '../../utils/platform-utils.js';
+import { isMirroredNetworking } from '../../utils/wsl-utils.js';
 
 // ===========================================================================
 // Types
@@ -388,6 +389,53 @@ class BrowserClient {
   }
 
   /**
+   * WSL2: Ensure mirrored networking is configured.
+   * If not, auto-create .wslconfig and return a user-facing error message.
+   */
+  private ensureWslMirroredNetworking(): string {
+    if (isMirroredNetworking()) {
+      // Already configured but still failing — generic timeout message
+      return `Timeout waiting for browser to start on port ${this.cdpPort}. Mirrored networking is enabled but CDP is unreachable. Try restarting WSL: wsl --shutdown`;
+    }
+
+    // Auto-create .wslconfig with mirrored networking
+    try {
+      const winUser = execSync('whoami.exe 2>/dev/null', { encoding: 'utf-8', timeout: 5000 }).trim().split('\\').pop();
+      const wslConfigPath = `/mnt/c/Users/${winUser}/.wslconfig`;
+
+      if (fs.existsSync(wslConfigPath)) {
+        // Append mirrored networking if not already present
+        const content = fs.readFileSync(wslConfigPath, 'utf-8');
+        if (!content.toLowerCase().includes('networkingmode=mirrored')) {
+          const updated = content.includes('[wsl2]')
+            ? content.replace('[wsl2]', '[wsl2]\nnetworkingMode=mirrored')
+            : content + '\n[wsl2]\nnetworkingMode=mirrored\n';
+          fs.writeFileSync(wslConfigPath, updated, 'utf-8');
+          logger.info('[BrowserClient] Added networkingMode=mirrored to existing .wslconfig');
+        }
+      } else {
+        fs.writeFileSync(wslConfigPath, '[wsl2]\nnetworkingMode=mirrored\n', 'utf-8');
+        logger.info('[BrowserClient] Created .wslconfig with networkingMode=mirrored');
+      }
+
+      return `WSL2 mirrored networking이 설정되지 않아 브라우저 CDP에 연결할 수 없습니다.\n` +
+        `.wslconfig에 networkingMode=mirrored를 자동 추가했습니다.\n` +
+        `WSL을 재시작해야 적용됩니다:\n` +
+        `  1. Windows PowerShell/CMD에서: wsl --shutdown\n` +
+        `  2. WSL 터미널을 다시 열기\n` +
+        `  3. 다시 시도`;
+    } catch (error) {
+      logger.warn('[BrowserClient] Failed to auto-configure .wslconfig', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return `WSL2에서 브라우저 CDP에 연결할 수 없습니다.\n` +
+        `C:\\Users\\{사용자}\\.wslconfig 파일에 다음을 추가하세요:\n` +
+        `[wsl2]\nnetworkingMode=mirrored\n\n` +
+        `그 후 WSL을 재시작하세요: wsl --shutdown`;
+    }
+  }
+
+  /**
    * Check if CDP endpoint is available
    */
   private async isCDPAvailable(): Promise<boolean> {
@@ -665,6 +713,14 @@ class BrowserClient {
       }
 
       if (!(await this.isCDPAvailable())) {
+        // WSL2: CDP not reachable — likely missing mirrored networking
+        if (this.platform === 'wsl') {
+          return {
+            success: false,
+            error: 'CDP endpoint not available',
+            details: this.ensureWslMirroredNetworking(),
+          };
+        }
         return {
           success: false,
           error: 'CDP endpoint not available',
