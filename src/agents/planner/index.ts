@@ -11,6 +11,7 @@ import { Message, TodoItem, PlanningResult, TodoStatus } from '../../types/index
 import { logger } from '../../utils/logger.js';
 import { buildPlanningSystemPrompt } from '../../prompts/agents/planning.js';
 import { toolRegistry } from '../../tools/registry.js';
+import { getWindowsUserDesktopPath } from '../../utils/platform-utils.js';
 import { flattenMessagesToHistory } from '../../orchestration/utils.js';
 import { reportError } from '../../core/telemetry/error-reporter.js';
 import { configManager } from '../../core/config/config-manager.js';
@@ -65,7 +66,7 @@ export class PlanningLLM {
     // Build dynamic system prompt with available tools
     const toolSummary = toolRegistry.getToolSummaryForPlanning();
     const optionalToolsInfo = toolRegistry.getEnabledOptionalToolsInfo();
-    const systemPrompt = buildPlanningSystemPrompt(toolSummary, optionalToolsInfo);
+    const systemPrompt = buildPlanningSystemPrompt(toolSummary, optionalToolsInfo, getWindowsUserDesktopPath() || undefined);
 
     // Track clarification messages (ask_to_user Q&A) to return to caller
     const clarificationMessages: Message[] = [];

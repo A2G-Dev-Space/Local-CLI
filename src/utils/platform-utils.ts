@@ -255,3 +255,59 @@ export function getPowerShellPath(): string {
   // Native Linux - no PowerShell
   throw new Error('PowerShell is not available on Native Linux');
 }
+
+// ===========================================================================
+// Windows User Desktop Path (for Office tool save paths)
+// ===========================================================================
+
+let cachedWindowsDesktopPath: string | null = null;
+
+/**
+ * Get the current Windows user's Desktop path.
+ * Returns Windows-style path (e.g., "C:\Users\john\Desktop").
+ * Returns null on native Linux where Windows is not available.
+ */
+export function getWindowsUserDesktopPath(): string | null {
+  if (cachedWindowsDesktopPath !== null) return cachedWindowsDesktopPath;
+
+  const platform = getPlatform();
+
+  if (platform === 'native-windows') {
+    // Native Windows: use USERPROFILE env
+    const userProfile = process.env['USERPROFILE'];
+    if (userProfile) {
+      cachedWindowsDesktopPath = `${userProfile}\\Desktop`;
+      return cachedWindowsDesktopPath;
+    }
+    return null;
+  }
+
+  if (platform === 'wsl') {
+    // WSL: get Windows username via cmd.exe
+    try {
+      const result = execSync('cmd.exe /c echo %USERNAME% 2>/dev/null', {
+        encoding: 'utf-8',
+        timeout: 5000,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      }).trim();
+      if (result && !result.includes('%')) {
+        cachedWindowsDesktopPath = `C:\\Users\\${result}\\Desktop`;
+        return cachedWindowsDesktopPath;
+      }
+    } catch {
+      // Fallback: try whoami.exe
+      try {
+        const whoami = execSync('whoami.exe 2>/dev/null', { encoding: 'utf-8', timeout: 5000 }).trim();
+        const username = whoami.split('\\').pop();
+        if (username) {
+          cachedWindowsDesktopPath = `C:\\Users\\${username}\\Desktop`;
+          return cachedWindowsDesktopPath;
+        }
+      } catch {
+        // No Windows access
+      }
+    }
+  }
+
+  return null;
+}

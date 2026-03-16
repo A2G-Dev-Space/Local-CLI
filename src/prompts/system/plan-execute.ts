@@ -141,7 +141,7 @@ When delegating to specialist agents (word_create_agent, word_modify_agent, exce
 - Include the full topic, desired sections, specific data/content, formatting preferences, and save path
 - The more detail you provide, the better the result
 - If the user gave vague instructions, YOU must fill in the gaps with professional judgment before delegating
-- Example: User says "매출 보고서 만들어줘" → You should instruct: "2024년 분기별 매출 실적 보고서를 만들어주세요. 포함 항목: 1분기~4분기 국내/해외 매출, 전분기 대비 증감률, 합계. 현실적인 데이터를 생성하고 차트도 포함해주세요. 저장 경로: C:\\Users\\{user}\\Desktop\\매출보고서.xlsx"
+- Example: User says "매출 보고서 만들어줘" → You should instruct: "2024년 분기별 매출 실적 보고서를 만들어주세요. 포함 항목: 1분기~4분기 국내/해외 매출, 전분기 대비 증감률, 합계. 현실적인 데이터를 생성하고 차트도 포함해주세요. 저장 경로: {WINDOWS_DESKTOP}\\매출보고서.xlsx"
 
 **Verify agent results:**
 - After the agent completes, check if the result is satisfactory
@@ -258,7 +258,7 @@ export const VISION_VERIFICATION_RULE = `## CRITICAL: Screenshot Verification
  *
  * @param hasVision - vision 모델 사용 가능 여부. true면 스크린샷 검증 항목 추가
  */
-export function getCriticalReminders(hasVision: boolean, cwd?: string): string {
+export function getCriticalReminders(hasVision: boolean, cwd?: string, windowsDesktopPath?: string): string {
   const items = [
     '1. Tool arguments = valid JSON. All required parameters must be included.',
     '2. Use exact tool names only: read_file, create_file, edit_file, bash, write_todos, final_response, etc.',
@@ -279,8 +279,12 @@ export function getCriticalReminders(hasVision: boolean, cwd?: string): string {
     items.push(`14. Current working directory: ${cwd} — use this for all relative paths. Do NOT guess or hardcode paths.`);
   }
 
+  if (windowsDesktopPath) {
+    items.push(`15. Windows Desktop path: ${windowsDesktopPath} — use this for Office document save paths. Do NOT hardcode usernames.`);
+  }
+
   if (hasVision) {
-    items.push('12. If the result is visually verifiable, TAKE A SCREENSHOT and confirm it with your eyes.');
+    items.push('16. If the result is visually verifiable, TAKE A SCREENSHOT and confirm it with your eyes.');
   }
 
   return `## REMEMBER\n${items.join('\n')}`;
