@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Search Agent Quality Report</title>
+<style>
+  :root {
+    --bg: #0f1117; --card: #1a1d27; --border: #2a2d3a;
+    --text: #e0e0e6; --muted: #8b8fa3; --accent: #6c5ce7;
+    --green: #00b894; --red: #e17055; --yellow: #fdcb6e; --blue: #74b9ff;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Segoe UI',-apple-system,sans-serif; background:var(--bg); color:var(--text); line-height:1.6; overflow:hidden; height:100vh; }
+
+  .topbar {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:12px 24px; background:var(--card); border-bottom:1px solid var(--border);
+    position:fixed; top:0; left:0; right:0; z-index:100; height:56px;
+  }
+  .topbar h1 { font-size:1.1rem; font-weight:700; }
+  .topbar .tabs { display:flex; gap:4px; flex-wrap:wrap; }
+  .topbar .tab {
+    padding:5px 12px; border-radius:8px; cursor:pointer;
+    font-size:0.8rem; font-weight:600; border:1px solid var(--border);
+    background:transparent; color:var(--muted); transition:all 0.2s;
+  }
+  .topbar .tab:hover { background:#ffffff08; }
+  .topbar .tab.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .topbar .summary-badges { display:flex; gap:8px; align-items:center; }
+  .topbar .badge { font-size:0.75rem; padding:3px 10px; border-radius:6px; font-weight:700; }
+  .topbar .badge.pass { background:var(--green); color:#fff; }
+  .topbar .badge.fail { background:var(--red); color:#fff; }
+  .topbar .badge.untested { background:var(--border); color:var(--muted); }
+  .topbar .page-info { font-size:0.85rem; color:var(--muted); min-width:120px; text-align:right; }
+
+  .main { margin-top:56px; height:calc(100vh - 56px); display:flex; }
+
+  .sidebar {
+    width:300px; min-width:300px; background:var(--card); border-right:1px solid var(--border);
+    overflow-y:auto; padding:12px;
+  }
+  .sidebar .cat-label {
+    font-size:0.7rem; font-weight:700; text-transform:uppercase;
+    color:var(--muted); letter-spacing:0.06em; padding:10px 8px 4px;
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  .sidebar .cat-label .cat-avg { font-size:0.7rem; font-weight:600; }
+  .sidebar .scenario-item {
+    display:flex; align-items:center; gap:8px;
+    padding:7px 10px; border-radius:8px; cursor:pointer;
+    font-size:0.82rem; color:var(--text); transition:all 0.15s; margin-bottom:1px;
+  }
+  .sidebar .scenario-item:hover { background:#ffffff08; }
+  .sidebar .scenario-item.active { background:var(--accent); color:#fff; }
+  .sidebar .scenario-item .num {
+    width:22px; height:22px; border-radius:6px; display:flex;
+    align-items:center; justify-content:center; font-size:0.7rem;
+    font-weight:700; flex-shrink:0;
+  }
+  .sidebar .scenario-item .num.untested { background:#ffffff10; color:var(--muted); }
+  .sidebar .scenario-item .num.pass { background:var(--green); color:#fff; }
+  .sidebar .scenario-item .num.fail { background:var(--red); color:#fff; }
+  .sidebar .scenario-item .num.mid { background:var(--yellow); color:#000; }
+  .sidebar .scenario-item .label { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .sidebar .scenario-item .diff {
+    margin-left:auto; font-size:0.65rem; padding:2px 6px;
+    border-radius:4px; font-weight:600; flex-shrink:0;
+  }
+  .sidebar .scenario-item .diff.medium { background:#fdcb6e22; color:var(--yellow); }
+  .sidebar .scenario-item .diff.hard { background:#e1705522; color:var(--red); }
+
+  .content-area { flex:1; overflow-y:auto; padding:32px 40px; }
+
+  .page-card { max-width:1000px; margin:0 auto; }
+  .page-card .cat-badge {
+    display:inline-block; padding:4px 12px; border-radius:6px;
+    font-size:0.8rem; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:8px;
+  }
+  .page-card .diff-badge {
+    display:inline-block; padding:3px 10px; border-radius:6px;
+    font-size:0.75rem; font-weight:600; margin-left:8px;
+  }
+  .page-card h2 { font-size:1.4rem; font-weight:700; margin-bottom:4px; }
+  .page-card .scenario-desc { color:var(--muted); font-size:0.9rem; margin-bottom:16px; line-height:1.7; white-space:pre-wrap; }
+
+  .criteria-box {
+    background:var(--card); border:1px solid var(--border); border-radius:12px;
+    padding:16px 20px; margin-bottom:20px;
+  }
+  .criteria-box h3 { font-size:0.95rem; margin-bottom:10px; }
+  .criteria-grid { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:12px; }
+  .criteria-item { background:#0d0f14; border-radius:8px; padding:12px; }
+  .criteria-item .c-label { font-size:0.75rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:4px; }
+  .criteria-item .c-points { font-size:1.3rem; font-weight:700; color:var(--accent); }
+
+  .score-grid { display:grid; grid-template-columns:1fr 1fr 1fr 1fr 1fr; gap:16px; margin-bottom:24px; }
+  .score-box {
+    background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px 20px;
+  }
+  .score-box .label { font-size:0.75rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:6px; }
+  .score-box .value { font-size:2rem; font-weight:700; }
+  .score-box .value.pass { color:var(--green); }
+  .score-box .value.fail { color:var(--red); }
+  .score-box .value.mid { color:var(--yellow); }
+  .score-box .value.untested { color:var(--muted); }
+  .score-box .sub { font-size:0.78rem; color:var(--muted); margin-top:4px; }
+
+  .expected-facts { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px 20px; margin-bottom:20px; }
+  .expected-facts h3 { font-size:0.95rem; margin-bottom:8px; }
+  .expected-facts ul { margin-left:1.2rem; }
+  .expected-facts li { margin-bottom:4px; color:var(--muted); font-size:0.85rem; }
+  .expected-facts li strong { color:var(--text); }
+
+  .result-box { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:20px; margin-bottom:20px; }
+  .result-box h3 { font-size:1rem; margin-bottom:8px; }
+  .result-box .result-content { font-size:0.85rem; color:var(--muted); white-space:pre-wrap; line-height:1.7; max-height:400px; overflow-y:auto; }
+  .result-box .meta { font-size:0.78rem; color:var(--muted); margin-top:8px; padding-top:8px; border-top:1px solid var(--border); }
+
+  .version-entry { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px 20px; margin-bottom:12px; }
+  .version-entry .ver { font-size:0.85rem; font-weight:700; color:var(--accent); margin-bottom:4px; }
+  .version-entry .changes { font-size:0.8rem; color:var(--muted); margin-top:4px; }
+
+  .overview-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:16px; margin-bottom:32px; }
+  .overview-card {
+    background:var(--card); border:1px solid var(--border); border-radius:12px;
+    padding:20px; text-align:center;
+  }
+  .overview-card .oc-label { font-size:0.8rem; color:var(--muted); margin-bottom:8px; }
+  .overview-card .oc-value { font-size:2.2rem; font-weight:700; }
+  .overview-card .oc-sub { font-size:0.75rem; color:var(--muted); margin-top:4px; }
+
+  .untested-msg { text-align:center; padding:60px 20px; color:var(--muted); }
+  .untested-msg .icon { font-size:3rem; margin-bottom:12px; opacity:0.3; }
+  .untested-msg p { font-size:1rem; }
+
+  .nav-arrows { position:fixed; bottom:24px; right:24px; display:flex; gap:8px; z-index:100; }
+  .nav-btn {
+    width:44px; height:44px; border-radius:12px; border:1px solid var(--border);
+    background:var(--card); color:var(--text); font-size:1.2rem;
+    cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.15s;
+  }
+  .nav-btn:hover { background:var(--accent); border-color:var(--accent); }
+  .kbd-hint {
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+    font-size:0.75rem; color:var(--muted); background:var(--card);
+    padding:4px 12px; border-radius:6px; border:1px solid var(--border);
+  }
+  .kbd { display:inline-block; padding:1px 6px; border-radius:4px; background:#ffffff10; font-family:monospace; font-size:0.7rem; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>Search Agent Quality Report</h1>
+  <div class="tabs" id="tabsContainer"></div>
+  <div class="summary-badges" id="summaryBadges"></div>
+  <div class="page-info" id="pageInfo">-</div>
+</div>
+
+<div class="main">
+  <div class="sidebar" id="sidebar"></div>
+  <div class="content-area" id="contentArea"></div>
+</div>
+
+<div class="nav-arrows">
+  <button class="nav-btn" id="prevBtn" onclick="navigate(-1)">&larr;</button>
+  <button class="nav-btn" id="nextBtn" onclick="navigate(1)">&rarr;</button>
+</div>
+<div class="kbd-hint"><span class="kbd">&larr;</span> <span class="kbd">&rarr;</span> navigate</div>
+
+<script>
+const catColors = {
+  'ai-research': '#e84393', 'pricing-calculation': '#0984e3', 'regulation': '#6c5ce7',
+  'devops': '#00b894', 'troubleshooting': '#fdcb6e', 'hardware-comparison': '#e17055',
+  'opensource-discovery': '#74b9ff', 'cost-comparison': '#00cec9', 'academic-connection': '#a29bfe',
+  'personalized-planning': '#fab1a0', 'current-events': '#ff7675', 'security': '#fd79a8',
+  'korea-specific': '#55efc4', 'cloud-pricing': '#81ecec', 'framework-comparison': '#dfe6e9',
+  'korea-policy': '#ffeaa7', 'database-benchmark': '#b2bec3', 'ai-inference': '#636e72',
+  'web-standard': '#00b894', 'startup-funding': '#e17055', 'kubernetes': '#0984e3',
+  'programming-language': '#6c5ce7', 'ai-safety': '#fd79a8', 'korea-tech': '#55efc4',
+  'cross-domain': '#74b9ff', 'data-engineering': '#a29bfe', 'mobile-dev': '#fab1a0',
+  'quantum-computing': '#e84393', 'observability': '#00cec9', 'multi-step-reasoning': '#fdcb6e',
+};
+
+const scenarios = [
+  { id:1, cat:'ai-research', diff:'hard', title:'DeepSeek-R1 GRPO 알고리즘 분석',
+    query:'DeepSeek-R1 논문에서 기존 RLHF의 PPO 대신 어떤 강화학습 알고리즘을 사용했는지, Rule-based reward와 Model-based reward가 각각 어떤 데이터에 적용되었는지 정확히 요약해줘.',
+    expected:['GRPO (Group Relative Policy Optimization) 사용','Rule-based reward: 수학/코딩 등 정답이 명확한 문제','Model-based reward: Helpfulness/Harmlessness 평가'],
+    score:{accuracy:40,completeness:30,sources:14,recency:13}, result:'GRPO 정확히 식별. Rule-based: 수학(GSM8K,MATH)/코딩(LeetCode). Model-based: 글쓰기/번역/Helpfulness/Harmlessness. 7단계 파이프라인, DeepSeek-V3 judge 모델 활용까지 상세. Towards Data Science 원문 방문.', meta:{iterations:28,duration:'8m03s',version:'v2-naver-first',date:'2026-03-16'} },
+  { id:2, cat:'pricing-calculation', diff:'hard', title:'GPT-4o vs Claude 3.5 Sonnet 가격 비교+계산',
+    query:'2025년 기준 OpenAI GPT-4o와 Anthropic Claude 3.5 Sonnet의 API 가격을 100만 입력/출력 토큰 기준으로 비교하고, 매월 5000만 입력 토큰과 1000만 출력 토큰을 사용할 때 어느 쪽이 얼마만큼 더 저렴한지 계산해줘.',
+    expected:['GPT-4o: 입력 $2.50, 출력 $10.00','Claude 3.5 Sonnet: 입력 $3.00, 출력 $15.00','월 비용 계산 결과 포함','가격 차이 금액 명시'],
+    score:{accuracy:40,completeness:30,sources:13,recency:14}, result:'v6: GPT-4o $2.50/$10.00, Claude 3.5 Sonnet $3.00/$15.00 정확. 월비용 GPT-4o $225 vs Claude $300, 차이 $75(25%). 계산 공식 명시. 15 iterations로 효율적. DeepLink+교차검증 기반.', meta:{iterations:15,duration:'7m',version:'v6-30iter',date:'2026-03-16'} },
+  { id:3, cat:'regulation', diff:'hard', title:'EU AI Act GPAI 연산량 기준',
+    query:'EU AI Act에서 범용 AI(GPAI)의 시스템적 위험을 분류하는 훈련 연산량(Compute threshold) 기준치(FLOPs)는 정확히 몇이며, 이 기준을 넘을 때 제공자가 지켜야 하는 핵심 의무를 요약해줘.',
+    expected:['10^25 FLOPs 기준','모델 평가(Red-teaming) 수행 의무','EU 집행위원회 보고 의무'],
+    score:{accuracy:40,completeness:30,sources:13,recency:14}, result:'10²⁵ FLOPs 정확. Article 51/53/55 인용. 기본의무(Article 53) + 추가의무(Article 55) 구분. 시행일정(2025.8~2027.8) 포함. Red-teaming, 사고 보고, 사이버보안 의무 상세.', meta:{iterations:23,duration:'9m39s',version:'v2-naver-first',date:'2026-03-16'} },
+  { id:4, cat:'devops', diff:'medium', title:'Ollama+OpenWebUI Docker GPU 설정',
+    query:'NVIDIA GPU가 장착된 리눅스 서버에서 Ollama와 Open WebUI를 함께 띄우기 위한 docker-compose.yml 작성법을 알려줘. Ollama가 GPU 전부 사용하고, WebUI는 8080 포트.',
+    expected:['deploy.resources.reservations.devices + driver: nvidia','Open WebUI ports: 8080:8080','동일 도커 네트워크'],
+    score:null, result:null, meta:null },
+  { id:5, cat:'troubleshooting', diff:'medium', title:'Next.js 15 Hydration 에러 우회',
+    query:'Next.js 15 App Router에서 Hydration failed 에러가 크롬 익스텐션 때문에 발생할 때, 코드로 우회하는 최신 권장 방법은?',
+    expected:['suppressHydrationWarning={true}','layout.tsx의 html/body 태그에 적용','크롬 확장 프로그램 DOM 주입이 원인'],
+    score:{accuracy:39,completeness:30,sources:14,recency:14}, result:'3가지 해결법: useEffect+isClient, dynamic import ssr:false, suppressHydrationWarning. 코드 예시 포함. 원인(확장프로그램 DOM 수정) 정확. GitHub Issue #65985 인용.', meta:{iterations:22,duration:'9m',version:'v6-30iter',date:'2026-03-16'} },
+  { id:6, cat:'hardware-comparison', diff:'hard', title:'M4 Ultra vs RTX 5090 x2 LLM 추론',
+    query:'Mac Studio M4 Ultra 128GB와 RTX 5090 32GB 2개(NVLink 없이)를 비교: Llama 3 70B Q4 양자화 로컬 구동 시 VRAM 용량 부족 여부와 메모리 대역폭 측면 추론 속도 장단점.',
+    expected:['70B Q4 = ~35-40GB VRAM','Mac 128GB 통합메모리 적재 가능','RTX 5090 GDDR7 대역폭 우위 (~1.8TB/s)','Mac 대역폭 ~800GB/s'],
+    score:{accuracy:38,completeness:30,sources:14,recency:14}, result:'Q4_K_M ~41.42GB. Mac 128GB 여유, RTX 5090x2 64GB 충분. TG 속도: Mac ~95-110 vs RTX ~35-50. PP 속도: Mac ~1500+ vs RTX ~400-600. 용도별 추천+가격대비성능표 포함. 메모리 대역폭 구체 수치 미포함(-2).', meta:{iterations:29,duration:'10m',version:'v3-blocked-domains',date:'2026-03-16'} },
+  { id:7, cat:'opensource-discovery', diff:'hard', title:'CLI AI 코딩 어시스턴트 비교',
+    query:'GitHub 별 5000+ 오픈소스 중 터미널(CLI)에서 작동하며 다중 파일 수정 가능한 AI 코딩 어시스턴트 3가지를 찾아 비교해줘.',
+    expected:['Aider 포함','Claude Code 또는 OpenHands 등','GitHub 별 수, 핵심 특징 비교'],
+    score:{accuracy:39,completeness:30,sources:13,recency:14}, result:'OpenHands 69.2k, Aider 42k, Copilot CLI 9.4k. 모델지원/자율성/안전성 비교. 추천 포함. Claude Code 미포함(-1) but Copilot CLI 대체 선정.', meta:{iterations:23,duration:'9m',version:'v6-30iter',date:'2026-03-16'} },
+  { id:8, cat:'cost-comparison', diff:'hard', title:'Pinecone vs Milvus Vector DB 비교',
+    query:'RAG 시스템 구축 시 Pinecone 서버리스 vs Milvus 로컬 도커: 셋업 난이도, 100만건 768차원 임베딩 저장 비용, 확장성을 마크다운 표로 정리해줘.',
+    expected:['Pinecone: API키만으로 즉시 사용, 종량제','Milvus: 컨테이너 설정 필요, 고정 비용','확장성 비교'],
+    score:null, result:null, meta:null },
+  { id:9, cat:'academic-connection', diff:'hard', title:'홉필드→볼츠만→트랜스포머 진화 연결',
+    query:'2024년 노벨 물리학상 홉필드/힌튼의 홉필드 네트워크와 볼츠만 머신이 트랜스포머 Attention으로 어떻게 이어졌는지 3단계로 연결 설명해줘.',
+    expected:['홉필드: 연관 기억/에너지 최소화','볼츠만 머신: 확률+은닉층→딥러닝 기초','셀프 어텐션으로의 진화'],
+    score:{accuracy:40,completeness:30,sources:13,recency:13}, result:'3단계 정확: 홉필드(에너지함수+연관기억)→볼츠만(확률적확장+볼츠만분포)→Attention(QKT+Softmax). 수식 포함. 수학적 연결(에너지→유사도, 볼츠만→Softmax) 명시.', meta:{iterations:23,duration:'9m',version:'v6-30iter',date:'2026-03-16'} },
+  { id:10, cat:'personalized-planning', diff:'medium', title:'도쿄 스페셜티커피+테크노 3일코스',
+    query:'도쿄에서 2024년 이후 새로 오픈한 스페셜티 커피 로스터리와 언더그라운드 테크노 클럽을 동선에 맞게 금~일 3일 일정으로 짜줘. 뻔한 관광지 배제.',
+    expected:['2024년 이후 오픈한 구체적 커피숍','테크노 클럽/바 이름+위치','3일 동선'],
+    score:null, result:null, meta:null },
+  { id:11, cat:'current-events', diff:'hard', title:'Claude 4 vs GPT-5 벤치마크 비교',
+    query:'2025년 출시된 Claude 4 Opus의 주요 개선사항과 벤치마크 성능을 GPT-4.5/GPT-5와 비교해줘. 코딩, 수학, 멀티모달 각 영역별.',
+    expected:['최신 모델명과 실제 출시 여부','공식 벤치마크 수치','영역별 비교'],
+    score:{accuracy:38,completeness:30,sources:14,recency:15}, result:'Claude Opus 4.6 vs GPT-5/5.2 비교. SWE-bench 80.8%vs79.6%, AIME 99.8%vs100%, ARC-AGI 68.8%vs52.9%. 가격+추천용도+시장점유율 포함. 최신 정보(2025~2026) 정확 반영.', meta:{iterations:20,duration:'8m',version:'v6-30iter',date:'2026-03-16'} },
+  { id:12, cat:'security', diff:'hard', title:'2025년 CVSS 9.0+ CVE 3개',
+    query:'2025년에 발견된 주요 CVE 취약점 중 CVSS 9.0 이상인 것 3개: 영향 소프트웨어, 공격 벡터, 패치 상태 정리.',
+    expected:['실제 CVE 번호 3개','CVSS 9.0+ 확인','패치 상태'],
+    score:{accuracy:38,completeness:30,sources:13,recency:15}, result:'CVE-2025-29927(9.1,Next.js), CVE-2025-54253(10.0,Adobe AEM), CVE-2025-55182(10.0,React2Shell). 영향범위+공격벡터+패치버전 상세. NVD/ASEC 등 보안소스 기반. 다만 CVE-2025-55182는 검증 필요(React RCE는 논란적).', meta:{iterations:23,duration:'5m37s',version:'v2-naver-first',date:'2026-03-16'} },
+  { id:13, cat:'korea-specific', diff:'medium', title:'eGovFrame 최신 버전+Spring Boot 3 호환성',
+    query:'2025년 한국 전자정부 프레임워크(eGovFrame) 최신 버전과 주요 변경사항, Spring Boot 3.x 호환성 현황.',
+    expected:['최신 버전 번호','Spring Boot 3.x 호환 여부','주요 변경사항'],
+    score:{accuracy:28,completeness:20,sources:10,recency:10}, result:'eGovFrame 공식 사이트 시스템장애로 접근 불가. 블로그 기반 간접 정보만 수집. 완전한 답변 생성 실패(타임아웃). 사이트 장애는 검색 에이전트 통제 밖.', meta:{iterations:26,duration:'10m(timeout)',version:'v6-30iter',date:'2026-03-16'} },
+  { id:14, cat:'cloud-pricing', diff:'hard', title:'AWS/GCP/Azure A100 GPU 가격 비교',
+    query:'AWS, GCP, Azure에서 A100 80GB 1장 GPU 인스턴스의 시간당 온디맨드 가격 비교, 24/7 운영 시 월 비용 계산.',
+    expected:['각 클라우드별 인스턴스명+가격','월 비용(730h 기준)','최저가 결론'],
+    score:{accuracy:39,completeness:30,sources:13,recency:13}, result:'v4: Azure NC24ads $3.67/h→$2,679/m, GCP a2-ultragpu $3.81/h(1/8환산)→$2,781/m, AWS p5 $5.12/h(1/8환산)→$3,738/m. Azure 최저. 8-GPU 인스턴스 환산값 명시. 스팟 60-90% 할인 언급.', meta:{iterations:28,duration:'10m',version:'v4-numerical-verify',date:'2026-03-16'} },
+  { id:15, cat:'framework-comparison', diff:'medium', title:'LangChain vs LlamaIndex vs CrewAI',
+    query:'2025년 기준 LangChain, LlamaIndex, CrewAI 핵심 차이, GitHub 별 수, 최신 버전, 용도별 적합성 표.',
+    expected:['각 최신 버전','GitHub 별 수(근사치)','용도별 적합성'],
+    score:{accuracy:38,completeness:30,sources:13,recency:14}, result:'LangChain 130k/v1.2.12, LlamaIndex 47.7k/v0.14.16, CrewAI 46.2k/v1.10.1. 비교표+선택가이드 포함. 별수와 버전은 검색 시점 기준 정확. 사용사례 구분 명확.', meta:{iterations:25,duration:'9m20s',version:'v2-naver-first',date:'2026-03-16'} },
+  { id:16, cat:'korea-policy', diff:'hard', title:'한국 AI 기본법 핵심 내용',
+    query:'2025년 한국 AI 기본법: 고위험 AI 분류 기준, 사업자 의무, 과태료 규모, 시행 시기 요약.',
+    expected:['시행 시기','고위험 AI 분류 기준','과태료 규모'],
+    score:{accuracy:40,completeness:30,sources:13,recency:15}, result:'고영향AI 11개 분야, 사업자 4대 의무, 과태료 최대 3000만원, 시행 2026.1.22. 해외 사업자 대리인 의무, EU 비교까지 포함. 네이버+전문사이트 기반.', meta:{iterations:28,duration:'9m39s',version:'v2-naver-first',date:'2026-03-16'} },
+  { id:17, cat:'database-benchmark', diff:'hard', title:'PostgreSQL 17 vs 16 신기능',
+    query:'PostgreSQL 17의 주요 신기능과 PG16 대비 개선사항: JSON 처리, 논리 복제, 병렬 쿼리.',
+    expected:['PG17 릴리스 날짜','JSON 개선(JSON_TABLE 등)','논리 복제 개선','병렬 쿼리 성능'],
+    score:{accuracy:40,completeness:30,sources:14,recency:14}, result:'JSON_TABLE+6개 새 함수. 논리 복제 Failover+pg_createsubscriber+pg_upgrade 슬롯 보존. BRIN 병렬 빌드+쿼리 플래너 개선. VACUUM 20x 메모리 절감, 고동시성 2x 향상. 공식 릴리스 노트 기반.', meta:{iterations:30,duration:'9m05s',version:'v2-naver-first',date:'2026-03-16'} },
+  { id:18, cat:'ai-inference', diff:'hard', title:'vLLM vs TensorRT-LLM vs SGLang 벤치마크',
+    query:'vLLM, TensorRT-LLM, SGLang: Llama 3 70B 기준 throughput, latency, 지원 하드웨어 비교표.',
+    expected:['각 최신 버전','Llama 3 70B 성능 수치','지원 하드웨어'],
+    score:null, result:null, meta:null },
+  { id:19, cat:'web-standard', diff:'medium', title:'2025년 브라우저 새 CSS/JS 기능 5가지',
+    query:'2025년에 모든 주요 브라우저에서 지원되기 시작한 CSS/JS 새 기능 5가지, 해결하는 문제, 지원 브라우저 버전.',
+    expected:['구체적 기능 이름 5개','지원 브라우저 버전','해결 문제 설명'],
+    score:null, result:null, meta:null },
+  { id:20, cat:'startup-funding', diff:'hard', title:'2025 상반기 AI 투자 TOP 5',
+    query:'2025년 상반기 가장 큰 AI 스타트업 투자 라운드 TOP 5: 회사명, 금액, 라운드, 투자자, 핵심 기술.',
+    expected:['구체적 회사명 5개','투자 금액(정확 수치)','투자자 이름'],
+    score:{accuracy:39,completeness:30,sources:14,recency:15}, result:'OpenAI $400억, Scale AI $143억(Meta), xAI $100억, Anthropic $35억, Thinking Machines $20억(시드). 각 라운드단계+기업가치+주요투자자+핵심기술 상세. 시장 트렌드(AI=전체 64%) 포함.', meta:{iterations:21,duration:'8m',version:'v6-30iter',date:'2026-03-16'} },
+  { id:21, cat:'kubernetes', diff:'hard', title:'K8s 1.31 vs 1.32 차이점',
+    query:'Kubernetes 1.31과 1.32 차이: GA된 기능, alpha/beta 추가, deprecated API 구분.',
+    expected:['릴리스 날짜','GA 기능 목록','Deprecated API'],
+    score:null, result:null, meta:null },
+  { id:22, cat:'programming-language', diff:'medium', title:'Rust 2024 vs 2021 Edition',
+    query:'Rust 2024 Edition vs 2021 Edition: 새로운 문법, 표준 라이브러리 추가, 컴파일러 개선.',
+    expected:['2024 Edition 출시일','새 문법 요소','표준 라이브러리 변경'],
+    score:{accuracy:40,completeness:30,sources:14,recency:14}, result:'Rust 1.85.0(2025.2.20) 안정화. async 클로저, RPIT lifetime, gen 키워드 예약 등 6개 문법 변경. Prelude에 Future/IntoFuture 추가. unsafe 강화. 공식 블로그 기반 정확.', meta:{iterations:28,duration:'10m',version:'v5-efficiency',date:'2026-03-16'} },
+  { id:23, cat:'ai-safety', diff:'hard', title:'Anthropic RSP ASL 1~4 정의',
+    query:'Anthropic RSP(Responsible Scaling Policy)의 ASL 1~4 각 단계 정의와 요구사항, Claude의 현재 ASL 단계.',
+    expected:['ASL-1~4 정의','각 단계 안전 요구사항','Claude 현재 ASL'],
+    score:{accuracy:39,completeness:30,sources:12,recency:14}, result:'ASL-1~4 각 단계 정의+요구사항 상세. Claude Opus 4=최초 ASL-3 모델 정확. 모델별 ASL 표 포함. 다만 anthropic.com 직접 방문 5회 낭비(Cloudflare 차단).', meta:{iterations:31,duration:'10m',version:'v3-blocked-domains',date:'2026-03-16'} },
+  { id:24, cat:'korea-tech', diff:'medium', title:'하이퍼클로바X vs 카카오브레인 LLM',
+    query:'네이버 하이퍼클로바X와 카카오브레인 최신 LLM: 파라미터 수, 벤치마크 성능, API 가격 비교.',
+    expected:['최신 버전명','파라미터 수(공개 시)','한국어 벤치마크'],
+    score:null, result:null, meta:null },
+  { id:25, cat:'cross-domain', diff:'hard', title:'WASM 서버사이드 현황 2025',
+    query:'WebAssembly 서버사이드 활용 현황: WasmEdge, Spin, Wasmtime 최신 상태, Node.js/Docker 대비 성능, 프로덕션 사례.',
+    expected:['각 프로젝트 최신 버전','Docker/Node.js 대비 성능','프로덕션 사례'],
+    score:null, result:null, meta:null },
+  { id:26, cat:'data-engineering', diff:'hard', title:'Iceberg vs Delta Lake vs Hudi',
+    query:'Apache Iceberg, Delta Lake, Hudi: 성능, Spark/Trino/Flink 지원, 스키마 진화, 시간 여행 비교표.',
+    expected:['각 최신 버전','Spark/Trino/Flink 지원 수준','스키마 진화/시간 여행 차이'],
+    score:{accuracy:38,completeness:29,sources:12,recency:14}, result:'성능(쓰기Hudi>Delta>Iceberg, 읽기Delta>Iceberg>Hudi). 생태계(Iceberg최폭넓음, Delta=Databricks, Hudi=Hadoop). 스키마(Iceberg가장유연). 시간여행 3개 모두 지원. 선택가이드 포함. 최신 버전 미포함(-1).', meta:{iterations:4,duration:'3m',version:'v6-30iter',date:'2026-03-16'} },
+  { id:27, cat:'mobile-dev', diff:'medium', title:'RN New Architecture + Expo + Flutter 비교',
+    query:'React Native New Architecture(Fabric+TurboModules) 2025 안정화 상태, Expo SDK 52+ 지원, Flutter 대비 성능 벤치마크.',
+    expected:['New Architecture 안정화 상태','Expo SDK 최신 지원','Flutter 대비 성능'],
+    score:null, result:null, meta:null },
+  { id:28, cat:'quantum-computing', diff:'hard', title:'IBM/Google/MS 양자컴퓨팅 성과',
+    query:'2025년 IBM, Google, Microsoft 양자 컴퓨팅 최신 성과: QPU 이름, 큐비트 수, 에러율, 양자 우위 달성 여부.',
+    expected:['각 최신 QPU 이름+큐비트 수','에러율 또는 Logical qubit','양자 우위 주장 현황'],
+    score:{accuracy:20,completeness:10,sources:8,recency:8}, result:'타임아웃. 23/30 iteration에서 시간 초과. 데이터 수집 중 complete 미호출. LLM 응답 지연(인프라 문제).', meta:{iterations:23,duration:'10m(timeout)',version:'v6-30iter',date:'2026-03-16'} },
+  { id:29, cat:'observability', diff:'medium', title:'OpenTelemetry vs Datadog vs Grafana',
+    query:'OpenTelemetry, Datadog, Grafana Stack(Loki+Tempo+Mimir) 2025 기능 비교: 자동 계측, 비용, 확장성.',
+    expected:['자동 계측 지원 범위','비용 모델(오픈소스 vs SaaS)','확장성 비교'],
+    score:{accuracy:20,completeness:10,sources:8,recency:8}, result:'타임아웃. 22 iteration에서 시간 초과. complete 미호출. LLM 응답 지연(인프라 문제).', meta:{iterations:22,duration:'10m(timeout)',version:'v6-30iter',date:'2026-03-16'} },
+  { id:30, cat:'multi-step-reasoning', diff:'hard', title:'삼성전자 Q1 반도체+HBM+TSMC 비교',
+    query:'삼성전자 2025 Q1 반도체 영업이익 전년동기 대비 변동률, HBM 매출 비중, TSMC 같은 분기 매출 비교.',
+    expected:['삼성 2025 Q1 반도체 영업이익','전년동기 대비 %','HBM 비중','TSMC 매출'],
+    score:{accuracy:38,completeness:28,sources:13,recency:15}, result:'v6: 삼성 DS 2025Q1 영업이익 1.1조원, 전년대비 42%감소 정확. HBM 비중 15-20% 추정(공식 미공개 명시). TSMC $255.5억 +42% 정확. 매출 비교표 포함. 26 iterations 완료.', meta:{iterations:26,duration:'10m',version:'v6-30iter',date:'2026-03-16'} },
+];
+
+// =====================================================================
+// VERSION HISTORY
+// =====================================================================
+const versions = [
+  { ver:'v1 (2026-03-16)', changes:'Naver 우선 전략, Cloudflare 차단 사이트 목록, 효율성 규칙 추가. SEARCH_SYSTEM_PROMPT 대폭 강화.' },
+];
+
+// =====================================================================
+// STATE
+// =====================================================================
+let currentIdx = -1; // -1 = overview
+
+function getScoreClass(s) {
+  if (s === null) return 'untested';
+  const total = s.accuracy + s.completeness + s.sources + s.recency;
+  return total >= 95 ? 'pass' : total >= 70 ? 'mid' : 'fail';
+}
+
+function totalScore(s) {
+  if (!s) return null;
+  return s.accuracy + s.completeness + s.sources + s.recency;
+}
+
+// =====================================================================
+// RENDER
+// =====================================================================
+function renderSidebar() {
+  const el = document.getElementById('sidebar');
+  let html = `<div class="scenario-item ${currentIdx===-1?'active':''}" onclick="showOverview()" style="margin-bottom:8px;font-weight:700"><span style="margin-right:6px">&#9776;</span> Overview</div>`;
+
+  const cats = [...new Set(scenarios.map(s=>s.cat))];
+  for (const cat of cats) {
+    const items = scenarios.filter(s=>s.cat===cat);
+    const tested = items.filter(s=>s.score!==null);
+    const avg = tested.length ? Math.round(tested.reduce((a,s)=>a+totalScore(s.score),0)/tested.length) : '-';
+    html += `<div class="cat-label"><span>${cat}</span><span class="cat-avg">${avg}</span></div>`;
+    for (const s of items) {
+      const sc = totalScore(s.score);
+      const cls = s.score===null?'untested':sc>=95?'pass':sc>=70?'mid':'fail';
+      const active = scenarios.indexOf(s)===currentIdx?'active':'';
+      html += `<div class="scenario-item ${active}" onclick="showScenario(${scenarios.indexOf(s)})">
+        <span class="num ${cls}">${s.id}</span>
+        <span class="label">${s.title}</span>
+        <span class="diff ${s.diff}">${s.diff}</span>
+      </div>`;
+    }
+  }
+  el.innerHTML = html;
+}
+
+function renderOverview() {
+  const tested = scenarios.filter(s=>s.score!==null);
+  const passed = tested.filter(s=>totalScore(s.score)>=95);
+  const avgScore = tested.length ? Math.round(tested.reduce((a,s)=>a+totalScore(s.score),0)/tested.length) : 0;
+  const avgClass = avgScore>=95?'pass':avgScore>=70?'mid':'fail';
+
+  let html = `<div class="page-card">
+    <h2>Search Agent Quality Overview</h2>
+    <p style="color:var(--muted);margin-bottom:24px">Perplexity-level deep research via headless browser (Google + Naver dual-engine)</p>
+    <div class="overview-grid">
+      <div class="overview-card"><div class="oc-label">Total</div><div class="oc-value">${scenarios.length}</div></div>
+      <div class="overview-card"><div class="oc-label">Tested</div><div class="oc-value">${tested.length}</div></div>
+      <div class="overview-card"><div class="oc-label">Passed (95+)</div><div class="oc-value" style="color:var(--green)">${passed.length}</div></div>
+      <div class="overview-card"><div class="oc-label">Avg Score</div><div class="oc-value ${avgClass}">${tested.length?avgScore:'-'}</div></div>
+    </div>
+    <div class="criteria-box"><h3>Scoring Criteria (100 points)</h3>
+      <div class="criteria-grid">
+        <div class="criteria-item"><div class="c-label">Accuracy</div><div class="c-points">/40</div></div>
+        <div class="criteria-item"><div class="c-label">Completeness</div><div class="c-points">/30</div></div>
+        <div class="criteria-item"><div class="c-label">Sources</div><div class="c-points">/15</div></div>
+        <div class="criteria-item"><div class="c-label">Recency</div><div class="c-points">/15</div></div>
+      </div>
+    </div>
+    <h3 style="margin-bottom:12px">Version History</h3>`;
+  for (const v of versions) {
+    html += `<div class="version-entry"><div class="ver">${v.ver}</div><div class="changes">${v.changes}</div></div>`;
+  }
+  html += `</div>`;
+  document.getElementById('contentArea').innerHTML = html;
+  document.getElementById('pageInfo').textContent = 'Overview';
+}
+
+function renderScenario(idx) {
+  const s = scenarios[idx];
+  const sc = s.score;
+  const total = totalScore(sc);
+  const cls = sc===null?'untested':total>=95?'pass':total>=70?'mid':'fail';
+  const color = catColors[s.cat]||'var(--accent)';
+
+  let html = `<div class="page-card">
+    <span class="cat-badge" style="background:${color}22;color:${color}">${s.cat}</span>
+    <span class="diff-badge ${s.diff}" style="background:${s.diff==='hard'?'#e1705522':'#fdcb6e22'};color:${s.diff==='hard'?'var(--red)':'var(--yellow)'}">${s.diff}</span>
+    <h2>#${s.id}. ${s.title}</h2>
+    <div class="scenario-desc">${s.query}</div>
+
+    <div class="score-grid">
+      <div class="score-box"><div class="label">Total</div><div class="value ${cls}">${total!==null?total:'-'}</div></div>
+      <div class="score-box"><div class="label">Accuracy /40</div><div class="value ${cls}">${sc?sc.accuracy:'-'}</div></div>
+      <div class="score-box"><div class="label">Completeness /30</div><div class="value ${cls}">${sc?sc.completeness:'-'}</div></div>
+      <div class="score-box"><div class="label">Sources /15</div><div class="value ${cls}">${sc?sc.sources:'-'}</div></div>
+      <div class="score-box"><div class="label">Recency /15</div><div class="value ${cls}">${sc?sc.recency:'-'}</div></div>
+    </div>
+
+    <div class="expected-facts"><h3>Expected Facts</h3><ul>`;
+  for (const f of s.expected) html += `<li>${f}</li>`;
+  html += `</ul></div>`;
+
+  if (s.result) {
+    html += `<div class="result-box"><h3>Agent Result</h3><div class="result-content">${s.result}</div>`;
+    if (s.meta) html += `<div class="meta">Iterations: ${s.meta.iterations} | Duration: ${s.meta.duration} | Version: ${s.meta.version} | Date: ${s.meta.date}</div>`;
+    html += `</div>`;
+  } else {
+    html += `<div class="untested-msg"><div class="icon">&#128269;</div><p>Not tested yet</p></div>`;
+  }
+  html += `</div>`;
+  document.getElementById('contentArea').innerHTML = html;
+  document.getElementById('pageInfo').textContent = `#${s.id} / ${scenarios.length}`;
+}
+
+function showOverview() { currentIdx=-1; renderSidebar(); renderOverview(); updateBadges(); }
+function showScenario(idx) { currentIdx=idx; renderSidebar(); renderScenario(idx); updateBadges(); }
+function navigate(dir) {
+  const next = currentIdx + dir;
+  if (next < -1 || next >= scenarios.length) return;
+  if (next === -1) showOverview(); else showScenario(next);
+}
+
+function updateBadges() {
+  const tested = scenarios.filter(s=>s.score!==null);
+  const passed = tested.filter(s=>totalScore(s.score)>=95);
+  document.getElementById('summaryBadges').innerHTML =
+    `<span class="badge pass">${passed.length} passed</span>` +
+    `<span class="badge fail">${tested.length-passed.length} failed</span>` +
+    `<span class="badge untested">${scenarios.length-tested.length} untested</span>`;
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key==='ArrowRight') navigate(1);
+  else if (e.key==='ArrowLeft') navigate(-1);
+});
+
+// Init
+showOverview();
+</script>
+</body>
+</html>

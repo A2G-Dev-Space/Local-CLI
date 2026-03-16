@@ -1,0 +1,375 @@
+{
+  "version": "1.0",
+  "description": "Web Search Agent Test Scenarios — 30 high-difficulty queries requiring deep research, cross-verification, and synthesis",
+  "scoring": {
+    "accuracy": { "weight": 40, "description": "핵심 사실/수치의 정확성" },
+    "completeness": { "weight": 30, "description": "질문의 모든 측면에 대한 답변 포함 여부" },
+    "sources": { "weight": 15, "description": "실제 소스 페이지 방문 및 인용 여부" },
+    "recency": { "weight": 15, "description": "최신 정보 반영 여부 (날짜 기반 판단)" }
+  },
+  "scenarios": [
+    {
+      "id": 1,
+      "category": "ai-research",
+      "difficulty": "hard",
+      "query": "DeepSeek-R1 논문에서 기존 RLHF의 PPO 대신 어떤 강화학습 알고리즘을 사용했는지, Rule-based reward와 Model-based reward가 각각 어떤 데이터에 적용되었는지 정확히 요약해줘.",
+      "expected_facts": [
+        "GRPO (Group Relative Policy Optimization) 사용",
+        "Rule-based reward: 수학/코딩 등 정답이 명확한 문제",
+        "Model-based reward: 도움(Helpfulness)/무해성(Harmlessness) 평가"
+      ],
+      "verification": "논문 원문 또는 신뢰할 수 있는 리뷰 기반 확인"
+    },
+    {
+      "id": 2,
+      "category": "pricing-calculation",
+      "difficulty": "hard",
+      "query": "2025년 기준 OpenAI GPT-4o와 Anthropic Claude 3.5 Sonnet의 API 가격을 100만 입력/출력 토큰 기준으로 비교하고, 매월 5000만 입력 토큰과 1000만 출력 토큰을 사용할 때 어느 쪽이 얼마만큼 더 저렴한지 계산해줘.",
+      "expected_facts": [
+        "GPT-4o: 입력 $2.50~$5.00, 출력 $10.00~$15.00",
+        "Claude 3.5 Sonnet: 입력 $3.00, 출력 $15.00",
+        "월 비용 계산 결과 포함"
+      ],
+      "verification": "공식 pricing 페이지 기반 수치"
+    },
+    {
+      "id": 3,
+      "category": "regulation",
+      "difficulty": "hard",
+      "query": "EU AI Act에서 범용 AI(GPAI)의 시스템적 위험을 분류하는 훈련 연산량(Compute threshold) 기준치(FLOPs)는 정확히 몇이며, 이 기준을 넘을 때 제공자가 지켜야 하는 핵심 의무를 요약해줘.",
+      "expected_facts": [
+        "10^25 FLOPs 기준",
+        "모델 평가(적대적 테스트/Red-teaming) 수행 의무",
+        "심각한 사고 발생 시 EU 집행위원회 보고 의무"
+      ],
+      "verification": "EU AI Act 원문 또는 공식 해설 기반"
+    },
+    {
+      "id": 4,
+      "category": "devops",
+      "difficulty": "medium",
+      "query": "NVIDIA GPU가 장착된 리눅스 서버에서 Ollama와 Open WebUI를 함께 띄우기 위한 docker-compose.yml 작성법을 알려줘. Ollama 컨테이너가 GPU를 전부 사용하도록 nvidia 드라이버를 할당하고, WebUI는 8080 포트로 구성해야 해.",
+      "expected_facts": [
+        "deploy.resources.reservations.devices에 driver: nvidia, count: all, capabilities: [gpu]",
+        "Open WebUI 서비스에 ports: 8080:8080",
+        "동일 도커 네트워크 구성"
+      ],
+      "verification": "Docker Compose v2 스펙 준수 여부"
+    },
+    {
+      "id": 5,
+      "category": "troubleshooting",
+      "difficulty": "medium",
+      "query": "Next.js 15 App Router에서 'Hydration failed because the initial UI does not match what was rendered on the server' 에러가 크롬 익스텐션 때문에 발생할 때, 코드로 우회하는 최신 권장 방법은?",
+      "expected_facts": [
+        "suppressHydrationWarning={true} 속성 사용",
+        "최상위 layout.tsx의 <html> 또는 <body> 태그에 적용",
+        "크롬 확장 프로그램의 DOM 주입이 원인"
+      ],
+      "verification": "Next.js 공식 문서 또는 GitHub 이슈 기반"
+    },
+    {
+      "id": 6,
+      "category": "hardware-comparison",
+      "difficulty": "hard",
+      "query": "Mac Studio M4 Ultra 128GB와 RTX 5090 32GB 2개(NVLink 없이)를 비교할 때, Llama 3 70B 모델을 4-bit 양자화(Q4/GGUF)로 로컬 구동 시 VRAM 용량 부족 여부와 메모리 대역폭 측면의 추론 속도 장단점을 비교해줘.",
+      "expected_facts": [
+        "70B Q4 양자화 시 약 35-40GB VRAM 필요",
+        "Mac Studio 128GB 통합메모리로 적재 가능",
+        "RTX 5090 2대 = 64GB, 대역폭 우위",
+        "Mac Studio 메모리 대역폭 약 800GB/s vs RTX 5090 GDDR7 약 1.8TB/s"
+      ],
+      "verification": "공식 스펙시트 + 벤치마크 데이터"
+    },
+    {
+      "id": 7,
+      "category": "opensource-discovery",
+      "difficulty": "hard",
+      "query": "GitHub에서 별 5,000개 이상을 받은 오픈소스 중, Cursor AI처럼 에디터에 종속되지 않고 터미널(CLI)에서 작동하며 다중 파일 수정이 가능한 최신 AI 코딩 어시스턴트 툴 3가지를 찾아 각각의 특징을 비교해줘.",
+      "expected_facts": [
+        "Aider 포함",
+        "Claude Code 또는 OpenHands 등 CLI 기반 도구",
+        "각 도구의 GitHub 별 수, 핵심 특징 비교"
+      ],
+      "verification": "GitHub 실제 별 수 + 최근 활동 확인"
+    },
+    {
+      "id": 8,
+      "category": "cost-comparison",
+      "difficulty": "hard",
+      "query": "RAG 시스템 구축 시 Vector DB로 Pinecone 서버리스 티어와 Milvus 로컬 도커 배포를 비교해줘. 초기 셋업 난이도, 100만 건의 768차원 임베딩 저장 시 예상 유지 비용, 향후 확장성을 마크다운 표로 정리해줘.",
+      "expected_facts": [
+        "Pinecone: API키 발급만으로 즉시 사용, 종량제",
+        "Milvus: 컨테이너 설정 필요, 서버 임대료 고정",
+        "확장성 비교 포함"
+      ],
+      "verification": "공식 pricing 문서 기반"
+    },
+    {
+      "id": 9,
+      "category": "academic-connection",
+      "difficulty": "hard",
+      "query": "2024년 노벨 물리학상 수상자 존 홉필드와 제프리 힌튼의 '홉필드 네트워크'와 '볼츠만 머신'이 현재 트랜스포머 아키텍처(특히 Attention 메커니즘) 발전으로 어떻게 이어졌는지 기술적 진화 과정을 3단계로 연결해서 설명해줘.",
+      "expected_facts": [
+        "홉필드 네트워크: 연관 기억/에너지 최소화",
+        "볼츠만 머신: 확률적 요소 + 은닉층 → 딥러닝 기초",
+        "셀프 어텐션 메커니즘으로의 진화 연결"
+      ],
+      "verification": "학술적 정확성"
+    },
+    {
+      "id": 10,
+      "category": "personalized-planning",
+      "difficulty": "medium",
+      "query": "도쿄에서 2024년 이후에 새로 오픈한 스페셜티 커피 로스터리와 언더그라운드 테크노 클럽을 동선에 맞게 묶어서 금~일 3일 일정으로 짜줘. 뻔한 관광지는 다 빼고.",
+      "expected_facts": [
+        "2024년 이후 오픈한 구체적 커피숍 이름",
+        "테크노 클럽/바 이름과 위치",
+        "3일 동선 포함"
+      ],
+      "verification": "실제 존재하는 장소 + 오픈 시기"
+    },
+    {
+      "id": 11,
+      "category": "current-events",
+      "difficulty": "hard",
+      "query": "2025년 출시된 Claude 4 Opus의 주요 개선사항과 벤치마크 성능을 GPT-4.5/GPT-5와 비교해줘. 코딩, 수학, 멀티모달 각 영역별로.",
+      "expected_facts": [
+        "최신 모델명과 실제 출시 여부 확인",
+        "공식 벤치마크 수치",
+        "영역별 비교"
+      ],
+      "verification": "공식 발표/벤치마크 기반, 추측 배제"
+    },
+    {
+      "id": 12,
+      "category": "security",
+      "difficulty": "hard",
+      "query": "2025년에 발견된 주요 CVE 취약점 중 CVSS 점수 9.0 이상인 것 3개를 찾아서, 각각 영향받는 소프트웨어, 공격 벡터, 패치 상태를 정리해줘.",
+      "expected_facts": [
+        "실제 CVE 번호 3개",
+        "CVSS 9.0+ 확인",
+        "패치 상태 포함"
+      ],
+      "verification": "NVD/MITRE CVE 데이터베이스 기반"
+    },
+    {
+      "id": 13,
+      "category": "korea-specific",
+      "difficulty": "medium",
+      "query": "2025년 한국 전자정부 프레임워크(eGovFrame)의 최신 버전과 주요 변경사항, 그리고 Spring Boot 3.x와의 호환성 현황을 알려줘.",
+      "expected_facts": [
+        "최신 버전 번호",
+        "Spring Boot 3.x 호환 여부",
+        "주요 변경사항 목록"
+      ],
+      "verification": "eGovFrame 공식 사이트 기반"
+    },
+    {
+      "id": 14,
+      "category": "cloud-pricing",
+      "difficulty": "hard",
+      "query": "AWS, GCP, Azure에서 GPU 인스턴스(A100 80GB 1장 기준)의 시간당 온디맨드 가격을 비교하고, 동일 모델 추론 워크로드를 24/7 운영할 때 월 비용이 가장 저렴한 곳은 어디인지 계산해줘.",
+      "expected_facts": [
+        "각 클라우드별 A100 인스턴스 이름과 시간당 가격",
+        "월 비용 계산 (730시간 기준)",
+        "가장 저렴한 옵션 결론"
+      ],
+      "verification": "공식 pricing 페이지 수치"
+    },
+    {
+      "id": 15,
+      "category": "framework-comparison",
+      "difficulty": "medium",
+      "query": "2025년 기준 LangChain, LlamaIndex, CrewAI의 핵심 차이점을 비교해줘. 각각 언제 쓰는 게 적합한지, GitHub 별 수, 최신 버전, 주요 특징을 표로 정리해줘.",
+      "expected_facts": [
+        "각 프레임워크의 최신 버전",
+        "GitHub 별 수 (근사치)",
+        "용도별 적합성 비교"
+      ],
+      "verification": "GitHub + 공식 문서 기반"
+    },
+    {
+      "id": 16,
+      "category": "korea-policy",
+      "difficulty": "hard",
+      "query": "2025년 한국 AI 기본법의 핵심 내용을 요약해줘. 고위험 AI 분류 기준, 사업자 의무사항, 위반 시 과태료 규모, 시행 시기를 포함해줘.",
+      "expected_facts": [
+        "AI 기본법 시행 시기",
+        "고위험 AI 분류 기준",
+        "과태료 규모"
+      ],
+      "verification": "법률 원문 또는 공식 해설 기반"
+    },
+    {
+      "id": 17,
+      "category": "database-benchmark",
+      "difficulty": "hard",
+      "query": "PostgreSQL 17의 주요 신기능과 성능 개선 사항을 PostgreSQL 16과 비교해줘. 특히 JSON 처리, 논리 복제, 병렬 쿼리 관련 변경사항을 구체적으로.",
+      "expected_facts": [
+        "PG17 릴리스 날짜",
+        "JSON 관련 개선 (JSON_TABLE 등)",
+        "논리 복제 개선사항",
+        "병렬 쿼리 성능 향상 수치"
+      ],
+      "verification": "PostgreSQL 공식 릴리스 노트"
+    },
+    {
+      "id": 18,
+      "category": "ai-inference",
+      "difficulty": "hard",
+      "query": "vLLM, TensorRT-LLM, SGLang 세 가지 LLM 추론 엔진의 2025년 최신 벤치마크를 비교해줘. Llama 3 70B 기준 throughput(tokens/sec), latency, 지원 하드웨어를 표로 정리해줘.",
+      "expected_facts": [
+        "각 엔진의 최신 버전",
+        "Llama 3 70B 기준 성능 수치",
+        "지원 하드웨어 목록"
+      ],
+      "verification": "공식 벤치마크 또는 신뢰할 수 있는 비교"
+    },
+    {
+      "id": 19,
+      "category": "web-standard",
+      "difficulty": "medium",
+      "query": "2025년에 모든 주요 브라우저에서 지원되기 시작한 CSS/JS 새 기능 5가지를 찾아줘. 각각 어떤 문제를 해결하고, 어떤 브라우저 버전부터 지원되는지 정리해줘.",
+      "expected_facts": [
+        "구체적 CSS/JS 기능 이름 5개",
+        "지원 브라우저 버전",
+        "해결하는 문제 설명"
+      ],
+      "verification": "MDN/Can I Use 기반"
+    },
+    {
+      "id": 20,
+      "category": "startup-funding",
+      "difficulty": "hard",
+      "query": "2025년 상반기에 가장 큰 규모의 AI 스타트업 투자 라운드 TOP 5를 찾아줘. 회사명, 투자 금액, 라운드 단계, 주요 투자자, 회사의 핵심 기술을 정리해줘.",
+      "expected_facts": [
+        "구체적 회사명 5개",
+        "투자 금액 (정확한 수치)",
+        "투자자 이름"
+      ],
+      "verification": "Crunchbase/TechCrunch 등 신뢰할 수 있는 출처"
+    },
+    {
+      "id": 21,
+      "category": "kubernetes",
+      "difficulty": "hard",
+      "query": "Kubernetes 1.31과 1.32의 주요 차이점을 알려줘. 특히 GA가 된 기능, 새로 추가된 alpha/beta 기능, deprecated된 API를 구분해서 정리해줘.",
+      "expected_facts": [
+        "K8s 1.31/1.32 릴리스 날짜",
+        "GA 된 기능 목록",
+        "Deprecated API 목록"
+      ],
+      "verification": "Kubernetes 공식 릴리스 노트"
+    },
+    {
+      "id": 22,
+      "category": "programming-language",
+      "difficulty": "medium",
+      "query": "Rust의 2024 Edition과 2021 Edition의 주요 차이점을 요약해줘. 특히 새로운 문법, 표준 라이브러리 추가사항, 컴파일러 개선을 중심으로.",
+      "expected_facts": [
+        "Rust 2024 Edition 출시일",
+        "새로운 문법 요소",
+        "표준 라이브러리 변경"
+      ],
+      "verification": "Rust 공식 블로그/Edition Guide"
+    },
+    {
+      "id": 23,
+      "category": "ai-safety",
+      "difficulty": "hard",
+      "query": "Anthropic의 Responsible Scaling Policy(RSP)에서 정의한 AI Safety Level(ASL) 1~4의 각 단계별 정의와 요구사항을 정확히 설명해줘. 현재 Claude는 어떤 ASL 단계에 해당하는지도 포함.",
+      "expected_facts": [
+        "ASL-1 ~ ASL-4 각 단계 정의",
+        "각 단계별 안전 요구사항",
+        "Claude의 현재 ASL 단계"
+      ],
+      "verification": "Anthropic 공식 RSP 문서"
+    },
+    {
+      "id": 24,
+      "category": "korea-tech",
+      "difficulty": "medium",
+      "query": "네이버 하이퍼클로바X와 카카오브레인의 최신 LLM 모델의 파라미터 수, 벤치마크 성능, API 가격을 비교해줘.",
+      "expected_facts": [
+        "각 모델의 최신 버전명",
+        "파라미터 수 (공개된 경우)",
+        "한국어 벤치마크 성능"
+      ],
+      "verification": "공식 발표/기술 블로그 기반"
+    },
+    {
+      "id": 25,
+      "category": "cross-domain",
+      "difficulty": "hard",
+      "query": "WebAssembly(WASM)의 2025년 현재 서버사이드 활용 현황을 알려줘. WasmEdge, Spin(Fermyon), Wasmtime 프로젝트의 최신 상태, 성능 벤치마크(Node.js/Docker 대비), 실제 프로덕션 사용 사례를 포함해줘.",
+      "expected_facts": [
+        "각 프로젝트의 최신 버전/상태",
+        "Docker/Node.js 대비 성능 수치",
+        "프로덕션 사용 사례"
+      ],
+      "verification": "공식 벤치마크 + 사례 연구"
+    },
+    {
+      "id": 26,
+      "category": "data-engineering",
+      "difficulty": "hard",
+      "query": "Apache Iceberg, Delta Lake, Apache Hudi 세 가지 테이블 포맷의 2025년 기준 핵심 차이를 비교해줘. 성능, 생태계 지원(Spark/Trino/Flink), 스키마 진화, 시간 여행 기능을 표로 정리해줘.",
+      "expected_facts": [
+        "각 포맷의 최신 버전",
+        "Spark/Trino/Flink 지원 수준",
+        "스키마 진화/시간 여행 지원 차이"
+      ],
+      "verification": "공식 문서 + 벤치마크 비교"
+    },
+    {
+      "id": 27,
+      "category": "mobile-dev",
+      "difficulty": "medium",
+      "query": "React Native의 New Architecture(Fabric + TurboModules)가 2025년 현재 안정화되었는지, Expo SDK 52+에서의 지원 현황, 그리고 Flutter와의 성능 벤치마크 비교를 알려줘.",
+      "expected_facts": [
+        "New Architecture 안정화 상태",
+        "Expo SDK 최신 버전의 지원 수준",
+        "Flutter 대비 성능 비교 수치"
+      ],
+      "verification": "React Native/Expo 공식 블로그 기반"
+    },
+    {
+      "id": 28,
+      "category": "quantum-computing",
+      "difficulty": "hard",
+      "query": "2025년 현재 양자 컴퓨팅 분야에서 IBM, Google, Microsoft의 최신 성과를 비교해줘. 각 회사의 최신 QPU 이름, 큐비트 수, 에러율, 양자 우위(Quantum Advantage) 달성 여부를 정리해줘.",
+      "expected_facts": [
+        "각 회사의 최신 QPU 이름과 큐비트 수",
+        "에러율 또는 Logical qubit 수",
+        "양자 우위 주장 현황"
+      ],
+      "verification": "공식 발표/Nature/Science 논문 기반"
+    },
+    {
+      "id": 29,
+      "category": "observability",
+      "difficulty": "medium",
+      "query": "OpenTelemetry, Datadog, Grafana Stack(Loki+Tempo+Mimir)의 2025년 기준 기능 비교를 해줘. 특히 자동 계측(auto-instrumentation), 비용, 확장성 측면에서 장단점을 정리해줘.",
+      "expected_facts": [
+        "각 도구의 자동 계측 지원 범위",
+        "비용 모델 (오픈소스 vs SaaS)",
+        "확장성 비교"
+      ],
+      "verification": "공식 문서 + 커뮤니티 비교"
+    },
+    {
+      "id": 30,
+      "category": "multi-step-reasoning",
+      "difficulty": "hard",
+      "query": "삼성전자의 2025년 1분기 실적에서 반도체 부문 영업이익이 전년 동기 대비 몇 % 변동했는지, 그리고 HBM(High Bandwidth Memory) 매출 비중이 전체 메모리 매출에서 차지하는 비율을 찾아줘. TSMC의 같은 분기 매출과도 비교해줘.",
+      "expected_facts": [
+        "삼성전자 2025 Q1 반도체 영업이익 수치",
+        "전년 동기 대비 변동률",
+        "HBM 매출 비중",
+        "TSMC 같은 분기 매출 수치"
+      ],
+      "verification": "공식 실적 발표/IR 자료 기반"
+    }
+  ]
+}
