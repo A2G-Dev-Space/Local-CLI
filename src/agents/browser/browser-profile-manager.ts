@@ -95,12 +95,13 @@ export function getSubAgentBrowserClient(): BrowserClient {
 
 /**
  * 서브에이전트 브라우저 시작 (headless, 영구 프로필)
+ * Returns { success, error? } with detailed error message for user feedback.
  */
-export async function launchSubAgentBrowser(headless: boolean = true): Promise<boolean> {
+export async function launchSubAgentBrowser(headless: boolean = true): Promise<{ success: boolean; error?: string }> {
   const client = getSubAgentBrowserClient();
 
   if (await client.isRunning()) {
-    return true;
+    return { success: true };
   }
 
   const result = await client.launch({
@@ -109,7 +110,12 @@ export async function launchSubAgentBrowser(headless: boolean = true): Promise<b
     cdpPort: SUB_AGENT_CDP_PORT,
   });
 
-  return result.success;
+  if (!result.success) {
+    const errorMsg = result.details || result.error || 'Unknown browser launch error';
+    return { success: false, error: errorMsg };
+  }
+
+  return { success: true };
 }
 
 /**
@@ -139,8 +145,8 @@ export async function ensureAuthenticated(
   // 1. 브라우저가 안 떠있으면 headless로 시작
   if (!(await client.isRunning())) {
     const launched = await launchSubAgentBrowser(true);
-    if (!launched) {
-      return { success: false, error: 'Failed to launch browser' };
+    if (!launched.success) {
+      return { success: false, error: launched.error || 'Failed to launch browser' };
     }
   }
 
@@ -203,8 +209,8 @@ export async function ensureAuthenticated(
       await new Promise(resolve => setTimeout(resolve, 1000));
 
       const headlessLaunched = await launchSubAgentBrowser(true);
-      if (!headlessLaunched) {
-        return { success: false, error: 'Failed to relaunch headless after login' };
+      if (!headlessLaunched.success) {
+        return { success: false, error: headlessLaunched.error || 'Failed to relaunch headless after login' };
       }
 
       return { success: true };

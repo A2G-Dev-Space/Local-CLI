@@ -23,6 +23,7 @@ export interface BrowserSubAgentConfig {
   requiresAuth: boolean;
   serviceType: 'confluence' | 'jira' | 'search';
   loginIndicators?: LoginIndicators;
+  maxIterations?: number;
 }
 
 export class BrowserSubAgent {
@@ -48,11 +49,11 @@ export class BrowserSubAgent {
       }
 
       // 2. 브라우저 시작
-      const launched = await launchSubAgentBrowser(true);
-      if (!launched) {
+      const launchResult = await launchSubAgentBrowser(true);
+      if (!launchResult.success) {
         return {
           success: false,
-          error: 'Failed to launch browser. Chrome or Edge must be installed.',
+          error: launchResult.error || 'Failed to launch browser. Chrome or Edge must be installed.',
         };
       }
 
@@ -83,7 +84,7 @@ export class BrowserSubAgent {
         this.serviceName,
         boundTools,
         this.systemPrompt,
-        { maxIterations: 25 }
+        { maxIterations: this.config.maxIterations ?? 25 }
       );
 
       const result = await agent.run(enrichedInstruction);
