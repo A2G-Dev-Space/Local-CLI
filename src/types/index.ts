@@ -138,6 +138,12 @@ export interface BrowserServiceConfig {
   url: string;
 }
 
+/** Research URL for deep research agent to search additional sources */
+export interface ResearchUrlConfig {
+  name: string;
+  url: string;
+}
+
 export interface OpenConfig {
   version: string;
   currentEndpoint?: string;
@@ -153,6 +159,8 @@ export interface OpenConfig {
   enabledTools?: string[];
   /** Browser service URLs for sub-agents (Confluence, Jira) */
   browserServices?: BrowserServiceConfig[];
+  /** Additional URLs for deep research agent to search (Confluence, internal wikis, etc.) */
+  researchUrls?: ResearchUrlConfig[];
 }
 
 /**

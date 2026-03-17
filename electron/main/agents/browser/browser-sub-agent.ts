@@ -32,6 +32,8 @@ export interface BrowserSubAgentConfig {
   serviceType: 'confluence' | 'jira' | 'search';
   loginIndicators?: LoginIndicators;
   maxIterations?: number;
+  /** Launch browser in headless mode (default: true) */
+  headless?: boolean;
 }
 
 export class BrowserSubAgent {
@@ -57,7 +59,8 @@ export class BrowserSubAgent {
       }
 
       // 2. 브라우저 시작
-      const launchResult = await launchSubAgentBrowser(true);
+      const headless = this.config.headless !== undefined ? this.config.headless : true;
+      const launchResult = await launchSubAgentBrowser(headless);
       if (!launchResult.success) {
         return {
           success: false,

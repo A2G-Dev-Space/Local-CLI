@@ -451,10 +451,22 @@ export function initializeToolRegistry(): void {
   toolRegistry.register(createPowerPointCreateRequestTool());
   toolRegistry.register(createPowerPointModifyRequestTool());
 
-  // Browser sub-agent tools (CLI parity: confluence_request, jira_request, search_request)
-  toolRegistry.register(createConfluenceRequestTool());
-  toolRegistry.register(createJiraRequestTool());
+  // Browser sub-agent tools (CLI parity)
+  // Search: always available (no URL needed)
   toolRegistry.register(createSearchRequestTool());
+  // Confluence/Jira: only register when URL is configured in browserServices
+  try {
+    const config = configManager.getAll() as unknown as { browserServices?: Array<{ type: string }> };
+    const browserServices = config.browserServices || [];
+    if (browserServices.some(s => s.type === 'confluence')) {
+      toolRegistry.register(createConfluenceRequestTool());
+    }
+    if (browserServices.some(s => s.type === 'jira')) {
+      toolRegistry.register(createJiraRequestTool());
+    }
+  } catch {
+    // Config not loaded yet — skip conditional registration
+  }
 }
 
 /**

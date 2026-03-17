@@ -97,6 +97,8 @@ export interface AppConfig {
 
   /** Browser service URLs for sub-agents (Confluence, Jira) — CLI parity */
   browserServices?: { type: 'confluence' | 'jira'; name: string; url: string }[];
+  /** Additional URLs for deep research agent to search — CLI parity */
+  researchUrls?: { name: string; url: string }[];
 
   // Auto-start settings
   autoStartChat?: boolean; // Boot with Chat window (default: true)

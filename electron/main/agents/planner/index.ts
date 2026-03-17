@@ -19,6 +19,7 @@ import {
   AskUserCallback,
 } from '../../tools/llm/simple/user-interaction-tools';
 import { LLMRetryExhaustedError } from '../../errors/llm';
+import { configManager } from '../../core/config';
 
 // =============================================================================
 // Types
@@ -113,7 +114,12 @@ export class PlanningLLM {
     const optionalToolsInfo = this.getOptionalToolsInfo();
     const userProfile = process.env['USERPROFILE'];
     const desktopPath = userProfile ? `${userProfile}\\Desktop` : undefined;
-    return buildPlanningSystemPrompt(toolSummary, optionalToolsInfo, desktopPath);
+    let researchUrls: { name: string; url: string }[] | undefined;
+    try {
+      const config = configManager.getAll() as unknown as { researchUrls?: { name: string; url: string }[] };
+      researchUrls = config.researchUrls;
+    } catch { /* config not loaded */ }
+    return buildPlanningSystemPrompt(toolSummary, optionalToolsInfo, desktopPath, researchUrls);
   }
 
   /**

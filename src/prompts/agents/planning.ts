@@ -42,9 +42,9 @@ The Execution Agent has access to **autonomous specialist agents** that handle c
 - \`excel_modify_agent\`: Edits EXISTING .xlsx files. Opens an existing spreadsheet and makes targeted changes (data, formulas, formatting, charts).
 
 **Browser Agents** (always available):
-- \`confluence_request\`: Searches and creates Confluence pages autonomously.
+- \`confluence_request\`: Edits or creates Confluence pages via visible browser. Requires a specific page URL. Handles macros, tables, rich text.
 - \`jira_request\`: Views and manages Jira issues autonomously.
-- \`search_request\`: Searches the web (Google, Naver, StackOverflow, etc.) and collects results.
+- \`search_request\`: Deep research across Google, Naver, StackOverflow, and configured internal sources.
 
 **Agent Selection Guide — choose the RIGHT agent:**
 - \`powerpoint_create_agent\`: NEW presentations, pitch decks, slide decks, briefings, proposals with slides, 발표자료, 피치덱, 슬라이드, 브리핑, 제안서(프레젠테이션), 소개자료
@@ -349,7 +349,12 @@ This overrides "Default to Korean" for sub-agent instructions only.
  * @param toolSummary - Formatted list of available tools (from toolRegistry.getToolSummaryForPlanning())
  * @param optionalToolsInfo - Info about enabled optional tools (from toolRegistry.getEnabledOptionalToolsInfo())
  */
-export function buildPlanningSystemPrompt(toolSummary: string, optionalToolsInfo: string = '', windowsDesktopPath?: string): string {
+export function buildPlanningSystemPrompt(
+  toolSummary: string,
+  optionalToolsInfo: string = '',
+  windowsDesktopPath?: string,
+  researchUrls?: { name: string; url: string }[],
+): string {
   const toolSection = `
 ## Available Tools for Execution LLM
 
@@ -361,7 +366,20 @@ ${optionalToolsInfo}
 **Plan tasks that fully leverage these tools to deliver the most complete and professional results possible.**
 `;
 
-  let prompt = PLANNING_BASE_PROMPT + toolSection;
+  let researchSection = '';
+  if (researchUrls && researchUrls.length > 0) {
+    const urlList = researchUrls.map(r => `  - ${r.name}: ${r.url}`).join('\n');
+    researchSection = `
+## Configured Research Sources
+
+The \`search_request\` agent will also search these internal sources in addition to Google/Naver:
+${urlList}
+
+When planning research tasks, mention these sources explicitly so the Execution Agent knows to use \`search_request\` which will automatically search them.
+`;
+  }
+
+  let prompt = PLANNING_BASE_PROMPT + toolSection + researchSection;
   if (windowsDesktopPath) {
     prompt = prompt.replace(/\{WINDOWS_DESKTOP\}/g, windowsDesktopPath);
   }
