@@ -1,6 +1,6 @@
 {
   "name": "local-cli-agent",
-  "version": "5.0.13",
+  "version": "5.0.16",
   "description": "Local CLI - OpenAI-Compatible Local CLI Coding Agent",
   "type": "module",
   "main": "dist/index.js",
@@ -64,6 +64,7 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
+      "differentialPackage": false,
       "artifactName": "LOCAL-BOT-Setup-${version}.${ext}"
     },
     "publish": {
