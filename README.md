@@ -138,6 +138,16 @@ TODO List                            1/3
   [ ] Apply error handling
 ```
 
+### Deep Research (Search Sub-Agent)
+
+Performs Perplexity-level web research using its own headless Chrome engine — **no external search API (Tavily, SerpAPI, Google API) required**.
+
+- Dual-engine search: Naver (primary) + Google (secondary)
+- Visits actual source pages, extracts content, cross-verifies facts
+- Injects today's date for recency assessment
+- Returns comprehensive answers with source citations
+- Handles Cloudflare-blocked sites gracefully (auto-skip + alternative sources)
+
 ### Office Sub-Agents
 
 Office automation uses a dedicated **Sub-Agent architecture** where each Office app has specialized create and modify agents:
