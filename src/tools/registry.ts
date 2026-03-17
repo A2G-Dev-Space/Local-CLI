@@ -508,11 +508,21 @@ export function initializeToolRegistry(): void {
     toolRegistry.register(createPowerPointModifyRequestTool());
   }
 
-  // Browser sub-agent tools: always register (Chrome/Edge available on all platforms)
-  // These are LLMAgentTool that use headless browser internally
-  toolRegistry.register(createConfluenceRequestTool());
-  toolRegistry.register(createJiraRequestTool());
+  // Browser sub-agent tools (LLMAgentTool, headless browser)
+  // Search: always available (no URL needed)
   toolRegistry.register(createSearchRequestTool());
+  // Confluence/Jira: only register when URL is configured in browserServices
+  try {
+    const browserServices = configManager.getConfig().browserServices || [];
+    if (browserServices.some((s: { type: string }) => s.type === 'confluence')) {
+      toolRegistry.register(createConfluenceRequestTool());
+    }
+    if (browserServices.some((s: { type: string }) => s.type === 'jira')) {
+      toolRegistry.register(createJiraRequestTool());
+    }
+  } catch {
+    // Config not loaded yet — skip conditional registration
+  }
 }
 
 /**

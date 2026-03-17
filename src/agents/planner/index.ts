@@ -66,7 +66,11 @@ export class PlanningLLM {
     // Build dynamic system prompt with available tools
     const toolSummary = toolRegistry.getToolSummaryForPlanning();
     const optionalToolsInfo = toolRegistry.getEnabledOptionalToolsInfo();
-    const systemPrompt = buildPlanningSystemPrompt(toolSummary, optionalToolsInfo, getWindowsUserDesktopPath() || undefined);
+    let researchUrls: { name: string; url: string }[] | undefined;
+    try {
+      researchUrls = configManager.getConfig().researchUrls;
+    } catch { /* config not loaded */ }
+    const systemPrompt = buildPlanningSystemPrompt(toolSummary, optionalToolsInfo, getWindowsUserDesktopPath() || undefined, researchUrls);
 
     // Track clarification messages (ask_to_user Q&A) to return to caller
     const clarificationMessages: Message[] = [];
