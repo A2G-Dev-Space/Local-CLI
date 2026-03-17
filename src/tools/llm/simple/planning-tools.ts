@@ -200,10 +200,53 @@ Guidelines:
 };
 
 /**
+ * tell_to_user tool (Planning LLM용)
+ * 메시지를 사용자에게 전달하고 이어서 create_todos를 호출할 수 있음
+ * respond_to_user와 달리 실행이 중단되지 않음
+ */
+export const tellToUserPlanningTool: LLMSimpleTool = {
+  definition: {
+    type: 'function',
+    function: {
+      name: 'tell_to_user',
+      description: `Use this to send a message to the user and then CONTINUE planning with create_todos.
+
+Unlike respond_to_user (which ENDS the conversation with no action), tell_to_user lets you:
+- Acknowledge the user's request before creating TODOs
+- Provide a brief explanation or context, then proceed to plan tasks
+- Answer part of the question, then create TODOs for the action part
+
+**IMPORTANT:** After calling tell_to_user, you MUST call create_todos next.
+Do NOT use this instead of respond_to_user for pure knowledge questions.
+
+Example flow:
+1. tell_to_user: "좋은 질문이네요. 현재 코드를 분석해보겠습니다."
+2. create_todos: [{"id": "1", "title": "코드 분석 후 최적화"}]`,
+      parameters: {
+        type: 'object',
+        properties: {
+          message: {
+            type: 'string',
+            description: 'Message to display to the user (in their language)',
+          },
+        },
+        required: ['message'],
+      },
+    },
+  },
+  execute: async (args: Record<string, unknown>): Promise<ToolResult> => {
+    const message = args['message'] as string;
+    return { success: true, result: message };
+  },
+  categories: ['llm-planning'],
+};
+
+/**
  * All Planning tools
  */
 export const PLANNING_TOOLS: LLMSimpleTool[] = [
   askToUserPlanningTool,
   createTodosTool,
   respondToUserTool,
+  tellToUserPlanningTool,
 ];

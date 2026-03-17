@@ -179,17 +179,18 @@ export class PlanningLLM {
               role: 'user',
               content: `[RETRY ${attempt}/${MAX_RETRIES}] ⚠️ CRITICAL: You are the PLANNING LLM, not the Execution LLM.
 
-You have ONLY 3 tools available:
+You have ONLY 4 tools available:
 1. 'ask_to_user' - To clarify ambiguous requirements (use FIRST if unclear)
 2. 'create_todos' - For ANY action/implementation request
 3. 'respond_to_user' - For pure knowledge questions/greetings only
+4. 'tell_to_user' - To send a message and then continue with create_todos
 
 ❌ DO NOT use tools like 'write_todos', 'read_file', 'powershell', etc. Those are for Execution LLM, NOT you.
 ❌ You saw those tools in conversation history, but they are NOT available to you.
 
 Previous error: ${lastError?.message || 'Invalid response'}
 
-Choose one of your 3 tools now.`,
+Choose one of your 4 tools now.`,
             });
             logger.warn(`Planning LLM retry attempt ${attempt}/${MAX_RETRIES}`, {
               lastError: lastError?.message,
@@ -317,6 +318,31 @@ Choose one of your 3 tools now.`,
               }
             }
 
+            // Handle tell_to_user - send message and continue planning
+            if (toolName === 'tell_to_user') {
+              logger.flow('Planning LLM sending message to user via tell_to_user');
+              const tellMessage = toolArgs.message as string;
+
+              if (tellMessage) {
+                const assistantMsg: Message = {
+                  role: 'assistant',
+                  content: tellMessage,
+                };
+                messages.push(assistantMsg);
+                clarificationMessages.push(assistantMsg);
+              }
+
+              // Add instruction to call create_todos next
+              messages.push({
+                role: 'user',
+                content: '[Message delivered] Now call create_todos to plan the tasks.',
+              });
+
+              askIterations++;
+              shouldContinueMainLoop = true;
+              break; // Exit retry loop, continue main loop
+            }
+
             // Handle create_todos - final planning decision
             if (toolName === 'create_todos') {
               logger.flow('TODO list created via create_todos tool');
@@ -387,7 +413,7 @@ Choose one of your 3 tools now.`,
 
             // Unknown tool - retry
             logger.warn(`Unknown tool called: ${toolName}`);
-            lastError = new Error(`Invalid tool "${toolName}". You only have 3 tools: ask_to_user, create_todos, or respond_to_user. Tools like write_todos are for Execution LLM, not Planning LLM.`);
+            lastError = new Error(`Invalid tool "${toolName}". You only have 4 tools: ask_to_user, create_todos, respond_to_user, or tell_to_user. Tools like write_todos are for Execution LLM, not Planning LLM.`);
             continue; // Retry
           }
 
@@ -434,11 +460,11 @@ Choose one of your 3 tools now.`,
               contentPreview: contentOnly.substring(0, 100),
             });
             lastError = new Error(
-              'You MUST call one of your tools: ask_to_user, create_todos, or respond_to_user. Do NOT respond with plain text.'
+              'You MUST call one of your tools: ask_to_user, create_todos, respond_to_user, or tell_to_user. Do NOT respond with plain text.'
             );
           } else {
             logger.warn(`Planning LLM returned no tool call and no content (attempt ${attempt}/${MAX_RETRIES})`);
-            lastError = new Error('Planning LLM must use one of: ask_to_user, create_todos, or respond_to_user');
+            lastError = new Error('Planning LLM must use one of: ask_to_user, create_todos, respond_to_user, or tell_to_user');
           }
           // Continue to next retry
         } catch (error) {
@@ -487,7 +513,7 @@ Choose one of your 3 tools now.`,
    * and embed tool calls as JSON within their text response.
    */
   private extractToolCallFromContent(content: string): { name: string; arguments: any } | null {
-    const toolNames = ['create_todos', 'respond_to_user', 'ask_to_user'];
+    const toolNames = ['create_todos', 'respond_to_user', 'ask_to_user', 'tell_to_user'];
 
     for (const toolName of toolNames) {
       // Pattern 1: {"name": "create_todos", "arguments": {...}}
