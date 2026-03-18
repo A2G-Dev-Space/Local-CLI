@@ -207,6 +207,7 @@
   border-radius: 16px 16px 4px 16px;
   border: 1px solid var(--color-msg-user-border);
   box-shadow: 0 2px 8px var(--color-msg-user-shadow);
+  white-space: pre-wrap;
 }
 
 .chat-message.assistant .message-content {
