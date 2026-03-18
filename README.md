@@ -143,10 +143,25 @@ TODO List                            1/3
 Performs Perplexity-level web research using its own headless Chrome engine — **no external search API (Tavily, SerpAPI, Google API) required**.
 
 - Dual-engine search: Naver (primary) + Google (secondary)
+- **Internal source search**: Configure additional URLs (Confluence, internal wikis) via `researchUrls` in config
 - Visits actual source pages, extracts content, cross-verifies facts
 - Injects today's date for recency assessment
 - Returns comprehensive answers with source citations
 - Handles Cloudflare-blocked sites gracefully (auto-skip + alternative sources)
+
+### Confluence Integration
+Edit or create Confluence pages directly via `confluence_request`:
+
+- Opens a visible browser to access Confluence
+- Supports macros, tables, rich text, ProseMirror/TinyMCE editors
+- Configure `browserServices` with type `confluence` in config to enable
+
+```json
+{
+  "browserServices": [{ "type": "confluence", "name": "My Confluence", "url": "https://confluence.example.com" }],
+  "researchUrls": [{ "name": "My Confluence", "url": "https://confluence.example.com" }]
+}
+```
 
 ### Office Sub-Agents
 
