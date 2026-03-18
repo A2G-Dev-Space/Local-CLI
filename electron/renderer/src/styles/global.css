@@ -311,6 +311,21 @@
    All other sizes scale proportionally */
 :root {
   --user-font-size: 12px;  /* Default, overridden by JS */
+  --ui-scale: 1;           /* UI element scale (icons, buttons, headers) */
+}
+
+/* ============ UI Scale - Dynamic via CSS variable ============ */
+/* Scales toolbar buttons, icons, titlebar height */
+.titlebar {
+  height: calc(32px * var(--ui-scale)) !important;
+}
+.panel-toolbar-btn {
+  width: calc(28px * var(--ui-scale));
+  height: calc(28px * var(--ui-scale));
+}
+.panel-toolbar-btn svg {
+  width: calc(14px * var(--ui-scale));
+  height: calc(14px * var(--ui-scale));
 }
 
 /* ============ Color Palettes - Pastel Light ============ */

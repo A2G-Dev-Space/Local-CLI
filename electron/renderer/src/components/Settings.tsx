@@ -105,6 +105,7 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
 
   // Appearance settings
   const [fontSize, setFontSize] = useState<number>(12);
+  const [uiScale, setUiScale] = useState<number>(1);
   const [colorPalette, setColorPalette] = useState<ColorPalette>('default');
   const [fontFamily, setFontFamily] = useState<FontFamily>('default');
 
@@ -159,6 +160,10 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
       if (configAny2?.colorPalette) {
         setColorPalette(configAny2.colorPalette as ColorPalette);
       }
+      const configAny2 = config as unknown as Record<string, unknown>;
+      if (configAny2?.uiScale && typeof configAny2.uiScale === 'number') {
+        setUiScale(configAny2.uiScale);
+      }
       const configAny = config as unknown as Record<string, unknown>;
       if (configAny?.fontFamily && typeof configAny.fontFamily === 'string') {
         setFontFamily(configAny.fontFamily as FontFamily);
@@ -183,6 +188,8 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
           if (opt) {
             document.documentElement.style.setProperty('--font-sans', opt.cssFamily);
           }
+        } else if (key === 'uiScale' && typeof value === 'number') {
+          document.documentElement.style.setProperty('--ui-scale', String(value));
         }
       } catch (err) {
         window.electronAPI?.log?.error(`[Settings] Failed to save ${key}`, {
@@ -854,6 +861,32 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                 </div>
                 <div className="font-size-preview" style={{ fontSize: `${fontSize}px` }}>
                   {t('appearance.fontPreview')}
+                </div>
+              </div>
+
+              {/* UI Scale */}
+              <div className="setting-section">
+                <label className="setting-label">UI 크기 (아이콘/버튼/헤더)</label>
+                <div className="font-size-control">
+                  <input
+                    type="range"
+                    min={80}
+                    max={150}
+                    step={10}
+                    value={Math.round((uiScale ?? 1) * 100)}
+                    onChange={(e) => {
+                      const newScale = parseInt(e.target.value, 10) / 100;
+                      setUiScale(newScale);
+                      saveAppearanceSetting('uiScale', newScale);
+                    }}
+                    className="font-size-slider"
+                  />
+                  <span className="font-size-value">{Math.round((uiScale ?? 1) * 100)}%</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+                  <span>80%</span>
+                  <span>100% (기본)</span>
+                  <span>150%</span>
                 </div>
               </div>
 

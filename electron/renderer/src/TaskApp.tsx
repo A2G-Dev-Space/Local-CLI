@@ -68,6 +68,11 @@ const TaskApp: React.FC = () => {
           setTheme(data.value);
         }
         break;
+      case 'uiScale':
+        if (typeof data.value === 'number') {
+          document.documentElement.style.setProperty('--ui-scale', String(data.value));
+        }
+        break;
     }
   }, []);
 
@@ -117,6 +122,9 @@ const TaskApp: React.FC = () => {
         if (configAny?.fontFamily && typeof configAny.fontFamily === 'string') {
           const cssFamily = FONT_FAMILY_MAP[configAny.fontFamily] || FONT_FAMILY_MAP.default;
           document.documentElement.style.setProperty('--font-sans', cssFamily);
+        }
+        if (configAny?.uiScale && typeof configAny.uiScale === 'number') {
+          document.documentElement.style.setProperty('--ui-scale', String(configAny.uiScale));
         }
 
         setIsMaximized(maximized);

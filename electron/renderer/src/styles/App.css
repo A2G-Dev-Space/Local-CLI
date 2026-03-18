@@ -240,12 +240,13 @@
   transform: scale(0.95);
 }
 
-/* Tooltip-style label on hover (data-tooltip to avoid native title doubling)
-   Displayed ABOVE the button to avoid clipping by overflow:hidden on chat area */
+/* Tooltip-style label on hover (data-tooltip)
+   Displayed BELOW the button to avoid titlebar clipping */
 .panel-toolbar-btn::after {
   content: attr(data-tooltip);
   position: absolute;
-  top: -28px;
+  top: auto;
+  bottom: calc(-28px * var(--ui-scale, 1));
   left: 50%;
   transform: translateX(-50%);
   padding: 3px 8px;
@@ -281,10 +282,10 @@
   transform: none;
 }
 
-/* Jarvis button tooltip: show BELOW instead of above (avoids titlebar clipping) */
-.jarvis-toolbar-btn::after {
-  top: auto !important;
-  bottom: -28px;
+/* Bottom panel tooltips: show ABOVE (avoid window edge clipping) */
+.bottom-panel .panel-toolbar-btn::after {
+  bottom: auto;
+  top: calc(-28px * var(--ui-scale, 1));
 }
 
 .panel-toolbar-divider {

@@ -282,7 +282,7 @@ export function setupIpcHandlers(): void {
     await configManager.set(key, value as AppConfig[typeof key]);
 
     // 외관 관련 설정 변경 시 모든 윈도우에 브로드캐스트
-    const appearanceKeys = ['fontSize', 'fontFamily', 'colorPalette', 'theme'];
+    const appearanceKeys = ['fontSize', 'fontFamily', 'colorPalette', 'theme', 'uiScale'];
     if (appearanceKeys.includes(key)) {
       broadcastToAll('appearance:change', { key, value });
     }
