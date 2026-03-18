@@ -163,6 +163,21 @@ Edit or create Confluence pages directly via `confluence_request`:
 }
 ```
 
+### Jira Integration
+Manage Jira issues directly via `jira_request`:
+
+- Opens a **visible browser** to access Jira (no API key needed)
+- Fetch assigned/watching issues via JQL, create issues (Epic, Story, Task, Bug, Sub-task), add comments, transition status
+- Two-phase issue creation: fill form → user confirmation → submit
+- Autonomous DOM discovery — works with Cloud, Server, and Data Center
+- Configure `browserServices` with type `jira` in config to enable
+
+```json
+{
+  "browserServices": [{ "type": "jira", "name": "My Jira", "url": "https://jira.example.com" }]
+}
+```
+
 ### Office Sub-Agents
 
 Office automation uses a dedicated **Sub-Agent architecture** where each Office app has specialized create and modify agents:
