@@ -16,7 +16,10 @@ export function createJiraRequestTool(): LLMAgentTool {
       function: {
         name: 'jira_request',
         description:
-          'Delegate a task to the Jira specialist agent. Capable of issue viewing/creation/editing, comments, status transitions, JQL search, and all Jira operations. Describe the desired task in natural language.',
+          'Delegate a task to the Jira specialist agent. Opens a visible browser to directly access Jira and perform operations. ' +
+          'Capabilities: fetch assigned/watching issues via JQL, create issues (Epic, Story, Task, Bug, Sub-task) with user confirmation, ' +
+          'add comments, view issue details, transition status, and general JQL search. ' +
+          'Works with Jira Cloud, Server, and Data Center.',
         parameters: {
           type: 'object',
           properties: {
@@ -39,7 +42,7 @@ export function createJiraRequestTool(): LLMAgentTool {
         'jira',
         BROWSER_SUB_AGENT_TOOLS,
         JIRA_SYSTEM_PROMPT,
-        { requiresAuth: true, serviceType: 'jira' }
+        { requiresAuth: true, serviceType: 'jira', maxIterations: 30, headless: false }
       );
       return agent.run(args['instruction'] as string, args['source'] as string | undefined);
     },
