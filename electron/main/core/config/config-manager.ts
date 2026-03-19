@@ -65,6 +65,7 @@ export interface AppConfig {
   theme: 'light' | 'dark' | 'system';
   colorPalette: ColorPalette;
   fontSize: FontSize;
+  uiScale?: number; // UI 요소 스케일 (0.8 ~ 1.5, default: 1)
   lastOpenedDirectory?: string;
   recentDirectories: string[];
   sidebarWidth: number;
@@ -130,6 +131,7 @@ const DEFAULT_CONFIG: AppConfig = {
   theme: 'light',
   colorPalette: 'default',
   fontSize: 12,
+  uiScale: 1,
   recentDirectories: [],
   sidebarWidth: 260,
   bottomPanelHeight: 300,

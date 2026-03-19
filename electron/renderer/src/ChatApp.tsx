@@ -170,6 +170,7 @@ const ChatApp: React.FC = () => {
         const configAny = config as unknown as Record<string, unknown>;
         if (configAny?.fontSize && typeof configAny.fontSize === 'number') {
           setFontSize(configAny.fontSize);
+          document.documentElement.style.setProperty('--user-font-size', `${configAny.fontSize}px`);
         }
         if (configAny?.colorPalette) {
           setColorPalette(configAny.colorPalette as ColorPalette);
@@ -184,6 +185,10 @@ const ChatApp: React.FC = () => {
         }
         if (typeof configAny?.autoFileView === 'boolean') {
           setAutoFileView(configAny.autoFileView);
+        }
+        // UI 스케일
+        if (configAny?.uiScale && typeof configAny.uiScale === 'number') {
+          document.documentElement.style.setProperty('--ui-scale', String(configAny.uiScale));
         }
 
         setIsMaximized(maximized);
@@ -211,6 +216,21 @@ const ChatApp: React.FC = () => {
     };
 
     init();
+  }, []);
+
+  // Appearance change listener (Settings에서 변경 시 실시간 반영)
+  useEffect(() => {
+    const unsub = window.electronAPI?.theme?.onAppearanceChange?.((data: { key: string; value: unknown }) => {
+      if (data.key === 'fontSize' && typeof data.value === 'number') {
+        setFontSize(data.value);
+        document.documentElement.style.setProperty('--user-font-size', `${data.value}px`);
+      } else if (data.key === 'uiScale' && typeof data.value === 'number') {
+        document.documentElement.style.setProperty('--ui-scale', String(data.value));
+      } else if (data.key === 'colorPalette' && typeof data.value === 'string') {
+        setColorPalette(data.value as ColorPalette);
+      }
+    });
+    return () => { unsub?.(); };
   }, []);
 
   // Event listeners
