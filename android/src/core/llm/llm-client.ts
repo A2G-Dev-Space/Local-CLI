@@ -40,6 +40,15 @@ export interface LLMStreamChunk {
       role?: string;
       content?: string;
       reasoning?: string;
+      tool_calls?: Array<{
+        index?: number;
+        id?: string;
+        type?: string;
+        function?: {
+          name?: string;
+          arguments?: string;
+        };
+      }>;
     };
     finish_reason: string | null;
   }>;

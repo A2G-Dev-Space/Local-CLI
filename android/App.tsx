@@ -1,5 +1,7 @@
 /**
  * LOCAL BOT — Android App (iOS-level design)
+ *
+ * Browser automation, localhost testing, file tools 지원
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -12,15 +14,17 @@ import { configManager } from './src/core/config/config-manager';
 import ChatScreen from './src/ui/screens/ChatScreen';
 import SettingsScreen from './src/ui/screens/SettingsScreen';
 import SessionsScreen from './src/ui/screens/SessionsScreen';
+import BrowserScreen from './src/ui/screens/BrowserScreen';
 import Animated, {
   FadeIn, FadeOut,
   SlideInRight, SlideOutRight,
   SlideInLeft, SlideOutLeft,
+  SlideInUp, SlideOutDown,
   useSharedValue, useAnimatedStyle,
   withTiming, withSequence, withDelay, Easing,
 } from 'react-native-reanimated';
 
-type Screen = 'chat' | 'settings' | 'sessions';
+type Screen = 'chat' | 'settings' | 'sessions' | 'browser';
 
 function Splash({ onDone }: { onDone: () => void }) {
   const scale = useSharedValue(0.3);
@@ -51,8 +55,14 @@ function Splash({ onDone }: { onDone: () => void }) {
 export default function App() {
   const [phase, setPhase] = useState<'splash' | 'app'>('splash');
   const [screen, setScreen] = useState<Screen>('chat');
+  const [browserUrl, setBrowserUrl] = useState<string | undefined>(undefined);
 
   useEffect(() => { configManager.initialize().catch(() => {}); }, []);
+
+  const openBrowser = useCallback((url?: string) => {
+    setBrowserUrl(url);
+    setScreen('browser');
+  }, []);
 
   if (phase === 'splash') return <Splash onDone={() => setPhase('app')} />;
 
@@ -65,6 +75,7 @@ export default function App() {
               <ChatScreen
                 onOpenSettings={() => setScreen('settings')}
                 onOpenSessions={() => setScreen('sessions')}
+                onOpenBrowser={openBrowser}
               />
             </Animated.View>
           )}
@@ -85,6 +96,17 @@ export default function App() {
                 onBack={() => setScreen('chat')}
                 onSelectSession={() => setScreen('chat')}
                 onNewSession={() => setScreen('chat')}
+              />
+            </Animated.View>
+          )}
+          {screen === 'browser' && (
+            <Animated.View style={StyleSheet.absoluteFill}
+              entering={SlideInUp.duration(300).easing(Easing.out(Easing.cubic))}
+              exiting={SlideOutDown.duration(250)}
+            >
+              <BrowserScreen
+                onBack={() => setScreen('chat')}
+                initialUrl={browserUrl}
               />
             </Animated.View>
           )}

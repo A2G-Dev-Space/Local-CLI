@@ -21,8 +21,10 @@
       "package": "com.localbot.android",
       "permissions": [
         "android.permission.INTERNET",
-        "android.permission.VIBRATE"
-      ]
+        "android.permission.VIBRATE",
+        "android.permission.ACCESS_NETWORK_STATE"
+      ],
+      "usesCleartextTraffic": true
     },
     "plugins": [
       "expo-font"
