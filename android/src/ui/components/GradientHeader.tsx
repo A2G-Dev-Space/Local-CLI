@@ -1,7 +1,8 @@
 /**
- * GradientHeader Component
+ * GradientHeader — Ultra-compact glass header
  *
- * 감동적인 그라디언트 헤더 — 앱의 첫인상을 결정
+ * 36px 콘텐츠 높이, 인라인 모델 뱃지, 블러 글래스 효과
+ * 세로 공간을 극한까지 절약하면서 브랜드 임팩트를 유지
  */
 
 import React from 'react';
@@ -11,135 +12,159 @@ import {
   TouchableOpacity,
   StyleSheet,
   StatusBar,
-  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeContext';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+} from 'react-native-reanimated';
 
 interface GradientHeaderProps {
   title: string;
-  subtitle?: string;
+  modelName?: string;
   leftIcon?: keyof typeof Ionicons.glyphMap;
   rightIcon?: keyof typeof Ionicons.glyphMap;
+  rightIcon2?: keyof typeof Ionicons.glyphMap;
   onLeftPress?: () => void;
   onRightPress?: () => void;
-  showGradient?: boolean;
+  onRightPress2?: () => void;
+  isConnected?: boolean;
 }
 
 export default function GradientHeader({
   title,
-  subtitle,
+  modelName,
   leftIcon,
   rightIcon,
+  rightIcon2,
   onLeftPress,
   onRightPress,
-  showGradient = true,
+  onRightPress2,
+  isConnected = true,
 }: GradientHeaderProps) {
-  const { colors, resolvedMode } = useTheme();
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
 
-  const headerContent = (
-    <View style={[styles.container, { paddingTop: insets.top + 8 }]}>
-      <StatusBar
-        barStyle="light-content"
-        backgroundColor="transparent"
-        translucent
-      />
-      <View style={styles.content}>
-        <View style={styles.left}>
-          {leftIcon && (
-            <TouchableOpacity onPress={onLeftPress} style={styles.iconButton}>
-              <Ionicons name={leftIcon} size={24} color="#FFFFFF" />
-            </TouchableOpacity>
-          )}
-        </View>
+  const PressableIcon = ({ icon, onPress, size = 18 }: {
+    icon: keyof typeof Ionicons.glyphMap;
+    onPress?: () => void;
+    size?: number;
+  }) => {
+    const scale = useSharedValue(1);
+    const animStyle = useAnimatedStyle(() => ({
+      transform: [{ scale: scale.value }],
+    }));
 
-        <View style={styles.center}>
-          <Text style={styles.title} numberOfLines={1}>{title}</Text>
-          {subtitle && (
-            <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text>
-          )}
-        </View>
-
-        <View style={styles.right}>
-          {rightIcon && (
-            <TouchableOpacity onPress={onRightPress} style={styles.iconButton}>
-              <Ionicons name={rightIcon} size={24} color="#FFFFFF" />
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-    </View>
-  );
-
-  if (showGradient) {
     return (
-      <LinearGradient
-        colors={[colors.gradientStart, colors.gradientMid, colors.gradientEnd]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.gradient}
-      >
-        {headerContent}
-      </LinearGradient>
+      <Animated.View style={animStyle}>
+        <TouchableOpacity
+          onPress={onPress}
+          onPressIn={() => { scale.value = withSpring(0.85); }}
+          onPressOut={() => { scale.value = withSpring(1); }}
+          style={styles.iconBtn}
+          activeOpacity={1}
+        >
+          <Ionicons name={icon} size={size} color="rgba(255,255,255,0.9)" />
+        </TouchableOpacity>
+      </Animated.View>
     );
-  }
+  };
 
   return (
-    <View style={[styles.gradient, { backgroundColor: colors.surface }]}>
-      {headerContent}
-    </View>
+    <LinearGradient
+      colors={[colors.gradientStart, colors.gradientMid + 'EE', colors.gradientEnd + 'CC']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 0.5 }}
+    >
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      <View style={[styles.container, { paddingTop: insets.top + 4 }]}>
+        {/* Left */}
+        <View style={styles.leftGroup}>
+          {leftIcon && <PressableIcon icon={leftIcon} onPress={onLeftPress} />}
+        </View>
+
+        {/* Center — title + inline model badge */}
+        <View style={styles.centerGroup}>
+          <Text style={styles.title} numberOfLines={1}>{title}</Text>
+          {modelName && (
+            <View style={styles.modelBadge}>
+              <View style={[styles.statusDot, { backgroundColor: isConnected ? '#34D399' : '#F87171' }]} />
+              <Text style={styles.modelText} numberOfLines={1}>{modelName}</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Right */}
+        <View style={styles.rightGroup}>
+          {rightIcon2 && <PressableIcon icon={rightIcon2} onPress={onRightPress2} />}
+          {rightIcon && <PressableIcon icon={rightIcon} onPress={onRightPress} />}
+        </View>
+      </View>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  gradient: {
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-  },
   container: {
-    paddingBottom: 16,
-    paddingHorizontal: 16,
-  },
-  content: {
+    paddingBottom: 8,
+    paddingHorizontal: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 44,
+    minHeight: 36,
   },
-  left: {
-    width: 44,
-    alignItems: 'flex-start',
-  },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  right: {
-    width: 44,
-    alignItems: 'flex-end',
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    letterSpacing: 0.5,
-  },
-  subtitle: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.7)',
-    marginTop: 2,
-  },
-  iconButton: {
+  leftGroup: {
+    flexDirection: 'row',
     width: 40,
-    height: 40,
-    borderRadius: 20,
+  },
+  centerGroup: {
+    flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    gap: 8,
+  },
+  rightGroup: {
+    flexDirection: 'row',
+    gap: 2,
+    minWidth: 40,
+    justifyContent: 'flex-end',
+  },
+  title: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 1.5,
+  },
+  modelBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    gap: 4,
+    maxWidth: 120,
+  },
+  statusDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+  },
+  modelText: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.85)',
+    fontWeight: '500',
+  },
+  iconBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.12)',
   },
 });

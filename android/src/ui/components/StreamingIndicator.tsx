@@ -1,7 +1,8 @@
 /**
- * StreamingIndicator Component
+ * StreamingIndicator — 타이핑 커서 + 실시간 텍스트
  *
- * LLM 응답 스트리밍 시 표시되는 애니메이션
+ * 아바타 없음, accent bar 스타일 (ChatBubble과 동일)
+ * 블링킹 커서 + wave 도트 = 이중 시각 피드백
  */
 
 import React, { useEffect } from 'react';
@@ -13,8 +14,8 @@ import Animated, {
   withTiming,
   withDelay,
   withSequence,
+  Easing,
 } from 'react-native-reanimated';
-import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
 
 interface StreamingIndicatorProps {
@@ -24,47 +25,54 @@ interface StreamingIndicatorProps {
 export default function StreamingIndicator({ content }: StreamingIndicatorProps) {
   const { colors } = useTheme();
 
-  const dot1 = useSharedValue(0.3);
-  const dot2 = useSharedValue(0.3);
-  const dot3 = useSharedValue(0.3);
+  // 블링킹 커서
+  const cursorOpacity = useSharedValue(1);
+  // 웨이브 도트
+  const d1 = useSharedValue(0);
+  const d2 = useSharedValue(0);
+  const d3 = useSharedValue(0);
 
   useEffect(() => {
-    dot1.value = withRepeat(
-      withSequence(withTiming(1, { duration: 400 }), withTiming(0.3, { duration: 400 })),
-      -1
+    cursorOpacity.value = withRepeat(
+      withSequence(
+        withTiming(0, { duration: 500, easing: Easing.inOut(Easing.ease) }),
+        withTiming(1, { duration: 500, easing: Easing.inOut(Easing.ease) })
+      ), -1
     );
-    dot2.value = withRepeat(
-      withDelay(150, withSequence(withTiming(1, { duration: 400 }), withTiming(0.3, { duration: 400 }))),
-      -1
+    const wave = (delay: number) => withRepeat(
+      withDelay(delay, withSequence(
+        withTiming(-3, { duration: 300 }),
+        withTiming(0, { duration: 300 })
+      )), -1
     );
-    dot3.value = withRepeat(
-      withDelay(300, withSequence(withTiming(1, { duration: 400 }), withTiming(0.3, { duration: 400 }))),
-      -1
-    );
-  }, [dot1, dot2, dot3]);
+    d1.value = wave(0);
+    d2.value = wave(100);
+    d3.value = wave(200);
+  }, [cursorOpacity, d1, d2, d3]);
 
-  const animDot1 = useAnimatedStyle(() => ({ opacity: dot1.value }));
-  const animDot2 = useAnimatedStyle(() => ({ opacity: dot2.value }));
-  const animDot3 = useAnimatedStyle(() => ({ opacity: dot3.value }));
+  const cursorStyle = useAnimatedStyle(() => ({ opacity: cursorOpacity.value }));
+  const dot1 = useAnimatedStyle(() => ({ transform: [{ translateY: d1.value }] }));
+  const dot2 = useAnimatedStyle(() => ({ transform: [{ translateY: d2.value }] }));
+  const dot3 = useAnimatedStyle(() => ({ transform: [{ translateY: d3.value }] }));
 
   return (
-    <View style={[styles.container, { marginHorizontal: 12 }]}>
-      <View style={[styles.avatar, { backgroundColor: colors.primaryGlow }]}>
-        <Ionicons name="sparkles" size={16} color={colors.primary} />
-      </View>
-
-      <View style={[styles.bubble, { backgroundColor: colors.assistantBubble }]}>
+    <View style={styles.container}>
+      <View style={[styles.accentBar, { backgroundColor: colors.primary }]} />
+      <View style={styles.content}>
         {content ? (
-          <Text style={[styles.text, { color: colors.assistantBubbleText }]}>
+          <Text style={[styles.text, { color: colors.text }]}>
             {content}
+            <Animated.Text style={[styles.cursor, { color: colors.primary }, cursorStyle]}>
+              |
+            </Animated.Text>
           </Text>
-        ) : null}
-
-        <View style={styles.dotsContainer}>
-          <Animated.View style={[styles.dot, { backgroundColor: colors.primary }, animDot1]} />
-          <Animated.View style={[styles.dot, { backgroundColor: colors.primary }, animDot2]} />
-          <Animated.View style={[styles.dot, { backgroundColor: colors.primary }, animDot3]} />
-        </View>
+        ) : (
+          <View style={styles.dotsRow}>
+            <Animated.View style={[styles.dot, { backgroundColor: colors.primary }, dot1]} />
+            <Animated.View style={[styles.dot, { backgroundColor: colors.primary + 'AA' }, dot2]} />
+            <Animated.View style={[styles.dot, { backgroundColor: colors.primary + '66' }, dot3]} />
+          </View>
+        )}
       </View>
     </View>
   );
@@ -73,38 +81,36 @@ export default function StreamingIndicator({ content }: StreamingIndicatorProps)
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    marginVertical: 4,
-  },
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 4,
-  },
-  bubble: {
-    maxWidth: '75%',
-    borderRadius: 20,
-    borderBottomLeftRadius: 4,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    marginHorizontal: 8,
-  },
-  text: {
-    fontSize: 15,
-    lineHeight: 22,
-    marginBottom: 4,
-  },
-  dotsContainer: {
-    flexDirection: 'row',
-    gap: 4,
+    paddingHorizontal: 10,
     paddingVertical: 2,
   },
+  accentBar: {
+    width: 3,
+    borderRadius: 2,
+    marginRight: 10,
+    minHeight: 16,
+  },
+  content: {
+    flex: 1,
+    paddingVertical: 2,
+  },
+  text: {
+    fontSize: 14,
+    lineHeight: 21,
+  },
+  cursor: {
+    fontWeight: '300',
+    fontSize: 15,
+  },
+  dotsRow: {
+    flexDirection: 'row',
+    gap: 4,
+    paddingVertical: 4,
+    alignItems: 'center',
+  },
   dot: {
-    width: 6,
-    height: 6,
+    width: 5,
+    height: 5,
     borderRadius: 3,
   },
 });

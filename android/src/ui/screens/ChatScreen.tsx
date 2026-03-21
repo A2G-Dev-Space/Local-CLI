@@ -1,16 +1,22 @@
 /**
- * ChatScreen — 메인 채팅 화면
+ * ChatScreen — 메인 채팅 화면 (세계 최고 수준)
  *
- * CLI의 PlanExecuteApp + Electron의 ChatApp에 대응하는 Android 메인 화면
+ * - 극한 컴팩트 헤더 (36px)
+ * - 메시지 사이 간격 자동 최적화 (연속 메시지 감지)
+ * - 플로팅 글래스 입력 바
+ * - Suggestion 탭 → 바로 전송
+ * - 새 대화 버튼 (헤더 좌측)
  */
 
-import React, { useRef, useCallback, useEffect } from 'react';
+import React, { useRef, useCallback, useEffect, useMemo } from 'react';
 import {
   View,
   FlatList,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { useChat } from '../hooks/useChat';
@@ -41,69 +47,88 @@ export default function ChatScreen({ onOpenSettings, onOpenSessions }: ChatScree
     clearMessages,
   } = useChat();
 
-  const endpoint = configManager.getCurrentEndpoint();
   const model = configManager.getCurrentModel();
-  const subtitle = model ? `${model.name}` : 'No model selected';
 
-  // Auto scroll to bottom
+  // Auto scroll
   useEffect(() => {
     if (messages.length > 0 || isStreaming) {
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
-      }, 100);
+      }, 80);
+      return () => clearTimeout(timer);
     }
   }, [messages.length, isStreaming, streamingContent]);
 
-  const renderMessage = useCallback(({ item, index }: { item: Message; index: number }) => (
+  // 연속 메시지 감지를 위한 전처리
+  const displayData = useMemo(() => {
+    const items = [...messages];
+    if (error) items.push({ role: 'error', content: error });
+    return items.map((msg, i) => ({
+      msg,
+      isConsecutive: i > 0 && items[i - 1]!.role === msg.role,
+      isLatest: i === items.length - 1,
+    }));
+  }, [messages, error]);
+
+  const renderMessage = useCallback(({ item }: {
+    item: { msg: Message; isConsecutive: boolean; isLatest: boolean }
+  }) => (
     <ChatBubble
-      message={item}
-      isLatest={index === messages.length - 1}
+      message={item.msg}
+      isLatest={item.isLatest}
+      isConsecutive={item.isConsecutive}
     />
-  ), [messages.length]);
+  ), []);
 
-  const keyExtractor = useCallback((_item: Message, index: number) => `msg-${index}`, []);
+  const keyExtractor = useCallback((_: any, index: number) => `m-${index}`, []);
 
-  // Build display items (messages + error if any)
-  const displayMessages = [...messages];
-  if (error) {
-    displayMessages.push({ role: 'error', content: error });
-  }
+  const handleSuggestion = useCallback((text: string) => {
+    sendMessage(text);
+  }, [sendMessage]);
 
   return (
     <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: colors.background }]}
+      style={[styles.root, { backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={0}
     >
       <GradientHeader
         title="LOCAL BOT"
-        subtitle={subtitle}
+        modelName={model?.name}
         leftIcon="time-outline"
         rightIcon="settings-outline"
+        rightIcon2="add-outline"
         onLeftPress={onOpenSessions}
         onRightPress={onOpenSettings}
+        onRightPress2={clearMessages}
+        isConnected={!!model}
       />
 
-      {displayMessages.length === 0 && !isLoading ? (
-        <EmptyState />
+      {displayData.length === 0 && !isLoading ? (
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.emptyFlex}>
+            <EmptyState onSuggestionPress={handleSuggestion} />
+          </View>
+        </TouchableWithoutFeedback>
       ) : (
         <FlatList
           ref={flatListRef}
-          data={displayMessages}
+          data={displayData}
           renderItem={renderMessage}
           keyExtractor={keyExtractor}
-          contentContainerStyle={styles.messageList}
+          contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
+          keyboardDismissMode="interactive"
+          keyboardShouldPersistTaps="handled"
           ListFooterComponent={
-            isStreaming || (isLoading && !isStreaming) ? (
-              <StreamingIndicator content={streamingContent} />
-            ) : null
+            (isStreaming || (isLoading && !isStreaming))
+              ? <StreamingIndicator content={streamingContent} />
+              : <View style={styles.listFooter} />
           }
         />
       )}
 
       <ChatInput
-        onSend={(msg) => sendMessage(msg)}
+        onSend={sendMessage}
         onStop={stopGeneration}
         isLoading={isLoading}
         isStreaming={isStreaming}
@@ -113,11 +138,17 @@ export default function ChatScreen({ onOpenSettings, onOpenSessions }: ChatScree
 }
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
   },
-  messageList: {
-    paddingVertical: 8,
-    flexGrow: 1,
+  emptyFlex: {
+    flex: 1,
+  },
+  list: {
+    paddingTop: 6,
+    paddingBottom: 4,
+  },
+  listFooter: {
+    height: 4,
   },
 });

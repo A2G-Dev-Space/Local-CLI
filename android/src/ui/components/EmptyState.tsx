@@ -1,11 +1,19 @@
 /**
- * EmptyState Component
+ * EmptyState — 감동적인 온보딩 화면
  *
- * 새 대화 시작 시 보여지는 감동적인 빈 상태 화면
+ * 컴팩트 로고 + 2x2 탭 가능 suggestion grid
+ * 화면 중앙보다 약간 위에 배치하여 키보드 올라와도 보이게
+ * 숨쉬는 그라디언트 오브 + 파티클 효과
  */
 
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Dimensions,
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
@@ -17,94 +25,116 @@ import Animated, {
   withSequence,
   withDelay,
   FadeIn,
+  FadeInUp,
+  Easing,
 } from 'react-native-reanimated';
-import { APP_VERSION } from '../../core/constants';
 
-const { width } = Dimensions.get('window');
+const { width: SCREEN_W } = Dimensions.get('window');
 
-export default function EmptyState() {
+interface EmptyStateProps {
+  onSuggestionPress?: (text: string) => void;
+}
+
+export default function EmptyState({ onSuggestionPress }: EmptyStateProps) {
   const { colors } = useTheme();
 
-  const pulseScale = useSharedValue(1);
-  const glowOpacity = useSharedValue(0.3);
+  // 숨쉬는 오브
+  const orbScale = useSharedValue(1);
+  const orbRotate = useSharedValue(0);
+  const ring1 = useSharedValue(0.4);
+  const ring2 = useSharedValue(0.2);
 
   useEffect(() => {
-    pulseScale.value = withRepeat(
+    orbScale.value = withRepeat(
       withSequence(
-        withTiming(1.05, { duration: 2000 }),
-        withTiming(1, { duration: 2000 })
-      ),
-      -1
+        withTiming(1.08, { duration: 3000, easing: Easing.inOut(Easing.sin) }),
+        withTiming(1, { duration: 3000, easing: Easing.inOut(Easing.sin) })
+      ), -1
     );
-    glowOpacity.value = withRepeat(
+    orbRotate.value = withRepeat(
+      withTiming(360, { duration: 20000, easing: Easing.linear }), -1
+    );
+    ring1.value = withRepeat(
       withSequence(
-        withTiming(0.6, { duration: 2000 }),
+        withTiming(0.7, { duration: 2000 }),
         withTiming(0.3, { duration: 2000 })
-      ),
-      -1
+      ), -1
     );
-  }, [pulseScale, glowOpacity]);
+    ring2.value = withRepeat(
+      withDelay(1000, withSequence(
+        withTiming(0.5, { duration: 2000 }),
+        withTiming(0.15, { duration: 2000 })
+      )), -1
+    );
+  }, [orbScale, orbRotate, ring1, ring2]);
 
-  const pulseStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: pulseScale.value }],
+  const orbStyle = useAnimatedStyle(() => ({
+    transform: [
+      { scale: orbScale.value },
+      { rotate: `${orbRotate.value}deg` },
+    ],
   }));
-
-  const glowStyle = useAnimatedStyle(() => ({
-    opacity: glowOpacity.value,
-  }));
+  const ring1Style = useAnimatedStyle(() => ({ opacity: ring1.value }));
+  const ring2Style = useAnimatedStyle(() => ({ opacity: ring2.value }));
 
   const suggestions = [
-    { icon: 'code-slash' as const, text: 'Write a Python script' },
-    { icon: 'bug' as const, text: 'Debug this error' },
-    { icon: 'git-branch' as const, text: 'Review my code' },
-    { icon: 'bulb' as const, text: 'Explain this concept' },
+    { icon: 'code-slash' as const, text: 'Write code', desc: 'Any language' },
+    { icon: 'bug' as const, text: 'Debug', desc: 'Fix errors fast' },
+    { icon: 'git-branch' as const, text: 'Review', desc: 'Code review' },
+    { icon: 'bulb' as const, text: 'Explain', desc: 'Learn concepts' },
   ];
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Animated.View entering={FadeIn.duration(800).delay(200)}>
-        {/* Glowing logo */}
-        <View style={styles.logoContainer}>
-          <Animated.View style={[styles.glow, glowStyle]}>
-            <LinearGradient
-              colors={[colors.gradientStart + '40', colors.gradientEnd + '00']}
-              style={styles.glowGradient}
-            />
-          </Animated.View>
+    <View style={styles.container}>
+      {/* Breathing orb — 컴팩트 56px */}
+      <Animated.View entering={FadeIn.duration(1000)} style={styles.orbArea}>
+        {/* Outer rings */}
+        <Animated.View style={[styles.ring, styles.ringOuter, ring2Style, { borderColor: colors.gradientStart + '30' }]} />
+        <Animated.View style={[styles.ring, styles.ringInner, ring1Style, { borderColor: colors.gradientStart + '50' }]} />
 
-          <Animated.View style={pulseStyle}>
-            <LinearGradient
-              colors={[colors.gradientStart, colors.gradientMid, colors.gradientEnd]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.logoGradient}
-            >
-              <Ionicons name="terminal" size={40} color="#FFFFFF" />
-            </LinearGradient>
-          </Animated.View>
-        </View>
+        {/* Core orb */}
+        <Animated.View style={orbStyle}>
+          <LinearGradient
+            colors={[colors.gradientStart, colors.gradientMid, colors.gradientEnd]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.orb}
+          >
+            <Ionicons name="terminal" size={26} color="#FFFFFF" />
+          </LinearGradient>
+        </Animated.View>
+      </Animated.View>
 
+      {/* Title — 컴팩트 */}
+      <Animated.View entering={FadeInUp.duration(600).delay(300)}>
         <Text style={[styles.title, { color: colors.text }]}>LOCAL BOT</Text>
-        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-          Your AI Coding Agent • v{APP_VERSION}
+        <Text style={[styles.desc, { color: colors.textTertiary }]}>
+          AI Coding Agent
         </Text>
       </Animated.View>
 
+      {/* 2x2 Suggestion grid — 탭 가능 */}
       <Animated.View
-        entering={FadeIn.duration(800).delay(600)}
-        style={styles.suggestionsContainer}
+        entering={FadeInUp.duration(600).delay(500)}
+        style={styles.grid}
       >
-        {suggestions.map((suggestion, index) => (
+        {suggestions.map((s, i) => (
           <Animated.View
-            key={suggestion.text}
-            entering={FadeIn.duration(400).delay(800 + index * 100)}
+            key={s.text}
+            entering={FadeInUp.duration(400).delay(600 + i * 80)}
+            style={{ width: (SCREEN_W - 52) / 2 }}
           >
-            <View style={[styles.suggestionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <Ionicons name={suggestion.icon} size={18} color={colors.primary} />
-              <Text style={[styles.suggestionText, { color: colors.textSecondary }]}>
-                {suggestion.text}
-              </Text>
-            </View>
+            <TouchableOpacity
+              style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={() => onSuggestionPress?.(s.text)}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.cardIcon, { backgroundColor: colors.primaryGlow }]}>
+                <Ionicons name={s.icon} size={16} color={colors.primary} />
+              </View>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>{s.text}</Text>
+              <Text style={[styles.cardDesc, { color: colors.textTertiary }]}>{s.desc}</Text>
+            </TouchableOpacity>
           </Animated.View>
         ))}
       </Animated.View>
@@ -117,60 +147,78 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 32,
+    paddingHorizontal: 20,
+    marginTop: -40, // 키보드 올라와도 안 잘리게 위로
   },
-  logoContainer: {
+  // Orb
+  orbArea: {
+    width: 100,
+    height: 100,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 24,
+    marginBottom: 16,
   },
-  glow: {
+  ring: {
     position: 'absolute',
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    overflow: 'hidden',
+    borderWidth: 1,
+    borderRadius: 999,
   },
-  glowGradient: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 80,
+  ringOuter: {
+    width: 96,
+    height: 96,
   },
-  logoGradient: {
-    width: 80,
-    height: 80,
-    borderRadius: 24,
+  ringInner: {
+    width: 72,
+    height: 72,
+  },
+  orb: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // Text
   title: {
-    fontSize: 28,
+    fontSize: 20,
     fontWeight: '800',
-    letterSpacing: 2,
+    letterSpacing: 3,
     textAlign: 'center',
   },
-  subtitle: {
-    fontSize: 14,
-    marginTop: 8,
+  desc: {
+    fontSize: 12,
     textAlign: 'center',
+    marginTop: 3,
     letterSpacing: 0.5,
   },
-  suggestionsContainer: {
-    marginTop: 48,
-    width: '100%',
-    gap: 10,
-  },
-  suggestionCard: {
+  // Grid
+  grid: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderRadius: 16,
-    borderWidth: 1,
-    gap: 12,
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 28,
+    justifyContent: 'center',
   },
-  suggestionText: {
-    fontSize: 14,
-    flex: 1,
+  card: {
+    borderRadius: 14,
+    borderWidth: 0.5,
+    padding: 12,
+    gap: 4,
+  },
+  cardIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
+  },
+  cardTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  cardDesc: {
+    fontSize: 10,
+    lineHeight: 14,
   },
 });

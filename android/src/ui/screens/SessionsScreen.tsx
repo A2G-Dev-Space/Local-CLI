@@ -1,10 +1,11 @@
 /**
- * SessionsScreen — 세션 히스토리 화면
+ * SessionsScreen — 세계 최고 수준의 세션 히스토리
  *
- * CLI의 SessionBrowser + Electron의 SessionBrowser에 대응
+ * 슬림 카드, swipe-to-delete 지원, 시간 그룹핑
+ * 빈 상태: 미니멀 일러스트 + 안내
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -17,7 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeContext';
 import { sessionManager, type SessionSummary } from '../../core/session/session-manager';
-import Animated, { FadeInRight } from 'react-native-reanimated';
+import Animated, { FadeInRight, FadeIn } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 
 interface SessionsScreenProps {
@@ -31,108 +32,82 @@ export default function SessionsScreen({ onBack, onSelectSession, onNewSession }
   const insets = useSafeAreaInsets();
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
 
-  useEffect(() => {
-    loadSessions();
-  }, []);
+  useEffect(() => { load(); }, []);
+  const load = async () => setSessions(await sessionManager.listSessions());
 
-  const loadSessions = async () => {
-    const list = await sessionManager.listSessions();
-    setSessions(list);
+  const del = (id: string) => Alert.alert('Delete?', '', [
+    { text: 'No', style: 'cancel' },
+    { text: 'Yes', style: 'destructive', onPress: async () => { await sessionManager.deleteSession(id); load(); } },
+  ]);
+
+  const fmt = (d: string) => {
+    const diff = Date.now() - new Date(d).getTime();
+    const m = Math.floor(diff / 60000);
+    if (m < 1) return 'now';
+    if (m < 60) return `${m}m`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h`;
+    const days = Math.floor(h / 24);
+    if (days < 7) return `${days}d`;
+    return new Date(d).toLocaleDateString('en', { month: 'short', day: 'numeric' });
   };
 
-  const handleDelete = (sessionId: string) => {
-    Alert.alert('Delete Session', 'Are you sure?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          await sessionManager.deleteSession(sessionId);
-          loadSessions();
-        },
-      },
-    ]);
-  };
-
-  const handleSelect = (sessionId: string) => {
-    Haptics.selectionAsync().catch(() => {});
-    onSelectSession(sessionId);
-  };
-
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const hours = Math.floor(diff / 3600000);
-    const days = Math.floor(diff / 86400000);
-
-    if (hours < 1) return 'Just now';
-    if (hours < 24) return `${hours}h ago`;
-    if (days < 7) return `${days}d ago`;
-    return date.toLocaleDateString();
-  };
-
-  const renderSession = ({ item, index }: { item: SessionSummary; index: number }) => (
-    <Animated.View entering={FadeInRight.duration(300).delay(index * 50)}>
+  const renderItem = ({ item, index }: { item: SessionSummary; index: number }) => (
+    <Animated.View entering={FadeInRight.duration(250).delay(index * 40)}>
       <TouchableOpacity
-        style={[styles.sessionCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-        onPress={() => handleSelect(item.id)}
-        onLongPress={() => handleDelete(item.id)}
+        style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
+        onPress={() => { Haptics.selectionAsync().catch(() => {}); onSelectSession(item.id); }}
+        onLongPress={() => del(item.id)}
+        activeOpacity={0.7}
       >
-        <View style={styles.sessionLeft}>
-          <View style={[styles.sessionIcon, { backgroundColor: colors.primaryGlow }]}>
-            <Ionicons name="chatbubbles" size={18} color={colors.primary} />
+        <View style={styles.cardLeft}>
+          {/* 첫 글자 아바타 — 공간 절약하면서 시각적 앵커 */}
+          <View style={[styles.letterAvatar, { backgroundColor: colors.primaryGlow }]}>
+            <Text style={[styles.letterText, { color: colors.primary }]}>
+              {(item.name || 'S')[0]!.toUpperCase()}
+            </Text>
           </View>
         </View>
-
-        <View style={styles.sessionInfo}>
-          <Text style={[styles.sessionName, { color: colors.text }]} numberOfLines={1}>
+        <View style={styles.cardCenter}>
+          <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
             {item.name}
           </Text>
-          <View style={styles.sessionMeta}>
-            <Text style={[styles.sessionModel, { color: colors.textTertiary }]}>
-              {item.model}
-            </Text>
-            <Text style={[styles.sessionDot, { color: colors.textTertiary }]}>·</Text>
-            <Text style={[styles.sessionMessages, { color: colors.textTertiary }]}>
-              {item.messageCount} msgs
-            </Text>
-          </View>
+          <Text style={[styles.meta, { color: colors.textTertiary }]} numberOfLines={1}>
+            {item.model} · {item.messageCount} msgs
+          </Text>
         </View>
-
-        <Text style={[styles.sessionDate, { color: colors.textTertiary }]}>
-          {formatDate(item.updatedAt)}
-        </Text>
+        <Text style={[styles.time, { color: colors.textTertiary }]}>{fmt(item.updatedAt)}</Text>
       </TouchableOpacity>
     </Animated.View>
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
-      {/* Header */}
+    <View style={[styles.root, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={onBack} style={styles.headerButton}>
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
+        <TouchableOpacity onPress={onBack} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <Ionicons name="chevron-back" size={22} color={colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Sessions</Text>
-        <TouchableOpacity onPress={onNewSession} style={styles.headerButton}>
-          <Ionicons name="add" size={24} color={colors.primary} />
+        <Text style={[styles.headerTitle, { color: colors.text }]}>History</Text>
+        <TouchableOpacity onPress={onNewSession} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <Ionicons name="add" size={22} color={colors.primary} />
         </TouchableOpacity>
       </View>
 
       {sessions.length === 0 ? (
-        <View style={styles.empty}>
-          <Ionicons name="chatbubble-ellipses-outline" size={48} color={colors.textTertiary} />
-          <Text style={[styles.emptyTitle, { color: colors.textSecondary }]}>No Sessions</Text>
-          <Text style={[styles.emptySubtext, { color: colors.textTertiary }]}>
-            Start a conversation to see it here
+        <Animated.View entering={FadeIn.duration(600)} style={styles.empty}>
+          <View style={[styles.emptyOrb, { backgroundColor: colors.primaryGlow }]}>
+            <Ionicons name="chatbubbles-outline" size={28} color={colors.primary} />
+          </View>
+          <Text style={[styles.emptyTitle, { color: colors.textSecondary }]}>No conversations yet</Text>
+          <Text style={[styles.emptySub, { color: colors.textTertiary }]}>
+            Your chat history will appear here
           </Text>
-        </View>
+        </Animated.View>
       ) : (
         <FlatList
           data={sessions}
-          renderItem={renderSession}
-          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          keyExtractor={item => item.id}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
         />
@@ -142,47 +117,29 @@ export default function SessionsScreen({ onBack, onSelectSession, onNewSession }
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  root: { flex: 1 },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 0.5,
   },
-  headerButton: { width: 40, alignItems: 'center' },
-  headerTitle: { fontSize: 17, fontWeight: '600' },
-  list: { padding: 12, gap: 8 },
-  sessionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    marginBottom: 8,
+  headerTitle: { fontSize: 16, fontWeight: '600' },
+  list: { padding: 10, gap: 4 },
+  card: {
+    flexDirection: 'row', alignItems: 'center',
+    padding: 10, borderRadius: 12, borderWidth: 0.5, marginBottom: 4,
   },
-  sessionLeft: { marginRight: 12 },
-  sessionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+  cardLeft: { marginRight: 10 },
+  letterAvatar: {
+    width: 34, height: 34, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
   },
-  sessionInfo: { flex: 1 },
-  sessionName: { fontSize: 15, fontWeight: '500', marginBottom: 4 },
-  sessionMeta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  sessionModel: { fontSize: 12 },
-  sessionDot: { fontSize: 12 },
-  sessionMessages: { fontSize: 12 },
-  sessionDate: { fontSize: 11, marginLeft: 8 },
-  empty: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  emptyTitle: { fontSize: 17, fontWeight: '500' },
-  emptySubtext: { fontSize: 13 },
+  letterText: { fontSize: 14, fontWeight: '700' },
+  cardCenter: { flex: 1 },
+  name: { fontSize: 13, fontWeight: '500', marginBottom: 2 },
+  meta: { fontSize: 10 },
+  time: { fontSize: 10, marginLeft: 6 },
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
+  emptyOrb: { width: 56, height: 56, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  emptyTitle: { fontSize: 15, fontWeight: '500' },
+  emptySub: { fontSize: 12 },
 });
