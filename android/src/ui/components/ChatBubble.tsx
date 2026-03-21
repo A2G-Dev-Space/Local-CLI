@@ -1,130 +1,50 @@
 /**
- * ChatBubble — 세계 최고 수준의 채팅 버블
+ * ChatBubble — iMessage-level quality
  *
- * 아바타 제거 → 가로 공간 극대화 (모바일 핵심)
- * 유저: 오른쪽 정렬 + 그라디언트 배경
- * 어시스턴트: 왼쪽 정렬 + 풀폭 활용 + 미니멀 배경
- * 에러: 왼쪽 인라인 아이콘
- * 롱프레스 → 스케일 + 햅틱 + 클립보드
+ * - 유저: 오른쪽, tint 배경, iOS bubble tail
+ * - AI: 왼쪽, 그레이 배경, iOS bubble tail
+ * - 에러: 인라인 배너
+ * - 롱프레스: 부드러운 스케일 + 햅틱 + 복사
+ * - 연속 메시지: tail 제거, 간격 축소
+ * - 그림자 기반 깊이 (border 없음)
  */
 
 import React, { memo, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-} from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
-import Animated, {
-  FadeInDown,
-  FadeIn,
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-  withSequence,
-  withTiming,
-} from 'react-native-reanimated';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, { FadeInUp, FadeIn, useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import type { Message } from '../../types';
 
-interface ChatBubbleProps {
+interface Props {
   message: Message;
   isLatest?: boolean;
   isConsecutive?: boolean;
 }
 
-function ChatBubbleInner({ message, isLatest, isConsecutive }: ChatBubbleProps) {
-  const { colors } = useTheme();
+function Bubble({ message, isLatest, isConsecutive }: Props) {
+  const { c } = useTheme();
   const isUser = message.role === 'user';
   const isError = message.role === 'error';
-  const isTool = message.role === 'tool';
 
   const scale = useSharedValue(1);
-  const copied = useSharedValue(0);
+  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
-  const longPress = Gesture.LongPress()
-    .minDuration(350)
-    .onStart(() => {
-      scale.value = withSequence(
-        withSpring(0.95),
-        withSpring(1, { damping: 12 })
-      );
-      copied.value = withSequence(
-        withTiming(1, { duration: 150 }),
-        withTiming(1, { duration: 800 }),
-        withTiming(0, { duration: 300 })
-      );
-    });
-
-  const handleLongPress = useCallback(async () => {
+  const onLongPress = useCallback(async () => {
+    scale.value = withSpring(0.96, { damping: 15, stiffness: 400 });
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     await Clipboard.setStringAsync(message.content);
-  }, [message.content]);
+    setTimeout(() => { scale.value = withSpring(1, { damping: 12, stiffness: 200 }); }, 100);
+  }, [message.content, scale]);
 
-  const animStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
-
-  const copiedStyle = useAnimatedStyle(() => ({
-    opacity: copied.value,
-    transform: [{ translateY: -20 * copied.value }],
-  }));
-
-  // 어시스턴트 메시지: 풀폭, 미니멀, 좌측 accent bar
-  if (!isUser && !isError) {
-    return (
-      <Animated.View
-        entering={isLatest ? FadeInDown.duration(250).springify().damping(18) : FadeIn.duration(100)}
-        style={[styles.assistantRow, isConsecutive && styles.consecutiveRow]}
-      >
-        <GestureDetector gesture={longPress}>
-          <Animated.View
-            style={[styles.assistantBubble, animStyle]}
-            onTouchEnd={handleLongPress}
-          >
-            <View style={[styles.accentBar, { backgroundColor: colors.primary + '60' }]} />
-            <View style={styles.assistantContent}>
-              <Text
-                style={[styles.assistantText, { color: colors.text }]}
-                selectable
-              >
-                {message.content}
-              </Text>
-
-              {message.tool_calls && message.tool_calls.length > 0 && (
-                <View style={styles.toolCalls}>
-                  {message.tool_calls.map((tc, idx) => (
-                    <View key={tc.id || idx} style={[styles.toolChip, { backgroundColor: colors.toolBackground, borderColor: colors.toolBorder }]}>
-                      <Ionicons name="terminal-outline" size={10} color={colors.toolIcon} />
-                      <Text style={[styles.toolChipText, { color: colors.toolIcon }]}>
-                        {tc.function.name}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              )}
-            </View>
-
-            {/* Copied tooltip */}
-            <Animated.View style={[styles.copiedBadge, copiedStyle]}>
-              <Text style={styles.copiedText}>Copied</Text>
-            </Animated.View>
-          </Animated.View>
-        </GestureDetector>
-      </Animated.View>
-    );
-  }
-
-  // 에러 메시지: 인라인 아이콘
   if (isError) {
     return (
-      <Animated.View entering={FadeInDown.duration(200)} style={styles.errorRow}>
-        <View style={[styles.errorBubble, { backgroundColor: colors.error + '12', borderColor: colors.error + '30' }]}>
-          <Ionicons name="warning" size={13} color={colors.error} />
-          <Text style={[styles.errorText, { color: colors.error }]} numberOfLines={3}>
+      <Animated.View entering={FadeIn.duration(200)} style={styles.errorContainer}>
+        <View style={[styles.errorBanner, { backgroundColor: c.destructive + '14' }]}>
+          <Ionicons name="exclamationmark.triangle" size={13} color={c.destructive} />
+          <Text style={[styles.errorText, { color: c.destructive }]} numberOfLines={4}>
             {message.content}
           </Text>
         </View>
@@ -132,56 +52,96 @@ function ChatBubbleInner({ message, isLatest, isConsecutive }: ChatBubbleProps) 
     );
   }
 
-  // 유저 메시지: 오른쪽, 그라디언트
+  const entering = isLatest
+    ? FadeInUp.duration(280).springify().damping(20).stiffness(180)
+    : FadeIn.duration(120);
+
+  if (isUser) {
+    return (
+      <Animated.View entering={entering} style={[styles.row, styles.userRow, isConsecutive && styles.tight]}>
+        <Animated.View style={animStyle}>
+          <Pressable onLongPress={onLongPress} delayLongPress={300}>
+            <View style={[
+              styles.bubble, styles.userBubble,
+              { backgroundColor: c.userBubble },
+              !isConsecutive && styles.userTail,
+            ]}>
+              <Text style={[styles.text, { color: c.userBubbleText }]}>{message.content}</Text>
+            </View>
+          </Pressable>
+        </Animated.View>
+      </Animated.View>
+    );
+  }
+
+  // AI message
   return (
-    <Animated.View
-      entering={isLatest ? FadeInDown.duration(250).springify().damping(18) : FadeIn.duration(100)}
-      style={[styles.userRow, isConsecutive && styles.consecutiveRow]}
-    >
-      <GestureDetector gesture={longPress}>
-        <Animated.View style={animStyle} onTouchEnd={handleLongPress}>
-          <View style={[styles.userBubble, { backgroundColor: colors.userBubble }]}>
-            <Text style={[styles.userText, { color: colors.userBubbleText }]}>
+    <Animated.View entering={entering} style={[styles.row, styles.aiRow, isConsecutive && styles.tight]}>
+      <Animated.View style={[animStyle, { maxWidth: '88%' }]}>
+        <Pressable onLongPress={onLongPress} delayLongPress={300}>
+          <View style={[
+            styles.bubble, styles.aiBubble,
+            { backgroundColor: c.aiBubble },
+            !isConsecutive && styles.aiTail,
+          ]}>
+            <Text style={[styles.text, styles.aiText, { color: c.aiBubbleText }]} selectable>
               {message.content}
             </Text>
+            {message.tool_calls && message.tool_calls.length > 0 && (
+              <View style={styles.tools}>
+                {message.tool_calls.map((tc, i) => (
+                  <View key={tc.id || i} style={[styles.toolChip, { backgroundColor: c.tertiaryFill }]}>
+                    <Ionicons name="terminal" size={10} color={c.tint} />
+                    <Text style={[styles.toolName, { color: c.secondaryLabel }]}>{tc.function.name}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
-          <Animated.View style={[styles.copiedBadge, styles.copiedBadgeRight, copiedStyle]}>
-            <Text style={styles.copiedText}>Copied</Text>
-          </Animated.View>
-        </Animated.View>
-      </GestureDetector>
+        </Pressable>
+      </Animated.View>
     </Animated.View>
   );
 }
 
-export default memo(ChatBubbleInner);
+export default memo(Bubble);
 
 const styles = StyleSheet.create({
-  // 어시스턴트
-  assistantRow: {
-    paddingHorizontal: 10,
-    paddingVertical: 2,
+  row: { paddingHorizontal: 12 },
+  userRow: { alignItems: 'flex-end', paddingVertical: 1 },
+  aiRow: { alignItems: 'flex-start', paddingVertical: 1 },
+  tight: { paddingVertical: 0.5 },
+
+  bubble: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 18,
   },
-  assistantBubble: {
-    flexDirection: 'row',
-    position: 'relative',
+  userBubble: {
+    maxWidth: 280,
+    borderRadius: 18,
   },
-  accentBar: {
-    width: 3,
-    borderRadius: 2,
-    marginRight: 10,
-    minHeight: 16,
+  userTail: {
+    borderBottomRightRadius: 4, // iMessage-style tail
   },
-  assistantContent: {
-    flex: 1,
-    paddingVertical: 2,
+  aiBubble: {
+    borderRadius: 18,
   },
-  assistantText: {
-    fontSize: 14,
+  aiTail: {
+    borderBottomLeftRadius: 4,
+  },
+
+  text: {
+    fontSize: 16,
+    lineHeight: 22,
+    letterSpacing: -0.3, // SF Pro
+  },
+  aiText: {
+    fontSize: 15,
     lineHeight: 21,
-    letterSpacing: 0.1,
   },
-  toolCalls: {
+
+  tools: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 4,
@@ -190,74 +150,25 @@ const styles = StyleSheet.create({
   toolChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 7,
+    paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 6,
-    borderWidth: 0.5,
+    borderRadius: 8,
     gap: 4,
   },
-  toolChipText: {
-    fontSize: 10,
+  toolName: {
+    fontSize: 11,
     fontWeight: '500',
     fontFamily: 'monospace',
   },
-  // 유저
-  userRow: {
-    paddingHorizontal: 10,
-    paddingVertical: 2,
-    alignItems: 'flex-end',
-  },
-  userBubble: {
-    maxWidth: '82%',
-    borderRadius: 18,
-    borderBottomRightRadius: 4,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-  },
-  userText: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  // 에러
-  errorRow: {
-    paddingHorizontal: 10,
-    paddingVertical: 2,
-  },
-  errorBubble: {
+
+  errorContainer: { paddingHorizontal: 16, paddingVertical: 2 },
+  errorBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 10,
-    borderWidth: 0.5,
+    borderRadius: 12,
     gap: 6,
   },
-  errorText: {
-    fontSize: 12,
-    lineHeight: 17,
-    flex: 1,
-  },
-  // 연속 메시지일 때 간격 축소
-  consecutiveRow: {
-    paddingVertical: 1,
-  },
-  // 복사 알림
-  copiedBadge: {
-    position: 'absolute',
-    top: -8,
-    left: 16,
-    backgroundColor: 'rgba(0,0,0,0.75)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  copiedBadgeRight: {
-    left: undefined,
-    right: 16,
-  },
-  copiedText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '600',
-  },
+  errorText: { fontSize: 13, lineHeight: 18, flex: 1 },
 });

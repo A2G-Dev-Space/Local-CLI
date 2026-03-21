@@ -1,141 +1,56 @@
 /**
- * EmptyState — 감동적인 온보딩 화면
+ * EmptyState — iOS Spotlight-inspired welcome
  *
- * 컴팩트 로고 + 2x2 탭 가능 suggestion grid
- * 화면 중앙보다 약간 위에 배치하여 키보드 올라와도 보이게
- * 숨쉬는 그라디언트 오브 + 파티클 효과
+ * 미니멀 아이콘 + 서브텍스트 + 탭 가능 suggestion chips
+ * Apple의 "시작" 화면 미학
  */
 
-import React, { useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Dimensions,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withRepeat,
-  withTiming,
-  withSequence,
-  withDelay,
-  FadeIn,
-  FadeInUp,
-  Easing,
-} from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 
-const { width: SCREEN_W } = Dimensions.get('window');
+const W = Dimensions.get('window').width;
 
-interface EmptyStateProps {
+interface Props {
   onSuggestionPress?: (text: string) => void;
 }
 
-export default function EmptyState({ onSuggestionPress }: EmptyStateProps) {
-  const { colors } = useTheme();
+export default function EmptyState({ onSuggestionPress }: Props) {
+  const { c } = useTheme();
 
-  // 숨쉬는 오브
-  const orbScale = useSharedValue(1);
-  const orbRotate = useSharedValue(0);
-  const ring1 = useSharedValue(0.4);
-  const ring2 = useSharedValue(0.2);
-
-  useEffect(() => {
-    orbScale.value = withRepeat(
-      withSequence(
-        withTiming(1.08, { duration: 3000, easing: Easing.inOut(Easing.sin) }),
-        withTiming(1, { duration: 3000, easing: Easing.inOut(Easing.sin) })
-      ), -1
-    );
-    orbRotate.value = withRepeat(
-      withTiming(360, { duration: 20000, easing: Easing.linear }), -1
-    );
-    ring1.value = withRepeat(
-      withSequence(
-        withTiming(0.7, { duration: 2000 }),
-        withTiming(0.3, { duration: 2000 })
-      ), -1
-    );
-    ring2.value = withRepeat(
-      withDelay(1000, withSequence(
-        withTiming(0.5, { duration: 2000 }),
-        withTiming(0.15, { duration: 2000 })
-      )), -1
-    );
-  }, [orbScale, orbRotate, ring1, ring2]);
-
-  const orbStyle = useAnimatedStyle(() => ({
-    transform: [
-      { scale: orbScale.value },
-      { rotate: `${orbRotate.value}deg` },
-    ],
-  }));
-  const ring1Style = useAnimatedStyle(() => ({ opacity: ring1.value }));
-  const ring2Style = useAnimatedStyle(() => ({ opacity: ring2.value }));
-
-  const suggestions = [
-    { icon: 'code-slash' as const, text: 'Write code', desc: 'Any language' },
-    { icon: 'bug' as const, text: 'Debug', desc: 'Fix errors fast' },
-    { icon: 'git-branch' as const, text: 'Review', desc: 'Code review' },
-    { icon: 'bulb' as const, text: 'Explain', desc: 'Learn concepts' },
+  const chips = [
+    { icon: 'code-slash' as const, label: 'Write code' },
+    { icon: 'bug' as const, label: 'Debug error' },
+    { icon: 'git-branch' as const, label: 'Review code' },
+    { icon: 'bulb' as const, label: 'Explain concept' },
   ];
 
   return (
     <View style={styles.container}>
-      {/* Breathing orb — 컴팩트 56px */}
-      <Animated.View entering={FadeIn.duration(1000)} style={styles.orbArea}>
-        {/* Outer rings */}
-        <Animated.View style={[styles.ring, styles.ringOuter, ring2Style, { borderColor: colors.gradientStart + '30' }]} />
-        <Animated.View style={[styles.ring, styles.ringInner, ring1Style, { borderColor: colors.gradientStart + '50' }]} />
-
-        {/* Core orb */}
-        <Animated.View style={orbStyle}>
-          <LinearGradient
-            colors={[colors.gradientStart, colors.gradientMid, colors.gradientEnd]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.orb}
-          >
-            <Ionicons name="terminal" size={26} color="#FFFFFF" />
-          </LinearGradient>
-        </Animated.View>
-      </Animated.View>
-
-      {/* Title — 컴팩트 */}
-      <Animated.View entering={FadeInUp.duration(600).delay(300)}>
-        <Text style={[styles.title, { color: colors.text }]}>LOCAL BOT</Text>
-        <Text style={[styles.desc, { color: colors.textTertiary }]}>
-          AI Coding Agent
+      <Animated.View entering={FadeIn.duration(600)} style={styles.hero}>
+        <View style={[styles.iconWrap, { backgroundColor: c.tertiaryFill }]}>
+          <Ionicons name="terminal" size={32} color={c.tint} />
+        </View>
+        <Text style={[styles.title, { color: c.label }]}>LOCAL BOT</Text>
+        <Text style={[styles.sub, { color: c.tertiaryLabel }]}>
+          AI coding agent for any LLM
         </Text>
       </Animated.View>
 
-      {/* 2x2 Suggestion grid — 탭 가능 */}
-      <Animated.View
-        entering={FadeInUp.duration(600).delay(500)}
-        style={styles.grid}
-      >
-        {suggestions.map((s, i) => (
-          <Animated.View
-            key={s.text}
-            entering={FadeInUp.duration(400).delay(600 + i * 80)}
-            style={{ width: (SCREEN_W - 52) / 2 }}
+      <Animated.View entering={FadeInUp.duration(500).delay(300)} style={styles.chips}>
+        {chips.map((chip, i) => (
+          <TouchableOpacity
+            key={chip.label}
+            style={[styles.chip, { backgroundColor: c.secondaryBackground }]}
+            onPress={() => onSuggestionPress?.(chip.label)}
+            activeOpacity={0.6}
           >
-            <TouchableOpacity
-              style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={() => onSuggestionPress?.(s.text)}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.cardIcon, { backgroundColor: colors.primaryGlow }]}>
-                <Ionicons name={s.icon} size={16} color={colors.primary} />
-              </View>
-              <Text style={[styles.cardTitle, { color: colors.text }]}>{s.text}</Text>
-              <Text style={[styles.cardDesc, { color: colors.textTertiary }]}>{s.desc}</Text>
-            </TouchableOpacity>
-          </Animated.View>
+            <Ionicons name={chip.icon} size={15} color={c.tint} />
+            <Text style={[styles.chipLabel, { color: c.label }]}>{chip.label}</Text>
+            <Ionicons name="chevron-forward" size={13} color={c.quaternaryLabel} />
+          </TouchableOpacity>
         ))}
       </Animated.View>
     </View>
@@ -145,80 +60,46 @@ export default function EmptyState({ onSuggestionPress }: EmptyStateProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 20,
-    marginTop: -40, // 키보드 올라와도 안 잘리게 위로
+    paddingHorizontal: 24,
+    marginTop: -50,
   },
-  // Orb
-  orbArea: {
-    width: 100,
-    height: 100,
+  hero: {
+    alignItems: 'center',
+    marginBottom: 36,
+  },
+  iconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
   },
-  ring: {
-    position: 'absolute',
-    borderWidth: 1,
-    borderRadius: 999,
-  },
-  ringOuter: {
-    width: 96,
-    height: 96,
-  },
-  ringInner: {
-    width: 72,
-    height: 72,
-  },
-  orb: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  // Text
   title: {
-    fontSize: 20,
-    fontWeight: '800',
-    letterSpacing: 3,
-    textAlign: 'center',
+    fontSize: 22,
+    fontWeight: '700',
+    letterSpacing: 1,
   },
-  desc: {
-    fontSize: 12,
-    textAlign: 'center',
-    marginTop: 3,
-    letterSpacing: 0.5,
+  sub: {
+    fontSize: 14,
+    marginTop: 4,
   },
-  // Grid
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  chips: {
     gap: 8,
-    marginTop: 28,
-    justifyContent: 'center',
   },
-  card: {
-    borderRadius: 14,
-    borderWidth: 0.5,
-    padding: 12,
-    gap: 4,
-  },
-  cardIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
+  chip: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 2,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 10,
   },
-  cardTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  cardDesc: {
-    fontSize: 10,
-    lineHeight: 14,
+  chipLabel: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '400',
+    letterSpacing: -0.2,
   },
 });

@@ -1,16 +1,14 @@
 /**
- * TodoPanel — 극한 컴팩트 진행 표시
+ * TodoPanel — iOS-style collapsible progress
  *
- * 접힌 상태: 1줄 프로그레스 스트립 (현재 작업 + 진행률)
- * 펼친 상태: 전체 리스트 (탭으로 토글)
- * 모바일에서 세로 공간을 최소화하면서 정보는 모두 전달
+ * 접힌 상태: 현재 작업 + 프로그레스 인디케이터
+ * 펼쳐도 iOS grouped table view 스타일
  */
 
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, LayoutAnimation, Platform, UIManager } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, LayoutAnimation, UIManager, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import type { TodoItem } from '../../types';
 import * as Haptics from 'expo-haptics';
 
@@ -18,156 +16,83 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-interface TodoPanelProps {
-  todos: TodoItem[];
-  title?: string;
-}
+interface Props { todos: TodoItem[]; }
 
-const statusIcons: Record<string, { icon: keyof typeof Ionicons.glyphMap }> = {
-  pending: { icon: 'ellipse-outline' },
-  in_progress: { icon: 'radio-button-on' },
-  completed: { icon: 'checkmark-circle' },
-  failed: { icon: 'close-circle' },
-};
+export default function TodoPanel({ todos }: Props) {
+  const { c } = useTheme();
+  const [open, setOpen] = useState(false);
 
-export default function TodoPanel({ todos, title }: TodoPanelProps) {
-  const { colors } = useTheme();
-  const [expanded, setExpanded] = useState(false);
+  if (!todos.length) return null;
 
-  if (todos.length === 0) return null;
-
-  const completed = todos.filter(t => t.status === 'completed').length;
+  const done = todos.filter(t => t.status === 'completed').length;
   const current = todos.find(t => t.status === 'in_progress');
-  const progress = completed / todos.length;
+  const pct = done / todos.length;
 
   const toggle = () => {
     Haptics.selectionAsync().catch(() => {});
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setExpanded(!expanded);
+    setOpen(!open);
   };
 
-  const getColor = (status: string) =>
-    status === 'completed' ? colors.todoCompleted
-    : status === 'in_progress' ? colors.todoInProgress
-    : status === 'failed' ? colors.todoFailed
-    : colors.todoPending;
+  const color = (s: string) =>
+    s === 'completed' ? c.todoDone : s === 'in_progress' ? c.todoActive : s === 'failed' ? c.todoFailed : c.todoPending;
+
+  const icon = (s: string): keyof typeof Ionicons.glyphMap =>
+    s === 'completed' ? 'checkmark-circle-outline' : s === 'in_progress' ? 'ellipsis-horizontal-circle' : s === 'failed' ? 'close-circle-outline' : 'circle-outline';
 
   return (
-    <Animated.View entering={FadeIn.duration(250)}>
-      <TouchableOpacity
-        activeOpacity={0.8}
-        onPress={toggle}
-        style={[styles.strip, { backgroundColor: colors.card, borderColor: colors.border }]}
-      >
-        {/* Progress bar 배경 */}
-        <View style={[styles.progressBg, { backgroundColor: colors.border + '40' }]}>
-          <View style={[
-            styles.progressFill,
-            { backgroundColor: colors.success, width: `${progress * 100}%` },
-          ]} />
+    <View style={[styles.wrap, { backgroundColor: c.secondaryBackground }]}>
+      <TouchableOpacity onPress={toggle} activeOpacity={0.7} style={styles.header}>
+        <View style={[styles.progressRing]}>
+          {/* Simple text progress */}
+          <Text style={[styles.progressText, { color: c.tint }]}>{Math.round(pct * 100)}%</Text>
         </View>
-
-        {/* 콘텐츠 */}
-        <View style={styles.stripContent}>
-          <Ionicons name="list" size={14} color={colors.primary} />
-          <Text style={[styles.stripLabel, { color: colors.textSecondary }]} numberOfLines={1}>
-            {current ? current.title : (title || 'Plan')}
+        <View style={styles.headerInfo}>
+          <Text style={[styles.headerLabel, { color: c.label }]} numberOfLines={1}>
+            {current?.title || 'Plan'}
           </Text>
-          <Text style={[styles.stripCount, { color: colors.textTertiary }]}>
-            {completed}/{todos.length}
+          <Text style={[styles.headerMeta, { color: c.tertiaryLabel }]}>
+            {done} of {todos.length} completed
           </Text>
-          <Ionicons
-            name={expanded ? 'chevron-up' : 'chevron-down'}
-            size={14}
-            color={colors.textTertiary}
-          />
         </View>
+        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={16} color={c.tertiaryLabel} />
       </TouchableOpacity>
 
-      {/* 확장된 리스트 */}
-      {expanded && (
-        <View style={[styles.expandedList, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          {todos.map((todo, i) => (
-            <Animated.View
-              key={todo.id}
-              entering={FadeInDown.duration(200).delay(i * 40)}
-              style={styles.todoRow}
-            >
-              <Ionicons
-                name={statusIcons[todo.status]?.icon || 'ellipse-outline'}
-                size={14}
-                color={getColor(todo.status)}
-              />
-              <Text
-                style={[
-                  styles.todoText,
-                  {
-                    color: todo.status === 'completed' ? colors.textTertiary : colors.text,
-                    textDecorationLine: todo.status === 'completed' ? 'line-through' : 'none',
-                  },
-                ]}
-                numberOfLines={1}
-              >
-                {todo.title}
-              </Text>
-            </Animated.View>
+      {open && (
+        <View style={[styles.list, { borderTopColor: c.separator }]}>
+          {todos.map((t, i) => (
+            <View key={t.id} style={[
+              styles.item,
+              i < todos.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.separator },
+            ]}>
+              <Ionicons name={icon(t.status)} size={18} color={color(t.status)} />
+              <Text style={[
+                styles.itemText,
+                { color: t.status === 'completed' ? c.tertiaryLabel : c.label },
+              ]} numberOfLines={2}>{t.title}</Text>
+            </View>
           ))}
         </View>
       )}
-    </Animated.View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  strip: {
-    marginHorizontal: 10,
-    marginVertical: 3,
-    borderRadius: 10,
-    borderWidth: 0.5,
-    overflow: 'hidden',
+  wrap: { marginHorizontal: 12, marginVertical: 4, borderRadius: 12, overflow: 'hidden' },
+  header: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 12, paddingVertical: 10, gap: 10,
   },
-  progressBg: {
-    height: 2,
+  progressRing: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  progressText: { fontSize: 11, fontWeight: '700' },
+  headerInfo: { flex: 1 },
+  headerLabel: { fontSize: 14, fontWeight: '500' },
+  headerMeta: { fontSize: 11, marginTop: 1 },
+  list: { borderTopWidth: StyleSheet.hairlineWidth },
+  item: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 14, paddingVertical: 10, gap: 10,
   },
-  progressFill: {
-    height: '100%',
-  },
-  stripContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    gap: 6,
-  },
-  stripLabel: {
-    flex: 1,
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  stripCount: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  expandedList: {
-    marginHorizontal: 10,
-    marginBottom: 3,
-    borderRadius: 10,
-    borderWidth: 0.5,
-    borderTopWidth: 0,
-    borderTopLeftRadius: 0,
-    borderTopRightRadius: 0,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-  },
-  todoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 4,
-  },
-  todoText: {
-    flex: 1,
-    fontSize: 12,
-    lineHeight: 16,
-  },
+  itemText: { flex: 1, fontSize: 14 },
 });

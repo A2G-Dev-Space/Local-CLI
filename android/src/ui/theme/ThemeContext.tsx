@@ -1,7 +1,5 @@
 /**
- * Theme Context (Android)
- *
- * 앱 전체 테마 관리
+ * Theme Context — iOS system appearance 대응
  */
 
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
@@ -14,9 +12,9 @@ type ThemeMode = 'dark' | 'light' | 'system';
 
 interface ThemeContextType {
   mode: ThemeMode;
-  resolvedMode: 'dark' | 'light';
+  isDark: boolean;
   palette: ColorPalette;
-  colors: ThemeColors;
+  c: ThemeColors;  // 짧은 이름 — 모든 컴포넌트에서 c.label, c.tint 등으로 접근
   setMode: (mode: ThemeMode) => void;
   setPalette: (palette: ColorPalette) => void;
 }
@@ -24,44 +22,36 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const systemScheme = useColorScheme();
+  const sys = useColorScheme();
   const [mode, setModeState] = useState<ThemeMode>('dark');
   const [palette, setPaletteState] = useState<ColorPalette>('default');
 
   useEffect(() => {
     (async () => {
       try {
-        const stored = await AsyncStorage.getItem(STORAGE_KEY_THEME);
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (parsed.mode) setModeState(parsed.mode);
-          if (parsed.palette) setPaletteState(parsed.palette);
-        }
+        const s = await AsyncStorage.getItem(STORAGE_KEY_THEME);
+        if (s) { const p = JSON.parse(s); setModeState(p.mode || 'dark'); setPaletteState(p.palette || 'default'); }
       } catch {}
     })();
   }, []);
 
-  const setMode = (newMode: ThemeMode) => {
-    setModeState(newMode);
-    AsyncStorage.setItem(STORAGE_KEY_THEME, JSON.stringify({ mode: newMode, palette })).catch(() => {});
-  };
+  const save = (m: ThemeMode, p: ColorPalette) =>
+    AsyncStorage.setItem(STORAGE_KEY_THEME, JSON.stringify({ mode: m, palette: p })).catch(() => {});
 
-  const setPalette = (newPalette: ColorPalette) => {
-    setPaletteState(newPalette);
-    AsyncStorage.setItem(STORAGE_KEY_THEME, JSON.stringify({ mode, palette: newPalette })).catch(() => {});
-  };
+  const setMode = (m: ThemeMode) => { setModeState(m); save(m, palette); };
+  const setPalette = (p: ColorPalette) => { setPaletteState(p); save(mode, p); };
 
-  const resolvedMode = mode === 'system' ? (systemScheme === 'light' ? 'light' : 'dark') : mode;
-  const colors = useMemo(() => getThemeColors(resolvedMode, palette), [resolvedMode, palette]);
+  const isDark = mode === 'system' ? sys !== 'light' : mode === 'dark';
+  const c = useMemo(() => getThemeColors(isDark ? 'dark' : 'light', palette), [isDark, palette]);
 
   return (
-    <ThemeContext.Provider value={{ mode, resolvedMode, palette, colors, setMode, setPalette }}>
+    <ThemeContext.Provider value={{ mode, isDark, palette, c, setMode, setPalette }}>
       {children}
     </ThemeContext.Provider>
   );
 }
 
-export function useTheme(): ThemeContextType {
+export function useTheme() {
   const ctx = useContext(ThemeContext);
   if (!ctx) throw new Error('useTheme must be used within ThemeProvider');
   return ctx;

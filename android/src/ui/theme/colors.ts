@@ -1,234 +1,191 @@
 /**
- * Color System (Android)
+ * Color System — iOS-level design language
  *
- * 감동적인 UI를 위한 테마 색상 시스템
- * Electron의 ColorPalette 개념을 확장한 모바일 최적화 컬러 팔레트
+ * iOS Human Interface Guidelines 기반:
+ * - 뮤트된 배경, 선명한 accent
+ * - 시스템 그레이 스케일 (6단계)
+ * - 시맨틱 컬러 (adaptable dark/light)
+ * - 그림자 기반 깊이 (border 최소화)
  */
 
 export type ColorPalette = 'default' | 'rose' | 'mint' | 'lavender' | 'peach' | 'sky';
 
 export interface ThemeColors {
-  // Background layers
+  // iOS-style layered backgrounds
   background: string;
-  surface: string;
-  surfaceElevated: string;
-  card: string;
+  secondaryBackground: string;
+  tertiaryBackground: string;
+  groupedBackground: string;
 
-  // Text
-  text: string;
-  textSecondary: string;
-  textTertiary: string;
-  textInverse: string;
+  // Text — iOS system gray scale
+  label: string;
+  secondaryLabel: string;
+  tertiaryLabel: string;
+  quaternaryLabel: string;
 
-  // Primary accent
-  primary: string;
-  primaryLight: string;
-  primaryDark: string;
-  primaryGlow: string;
+  // Fills
+  fill: string;
+  secondaryFill: string;
+  tertiaryFill: string;
+
+  // Tint (primary accent)
+  tint: string;
+  tintLight: string;
 
   // Semantic
   success: string;
   warning: string;
-  error: string;
-  info: string;
+  destructive: string;
 
-  // Chat bubbles
+  // Separator (iOS uses ultra-thin separators, not borders)
+  separator: string;
+  opaqueSeparator: string;
+
+  // Chat
   userBubble: string;
   userBubbleText: string;
-  assistantBubble: string;
-  assistantBubbleText: string;
+  aiBubble: string;
+  aiBubbleText: string;
 
-  // UI elements
-  border: string;
-  borderLight: string;
-  separator: string;
-  inputBackground: string;
-  inputBorder: string;
-  placeholder: string;
+  // Elevated surface (for cards, modals)
+  elevated: string;
+  elevatedShadow: string;
 
-  // Status bar
-  statusBar: string;
+  // Navigation
+  navBar: string;
+  navBarTitle: string;
 
-  // Gradient (for headers and accents)
+  // Input
+  searchBar: string;
+
+  // Gradient
   gradientStart: string;
-  gradientMid: string;
   gradientEnd: string;
 
-  // Tool execution
-  toolBackground: string;
-  toolBorder: string;
-  toolIcon: string;
-
-  // TODO status
+  // Status
   todoPending: string;
-  todoInProgress: string;
-  todoCompleted: string;
+  todoActive: string;
+  todoDone: string;
   todoFailed: string;
 }
 
-const darkBase: ThemeColors = {
-  background: '#0A0A12',
-  surface: '#12121E',
-  surfaceElevated: '#1A1A2E',
-  card: '#16162A',
+const dark: ThemeColors = {
+  background: '#000000',
+  secondaryBackground: '#1C1C1E',
+  tertiaryBackground: '#2C2C2E',
+  groupedBackground: '#000000',
 
-  text: '#F0F0F8',
-  textSecondary: '#A0A0B8',
-  textTertiary: '#6B6B82',
-  textInverse: '#0A0A12',
+  label: '#FFFFFF',
+  secondaryLabel: 'rgba(235,235,245,0.6)',
+  tertiaryLabel: 'rgba(235,235,245,0.3)',
+  quaternaryLabel: 'rgba(235,235,245,0.18)',
 
-  primary: '#7C5CFC',
-  primaryLight: '#9B82FF',
-  primaryDark: '#5A3AD8',
-  primaryGlow: 'rgba(124, 92, 252, 0.15)',
+  fill: 'rgba(120,120,128,0.36)',
+  secondaryFill: 'rgba(120,120,128,0.32)',
+  tertiaryFill: 'rgba(120,120,128,0.24)',
 
-  success: '#34D399',
-  warning: '#FBBF24',
-  error: '#F87171',
-  info: '#60A5FA',
+  tint: '#0A84FF',
+  tintLight: '#409CFF',
 
-  userBubble: '#7C5CFC',
+  success: '#30D158',
+  warning: '#FFD60A',
+  destructive: '#FF453A',
+
+  separator: 'rgba(84,84,88,0.65)',
+  opaqueSeparator: '#38383A',
+
+  userBubble: '#0A84FF',
   userBubbleText: '#FFFFFF',
-  assistantBubble: '#1E1E36',
-  assistantBubbleText: '#F0F0F8',
+  aiBubble: '#1C1C1E',
+  aiBubbleText: '#FFFFFF',
 
-  border: '#2A2A42',
-  borderLight: '#1E1E36',
-  separator: '#1A1A2E',
-  inputBackground: '#16162A',
-  inputBorder: '#2A2A42',
-  placeholder: '#5A5A72',
+  elevated: '#1C1C1E',
+  elevatedShadow: 'rgba(0,0,0,0.5)',
 
-  statusBar: '#0A0A12',
+  navBar: 'rgba(22,22,24,0.94)',
+  navBarTitle: '#FFFFFF',
 
-  gradientStart: '#7C5CFC',
-  gradientMid: '#A855F7',
-  gradientEnd: '#EC4899',
+  searchBar: 'rgba(120,120,128,0.24)',
 
-  toolBackground: '#12122A',
-  toolBorder: '#2A2A48',
-  toolIcon: '#9B82FF',
+  gradientStart: '#0A84FF',
+  gradientEnd: '#5E5CE6',
 
-  todoPending: '#6B6B82',
-  todoInProgress: '#60A5FA',
-  todoCompleted: '#34D399',
-  todoFailed: '#F87171',
+  todoPending: 'rgba(235,235,245,0.3)',
+  todoActive: '#0A84FF',
+  todoDone: '#30D158',
+  todoFailed: '#FF453A',
 };
 
-const lightBase: ThemeColors = {
-  background: '#FAFAFE',
-  surface: '#FFFFFF',
-  surfaceElevated: '#FFFFFF',
-  card: '#F5F5FC',
+const light: ThemeColors = {
+  background: '#FFFFFF',
+  secondaryBackground: '#F2F2F7',
+  tertiaryBackground: '#FFFFFF',
+  groupedBackground: '#F2F2F7',
 
-  text: '#1A1A2E',
-  textSecondary: '#5A5A72',
-  textTertiary: '#9090A8',
-  textInverse: '#FFFFFF',
+  label: '#000000',
+  secondaryLabel: 'rgba(60,60,67,0.6)',
+  tertiaryLabel: 'rgba(60,60,67,0.3)',
+  quaternaryLabel: 'rgba(60,60,67,0.18)',
 
-  primary: '#7C5CFC',
-  primaryLight: '#9B82FF',
-  primaryDark: '#5A3AD8',
-  primaryGlow: 'rgba(124, 92, 252, 0.08)',
+  fill: 'rgba(120,120,128,0.2)',
+  secondaryFill: 'rgba(120,120,128,0.16)',
+  tertiaryFill: 'rgba(120,120,128,0.12)',
 
-  success: '#059669',
-  warning: '#D97706',
-  error: '#DC2626',
-  info: '#2563EB',
+  tint: '#007AFF',
+  tintLight: '#409CFF',
 
-  userBubble: '#7C5CFC',
+  success: '#34C759',
+  warning: '#FF9500',
+  destructive: '#FF3B30',
+
+  separator: 'rgba(60,60,67,0.29)',
+  opaqueSeparator: '#C6C6C8',
+
+  userBubble: '#007AFF',
   userBubbleText: '#FFFFFF',
-  assistantBubble: '#F0F0FA',
-  assistantBubbleText: '#1A1A2E',
+  aiBubble: '#E9E9EB',
+  aiBubbleText: '#000000',
 
-  border: '#E5E5F0',
-  borderLight: '#F0F0FA',
-  separator: '#F0F0FA',
-  inputBackground: '#F5F5FC',
-  inputBorder: '#E0E0F0',
-  placeholder: '#9090A8',
+  elevated: '#FFFFFF',
+  elevatedShadow: 'rgba(0,0,0,0.08)',
 
-  statusBar: '#FFFFFF',
+  navBar: 'rgba(249,249,249,0.94)',
+  navBarTitle: '#000000',
 
-  gradientStart: '#7C5CFC',
-  gradientMid: '#A855F7',
-  gradientEnd: '#EC4899',
+  searchBar: 'rgba(120,120,128,0.12)',
 
-  toolBackground: '#F5F5FF',
-  toolBorder: '#E0E0F0',
-  toolIcon: '#7C5CFC',
+  gradientStart: '#007AFF',
+  gradientEnd: '#5856D6',
 
-  todoPending: '#9090A8',
-  todoInProgress: '#2563EB',
-  todoCompleted: '#059669',
-  todoFailed: '#DC2626',
+  todoPending: 'rgba(60,60,67,0.3)',
+  todoActive: '#007AFF',
+  todoDone: '#34C759',
+  todoFailed: '#FF3B30',
 };
 
-// Palette accent overrides
-const paletteOverrides: Record<ColorPalette, Partial<ThemeColors>> = {
-  default: {},
-  rose: {
-    primary: '#F43F5E',
-    primaryLight: '#FB7185',
-    primaryDark: '#E11D48',
-    primaryGlow: 'rgba(244, 63, 94, 0.15)',
-    userBubble: '#F43F5E',
-    gradientStart: '#F43F5E',
-    gradientMid: '#FB7185',
-    gradientEnd: '#FBBF24',
-    toolIcon: '#FB7185',
-  },
-  mint: {
-    primary: '#10B981',
-    primaryLight: '#34D399',
-    primaryDark: '#059669',
-    primaryGlow: 'rgba(16, 185, 129, 0.15)',
-    userBubble: '#10B981',
-    gradientStart: '#10B981',
-    gradientMid: '#06B6D4',
-    gradientEnd: '#3B82F6',
-    toolIcon: '#34D399',
-  },
-  lavender: {
-    primary: '#A855F7',
-    primaryLight: '#C084FC',
-    primaryDark: '#9333EA',
-    primaryGlow: 'rgba(168, 85, 247, 0.15)',
-    userBubble: '#A855F7',
-    gradientStart: '#A855F7',
-    gradientMid: '#EC4899',
-    gradientEnd: '#F43F5E',
-    toolIcon: '#C084FC',
-  },
-  peach: {
-    primary: '#F97316',
-    primaryLight: '#FB923C',
-    primaryDark: '#EA580C',
-    primaryGlow: 'rgba(249, 115, 22, 0.15)',
-    userBubble: '#F97316',
-    gradientStart: '#F97316',
-    gradientMid: '#F43F5E',
-    gradientEnd: '#A855F7',
-    toolIcon: '#FB923C',
-  },
-  sky: {
-    primary: '#0EA5E9',
-    primaryLight: '#38BDF8',
-    primaryDark: '#0284C7',
-    primaryGlow: 'rgba(14, 165, 233, 0.15)',
-    userBubble: '#0EA5E9',
-    gradientStart: '#0EA5E9',
-    gradientMid: '#6366F1',
-    gradientEnd: '#A855F7',
-    toolIcon: '#38BDF8',
-  },
+// Palette: accent color override 만 — iOS는 tint 하나만 바꾸면 전체가 바뀜
+const tints: Record<ColorPalette, { tint: string; tintLight: string; gradientStart: string; gradientEnd: string }> = {
+  default: { tint: dark.tint, tintLight: dark.tintLight, gradientStart: '#0A84FF', gradientEnd: '#5E5CE6' },
+  rose: { tint: '#FF375F', tintLight: '#FF6482', gradientStart: '#FF375F', gradientEnd: '#FF9F0A' },
+  mint: { tint: '#00C7BE', tintLight: '#63E6BE', gradientStart: '#00C7BE', gradientEnd: '#30D158' },
+  lavender: { tint: '#BF5AF2', tintLight: '#DA8FFF', gradientStart: '#BF5AF2', gradientEnd: '#FF375F' },
+  peach: { tint: '#FF9F0A', tintLight: '#FFB340', gradientStart: '#FF9F0A', gradientEnd: '#FF375F' },
+  sky: { tint: '#64D2FF', tintLight: '#99E0FF', gradientStart: '#64D2FF', gradientEnd: '#5E5CE6' },
 };
 
 export function getThemeColors(
   mode: 'dark' | 'light',
   palette: ColorPalette = 'default'
 ): ThemeColors {
-  const base = mode === 'dark' ? { ...darkBase } : { ...lightBase };
-  const overrides = paletteOverrides[palette] || {};
-  return { ...base, ...overrides };
+  const base = mode === 'dark' ? { ...dark } : { ...light };
+  const t = tints[palette];
+  return {
+    ...base,
+    tint: t.tint,
+    tintLight: t.tintLight,
+    gradientStart: t.gradientStart,
+    gradientEnd: t.gradientEnd,
+    userBubble: t.tint,
+    todoActive: t.tint,
+  };
 }

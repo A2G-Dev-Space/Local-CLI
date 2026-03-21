@@ -7,16 +7,16 @@
     "icon": "./assets/icon.png",
     "scheme": "localbot",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0F0F1A"
+      "backgroundColor": "#000000"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0F0F1A"
+        "backgroundColor": "#000000"
       },
       "package": "com.localbot.android",
       "permissions": [
@@ -25,12 +25,7 @@
       ]
     },
     "plugins": [
-      "expo-router",
-      "expo-font",
-      "expo-haptics"
-    ],
-    "experiments": {
-      "typedRoutes": true
-    }
+      "expo-font"
+    ]
   }
 }

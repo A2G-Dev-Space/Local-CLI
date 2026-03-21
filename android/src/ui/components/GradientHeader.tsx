@@ -1,29 +1,17 @@
 /**
- * GradientHeader — Ultra-compact glass header
+ * iOS-style Navigation Bar
  *
- * 36px 콘텐츠 높이, 인라인 모델 뱃지, 블러 글래스 효과
- * 세로 공간을 극한까지 절약하면서 브랜드 임팩트를 유지
+ * 반투명 배경 + 블러 효과 시뮬레이션
+ * 얇은 하단 separator, SF-style 타이틀
  */
 
 import React from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  StatusBar,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { View, Text, TouchableOpacity, StyleSheet, StatusBar } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeContext';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-} from 'react-native-reanimated';
 
-interface GradientHeaderProps {
+interface HeaderProps {
   title: string;
   modelName?: string;
   leftIcon?: keyof typeof Ionicons.glyphMap;
@@ -32,139 +20,95 @@ interface GradientHeaderProps {
   onLeftPress?: () => void;
   onRightPress?: () => void;
   onRightPress2?: () => void;
-  isConnected?: boolean;
 }
 
 export default function GradientHeader({
-  title,
-  modelName,
-  leftIcon,
-  rightIcon,
-  rightIcon2,
-  onLeftPress,
-  onRightPress,
-  onRightPress2,
-  isConnected = true,
-}: GradientHeaderProps) {
-  const { colors } = useTheme();
+  title, modelName, leftIcon, rightIcon, rightIcon2,
+  onLeftPress, onRightPress, onRightPress2,
+}: HeaderProps) {
+  const { c, isDark } = useTheme();
   const insets = useSafeAreaInsets();
 
-  const PressableIcon = ({ icon, onPress, size = 18 }: {
-    icon: keyof typeof Ionicons.glyphMap;
-    onPress?: () => void;
-    size?: number;
-  }) => {
-    const scale = useSharedValue(1);
-    const animStyle = useAnimatedStyle(() => ({
-      transform: [{ scale: scale.value }],
-    }));
-
-    return (
-      <Animated.View style={animStyle}>
-        <TouchableOpacity
-          onPress={onPress}
-          onPressIn={() => { scale.value = withSpring(0.85); }}
-          onPressOut={() => { scale.value = withSpring(1); }}
-          style={styles.iconBtn}
-          activeOpacity={1}
-        >
-          <Ionicons name={icon} size={size} color="rgba(255,255,255,0.9)" />
-        </TouchableOpacity>
-      </Animated.View>
-    );
-  };
-
   return (
-    <LinearGradient
-      colors={[colors.gradientStart, colors.gradientMid + 'EE', colors.gradientEnd + 'CC']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 0.5 }}
-    >
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-      <View style={[styles.container, { paddingTop: insets.top + 4 }]}>
+    <View style={[styles.bar, { backgroundColor: c.navBar, paddingTop: insets.top }]}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
+
+      <View style={styles.content}>
         {/* Left */}
-        <View style={styles.leftGroup}>
-          {leftIcon && <PressableIcon icon={leftIcon} onPress={onLeftPress} />}
+        <View style={styles.side}>
+          {leftIcon && (
+            <TouchableOpacity onPress={onLeftPress} hitSlop={12} activeOpacity={0.6}>
+              <Ionicons name={leftIcon} size={22} color={c.tint} />
+            </TouchableOpacity>
+          )}
         </View>
 
-        {/* Center — title + inline model badge */}
-        <View style={styles.centerGroup}>
-          <Text style={styles.title} numberOfLines={1}>{title}</Text>
+        {/* Center */}
+        <View style={styles.center}>
+          <Text style={[styles.title, { color: c.navBarTitle }]} numberOfLines={1}>
+            {title}
+          </Text>
           {modelName && (
-            <View style={styles.modelBadge}>
-              <View style={[styles.statusDot, { backgroundColor: isConnected ? '#34D399' : '#F87171' }]} />
-              <Text style={styles.modelText} numberOfLines={1}>{modelName}</Text>
-            </View>
+            <Text style={[styles.subtitle, { color: c.secondaryLabel }]} numberOfLines={1}>
+              {modelName}
+            </Text>
           )}
         </View>
 
         {/* Right */}
-        <View style={styles.rightGroup}>
-          {rightIcon2 && <PressableIcon icon={rightIcon2} onPress={onRightPress2} />}
-          {rightIcon && <PressableIcon icon={rightIcon} onPress={onRightPress} />}
+        <View style={[styles.side, styles.rightSide]}>
+          {rightIcon2 && (
+            <TouchableOpacity onPress={onRightPress2} hitSlop={12} activeOpacity={0.6}>
+              <Ionicons name={rightIcon2} size={22} color={c.tint} />
+            </TouchableOpacity>
+          )}
+          {rightIcon && (
+            <TouchableOpacity onPress={onRightPress} hitSlop={12} activeOpacity={0.6}>
+              <Ionicons name={rightIcon} size={22} color={c.tint} />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
-    </LinearGradient>
+
+      {/* iOS-style hairline separator */}
+      <View style={[styles.separator, { backgroundColor: c.separator }]} />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    paddingBottom: 8,
-    paddingHorizontal: 8,
+  bar: {
+    // 그림자 없음 — iOS nav bar는 separator만 사용
+  },
+  content: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 36,
+    height: 44, // iOS standard nav bar height
+    paddingHorizontal: 16,
   },
-  leftGroup: {
-    flexDirection: 'row',
-    width: 40,
+  side: {
+    width: 60,
   },
-  centerGroup: {
-    flex: 1,
+  rightSide: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  rightGroup: {
-    flexDirection: 'row',
-    gap: 2,
-    minWidth: 40,
     justifyContent: 'flex-end',
+    gap: 16,
+  },
+  center: {
+    flex: 1,
+    alignItems: 'center',
   },
   title: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    letterSpacing: 1.5,
+    fontSize: 17,
+    fontWeight: '600',
+    letterSpacing: -0.4, // SF Pro 스타일
   },
-  modelBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-    gap: 4,
-    maxWidth: 120,
+  subtitle: {
+    fontSize: 11,
+    fontWeight: '400',
+    marginTop: 1,
   },
-  statusDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-  },
-  modelText: {
-    fontSize: 10,
-    color: 'rgba(255,255,255,0.85)',
-    fontWeight: '500',
-  },
-  iconBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.12)',
+  separator: {
+    height: StyleSheet.hairlineWidth,
   },
 });

@@ -1,106 +1,86 @@
 /**
- * SessionsScreen — 세계 최고 수준의 세션 히스토리
- *
- * 슬림 카드, swipe-to-delete 지원, 시간 그룹핑
- * 빈 상태: 미니멀 일러스트 + 안내
+ * SessionsScreen — iOS-style grouped list
  */
 
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
-} from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeContext';
 import { sessionManager, type SessionSummary } from '../../core/session/session-manager';
-import Animated, { FadeInRight, FadeIn } from 'react-native-reanimated';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 
-interface SessionsScreenProps {
+interface Props {
   onBack: () => void;
-  onSelectSession: (sessionId: string) => void;
+  onSelectSession: (id: string) => void;
   onNewSession: () => void;
 }
 
-export default function SessionsScreen({ onBack, onSelectSession, onNewSession }: SessionsScreenProps) {
-  const { colors } = useTheme();
+export default function SessionsScreen({ onBack, onSelectSession, onNewSession }: Props) {
+  const { c } = useTheme();
   const insets = useSafeAreaInsets();
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
 
   useEffect(() => { load(); }, []);
   const load = async () => setSessions(await sessionManager.listSessions());
 
-  const del = (id: string) => Alert.alert('Delete?', '', [
-    { text: 'No', style: 'cancel' },
-    { text: 'Yes', style: 'destructive', onPress: async () => { await sessionManager.deleteSession(id); load(); } },
-  ]);
-
   const fmt = (d: string) => {
     const diff = Date.now() - new Date(d).getTime();
     const m = Math.floor(diff / 60000);
     if (m < 1) return 'now';
-    if (m < 60) return `${m}m`;
+    if (m < 60) return `${m}m ago`;
     const h = Math.floor(m / 60);
-    if (h < 24) return `${h}h`;
+    if (h < 24) return `${h}h ago`;
     const days = Math.floor(h / 24);
-    if (days < 7) return `${days}d`;
+    if (days < 7) return `${days}d ago`;
     return new Date(d).toLocaleDateString('en', { month: 'short', day: 'numeric' });
   };
 
-  const renderItem = ({ item, index }: { item: SessionSummary; index: number }) => (
-    <Animated.View entering={FadeInRight.duration(250).delay(index * 40)}>
-      <TouchableOpacity
-        style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
-        onPress={() => { Haptics.selectionAsync().catch(() => {}); onSelectSession(item.id); }}
-        onLongPress={() => del(item.id)}
-        activeOpacity={0.7}
-      >
-        <View style={styles.cardLeft}>
-          {/* 첫 글자 아바타 — 공간 절약하면서 시각적 앵커 */}
-          <View style={[styles.letterAvatar, { backgroundColor: colors.primaryGlow }]}>
-            <Text style={[styles.letterText, { color: colors.primary }]}>
-              {(item.name || 'S')[0]!.toUpperCase()}
-            </Text>
-          </View>
-        </View>
-        <View style={styles.cardCenter}>
-          <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
-            {item.name}
-          </Text>
-          <Text style={[styles.meta, { color: colors.textTertiary }]} numberOfLines={1}>
-            {item.model} · {item.messageCount} msgs
-          </Text>
-        </View>
-        <Text style={[styles.time, { color: colors.textTertiary }]}>{fmt(item.updatedAt)}</Text>
-      </TouchableOpacity>
-    </Animated.View>
+  const renderItem = ({ item }: { item: SessionSummary }) => (
+    <TouchableOpacity
+      style={[styles.cell, { borderBottomColor: c.separator }]}
+      onPress={() => { Haptics.selectionAsync().catch(() => {}); onSelectSession(item.id); }}
+      onLongPress={() => Alert.alert('Delete?', item.name, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: async () => { await sessionManager.deleteSession(item.id); load(); } },
+      ])}
+      activeOpacity={0.6}
+    >
+      <View style={styles.cellContent}>
+        <Text style={[styles.cellTitle, { color: c.label }]} numberOfLines={1}>{item.name}</Text>
+        <Text style={[styles.cellSub, { color: c.tertiaryLabel }]}>
+          {item.model} · {item.messageCount} messages
+        </Text>
+      </View>
+      <View style={styles.cellRight}>
+        <Text style={[styles.cellTime, { color: c.tertiaryLabel }]}>{fmt(item.updatedAt)}</Text>
+        <Ionicons name="chevron-forward" size={14} color={c.quaternaryLabel} />
+      </View>
+    </TouchableOpacity>
   );
 
   return (
-    <View style={[styles.root, { backgroundColor: colors.background, paddingTop: insets.top }]}>
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={onBack} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Ionicons name="chevron-back" size={22} color={colors.text} />
+    <View style={[styles.root, { backgroundColor: c.groupedBackground, paddingTop: insets.top }]}>
+      <View style={[styles.navBar, { backgroundColor: c.navBar, borderBottomColor: c.separator }]}>
+        <TouchableOpacity onPress={onBack} hitSlop={12}>
+          <View style={styles.backRow}>
+            <Ionicons name="chevron-back" size={22} color={c.tint} />
+            <Text style={[styles.backText, { color: c.tint }]}>Chat</Text>
+          </View>
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>History</Text>
-        <TouchableOpacity onPress={onNewSession} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Ionicons name="add" size={22} color={colors.primary} />
+        <Text style={[styles.navTitle, { color: c.navBarTitle }]}>History</Text>
+        <TouchableOpacity onPress={onNewSession} hitSlop={12}>
+          <Ionicons name="create-outline" size={22} color={c.tint} />
         </TouchableOpacity>
       </View>
 
       {sessions.length === 0 ? (
-        <Animated.View entering={FadeIn.duration(600)} style={styles.empty}>
-          <View style={[styles.emptyOrb, { backgroundColor: colors.primaryGlow }]}>
-            <Ionicons name="chatbubbles-outline" size={28} color={colors.primary} />
-          </View>
-          <Text style={[styles.emptyTitle, { color: colors.textSecondary }]}>No conversations yet</Text>
-          <Text style={[styles.emptySub, { color: colors.textTertiary }]}>
-            Your chat history will appear here
+        <Animated.View entering={FadeIn.duration(500)} style={styles.empty}>
+          <Ionicons name="chatbubbles-outline" size={36} color={c.tertiaryLabel} />
+          <Text style={[styles.emptyTitle, { color: c.secondaryLabel }]}>No Conversations</Text>
+          <Text style={[styles.emptySub, { color: c.tertiaryLabel }]}>
+            Your chats will appear here
           </Text>
         </Animated.View>
       ) : (
@@ -108,8 +88,9 @@ export default function SessionsScreen({ onBack, onSelectSession, onNewSession }
           data={sessions}
           renderItem={renderItem}
           keyExtractor={item => item.id}
-          contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
+          contentContainerStyle={[styles.list, { backgroundColor: c.elevated }]}
+          style={{ marginTop: 20, marginHorizontal: 16, borderRadius: 10, overflow: 'hidden' }}
         />
       )}
     </View>
@@ -118,28 +99,25 @@ export default function SessionsScreen({ onBack, onSelectSession, onNewSession }
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  header: {
+  navBar: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 0.5,
+    height: 44, paddingHorizontal: 8, borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  headerTitle: { fontSize: 16, fontWeight: '600' },
-  list: { padding: 10, gap: 4 },
-  card: {
+  backRow: { flexDirection: 'row', alignItems: 'center' },
+  backText: { fontSize: 17, marginLeft: -2 },
+  navTitle: { fontSize: 17, fontWeight: '600' },
+  list: {},
+  cell: {
     flexDirection: 'row', alignItems: 'center',
-    padding: 10, borderRadius: 12, borderWidth: 0.5, marginBottom: 4,
+    paddingHorizontal: 16, paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  cardLeft: { marginRight: 10 },
-  letterAvatar: {
-    width: 34, height: 34, borderRadius: 10,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  letterText: { fontSize: 14, fontWeight: '700' },
-  cardCenter: { flex: 1 },
-  name: { fontSize: 13, fontWeight: '500', marginBottom: 2 },
-  meta: { fontSize: 10 },
-  time: { fontSize: 10, marginLeft: 6 },
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
-  emptyOrb: { width: 56, height: 56, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  emptyTitle: { fontSize: 15, fontWeight: '500' },
-  emptySub: { fontSize: 12 },
+  cellContent: { flex: 1 },
+  cellTitle: { fontSize: 16, fontWeight: '400', marginBottom: 2 },
+  cellSub: { fontSize: 13 },
+  cellRight: { flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 8 },
+  cellTime: { fontSize: 13 },
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
+  emptyTitle: { fontSize: 17, fontWeight: '500' },
+  emptySub: { fontSize: 14 },
 });

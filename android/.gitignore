@@ -12,3 +12,5 @@ android/
 ios/
 .env
 .env.local
+android/android/
+android/node_modules/

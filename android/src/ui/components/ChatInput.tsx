@@ -1,202 +1,127 @@
 /**
- * ChatInput — 세계 최고 수준의 입력 바
+ * ChatInput — iOS Messages-style input bar
  *
- * 플로팅 글래스 바, 극한 컴팩트, 전송 버튼 모핑 애니메이션
- * 키보드 올라올 때 자연스러운 전환
+ * 라운드 필드 + 원형 전송 버튼, 미니멀
+ * 키보드 올라올 때 자연스럽게 따라감
  */
 
 import React, { useState, useRef, useCallback } from 'react';
-import {
-  View,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Platform,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { View, TextInput, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeContext';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-  withTiming,
-  interpolate,
-  Extrapolation,
-  FadeIn,
-  FadeOut,
-  ZoomIn,
-  ZoomOut,
-} from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring, ZoomIn, ZoomOut } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 
-interface ChatInputProps {
-  onSend: (message: string) => void;
+interface Props {
+  onSend: (msg: string) => void;
   onStop?: () => void;
   isLoading?: boolean;
   isStreaming?: boolean;
-  placeholder?: string;
 }
 
-export default function ChatInput({
-  onSend,
-  onStop,
-  isLoading,
-  isStreaming,
-  placeholder = 'Message...',
-}: ChatInputProps) {
-  const { colors } = useTheme();
+export default function ChatInput({ onSend, onStop, isLoading, isStreaming }: Props) {
+  const { c } = useTheme();
   const insets = useSafeAreaInsets();
   const [text, setText] = useState('');
-  const [inputHeight, setInputHeight] = useState(36);
+  const [h, setH] = useState(36);
   const inputRef = useRef<TextInput>(null);
+  const btnScale = useSharedValue(1);
 
-  const sendScale = useSharedValue(1);
   const hasText = text.trim().length > 0;
-  const isActive = isLoading || isStreaming;
+  const active = isLoading || isStreaming;
 
-  const handleSend = useCallback(() => {
+  const send = useCallback(() => {
     if (!hasText || isLoading) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    sendScale.value = withSpring(0.8, { damping: 15, stiffness: 300 }, () => {
-      sendScale.value = withSpring(1, { damping: 12 });
-    });
+    btnScale.value = withSpring(0.8, { damping: 15 }, () => { btnScale.value = withSpring(1); });
     onSend(text.trim());
     setText('');
-    setInputHeight(36);
-  }, [text, hasText, isLoading, onSend, sendScale]);
+    setH(36);
+  }, [text, hasText, isLoading, onSend, btnScale]);
 
-  const handleStop = useCallback(() => {
+  const stop = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
     onStop?.();
   }, [onStop]);
 
-  const sendBtnStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: sendScale.value }],
-  }));
-
-  const maxH = 100;
-  const clampedHeight = Math.min(inputHeight, maxH);
+  const btnStyle = useAnimatedStyle(() => ({ transform: [{ scale: btnScale.value }] }));
 
   return (
-    <View
-      style={[
-        styles.wrapper,
-        {
-          backgroundColor: colors.background,
-          paddingBottom: Math.max(insets.bottom, 6),
-        },
-      ]}
-    >
-      <View style={[styles.bar, {
-        backgroundColor: colors.surface,
-        borderColor: hasText ? colors.primary + '40' : colors.border,
-        shadowColor: colors.primary,
-      }]}>
-        <TextInput
-          ref={inputRef}
-          style={[
-            styles.input,
-            { color: colors.text, height: clampedHeight },
-          ]}
-          value={text}
-          onChangeText={setText}
-          placeholder={placeholder}
-          placeholderTextColor={colors.placeholder}
-          multiline
-          onContentSizeChange={(e) => {
-            setInputHeight(Math.max(36, e.nativeEvent.contentSize.height));
-          }}
-          editable={!isActive}
-          selectionColor={colors.primary}
-        />
+    <View style={[styles.container, {
+      backgroundColor: c.background,
+      paddingBottom: Math.max(insets.bottom, 8),
+      borderTopColor: c.separator,
+    }]}>
+      <View style={styles.row}>
+        <View style={[styles.field, { backgroundColor: c.searchBar }]}>
+          <TextInput
+            ref={inputRef}
+            style={[styles.input, { color: c.label, height: Math.min(h, 100) }]}
+            value={text}
+            onChangeText={setText}
+            placeholder="Message"
+            placeholderTextColor={c.tertiaryLabel}
+            multiline
+            onContentSizeChange={e => setH(Math.max(36, e.nativeEvent.contentSize.height))}
+            editable={!active}
+            selectionColor={c.tint}
+          />
+        </View>
 
-        {/* Send / Stop 버튼 — 매끄러운 전환 */}
-        {isActive ? (
-          <Animated.View entering={ZoomIn.duration(200)} exiting={ZoomOut.duration(150)}>
-            <TouchableOpacity onPress={handleStop} activeOpacity={0.7}>
-              <View style={[styles.stopBtn, { backgroundColor: colors.error }]}>
-                <View style={styles.stopSquare} />
-              </View>
+        {active ? (
+          <Animated.View entering={ZoomIn.springify()} exiting={ZoomOut.duration(150)}>
+            <TouchableOpacity onPress={stop} style={[styles.btn, { backgroundColor: c.destructive }]} activeOpacity={0.7}>
+              <View style={styles.stopSquare} />
             </TouchableOpacity>
           </Animated.View>
-        ) : (
-          <Animated.View style={sendBtnStyle}>
-            <TouchableOpacity
-              onPress={handleSend}
-              disabled={!hasText}
-              activeOpacity={0.7}
-            >
-              {hasText ? (
-                <Animated.View entering={ZoomIn.duration(200)}>
-                  <LinearGradient
-                    colors={[colors.gradientStart, colors.gradientEnd]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.sendBtn}
-                  >
-                    <Ionicons name="arrow-up" size={18} color="#FFF" />
-                  </LinearGradient>
-                </Animated.View>
-              ) : (
-                <View style={[styles.sendBtn, { backgroundColor: colors.border + '80' }]}>
-                  <Ionicons name="arrow-up" size={18} color={colors.placeholder} />
-                </View>
-              )}
+        ) : hasText ? (
+          <Animated.View style={btnStyle} entering={ZoomIn.springify()}>
+            <TouchableOpacity onPress={send} style={[styles.btn, { backgroundColor: c.tint }]} activeOpacity={0.7}>
+              <Ionicons name="arrow-up" size={20} color="#FFF" />
             </TouchableOpacity>
           </Animated.View>
-        )}
+        ) : null}
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrapper: {
+  container: {
     paddingHorizontal: 8,
-    paddingTop: 4,
+    paddingTop: 6,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
-  bar: {
+  row: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    borderRadius: 22,
-    borderWidth: 1,
-    paddingLeft: 14,
-    paddingRight: 4,
-    paddingVertical: 3,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
+    gap: 6,
+  },
+  field: {
+    flex: 1,
+    borderRadius: 20,
+    paddingHorizontal: 14,
   },
   input: {
-    flex: 1,
-    fontSize: 14.5,
-    lineHeight: 20,
+    fontSize: 16,
+    lineHeight: 22,
+    letterSpacing: -0.3,
     paddingVertical: Platform.OS === 'ios' ? 8 : 6,
     maxHeight: 100,
   },
-  sendBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+  btn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 1,
-  },
-  stopBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 1,
+    marginBottom: 2,
   },
   stopSquare: {
-    width: 10,
-    height: 10,
-    borderRadius: 2,
-    backgroundColor: '#FFFFFF',
+    width: 12,
+    height: 12,
+    borderRadius: 3,
+    backgroundColor: '#FFF',
   },
 });

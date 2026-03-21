@@ -1,116 +1,83 @@
 /**
- * StreamingIndicator — 타이핑 커서 + 실시간 텍스트
+ * StreamingIndicator — iOS typing indicator style
  *
- * 아바타 없음, accent bar 스타일 (ChatBubble과 동일)
- * 블링킹 커서 + wave 도트 = 이중 시각 피드백
+ * 콘텐츠 있으면 블링킹 커서, 없으면 bouncing dots
  */
 
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withRepeat,
-  withTiming,
-  withDelay,
-  withSequence,
-  Easing,
+  useSharedValue, useAnimatedStyle,
+  withRepeat, withTiming, withDelay, withSequence, Easing,
 } from 'react-native-reanimated';
 import { useTheme } from '../theme/ThemeContext';
 
-interface StreamingIndicatorProps {
-  content: string;
-}
+export default function StreamingIndicator({ content }: { content: string }) {
+  const { c } = useTheme();
 
-export default function StreamingIndicator({ content }: StreamingIndicatorProps) {
-  const { colors } = useTheme();
-
-  // 블링킹 커서
-  const cursorOpacity = useSharedValue(1);
-  // 웨이브 도트
-  const d1 = useSharedValue(0);
-  const d2 = useSharedValue(0);
-  const d3 = useSharedValue(0);
+  const cursor = useSharedValue(1);
+  const d1 = useSharedValue(0), d2 = useSharedValue(0), d3 = useSharedValue(0);
 
   useEffect(() => {
-    cursorOpacity.value = withRepeat(
-      withSequence(
-        withTiming(0, { duration: 500, easing: Easing.inOut(Easing.ease) }),
-        withTiming(1, { duration: 500, easing: Easing.inOut(Easing.ease) })
-      ), -1
-    );
-    const wave = (delay: number) => withRepeat(
-      withDelay(delay, withSequence(
-        withTiming(-3, { duration: 300 }),
-        withTiming(0, { duration: 300 })
-      )), -1
-    );
-    d1.value = wave(0);
-    d2.value = wave(100);
-    d3.value = wave(200);
-  }, [cursorOpacity, d1, d2, d3]);
+    cursor.value = withRepeat(withSequence(
+      withTiming(0, { duration: 530 }), withTiming(1, { duration: 530 })
+    ), -1);
+    const bounce = (delay: number) => withRepeat(withDelay(delay, withSequence(
+      withTiming(-4, { duration: 250, easing: Easing.out(Easing.quad) }),
+      withTiming(0, { duration: 250, easing: Easing.in(Easing.quad) })
+    )), -1);
+    d1.value = bounce(0); d2.value = bounce(120); d3.value = bounce(240);
+  }, [cursor, d1, d2, d3]);
 
-  const cursorStyle = useAnimatedStyle(() => ({ opacity: cursorOpacity.value }));
-  const dot1 = useAnimatedStyle(() => ({ transform: [{ translateY: d1.value }] }));
-  const dot2 = useAnimatedStyle(() => ({ transform: [{ translateY: d2.value }] }));
-  const dot3 = useAnimatedStyle(() => ({ transform: [{ translateY: d3.value }] }));
+  const cursorAnim = useAnimatedStyle(() => ({ opacity: cursor.value }));
+  const a1 = useAnimatedStyle(() => ({ transform: [{ translateY: d1.value }] }));
+  const a2 = useAnimatedStyle(() => ({ transform: [{ translateY: d2.value }] }));
+  const a3 = useAnimatedStyle(() => ({ transform: [{ translateY: d3.value }] }));
+
+  if (content) {
+    return (
+      <View style={[styles.row, styles.contentRow]}>
+        <View style={[styles.bubble, { backgroundColor: c.aiBubble }]}>
+          <Text style={[styles.text, { color: c.aiBubbleText }]}>
+            {content}
+            <Animated.Text style={[{ color: c.tint, fontWeight: '300' }, cursorAnim]}>{'|'}</Animated.Text>
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
-    <View style={styles.container}>
-      <View style={[styles.accentBar, { backgroundColor: colors.primary }]} />
-      <View style={styles.content}>
-        {content ? (
-          <Text style={[styles.text, { color: colors.text }]}>
-            {content}
-            <Animated.Text style={[styles.cursor, { color: colors.primary }, cursorStyle]}>
-              |
-            </Animated.Text>
-          </Text>
-        ) : (
-          <View style={styles.dotsRow}>
-            <Animated.View style={[styles.dot, { backgroundColor: colors.primary }, dot1]} />
-            <Animated.View style={[styles.dot, { backgroundColor: colors.primary + 'AA' }, dot2]} />
-            <Animated.View style={[styles.dot, { backgroundColor: colors.primary + '66' }, dot3]} />
-          </View>
-        )}
+    <View style={[styles.row, styles.dotsRow]}>
+      <View style={[styles.dotsBubble, { backgroundColor: c.aiBubble }]}>
+        <Animated.View style={[styles.dot, { backgroundColor: c.secondaryLabel }, a1]} />
+        <Animated.View style={[styles.dot, { backgroundColor: c.secondaryLabel }, a2]} />
+        <Animated.View style={[styles.dot, { backgroundColor: c.secondaryLabel }, a3]} />
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    paddingHorizontal: 10,
-    paddingVertical: 2,
+  row: { paddingHorizontal: 12, paddingVertical: 1 },
+  contentRow: { alignItems: 'flex-start' },
+  bubble: {
+    maxWidth: '88%',
+    borderRadius: 18,
+    borderBottomLeftRadius: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
   },
-  accentBar: {
-    width: 3,
-    borderRadius: 2,
-    marginRight: 10,
-    minHeight: 16,
-  },
-  content: {
-    flex: 1,
-    paddingVertical: 2,
-  },
-  text: {
-    fontSize: 14,
-    lineHeight: 21,
-  },
-  cursor: {
-    fontWeight: '300',
-    fontSize: 15,
-  },
-  dotsRow: {
+  text: { fontSize: 15, lineHeight: 21 },
+  dotsRow: { alignItems: 'flex-start' },
+  dotsBubble: {
+    borderRadius: 18,
+    borderBottomLeftRadius: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     flexDirection: 'row',
     gap: 4,
-    paddingVertical: 4,
     alignItems: 'center',
   },
-  dot: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-  },
+  dot: { width: 7, height: 7, borderRadius: 4, opacity: 0.5 },
 });
