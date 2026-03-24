@@ -61,6 +61,7 @@ $word.DisplayAlerts = -1
       bgColor?: string;
       leftBorderColor?: string;
       leftBorderWidth?: number;
+      keepWithNext?: boolean;
     }
   ): Promise<OfficeResponse> {
     // Auto-detect Korean text and set appropriate font if not specified
@@ -164,6 +165,12 @@ $word.DisplayAlerts = -1
       postFormatCmds.push(`$typedRange.ParagraphFormat.LeftIndent = 8`);
     }
 
+    // Keep paragraph with next (prevents orphaned headings at page bottom)
+    if (options?.keepWithNext) {
+      postFormatCmds.push(`$typedRange.ParagraphFormat.KeepWithNext = $true`);
+      postFormatCmds.push(`$typedRange.ParagraphFormat.KeepTogether = $true`);
+    }
+
     // Set font BEFORE typing, then apply style+font to typed range AFTER
     return this.executePowerShell(`
 $word = [Runtime.InteropServices.Marshal]::GetActiveObject("Word.Application")
@@ -207,10 +214,11 @@ ${fontName ? `$typedRange.Font.Name = '${fontName}'\n$typedRange.Font.NameFarEas
     fontTitle?: string;
     fontBody?: string;
   }): Promise<OfficeResponse> {
-    const escapedTitle = options.title.replace(/'/g, "''");
-    const escapedSubtitle = (options.subtitle || '').replace(/'/g, "''");
-    const escapedDate = (options.dateText || '').replace(/'/g, "''");
-    const escapedAuthor = (options.author || '').replace(/'/g, "''");
+    // Base64 encode for safe Unicode/Korean transfer in PowerShell
+    const b64Title = this.encodeTextForPowerShell(options.title);
+    const b64Subtitle = this.encodeTextForPowerShell(options.subtitle || '');
+    const b64Date = this.encodeTextForPowerShell(options.dateText || '');
+    const b64Author = this.encodeTextForPowerShell(options.author || '');
 
     const hasKorean = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(options.title + (options.subtitle || ''));
     const titleFont = (options.fontTitle || (hasKorean ? 'Malgun Gothic' : 'Segoe UI')).replace(/'/g, "''");
@@ -224,8 +232,8 @@ ${fontName ? `$typedRange.Font.Name = '${fontName}'\n$typedRange.Font.NameFarEas
     const primaryWd = primaryRgb.r + primaryRgb.g * 256 + primaryRgb.b * 65536;
     const accentWd = accentRgb.r + accentRgb.g * 256 + accentRgb.b * 65536;
 
-    const hasSubtitle = escapedSubtitle.length > 0;
-    const hasInfo = escapedDate.length > 0 || escapedAuthor.length > 0;
+    const hasSubtitle = !!options.subtitle;
+    const hasInfo = !!options.dateText || !!options.author;
 
     const subtitleBlock = hasSubtitle ? `
 $sY = $tY + 90
@@ -238,7 +246,7 @@ $st.Left = 80
 $st.Top = $sY
 $st.Width = $pgW - 160
 $st.Height = 50
-$st.TextFrame.TextRange.Text = '${escapedSubtitle}'
+$st.TextFrame.TextRange.Text = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${b64Subtitle}'))
 $st.TextFrame.TextRange.Font.Name = '${bodyFont}'
 $st.TextFrame.TextRange.Font.Size = 14
 $st.TextFrame.TextRange.Font.Color = 14540253
@@ -247,9 +255,9 @@ $st.Fill.Visible = 0
 $st.Line.Visible = 0` : '';
 
     const infoLines: string[] = [];
-    if (escapedDate) infoLines.push(`$infoText += '${escapedDate}'`);
-    if (escapedDate && escapedAuthor) infoLines.push(`$infoText += [char]13`);
-    if (escapedAuthor) infoLines.push(`$infoText += '${escapedAuthor}'`);
+    if (options.dateText) infoLines.push(`$infoText += [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${b64Date}'))`);
+    if (options.dateText && options.author) infoLines.push(`$infoText += [char]13`);
+    if (options.author) infoLines.push(`$infoText += [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${b64Author}'))`);
 
     const infoBlock = hasInfo ? `
 $iY = $bH + 30
@@ -322,7 +330,7 @@ $t.Left = 50
 $t.Top = $tY
 $t.Width = $pgW - 100
 $t.Height = 80
-$t.TextFrame.TextRange.Text = '${escapedTitle}'
+$t.TextFrame.TextRange.Text = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${b64Title}'))
 $t.TextFrame.TextRange.Font.Name = '${titleFont}'
 $t.TextFrame.TextRange.Font.Size = 36
 $t.TextFrame.TextRange.Font.Bold = -1
