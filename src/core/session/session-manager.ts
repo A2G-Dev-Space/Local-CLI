@@ -2,6 +2,11 @@
  * Session Manager
  *
  * 대화 세션을 파일로 저장하고 복구하는 기능
+ * - Atomic writes (write to .tmp then rename) to prevent corruption on crash
+ * - Backup (.bak) before each write for crash recovery
+ * - Fallback load: try main file, then .bak if corrupted
+ * - Pending save queue instead of dropping saves while isSaving
+ * - Error/abort message cleanup on session load
  */
 
 import fs from 'fs/promises';
@@ -77,6 +82,67 @@ export interface SessionSummary {
 }
 
 /**
+ * Error/abort message patterns to strip from session on load.
+ * These are appended during errors but pollute LLM context on resume.
+ */
+const ERROR_MESSAGE_PATTERNS = [
+  /^\[ABORTED BY USER\]$/,
+  /^LLM 서버가 응답하지 않습니다/,
+  /^Execution error:\n/,
+  /^⚠️.*error/i,
+  /^Error:/i,
+];
+
+/**
+ * Write file atomically: write to .tmp, then rename.
+ * Creates .bak backup of existing file before replacing.
+ */
+async function writeFileAtomic(filePath: string, data: string): Promise<void> {
+  const tmpPath = filePath + '.tmp';
+  const bakPath = filePath + '.bak';
+
+  // Write to temp file first
+  await fs.writeFile(tmpPath, data, 'utf-8');
+
+  // Backup existing file (best effort)
+  try {
+    await fs.access(filePath);
+    await fs.copyFile(filePath, bakPath);
+  } catch {
+    // No existing file to backup — that's fine
+  }
+
+  // Atomic rename: tmp → target
+  await fs.rename(tmpPath, filePath);
+}
+
+/**
+ * Read session file with fallback to .bak if main file is corrupted.
+ */
+async function readFileWithFallback(filePath: string): Promise<string> {
+  // Try main file first
+  try {
+    const content = await fs.readFile(filePath, 'utf-8');
+    JSON.parse(content); // Validate JSON
+    return content;
+  } catch (mainError) {
+    // Main file missing or corrupted — try backup
+    const bakPath = filePath + '.bak';
+    try {
+      const bakContent = await fs.readFile(bakPath, 'utf-8');
+      JSON.parse(bakContent); // Validate JSON
+      logger.warn('Session file corrupted, restored from backup', { filePath });
+      // Restore backup as main file
+      await fs.copyFile(bakPath, filePath);
+      return bakContent;
+    } catch {
+      // Both files corrupted or missing — rethrow original error
+      throw mainError;
+    }
+  }
+}
+
+/**
  * Session Manager 클래스
  */
 export class SessionManager {
@@ -84,6 +150,7 @@ export class SessionManager {
   private currentSessionCreatedAt: string | null = null;
   private currentSessionName: string | null = null;
   private isSaving: boolean = false;
+  private pendingSaveMessages: Message[] | null = null;
 
   constructor() {
     // Generate a new session ID for this runtime instance
@@ -160,6 +227,94 @@ export class SessionManager {
   }
 
   /**
+   * Remove trailing error/abort messages from session on load.
+   * These messages were added during errors but pollute LLM context on resume.
+   * Only strips from the tail — stops at first non-error message.
+   */
+  private cleanErrorMessages(messages: Message[]): Message[] {
+    if (messages.length === 0) return messages;
+
+    let endIndex = messages.length;
+    // Walk backwards and strip trailing error/system messages
+    while (endIndex > 0) {
+      const msg = messages[endIndex - 1]!;
+      // Strip system messages at the tail (Electron adds errors as role:'system')
+      if (msg.role === 'system') {
+        logger.warn('Stripping trailing system message from session on load', { content: (typeof msg.content === 'string' ? msg.content : '').substring(0, 80) });
+        endIndex--;
+        continue;
+      }
+      if (msg.role !== 'assistant' || !msg.content) break;
+
+      const content = typeof msg.content === 'string' ? msg.content : '';
+      const isError = ERROR_MESSAGE_PATTERNS.some(pattern => pattern.test(content));
+      if (!isError) break;
+
+      logger.warn('Stripping error message from session on load', { content: content.substring(0, 80) });
+      endIndex--;
+    }
+
+    // Also remove any trailing orphaned tool_calls assistant message without matching tool response
+    // (happens when error occurs mid-tool-execution)
+    if (endIndex > 0) {
+      const lastMsg = messages[endIndex - 1]!;
+      if (lastMsg.role === 'assistant' && lastMsg.tool_calls && lastMsg.tool_calls.length > 0) {
+        const hasAllResponses = lastMsg.tool_calls.every(tc =>
+          messages.slice(endIndex).some(m => m.role === 'tool' && m.tool_call_id === tc.id)
+        );
+        if (!hasAllResponses) {
+          logger.warn('Stripping incomplete tool_calls message from session on load');
+          endIndex--;
+        }
+      }
+    }
+
+    return endIndex === messages.length ? messages : messages.slice(0, endIndex);
+  }
+
+  /**
+   * Repair incomplete tool_call sequences: if an assistant message has tool_calls
+   * but not all calls have matching tool responses, add dummy "[interrupted]" responses.
+   * This prevents LLM API errors on session resume (API requires all tool_calls to have responses).
+   */
+  private repairIncompleteToolCalls(messages: Message[]): Message[] {
+    const result: Message[] = [];
+
+    for (let i = 0; i < messages.length; i++) {
+      const msg = messages[i]!;
+      result.push(msg);
+
+      if (msg.role === 'assistant' && msg.tool_calls && msg.tool_calls.length > 0) {
+        // Collect tool responses that follow this assistant message (up to next non-tool message)
+        const responseIds = new Set<string>();
+        for (let j = i + 1; j < messages.length; j++) {
+          const next = messages[j]!;
+          if (next.role === 'tool' && next.tool_call_id) {
+            responseIds.add(next.tool_call_id);
+          } else if (next.role !== 'tool') {
+            break;
+          }
+        }
+
+        // Add dummy responses for missing tool_calls
+        for (const tc of msg.tool_calls) {
+          if (!responseIds.has(tc.id)) {
+            logger.warn('Adding dummy response for interrupted tool_call', { toolCallId: tc.id, toolName: tc.function.name });
+            result.push({
+              role: 'tool' as const,
+              tool_call_id: tc.id,
+              name: tc.function.name,
+              content: '[interrupted — tool execution was not completed]',
+            });
+          }
+        }
+      }
+    }
+
+    return result;
+  }
+
+  /**
    * 세션 디렉토리 초기화
    */
   async ensureSessionsDir(): Promise<void> {
@@ -202,10 +357,10 @@ export class SessionManager {
       messages: normalizedMessages,
     };
 
-    // 파일로 저장
+    // 파일로 저장 (atomic write)
     const sessionsDir = this.getSessionsDir();
     const filePath = path.join(sessionsDir, `${sessionId}.json`);
-    await fs.writeFile(filePath, JSON.stringify(sessionData, null, 2), 'utf-8');
+    await writeFileAtomic(filePath, JSON.stringify(sessionData, null, 2));
 
     logger.exit('saveSession', { sessionId, filePath });
     return sessionId;
@@ -222,17 +377,21 @@ export class SessionManager {
     const filePath = path.join(sessionsDir, `${sessionId}.json`);
 
     try {
-      const content = await fs.readFile(filePath, 'utf-8');
+      const content = await readFileWithFallback(filePath);
       const sessionData = JSON.parse(content) as SessionData;
 
       // Validate and clean messages: remove orphaned tool messages (tool_call_id without matching tool_calls)
-      const validatedMessages = this.validateToolMessages(sessionData.messages);
-      sessionData.messages = validatedMessages;
-      sessionData.metadata.messageCount = validatedMessages.length;
+      let cleanedMessages = this.validateToolMessages(sessionData.messages);
+      // Strip trailing error/abort messages that pollute LLM context on resume
+      cleanedMessages = this.cleanErrorMessages(cleanedMessages);
+      // Repair incomplete tool_call sequences (add dummy responses for missing calls)
+      cleanedMessages = this.repairIncompleteToolCalls(cleanedMessages);
+      sessionData.messages = cleanedMessages;
+      sessionData.metadata.messageCount = cleanedMessages.length;
 
       // updatedAt 갱신
       sessionData.metadata.updatedAt = new Date().toISOString();
-      await fs.writeFile(filePath, JSON.stringify(sessionData, null, 2), 'utf-8');
+      await writeFileAtomic(filePath, JSON.stringify(sessionData, null, 2));
 
       // 현재 세션 ID를 로드된 세션으로 설정 (이후 대화가 이 세션에 저장되도록)
       this.currentSessionId = sessionData.metadata.id;
@@ -261,11 +420,13 @@ export class SessionManager {
     try {
       const sessionsDir = this.getSessionsDir();
       const files = await fs.readdir(sessionsDir);
-      // 세션 파일만 필터링 (_log.json, _error.json 제외)
+      // 세션 파일만 필터링 (_log.json, _error.json, .bak, .tmp 제외)
       const sessionFiles = files.filter((f) =>
         f.endsWith('.json') &&
         !f.endsWith('_log.json') &&
-        !f.endsWith('_error.json')
+        !f.endsWith('_error.json') &&
+        !f.endsWith('.bak') &&
+        !f.endsWith('.tmp')
       );
 
       const sessions: SessionSummary[] = [];
@@ -317,6 +478,8 @@ export class SessionManager {
 
     try {
       await fs.unlink(filePath);
+      // Also clean up backup file
+      await fs.unlink(filePath + '.bak').catch(() => {});
       logger.exit('deleteSession', { sessionId, success: true });
       return true;
     } catch (error) {
@@ -355,7 +518,7 @@ export class SessionManager {
 
     const sessionsDir = this.getSessionsDir();
     const filePath = path.join(sessionsDir, `${sessionId}.json`);
-    await fs.writeFile(filePath, JSON.stringify(sessionData, null, 2), 'utf-8');
+    await writeFileAtomic(filePath, JSON.stringify(sessionData, null, 2));
 
     logger.exit('updateSession', { sessionId, messageCount: messages.length });
     return true;
@@ -384,16 +547,22 @@ export class SessionManager {
   /**
    * 현재 세션 자동 저장 (메시지가 추가될 때마다 호출)
    * Fire-and-forget 방식으로 비동기 저장 (블로킹 없음)
+   * If a save is already in progress, queues the latest messages for a follow-up save.
    */
   autoSaveCurrentSession(messages: Message[], logEntries?: SessionLogEntry[]): void {
-    // Skip if already saving or no messages
-    if (this.isSaving || !this.currentSessionId || messages.length === 0) {
+    if (!this.currentSessionId || messages.length === 0) {
       return;
     }
 
     // Update log entries if provided
     if (logEntries) {
       this.currentLogEntries = logEntries;
+    }
+
+    if (this.isSaving) {
+      // Queue latest messages — will be saved after current save finishes
+      this.pendingSaveMessages = [...messages];
+      return;
     }
 
     // Fire-and-forget: 비동기 저장을 백그라운드에서 실행
@@ -406,6 +575,7 @@ export class SessionManager {
 
   /**
    * 실제 저장 작업 수행 (내부 메서드)
+   * After completing, checks for queued (pending) save and runs it.
    */
   private async performAutoSave(messages: Message[]): Promise<void> {
     this.isSaving = true;
@@ -437,12 +607,22 @@ export class SessionManager {
         todos: this.currentTodos.length > 0 ? this.currentTodos : undefined,  // Only include if there are pending/in-progress todos
       };
 
-      // 파일로 저장 (덮어쓰기)
+      // Atomic write: tmp → backup → rename
       const sessionsDir = this.getSessionsDir();
       const filePath = path.join(sessionsDir, `${this.currentSessionId!}.json`);
-      await fs.writeFile(filePath, JSON.stringify(sessionData, null, 2), 'utf-8');
+      await writeFileAtomic(filePath, JSON.stringify(sessionData, null, 2));
     } finally {
       this.isSaving = false;
+
+      // Process queued save if any
+      if (this.pendingSaveMessages) {
+        const pending = this.pendingSaveMessages;
+        this.pendingSaveMessages = null;
+        this.performAutoSave(pending).catch((err: unknown) => {
+          const error = err as Error;
+          logger.warn('Queued auto-save failed:', { error: error.message || 'Unknown error' });
+        });
+      }
     }
   }
 

@@ -434,13 +434,63 @@ const ChatApp: React.FC = () => {
     }
   }, [currentDirectory, openTabs.length, t]);
 
-  // Auto-create first tab on startup
+  // Restore previous tabs on startup, or create a new one
   const initTabCreated = useRef(false);
   useEffect(() => {
     if (initTabCreated.current || openTabs.length > 0) return;
     initTabCreated.current = true;
-    handleNewSession();
-  }, [handleNewSession, openTabs.length]);
+
+    const restoreOrCreate = async () => {
+      try {
+        const uiState = await window.electronAPI?.session?.loadUIState?.();
+        if (uiState?.tabs?.length) {
+          const restoredTabs: OpenTab[] = [];
+          for (const sessionId of uiState.tabs) {
+            try {
+              const result = await window.electronAPI.session.load(sessionId);
+              if (result.success && result.session) {
+                await window.electronAPI.worker?.create(sessionId);
+                restoredTabs.push({
+                  sessionId,
+                  session: result.session,
+                  name: result.session.name || t('sessionTab.defaultName'),
+                  isRunning: false,
+                  hasUnread: false,
+                  allowAllPermissions: true,
+                  chatPanelRef: createRef<ChatPanelRef>(),
+                });
+              }
+            } catch {
+              // Skip sessions that fail to load (deleted, corrupted)
+            }
+          }
+          if (restoredTabs.length > 0) {
+            setOpenTabs(restoredTabs);
+            const activeId = uiState.activeTabId && restoredTabs.some(t => t.sessionId === uiState.activeTabId)
+              ? uiState.activeTabId
+              : restoredTabs[0].sessionId;
+            setActiveTabId(activeId);
+            window.electronAPI?.taskWindow?.setActiveSession?.(activeId);
+            return;
+          }
+        }
+      } catch {
+        // Failed to load UI state
+      }
+      // Fallback: create new session
+      handleNewSession();
+    };
+    restoreOrCreate();
+  }, [handleNewSession, openTabs.length, t]);
+
+  // Persist open tabs state for restore after update/restart
+  useEffect(() => {
+    if (openTabs.length === 0) return;
+    window.electronAPI?.session?.saveUIState?.({
+      tabs: openTabs.map(t => t.sessionId),
+      activeTabId,
+    });
+  }, [openTabs, activeTabId]);
 
   // Change working directory via folder picker
   const handleChangeDirectory = useCallback(async () => {

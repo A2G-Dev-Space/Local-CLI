@@ -3,6 +3,10 @@
  * - 세션 저장/로드/삭제
  * - 채팅 히스토리 관리
  * - 자동 저장 기능
+ * - Atomic writes (write to .tmp then rename) to prevent corruption on crash
+ * - Backup (.bak) before each write for crash recovery
+ * - Fallback load: try main file, then .bak if corrupted
+ * - Error/abort message cleanup on session load
  *
  * CLI parity: Aligned with CLI's session-manager.ts for feature parity
  */
@@ -21,6 +25,71 @@ function getElectronApp(): { getPath(name: string): string } | null {
   }
 }
 import { reportError } from '../telemetry/error-reporter';
+
+// =============================================================================
+// Atomic Write & Recovery Utilities (CLI parity)
+// =============================================================================
+
+/**
+ * Error/abort message patterns to strip from session on load.
+ * These are appended during errors but pollute LLM context on resume.
+ */
+const ERROR_MESSAGE_PATTERNS = [
+  /^\[ABORTED BY USER\]$/,
+  /^LLM 서버가 응답하지 않습니다/,
+  /^Execution error:\n/,
+  /^⚠️.*error/i,
+  /^Error:/i,
+];
+
+/**
+ * Write file atomically: write to .tmp, then rename.
+ * Creates .bak backup of existing file before replacing.
+ */
+async function writeFileAtomic(filePath: string, data: string): Promise<void> {
+  const tmpPath = filePath + '.tmp';
+  const bakPath = filePath + '.bak';
+
+  // Write to temp file first
+  await fs.promises.writeFile(tmpPath, data, 'utf-8');
+
+  // Backup existing file (best effort)
+  try {
+    await fs.promises.access(filePath);
+    await fs.promises.copyFile(filePath, bakPath);
+  } catch {
+    // No existing file to backup — that's fine
+  }
+
+  // Atomic rename: tmp → target
+  await fs.promises.rename(tmpPath, filePath);
+}
+
+/**
+ * Read session file with fallback to .bak if main file is corrupted.
+ */
+async function readFileWithFallback(filePath: string): Promise<string> {
+  // Try main file first
+  try {
+    const content = await fs.promises.readFile(filePath, 'utf-8');
+    JSON.parse(content); // Validate JSON
+    return content;
+  } catch (mainError) {
+    // Main file missing or corrupted — try backup
+    const bakPath = filePath + '.bak';
+    try {
+      const bakContent = await fs.promises.readFile(bakPath, 'utf-8');
+      JSON.parse(bakContent); // Validate JSON
+      logger.warn('Session file corrupted, restored from backup', { filePath });
+      // Restore backup as main file
+      await fs.promises.copyFile(bakPath, filePath);
+      return bakContent;
+    } catch {
+      // Both files corrupted or missing — rethrow original error
+      throw mainError;
+    }
+  }
+}
 
 // =============================================================================
 // Types (CLI parity)
@@ -183,6 +252,95 @@ class SessionManager {
   }
 
   /**
+   * Remove trailing error/abort messages from session on load (CLI parity).
+   * These messages were added during errors but pollute LLM context on resume.
+   * Only strips from the tail — stops at first non-error message.
+   */
+  private cleanErrorMessages(messages: ChatMessage[]): ChatMessage[] {
+    if (messages.length === 0) return messages;
+
+    let endIndex = messages.length;
+    // Walk backwards and strip trailing error/system messages
+    while (endIndex > 0) {
+      const msg = messages[endIndex - 1];
+      // Strip system messages at the tail (errors from renderer are role:'system')
+      if (msg.role === 'system') {
+        logger.warn('Stripping trailing system message from session on load', { content: (typeof msg.content === 'string' ? msg.content : '').substring(0, 80) });
+        endIndex--;
+        continue;
+      }
+      if (msg.role !== 'assistant' || !msg.content) break;
+
+      const content = typeof msg.content === 'string' ? msg.content : '';
+      const isError = ERROR_MESSAGE_PATTERNS.some(pattern => pattern.test(content));
+      if (!isError) break;
+
+      logger.warn('Stripping error message from session on load', { content: content.substring(0, 80) });
+      endIndex--;
+    }
+
+    // Also remove any trailing orphaned tool_calls assistant message without matching tool response
+    if (endIndex > 0) {
+      const lastMsg = messages[endIndex - 1];
+      if (lastMsg.role === 'assistant' && lastMsg.tool_calls && lastMsg.tool_calls.length > 0) {
+        const hasAllResponses = lastMsg.tool_calls.every(tc =>
+          messages.slice(endIndex).some(m => m.role === 'tool' && m.tool_call_id === tc.id)
+        );
+        if (!hasAllResponses) {
+          logger.warn('Stripping incomplete tool_calls message from session on load');
+          endIndex--;
+        }
+      }
+    }
+
+    return endIndex === messages.length ? messages : messages.slice(0, endIndex);
+  }
+
+  /**
+   * Repair incomplete tool_call sequences (CLI parity):
+   * If an assistant message has tool_calls but not all have matching tool responses,
+   * add dummy "[interrupted]" responses to prevent LLM API errors on resume.
+   */
+  private repairIncompleteToolCalls(messages: ChatMessage[]): ChatMessage[] {
+    const result: ChatMessage[] = [];
+
+    for (let i = 0; i < messages.length; i++) {
+      const msg = messages[i];
+      result.push(msg);
+
+      if (msg.role === 'assistant' && msg.tool_calls && msg.tool_calls.length > 0) {
+        // Collect tool responses that follow this assistant message
+        const responseIds = new Set<string>();
+        for (let j = i + 1; j < messages.length; j++) {
+          const next = messages[j];
+          if (next.role === 'tool' && next.tool_call_id) {
+            responseIds.add(next.tool_call_id);
+          } else if (next.role !== 'tool') {
+            break;
+          }
+        }
+
+        // Add dummy responses for missing tool_calls
+        for (const tc of msg.tool_calls) {
+          if (!responseIds.has(tc.id)) {
+            logger.warn('Adding dummy response for interrupted tool_call', { toolCallId: tc.id, toolName: tc.function.name });
+            result.push({
+              id: `dummy-${tc.id}`,
+              role: 'tool' as const,
+              tool_call_id: tc.id,
+              name: tc.function.name,
+              content: '[interrupted — tool execution was not completed]',
+              timestamp: Date.now(),
+            });
+          }
+        }
+      }
+    }
+
+    return result;
+  }
+
+  /**
    * Set current log entries for auto-save (CLI parity)
    */
   setLogEntries(logEntries: SessionLogEntry[]): void {
@@ -321,12 +479,9 @@ class SessionManager {
       session.logEntries = this.currentLogEntries.length > 0 ? this.currentLogEntries : undefined;
       session.todos = this.currentTodos.length > 0 ? this.currentTodos : undefined;
 
+      // Atomic write: tmp → backup → rename
       const filePath = this.getSessionPath(session.id);
-      await fs.promises.writeFile(
-        filePath,
-        JSON.stringify(session, null, 2),
-        'utf-8'
-      );
+      await writeFileAtomic(filePath, JSON.stringify(session, null, 2));
 
       logger.debug('Session saved', {
         sessionId: session.id,
@@ -346,11 +501,15 @@ class SessionManager {
   async loadSession(sessionId: string): Promise<Session | null> {
     try {
       const filePath = this.getSessionPath(sessionId);
-      const content = await fs.promises.readFile(filePath, 'utf-8');
+      const content = await readFileWithFallback(filePath);
       const session = JSON.parse(content) as Session;
 
       // Validate and clean messages: remove orphaned tool messages (CLI parity)
       session.messages = this.validateToolMessages(session.messages);
+      // Strip trailing error/abort messages that pollute LLM context on resume
+      session.messages = this.cleanErrorMessages(session.messages);
+      // Repair incomplete tool_call sequences (add dummy responses for missing calls)
+      session.messages = this.repairIncompleteToolCalls(session.messages);
 
       // Restore log entries and todos (CLI parity)
       if (session.logEntries) {
@@ -389,6 +548,8 @@ class SessionManager {
     try {
       const filePath = this.getSessionPath(sessionId);
       await fs.promises.unlink(filePath);
+      // Also clean up backup file
+      await fs.promises.unlink(filePath + '.bak').catch(() => {});
 
       // 현재 세션이면 해제
       if (this.currentSession?.id === sessionId) {
@@ -413,7 +574,7 @@ class SessionManager {
       const sessions: SessionSummary[] = [];
 
       for (const file of files) {
-        if (!file.endsWith('.json')) continue;
+        if (!file.endsWith('.json') || file.endsWith('.bak') || file.endsWith('.tmp')) continue;
 
         try {
           const filePath = path.join(this.sessionsDir, file);
@@ -617,6 +778,33 @@ class SessionManager {
         session.workingDirectory?.toLowerCase().includes(lowerQuery)
       );
     });
+  }
+
+  /**
+   * UI 상태 저장 (열린 탭 목록 — 앱 재시작 시 복원용)
+   */
+  async saveUIState(state: { tabs: string[]; activeTabId: string | null }): Promise<void> {
+    if (!this.sessionsDir) return;
+    const filePath = path.join(path.dirname(this.sessionsDir), 'ui-state.json');
+    try {
+      await writeFileAtomic(filePath, JSON.stringify(state));
+    } catch (error) {
+      logger.errorSilent('Failed to save UI state', error);
+    }
+  }
+
+  /**
+   * UI 상태 로드 (앱 시작 시 이전 탭 복원)
+   */
+  async loadUIState(): Promise<{ tabs: string[]; activeTabId: string | null } | null> {
+    if (!this.sessionsDir) return null;
+    const filePath = path.join(path.dirname(this.sessionsDir), 'ui-state.json');
+    try {
+      const data = await readFileWithFallback(filePath);
+      return JSON.parse(data);
+    } catch {
+      return null;
+    }
   }
 
   /**

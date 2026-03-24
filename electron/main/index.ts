@@ -760,42 +760,62 @@ app.on('window-all-closed', () => {
 });
 
 // 앱 종료 전 정리
-app.on('before-quit', async () => {
+// Electron does NOT await async before-quit handlers, so we use
+// preventDefault + async cleanup + re-quit pattern to ensure
+// sessions are fully saved before the process exits.
+let cleanupDone = false;
+app.on('before-quit', (event) => {
   isAppQuitting = true; // 반드시 첫 줄 — chatWindow close 핸들러가 hide 대신 close 허용
+
+  if (cleanupDone) return; // Already cleaned up — let quit proceed
+
+  // Prevent quit until async cleanup finishes
+  event.preventDefault();
+
   logger.appBeforeQuit({ reason: 'user_initiated' });
 
-  // Worker threads 종료 (멀티 세션)
-  try {
-    const { workerManager } = await import('./workers/worker-manager');
-    await workerManager.terminateAll();
-  } catch (err) {
-    logger.errorSilent('Failed to terminate workers', err);
-  }
-
-  // CLI Server 종료
-  stopCliServer();
-
-  // Jarvis 정리
-  destroyJarvis();
-
-  // PowerShell 세션 종료
-  await powerShellManager.terminate();
-
-  // IPC 핸들러 정리 (await 필수: 내부 async cleanup 완료 전 logger.shutdown() 방지)
-  await cleanupIpcHandlers();
-
-  // 이미지 임시 파일 정리
-  try {
-    const tempImageDir = path.join(os.tmpdir(), 'local-cli-images');
-    if (fs.existsSync(tempImageDir)) {
-      fs.rmSync(tempImageDir, { recursive: true, force: true });
+  (async () => {
+    // Worker threads 종료 (멀티 세션)
+    try {
+      const { workerManager } = await import('./workers/worker-manager');
+      await workerManager.terminateAll();
+    } catch (err) {
+      logger.errorSilent('Failed to terminate workers', err);
     }
-  } catch (err) {
-    logger.errorSilent('Failed to clean up temp image directory', err);
-  }
 
-  // 로거 종료
-  await logger.shutdown();
+    // CLI Server 종료
+    stopCliServer();
+
+    // Jarvis 정리
+    destroyJarvis();
+
+    // PowerShell 세션 종료
+    await powerShellManager.terminate();
+
+    // IPC 핸들러 정리 (내부에서 sessionManager.cleanup() 호출 — 세션 저장 포함)
+    await cleanupIpcHandlers();
+
+    // 이미지 임시 파일 정리
+    try {
+      const tempImageDir = path.join(os.tmpdir(), 'local-cli-images');
+      if (fs.existsSync(tempImageDir)) {
+        fs.rmSync(tempImageDir, { recursive: true, force: true });
+      }
+    } catch (err) {
+      logger.errorSilent('Failed to clean up temp image directory', err);
+    }
+
+    // 로거 종료
+    await logger.shutdown();
+
+    // Now allow quit to proceed
+    cleanupDone = true;
+    app.quit();
+  })().catch((err) => {
+    logger.errorSilent('Cleanup failed during before-quit', err);
+    cleanupDone = true;
+    app.quit();
+  });
 });
 
 // 렌더러 프로세스 크래시 처리

@@ -151,6 +151,11 @@ const TaskApp: React.FC = () => {
       if (sessionId) {
         // Multi-session mode: cache per session, only display active session
         todosMapRef.current.set(sessionId, newTodos);
+        // Race condition fix: if activeSession not yet set (TaskApp mounted after
+        // ChatApp sent setActiveSession), auto-adopt the first arriving sessionId
+        if (!activeSessionIdRef.current) {
+          activeSessionIdRef.current = sessionId;
+        }
         if (sessionId === activeSessionIdRef.current) {
           setTodos(newTodos);
         }
