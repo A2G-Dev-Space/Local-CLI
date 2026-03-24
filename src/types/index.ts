@@ -148,6 +148,9 @@ export interface OpenConfig {
   version: string;
   currentEndpoint?: string;
   currentModel?: string;
+  /** Selected vision model (for read_image). Falls back to first vision-capable model if not set. */
+  visionEndpointId?: string;
+  visionModelId?: string;
   endpoints: EndpointConfig[];
   settings: {
     autoApprove: boolean;

@@ -56,6 +56,7 @@ import { SessionBrowser, LogBrowser } from './panels/index.js';
 import { SettingsBrowser } from './dialogs/SettingsDialog.js';
 import { LLMSetupWizard } from './LLMSetupWizard.js';
 import { ModelSelector } from './ModelSelector.js';
+import { VisionSelector } from './VisionSelector.js';
 import { ToolSelector } from './ToolSelector.js';
 import { AskUserDialog } from './dialogs/AskUserDialog.js';
 import { ApprovalDialog } from './dialogs/ApprovalDialog.js';
@@ -232,6 +233,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
 
   // Model Selector state
   const [showModelSelector, setShowModelSelector] = useState(false);
+  const [showVisionSelector, setShowVisionSelector] = useState(false);
   const [currentModelInfo, setCurrentModelInfo] = useState(modelInfo);
 
   // Tool Selector state
@@ -749,8 +751,8 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
       // Force stop processing state
       setIsProcessing(false);
     }
-    // Tab key: toggle execution mode (auto/supervised) - only when no dropdown is open
-    if (key.tab && !isProcessing && !pendingToolApproval && !fileBrowserState.showFileBrowser && !commandBrowserState.showCommandBrowser) {
+    // Tab key: toggle execution mode (auto/supervised) - only when no dropdown/panel is open
+    if (key.tab && !isProcessing && !pendingToolApproval && !fileBrowserState.showFileBrowser && !commandBrowserState.showCommandBrowser && !showLogFiles && !showSessionBrowser && !showSettings && !showModelSelector && !showVisionSelector && !showDocsBrowser && !showToolSelector) {
       const newMode = executionMode === 'auto' ? 'supervised' : 'auto';
       setExecutionMode(newMode);
       // Clear auto-approved tools when switching to auto mode
@@ -971,6 +973,17 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
     setShowModelSelector(false);
   }, []);
 
+  // Handle vision model selection
+  const handleVisionSelect = useCallback((endpointId: string, modelId: string) => {
+    configManager.setVisionModel(endpointId, modelId);
+    logger.info('Vision model changed', { endpointId, modelId });
+    setShowVisionSelector(false);
+  }, []);
+
+  const handleVisionSelectorCancel = useCallback(() => {
+    setShowVisionSelector(false);
+  }, []);
+
   // Handle tool selector close
   const handleToolSelectorClose = useCallback(() => {
     logger.debug('Tool selector closed');
@@ -1134,6 +1147,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
         onShowSessionBrowser: () => setShowSessionBrowser(true),
         onShowSettings: () => setShowSettings(true),
         onShowModelSelector: () => setShowModelSelector(true),
+        onShowVisionSelector: () => setShowVisionSelector(true),
         onShowToolSelector: () => setShowToolSelector(true),
         onCompact: llmClient
           ? () => planExecutionState.performCompact(llmClient, messages, setMessages)
@@ -1467,6 +1481,7 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
     showToolSelector ||
     showSettings ||
     showModelSelector ||
+    showVisionSelector ||
     showSessionBrowser ||
     showLogFiles;
 
@@ -1922,6 +1937,16 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
           <ModelSelector
             onSelect={handleModelSelect}
             onCancel={handleModelSelectorCancel}
+          />
+        </Box>
+      )}
+
+      {/* Vision Model Selector (shown when /vision command is submitted) */}
+      {showVisionSelector && !isProcessing && (
+        <Box marginTop={0}>
+          <VisionSelector
+            onSelect={handleVisionSelect}
+            onCancel={handleVisionSelectorCancel}
           />
         </Box>
       )}

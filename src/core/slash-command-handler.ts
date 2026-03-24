@@ -34,6 +34,7 @@ export interface CommandHandlerContext {
   onShowSettings?: () => void;
   onShowModelSelector?: () => void;
   onShowToolSelector?: () => void;
+  onShowVisionSelector?: () => void;
   onCompact?: () => Promise<CompactResult>;
 }
 
@@ -177,6 +178,30 @@ export async function executeSlashCommand(
     };
   }
 
+  // Vision model command - show vision model selector
+  if (trimmedCommand === '/vision') {
+    if (context.onShowVisionSelector) {
+      context.onShowVisionSelector();
+      return {
+        handled: true,
+        shouldContinue: false,
+      };
+    }
+    const visionMessage = `Use /vision in interactive mode to select which vision model to use for image analysis.`;
+    const updatedMessages = [
+      ...context.messages,
+      { role: 'assistant' as const, content: visionMessage },
+    ];
+    context.setMessages(updatedMessages);
+    return {
+      handled: true,
+      shouldContinue: false,
+      updatedContext: {
+        messages: updatedMessages,
+      },
+    };
+  }
+
   // Tool command - show tool selector for optional tools
   if (trimmedCommand === '/tool' || trimmedCommand === '/tools') {
     if (context.onShowToolSelector) {
@@ -228,6 +253,7 @@ Available commands:
   /compact        - Compact conversation to free up context
   /settings       - Open settings menu
   /model          - Switch between LLM models
+  /vision         - Select vision model for image analysis
   /tool           - Enable/disable optional tools (Browser, Background)
   /load           - Load a saved session
   /usage          - Show token usage statistics
