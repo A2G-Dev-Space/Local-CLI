@@ -156,40 +156,36 @@ async function executeBuildTitlePage(args: Record<string, unknown>): Promise<Too
     const dateText = (args['date_text'] as string) || '';
     const author = (args['author'] as string) || '';
 
-    // Use Shape-based cover design for professional full-page title
-    const result = await wordClient.wordBuildCoverDesign({
-      title,
-      subtitle: subtitle || undefined,
-      dateText: dateText || undefined,
-      author: author || undefined,
-      primaryColor: colors.primary,
-      accentColor: colors.accent,
-      fontTitle: fonts.title,
-      fontBody: fonts.body,
+    // Text-based title page (no floating shapes — stable across all page layouts)
+    for (let i = 0; i < 6; i++) {
+      await wordClient.wordWrite(' ', { fontSize: 20, newParagraph: true, spaceAfter: 0, spaceBefore: 0 });
+    }
+    // Accent divider line
+    await wordClient.wordWrite('                                                                                              ', {
+      fontSize: 2, newParagraph: true, spaceAfter: 16, spaceBefore: 0,
+      bgColor: colors.accent,
     });
-
-    if (!result.success) {
-      // Fallback: simple text-based title if Shape method fails
-      for (let i = 0; i < 8; i++) {
-        await wordClient.wordWrite(' ', { fontSize: 20, newParagraph: true, spaceAfter: 0, spaceBefore: 0 });
-      }
-      const titleFontSize = title.length <= 10 ? 42 : title.length <= 16 ? 36 : title.length <= 22 ? 30 : 26;
-      await wordClient.wordWrite(title, {
-        fontName: fonts.title, fontSize: titleFontSize, bold: true, color: colors.primary,
-        alignment: 'center', newParagraph: true, spaceAfter: 12, spaceBefore: 12,
+    const titleFontSize = title.length <= 10 ? 42 : title.length <= 16 ? 36 : title.length <= 22 ? 30 : 26;
+    await wordClient.wordWrite(title, {
+      fontName: fonts.title, fontSize: titleFontSize, bold: true, color: colors.primary,
+      alignment: 'center', newParagraph: true, spaceAfter: 12, spaceBefore: 12,
+    });
+    if (subtitle) {
+      await wordClient.wordWrite(subtitle, {
+        fontName: fonts.body, fontSize: 16, color: '#444444',
+        alignment: 'center', newParagraph: true, spaceAfter: 10,
       });
-      if (subtitle) {
-        await wordClient.wordWrite(subtitle, {
-          fontName: fonts.body, fontSize: 16, color: '#444444',
-          alignment: 'center', newParagraph: true, spaceAfter: 10,
-        });
-      }
-      if (dateText || author) {
-        await wordClient.wordWrite([dateText, author].filter(Boolean).join('  |  '), {
-          fontName: fonts.body, fontSize: 11, color: '#777777',
-          alignment: 'center', newParagraph: true, spaceAfter: 0,
-        });
-      }
+    }
+    // Accent divider line
+    await wordClient.wordWrite('                                                                                              ', {
+      fontSize: 2, newParagraph: true, spaceAfter: 16, spaceBefore: 16,
+      bgColor: colors.accent,
+    });
+    if (dateText || author) {
+      await wordClient.wordWrite([dateText, author].filter(Boolean).join('  |  '), {
+        fontName: fonts.body, fontSize: 11, color: '#777777',
+        alignment: 'center', newParagraph: true, spaceAfter: 0,
+      });
     }
 
     // Page break after title page
@@ -233,6 +229,7 @@ async function executeBuildTOC(args: Record<string, unknown>): Promise<ToolResul
       fontName: fonts.title, fontSize: 20, bold: true, color: colors.primary,
       alignment: 'left', newParagraph: true, spaceAfter: 12,
       bgColor: colors.light, leftBorderColor: colors.accent, leftBorderWidth: 4,
+      keepWithNext: true,
     });
 
     // Insert automatic TOC — depth controlled by LLM parameter (default: H1+H2)
@@ -297,6 +294,7 @@ async function executeBuildSection(args: Record<string, unknown>): Promise<ToolR
       fontName: fonts.title, fontSize: 18, bold: true, color: colors.primary,
       newParagraph: true, spaceAfter: 8, spaceBefore: 16, styleName: 'Heading 1',
       bgColor: colors.light, leftBorderColor: colors.accent, leftBorderWidth: 4,
+      keepWithNext: true,
     });
 
     // Body paragraphs
@@ -316,6 +314,7 @@ async function executeBuildSection(args: Record<string, unknown>): Promise<ToolR
         fontName: fonts.title, fontSize: 14, bold: true, color: colors.accent,
         newParagraph: true, spaceAfter: 6, spaceBefore: 12, styleName: 'Heading 2',
         leftBorderColor: colors.accent, leftBorderWidth: 3,
+        keepWithNext: true,
       });
 
       for (const para of subBody) {
@@ -388,6 +387,7 @@ async function executeBuildTableSection(args: Record<string, unknown>): Promise<
       fontName: fonts.title, fontSize: 18, bold: true, color: colors.primary,
       newParagraph: true, spaceAfter: 8, spaceBefore: 16, styleName: 'Heading 1',
       bgColor: colors.light, leftBorderColor: colors.accent, leftBorderWidth: 4,
+      keepWithNext: true,
     });
 
     // Add table — strip markdown from each cell (use filteredData to exclude empty rows)
@@ -456,6 +456,7 @@ async function executeBuildListSection(args: Record<string, unknown>): Promise<T
       fontName: fonts.title, fontSize: 18, bold: true, color: colors.primary,
       newParagraph: true, spaceAfter: 8, spaceBefore: 16, styleName: 'Heading 1',
       bgColor: colors.light, leftBorderColor: colors.accent, leftBorderWidth: 4,
+      keepWithNext: true,
     });
 
     // List — strip markdown from each item
@@ -521,6 +522,7 @@ async function executeBuildCalloutBox(args: Record<string, unknown>): Promise<To
       fontName: fonts.title, fontSize: 12, bold: true, color: borderColor,
       newParagraph: true, spaceAfter: 2, spaceBefore: 12,
       bgColor, leftBorderColor: borderColor, leftBorderWidth: 5,
+      keepWithNext: true,
     });
 
     // Callout body with same background + border
@@ -580,6 +582,7 @@ async function executeBuildKeyMetrics(args: Record<string, unknown>): Promise<To
       fontName: fonts.title, fontSize: 18, bold: true, color: colors.primary,
       newParagraph: true, spaceAfter: 8, spaceBefore: 16, styleName: 'Heading 1',
       bgColor: colors.light, leftBorderColor: colors.accent, leftBorderWidth: 4,
+      keepWithNext: true,
     });
 
     // Metrics as colored blocks — each metric as value + label pair
@@ -647,6 +650,7 @@ async function executeBuildConclusion(args: Record<string, unknown>): Promise<To
       fontName: fonts.title, fontSize: 18, bold: true, color: colors.primary,
       newParagraph: true, spaceAfter: 8, spaceBefore: 16, styleName: 'Heading 1',
       bgColor: colors.light, leftBorderColor: colors.accent, leftBorderWidth: 4,
+      keepWithNext: true,
     });
 
     // Body
