@@ -630,13 +630,10 @@ function setupAutoUpdater(): void {
     sendUpdateEvent('update:download-progress', progress);
   });
 
-  // 다운로드 완료 → 3초 후 자동 설치 (강제 업데이트)
+  // 다운로드 완료 → renderer에서 재시작 버튼 클릭 시 silent install
   autoUpdater.on('update-downloaded', (info) => {
     logger.updateDownloadComplete({ version: info.version });
     sendUpdateEvent('update:downloaded', info);
-    setTimeout(() => {
-      autoUpdater.quitAndInstall(false, true);
-    }, 3000);
   });
 
   // 에러 처리
