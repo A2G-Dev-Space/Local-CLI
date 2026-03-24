@@ -255,8 +255,7 @@ const ChatApp: React.FC = () => {
     const unsubAvailable = window.electronAPI.update.onAvailable((info) => {
       setUpdateInfo(info);
       setUpdateStatus('available');
-      setUpdateModalOpen(true);
-      // autoDownload=true in main process, no manual startDownload needed
+      // Silent background download — modal only shown after download completes
     });
 
     const unsubNotAvailable = window.electronAPI.update.onNotAvailable(() => {
@@ -277,7 +276,7 @@ const ChatApp: React.FC = () => {
     const unsubError = window.electronAPI.update.onError((error) => {
       setUpdateError(error);
       setUpdateStatus('error');
-      setUpdateModalOpen(true);
+      // Silent error — will retry on next periodic check (every 30min)
     });
 
     return () => {
