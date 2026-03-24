@@ -21,3 +21,12 @@ export async function reportError(
 ): Promise<void> {
   // No-op for local-cli-git (no Dashboard)
 }
+
+/**
+ * No-op: local-cli-git에서는 텔레메트리 메시지 업데이트 비활성화
+ */
+export function updateRecentMessagesForTelemetry(
+  _messages: Array<{ role: string; content?: string | null }>,
+): void {
+  // No-op for local-cli-git (no Dashboard)
+}

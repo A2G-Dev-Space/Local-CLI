@@ -100,6 +100,14 @@ const ERROR_MESSAGE_PATTERNS = [
 async function writeFileAtomic(filePath: string, data: string): Promise<void> {
   const tmpPath = filePath + '.tmp';
   const bakPath = filePath + '.bak';
+  const dir = path.dirname(filePath);
+
+  // Ensure directory exists (prevents ENOENT on rename)
+  try {
+    await fs.access(dir);
+  } catch {
+    await fs.mkdir(dir, { recursive: true });
+  }
 
   // Write to temp file first
   await fs.writeFile(tmpPath, data, 'utf-8');
@@ -112,8 +120,20 @@ async function writeFileAtomic(filePath: string, data: string): Promise<void> {
     // No existing file to backup — that's fine
   }
 
-  // Atomic rename: tmp → target
-  await fs.rename(tmpPath, filePath);
+  // Atomic rename: tmp → target (retry once on ENOENT race condition)
+  try {
+    await fs.rename(tmpPath, filePath);
+  } catch (renameError) {
+    const err = renameError as NodeJS.ErrnoException;
+    if (err.code === 'ENOENT') {
+      // Race condition: tmp file was consumed by another save. Retry write + rename.
+      logger.warn('writeFileAtomic ENOENT on rename, retrying', { filePath });
+      await fs.writeFile(tmpPath, data, 'utf-8');
+      await fs.rename(tmpPath, filePath);
+    } else {
+      throw renameError;
+    }
+  }
 }
 
 /**
