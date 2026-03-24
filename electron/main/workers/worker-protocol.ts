@@ -16,6 +16,7 @@ import type { AskUserResponse } from '../orchestration/types';
 export type MainToWorkerMessage =
   | { type: 'run'; userMessage: string; existingMessages: Message[]; config: AgentConfig }
   | { type: 'abort' }
+  | { type: 'pause' }
   | { type: 'clearState' }
   | { type: 'askUserResponse'; reqId: string; response: AskUserResponse }
   | { type: 'approvalResponse'; requestId: string; result: ToolApprovalResult | null }
