@@ -31,3 +31,11 @@ export {
   createPowerPointCreateRequestTool,
   createPowerPointModifyRequestTool,
 } from './office';
+
+// Desktop control agent (Electron exclusive — Vision-based)
+export {
+  createDesktopControlTool,
+  DesktopControlSubAgent,
+  runDesktopControl,
+  abortDesktopControl,
+} from './desktop-control';
