@@ -649,12 +649,12 @@ function setupAutoUpdater(): void {
     });
   }, 5000);
 
-  // Jarvis 모드에서 앱이 장시간 실행되므로 4시간마다 주기적 업데이트 체크
+  // 30분마다 주기적 업데이트 체크
   setInterval(() => {
     autoUpdater.checkForUpdates().catch((error) => {
       logger.errorSilent('Failed to check for updates (periodic)', { error: error.message });
     });
-  }, 4 * 60 * 60 * 1000);
+  }, 30 * 60 * 1000);
 }
 
 // ============ 앱 초기화 ============
