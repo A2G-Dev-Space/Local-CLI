@@ -875,23 +875,38 @@ async function executeBrowserGetNetwork(_args: Record<string, unknown>): Promise
   try {
     const response = await browserClient.getNetwork();
     if (response.success) {
-      const logs = (response['logs'] as Array<{ type: string; url: string; method?: string; status?: number; statusText?: string; mimeType?: string }>) || [];
-      if (logs.length === 0) {
+      const allLogs = (response['logs'] as Array<{ type: string; url: string; method?: string; status?: number; statusText?: string; mimeType?: string }>) || [];
+      if (allLogs.length === 0) {
         logger.toolSuccess('browser_get_network', _args, { logCount: 0 }, Date.now() - startTime);
         return { success: true, result: 'No network requests captured.' };
       }
 
-      const formatted = logs.map(log => {
-        if (log.type === 'request') {
-          return `➡️ ${log.method} ${log.url}`;
-        } else {
-          const statusIcon = log.status && log.status >= 400 ? '❌' : '✅';
-          return `${statusIcon} ${log.status} ${log.statusText} - ${log.url} (${log.mimeType || 'unknown'})`;
-        }
+      // Filter: only responses (request entries are redundant), deduplicate by URL, limit to last 50
+      const seenUrls = new Set<string>();
+      const filteredLogs = allLogs
+        .filter(log => log.type === 'response')
+        .reverse()
+        .filter(log => {
+          const key = `${log.status} ${log.url}`;
+          if (seenUrls.has(key)) return false;
+          seenUrls.add(key);
+          return true;
+        })
+        .slice(0, 50)
+        .reverse();
+
+      const formatted = filteredLogs.map(log => {
+        const statusIcon = log.status && log.status >= 400 ? '❌' : '✅';
+        const url = log.url && log.url.length > 150 ? log.url.substring(0, 150) + '...' : log.url;
+        return `${statusIcon} ${log.status} ${log.statusText || ''} ${url} (${log.mimeType || 'unknown'})`;
       }).join('\n');
 
-      logger.toolSuccess('browser_get_network', _args, { logCount: logs.length }, Date.now() - startTime);
-      return { success: true, result: `Network logs (${logs.length} entries):\n\n${formatted}` };
+      const truncateNote = allLogs.length > filteredLogs.length
+        ? `\n\n(Showing ${filteredLogs.length} unique responses out of ${allLogs.length} total entries)`
+        : '';
+
+      logger.toolSuccess('browser_get_network', _args, { logCount: allLogs.length, shownCount: filteredLogs.length }, Date.now() - startTime);
+      return { success: true, result: `Network logs:${truncateNote}\n\n${formatted}` };
     }
     logger.toolError('browser_get_network', _args, new Error(response.error || 'Failed to get network logs'), Date.now() - startTime);
     return { success: false, error: response.error || 'Failed to get network logs' };
