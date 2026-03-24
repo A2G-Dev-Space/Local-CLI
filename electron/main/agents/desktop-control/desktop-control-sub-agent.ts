@@ -28,6 +28,7 @@ import {
   cleanupScreenshots,
 } from './desktop-automation';
 import { DESKTOP_CONTROL_VLM_PROMPT, DESKTOP_CONTROL_TURN_PROMPT } from './prompts';
+import { getSubAgentPhaseLogger } from '../common/sub-agent';
 import { logger } from '../../utils/logger';
 
 // =============================================================================
@@ -59,10 +60,37 @@ interface ActionHistoryEntry {
   error?: string;
 }
 
+/** Detailed log entry for each step — returned in result metadata */
+interface StepLog {
+  step: number;
+  timestamp: string;
+  screenshotSize?: number;
+  screenshotDimensions?: string;
+  vlmModel: string;
+  vlmRawResponse?: string;
+  vlmParsedAction?: string;
+  vlmLatencyMs?: number;
+  actionExecuted?: string;
+  actionResult: 'success' | 'failed' | 'skipped' | 'done';
+  actionError?: string;
+  coordsRaw?: string;
+  coordsTransformed?: string;
+}
+
 export interface DesktopControlConfig {
   maxSteps?: number;
   actionDelayMs?: number;
   abortSignal?: AbortSignal;
+}
+
+// =============================================================================
+// Phase logger helper
+// =============================================================================
+
+function emitPhase(phase: string, detail: string): void {
+  const phaseLogger = getSubAgentPhaseLogger();
+  if (phaseLogger) phaseLogger('desktop-control', phase, detail);
+  logger.info(`[desktop-control] ${phase}: ${detail}`);
 }
 
 // =============================================================================
@@ -76,6 +104,7 @@ export class DesktopControlSubAgent {
   private vlEndpoint: EndpointConfig;
   private vlModel: ModelInfo;
   private abortSignal?: AbortSignal;
+  private vlModelName: string;
 
   constructor(
     task: string,
@@ -89,6 +118,7 @@ export class DesktopControlSubAgent {
     this.abortSignal = config?.abortSignal;
     this.vlEndpoint = vlEndpoint;
     this.vlModel = vlModel;
+    this.vlModelName = vlModel.apiModelId || vlModel.name || vlModel.id;
   }
 
   /**
@@ -97,69 +127,103 @@ export class DesktopControlSubAgent {
   async run(): Promise<ToolResult> {
     const startTime = Date.now();
     const history: ActionHistoryEntry[] = [];
+    const stepLogs: StepLog[] = [];
 
     logger.enter('DesktopControlSubAgent.run');
-    logger.info('Desktop control agent starting', { task: this.task.slice(0, 100), maxSteps: this.maxSteps });
+    emitPhase('start', `Task: "${this.task.slice(0, 80)}" | VLM: ${this.vlModelName} | Max steps: ${this.maxSteps}`);
 
     try {
-
       for (let step = 1; step <= this.maxSteps; step++) {
-        // Check abort signal at the top of each step
+        const stepLog: StepLog = {
+          step,
+          timestamp: new Date().toISOString(),
+          vlmModel: this.vlModelName,
+          actionResult: 'skipped',
+        };
+
+        // Check abort signal
         if (this.abortSignal?.aborted) {
           cleanupScreenshots();
-          const duration = Date.now() - startTime;
-          logger.info('Desktop control aborted by user', { step, duration });
+          emitPhase('abort', `Aborted at step ${step}`);
           logger.exit('DesktopControlSubAgent.run', { success: false, aborted: true });
-          return {
-            success: false,
-            error: 'Desktop control aborted by user.',
-            metadata: { steps: step - 1, duration, aborted: true },
-          };
+          return this.buildFinalResult(false, 'Desktop control aborted by user.', undefined, step - 1, startTime, stepLogs, history);
         }
 
-        logger.flow(`Desktop control step ${step}/${this.maxSteps}`);
+        emitPhase('step', `[${step}/${this.maxSteps}] Capturing screenshot...`);
 
         // 1. Capture screenshot
-        const screenshot = await captureScreen();
-        logger.info('Screenshot captured', { width: screenshot.width, height: screenshot.height, size: screenshot.base64.length });
+        let screenshot: { base64: string; width: number; height: number };
+        try {
+          screenshot = await captureScreen();
+          stepLog.screenshotSize = screenshot.base64.length;
+          stepLog.screenshotDimensions = `${screenshot.width}x${screenshot.height}`;
+          emitPhase('screenshot', `[${step}/${this.maxSteps}] ${screenshot.width}x${screenshot.height} (${Math.round(screenshot.base64.length / 1024)}KB)`);
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          stepLog.actionResult = 'failed';
+          stepLog.actionError = `Screenshot failed: ${errMsg}`;
+          stepLogs.push(stepLog);
+          emitPhase('error', `[${step}/${this.maxSteps}] Screenshot failed: ${errMsg}`);
+          // Fatal — can't continue without screenshot
+          throw err;
+        }
 
         // 2. Build history text for context
         const historyText = this.buildHistoryText(history);
 
-        // 3. Call VLM with screenshot + task + history
-        const action = await this.callVLM(screenshot.base64, step, historyText);
+        // 3. Call VLM
+        emitPhase('vlm', `[${step}/${this.maxSteps}] Calling ${this.vlModelName}...`);
+        const vlmStart = Date.now();
+        const { action, rawResponse } = await this.callVLM(screenshot.base64, step, historyText);
+        const vlmLatency = Date.now() - vlmStart;
+        stepLog.vlmLatencyMs = vlmLatency;
+        stepLog.vlmRawResponse = rawResponse?.slice(0, 500);
+
         if (!action) {
-          logger.warn('VLM returned no valid action, retrying');
+          stepLog.actionResult = 'failed';
+          stepLog.actionError = 'VLM returned no valid action';
+          stepLogs.push(stepLog);
+          emitPhase('vlm-fail', `[${step}/${this.maxSteps}] No valid action (${vlmLatency}ms). Raw: "${(rawResponse || 'empty').slice(0, 100)}"`);
           history.push({ step, action: { action: 'wait', ms: 500 }, success: false, error: 'VLM returned invalid response' });
           await this.delay(500);
           continue;
         }
 
-        logger.info('VLM action', { step, action: action.action, x: action.x, y: action.y });
+        stepLog.vlmParsedAction = JSON.stringify(action);
+        const actionDesc = this.describeAction(action);
+        emitPhase('vlm-ok', `[${step}/${this.maxSteps}] → ${actionDesc} (${vlmLatency}ms)`);
 
         // 4. Check if done
         if (action.action === 'done') {
           const summary = action.summary || 'Task completed.';
+          stepLog.actionResult = 'done';
+          stepLogs.push(stepLog);
           cleanupScreenshots();
-          const duration = Date.now() - startTime;
-          logger.info('Desktop control completed', { steps: step, duration });
+          emitPhase('done', `Completed at step ${step}: "${summary}"`);
           logger.exit('DesktopControlSubAgent.run', { success: true, steps: step });
-          return {
-            success: true,
-            result: summary,
-            metadata: { steps: step, duration, history: history.map(h => `[${h.step}] ${h.action.action}${h.success ? '' : ' FAILED'}`) },
-          };
+          return this.buildFinalResult(true, undefined, summary, step, startTime, stepLogs, history);
         }
 
-        // 5. Execute action (with DPI-corrected coordinates)
+        // 5. Execute action
+        emitPhase('exec', `[${step}/${this.maxSteps}] Executing ${actionDesc}...`);
         try {
-          await this.executeAction(action, screenshot.width, screenshot.height);
+          const coordInfo = this.executeActionWithLogging(action, screenshot.width, screenshot.height);
+          stepLog.coordsRaw = coordInfo.raw;
+          stepLog.coordsTransformed = coordInfo.transformed;
+          await coordInfo.promise;
+          stepLog.actionExecuted = actionDesc;
+          stepLog.actionResult = 'success';
           history.push({ step, action, success: true });
+          emitPhase('exec-ok', `[${step}/${this.maxSteps}] ✓ ${actionDesc}`);
         } catch (error) {
           const errorMsg = error instanceof Error ? error.message : String(error);
-          logger.warn('Action execution failed', { step, action: action.action, error: errorMsg });
+          stepLog.actionResult = 'failed';
+          stepLog.actionError = errorMsg;
           history.push({ step, action, success: false, error: errorMsg });
+          emitPhase('exec-fail', `[${step}/${this.maxSteps}] ✗ ${actionDesc}: ${errorMsg}`);
         }
+
+        stepLogs.push(stepLog);
 
         // 6. Wait for UI to settle
         const waitMs = action.action === 'click' || action.action === 'double_click'
@@ -172,30 +236,94 @@ export class DesktopControlSubAgent {
 
       // Max steps reached
       cleanupScreenshots();
-      const duration = Date.now() - startTime;
+      emitPhase('max-steps', `Reached ${this.maxSteps} steps limit`);
       logger.exit('DesktopControlSubAgent.run', { success: true, steps: this.maxSteps, maxStepsReached: true });
-      return {
-        success: true,
-        result: `Desktop control agent completed after ${this.maxSteps} steps. Task may not be fully finished.`,
-        metadata: { steps: this.maxSteps, duration },
-      };
+      return this.buildFinalResult(true, undefined, `Desktop control completed after ${this.maxSteps} steps. Task may not be fully finished.`, this.maxSteps, startTime, stepLogs, history);
     } catch (error) {
       cleanupScreenshots();
       const errorMsg = error instanceof Error ? error.message : String(error);
+      emitPhase('error', `Fatal: ${errorMsg}`);
       logger.errorSilent('Desktop control agent failed', error);
       logger.exit('DesktopControlSubAgent.run', { success: false, error: errorMsg });
-      return {
-        success: false,
-        error: `Desktop control failed: ${errorMsg}`,
-        metadata: { steps: history.length, duration: Date.now() - startTime },
-      };
+      return this.buildFinalResult(false, `Desktop control failed: ${errorMsg}`, undefined, stepLogs.length, startTime, stepLogs, history);
     }
   }
 
   /**
-   * Call VLM with screenshot and get next action
+   * Build final result with detailed execution log
    */
-  private async callVLM(screenshotBase64: string, step: number, historyText: string): Promise<DesktopAction | null> {
+  private buildFinalResult(
+    success: boolean,
+    error: string | undefined,
+    result: string | undefined,
+    steps: number,
+    startTime: number,
+    stepLogs: StepLog[],
+    history: ActionHistoryEntry[],
+  ): ToolResult {
+    const duration = Date.now() - startTime;
+
+    // Build human-readable execution log
+    const executionLog = stepLogs.map(s => {
+      const parts = [`[Step ${s.step}]`];
+      if (s.screenshotDimensions) parts.push(`📸 ${s.screenshotDimensions} (${Math.round((s.screenshotSize || 0) / 1024)}KB)`);
+      if (s.vlmLatencyMs != null) parts.push(`🤖 VLM ${s.vlmLatencyMs}ms`);
+      if (s.vlmParsedAction) parts.push(`→ ${s.vlmParsedAction}`);
+      if (s.coordsRaw && s.coordsTransformed && s.coordsRaw !== s.coordsTransformed) {
+        parts.push(`📍 ${s.coordsRaw} → ${s.coordsTransformed}`);
+      }
+      if (s.actionResult === 'success') parts.push('✓');
+      else if (s.actionResult === 'failed') parts.push(`✗ ${s.actionError}`);
+      else if (s.actionResult === 'done') parts.push('🏁 DONE');
+      if (s.vlmRawResponse && s.actionResult === 'failed') parts.push(`Raw VLM: "${s.vlmRawResponse.slice(0, 100)}"`);
+      return parts.join(' ');
+    }).join('\n');
+
+    // Prepend execution log to result text so the main LLM sees it
+    const fullResult = result
+      ? `${result}\n\n--- Execution Log (${steps} steps, ${(duration / 1000).toFixed(1)}s) ---\n${executionLog}`
+      : `--- Execution Log (${steps} steps, ${(duration / 1000).toFixed(1)}s) ---\n${executionLog}`;
+
+    return {
+      success,
+      result: success ? fullResult : undefined,
+      error: error ? `${error}\n\n--- Execution Log ---\n${executionLog}` : undefined,
+      metadata: {
+        steps,
+        duration,
+        vlmModel: this.vlModelName,
+        stepLogs,
+        history: history.map(h => `[${h.step}] ${h.action.action}${h.success ? '' : ' FAILED'}`),
+      },
+    };
+  }
+
+  /**
+   * Describe an action in human-readable form
+   */
+  private describeAction(action: DesktopAction): string {
+    switch (action.action) {
+      case 'click': return `click(${action.x},${action.y})`;
+      case 'double_click': return `double_click(${action.x},${action.y})`;
+      case 'right_click': return `right_click(${action.x},${action.y})`;
+      case 'type': return `type("${(action.text || '').slice(0, 30)}")`;
+      case 'press': return `press(${action.key})`;
+      case 'hotkey': return `hotkey(${(action.keys || []).join('+')})`;
+      case 'scroll': return `scroll(${action.x},${action.y},${action.direction})`;
+      case 'drag': return `drag(${action.x1},${action.y1}→${action.x2},${action.y2})`;
+      case 'wait': return `wait(${action.ms}ms)`;
+      case 'bring_window': return `bring_window("${action.title}")`;
+      case 'list_windows': return 'list_windows()';
+      case 'done': return `done("${(action.summary || '').slice(0, 40)}")`;
+      default: return action.action;
+    }
+  }
+
+  /**
+   * Call VLM with screenshot and get next action.
+   * Returns both parsed action and raw response for logging.
+   */
+  private async callVLM(screenshotBase64: string, step: number, historyText: string): Promise<{ action: DesktopAction | null; rawResponse: string | null }> {
     let baseUrl = this.vlEndpoint.baseUrl.trim();
     if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
     const chatUrl = baseUrl.endsWith('/chat/completions')
@@ -209,7 +337,6 @@ export class DesktopControlSubAgent {
       headers['Authorization'] = `Bearer ${this.vlEndpoint.apiKey}`;
     }
 
-    // Use function replacements to avoid $& / $' / $` special patterns in user task text
     const userPrompt = DESKTOP_CONTROL_TURN_PROMPT
       .replace('{task}', () => this.task)
       .replace('{step}', () => String(step))
@@ -224,7 +351,7 @@ export class DesktopControlSubAgent {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          model: this.vlModel.apiModelId || this.vlModel.name || this.vlModel.id,
+          model: this.vlModelName,
           messages: [
             { role: 'system', content: DESKTOP_CONTROL_VLM_PROMPT },
             {
@@ -236,7 +363,7 @@ export class DesktopControlSubAgent {
             },
           ],
           temperature: 0.1,
-          max_tokens: 800, // Enough for <think> block + action JSON in thinking-mode VLMs
+          max_tokens: 800,
         }),
         signal: controller.signal,
       });
@@ -246,7 +373,7 @@ export class DesktopControlSubAgent {
       if (!response.ok) {
         const errorText = await response.text();
         logger.warn('VLM request failed', { status: response.status, error: errorText.slice(0, 300) });
-        return null;
+        return { action: null, rawResponse: `HTTP ${response.status}: ${errorText.slice(0, 300)}` };
       }
 
       const data = (await response.json()) as {
@@ -256,18 +383,18 @@ export class DesktopControlSubAgent {
       const content = data.choices?.[0]?.message?.content;
       if (!content) {
         logger.warn('VLM returned empty content');
-        return null;
+        return { action: null, rawResponse: 'empty response (no content)' };
       }
 
-      return this.parseAction(content);
+      const parsed = this.parseAction(content);
+      return { action: parsed, rawResponse: content };
     } catch (error) {
       clearTimeout(timeoutId);
-      if (error instanceof Error && error.name === 'AbortError') {
-        logger.warn('VLM request timed out');
-      } else {
-        logger.warn('VLM request error', { error: error instanceof Error ? error.message : String(error) });
-      }
-      return null;
+      const errMsg = error instanceof Error
+        ? (error.name === 'AbortError' ? 'VLM request timed out (60s)' : error.message)
+        : String(error);
+      logger.warn('VLM request error', { error: errMsg });
+      return { action: null, rawResponse: `Error: ${errMsg}` };
     }
   }
 
@@ -275,23 +402,18 @@ export class DesktopControlSubAgent {
 
   /**
    * Parse action JSON from VLM response.
-   * Handles markdown code blocks, extra text around JSON, <think> tags, etc.
    */
   private parseAction(content: string): DesktopAction | null {
-    // Strip <think>...</think> tags (Qwen3-VL thinking mode)
     let cleaned = content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
 
-    // Try to extract JSON from markdown code block
     const codeBlockMatch = cleaned.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
     if (codeBlockMatch) {
       cleaned = codeBlockMatch[1]!;
     }
 
-    // Strategy 1: Try direct JSON.parse (most common — VLM returns clean JSON)
     const directResult = this.tryParseAction(cleaned);
     if (directResult) return directResult;
 
-    // Strategy 2: Find JSON by locating first { and last } (handles text around JSON, braces in strings)
     const firstBrace = cleaned.indexOf('{');
     const lastBrace = cleaned.lastIndexOf('}');
     if (firstBrace !== -1 && lastBrace > firstBrace) {
@@ -304,15 +426,11 @@ export class DesktopControlSubAgent {
     return null;
   }
 
-  /**
-   * Try to parse a string as a DesktopAction. Coerces coordinate fields to numbers.
-   */
   private tryParseAction(text: string): DesktopAction | null {
     try {
       const parsed = JSON.parse(text) as DesktopAction;
       if (!parsed.action || !DesktopControlSubAgent.VALID_ACTIONS.includes(parsed.action)) return null;
 
-      // Coerce coordinate fields to numbers (VLM may return "450" instead of 450)
       if (parsed.x != null) parsed.x = Number(parsed.x);
       if (parsed.y != null) parsed.y = Number(parsed.y);
       if (parsed.x1 != null) parsed.x1 = Number(parsed.x1);
@@ -329,146 +447,96 @@ export class DesktopControlSubAgent {
   }
 
   /**
-   * Execute a desktop action with coordinate transformation.
-   *
-   * The VLM sees the screenshot at its native resolution (e.g., 1920x1080).
-   * DPI scaling: if Windows is at 150% scaling, the screenshot captures at logical resolution
-   * but mouse APIs work at physical resolution. We may need to adjust.
-   *
-   * Note: System.Drawing.CopyFromScreen captures at physical pixels, so screenshot coords
-   * and mouse coords should be in the same space. DPI correction may only be needed
-   * if the VLM uses normalized coordinates (0-1000).
+   * Execute action with coordinate logging. Returns raw/transformed coords for the step log.
    */
-  private async executeAction(
+  private executeActionWithLogging(
     action: DesktopAction,
     screenshotWidth: number,
     screenshotHeight: number,
-  ): Promise<void> {
+  ): { promise: Promise<void>; raw: string; transformed: string } {
+    const doTransform = (x: number, y: number) => {
+      const result = this.transformCoords(x, y, screenshotWidth, screenshotHeight);
+      return {
+        result,
+        raw: `(${x},${y})`,
+        transformed: `(${result.x},${result.y})`,
+      };
+    };
+
     switch (action.action) {
-      case 'click':
-        if (action.x != null && action.y != null) {
-          const { x, y } = this.transformCoords(action.x, action.y, screenshotWidth, screenshotHeight);
-          await mouseClick(x, y, 'left');
-        } else {
-          throw new Error('click action requires x and y coordinates');
-        }
-        break;
-
-      case 'double_click':
-        if (action.x != null && action.y != null) {
-          const { x, y } = this.transformCoords(action.x, action.y, screenshotWidth, screenshotHeight);
-          await mouseDoubleClick(x, y);
-        } else {
-          throw new Error('double_click action requires x and y coordinates');
-        }
-        break;
-
-      case 'right_click':
-        if (action.x != null && action.y != null) {
-          const { x, y } = this.transformCoords(action.x, action.y, screenshotWidth, screenshotHeight);
-          await mouseClick(x, y, 'right');
-        } else {
-          throw new Error('right_click action requires x and y coordinates');
-        }
-        break;
-
-      case 'type':
-        if (action.text) {
-          await typeText(action.text);
-        } else {
-          throw new Error('type action requires text');
-        }
-        break;
-
-      case 'press':
-        if (action.key) {
-          await pressKey(action.key);
-        } else {
-          throw new Error('press action requires key');
-        }
-        break;
-
-      case 'hotkey':
-        if (action.keys && action.keys.length > 0) {
-          await pressHotkey(action.keys);
-        } else {
-          throw new Error('hotkey action requires keys array');
-        }
-        break;
-
-      case 'scroll':
-        if (action.x != null && action.y != null && action.direction) {
-          const { x, y } = this.transformCoords(action.x, action.y, screenshotWidth, screenshotHeight);
-          await mouseScroll(x, y, action.direction, action.clicks ?? 3);
-        } else {
-          throw new Error('scroll action requires x, y, and direction');
-        }
-        break;
-
-      case 'drag':
-        if (action.x1 != null && action.y1 != null && action.x2 != null && action.y2 != null) {
-          const from = this.transformCoords(action.x1, action.y1, screenshotWidth, screenshotHeight);
-          const to = this.transformCoords(action.x2, action.y2, screenshotWidth, screenshotHeight);
-          await mouseDrag(from.x, from.y, to.x, to.y);
-        } else {
-          throw new Error('drag action requires x1, y1, x2, y2 coordinates');
-        }
-        break;
-
-      case 'wait':
-        await this.delay(action.ms ?? 1000);
-        break;
-
-      case 'bring_window':
-        if (action.title) {
-          const matched = await bringWindowToPrimary(action.title);
-          if (!matched) {
-            throw new Error(`Window not found: "${action.title}". Use list_windows to see available titles.`);
-          }
-        } else {
-          throw new Error('bring_window action requires title');
-        }
-        break;
-
-      case 'list_windows': {
-        const windows = await listWindows();
-        // Store window list in history so VLM can see it in the next turn
-        logger.info('Listed windows', { count: windows.length, titles: windows.slice(0, 10) });
-        // Override the action's summary-like field for history display
-        action.text = windows.length > 0
-          ? `Found ${windows.length} windows: ${windows.slice(0, 15).join(', ')}`
-          : 'No visible windows found';
-        break;
+      case 'click': {
+        if (action.x == null || action.y == null) throw new Error('click action requires x and y coordinates');
+        const c = doTransform(action.x, action.y);
+        return { promise: mouseClick(c.result.x, c.result.y, 'left'), raw: c.raw, transformed: c.transformed };
       }
-
+      case 'double_click': {
+        if (action.x == null || action.y == null) throw new Error('double_click action requires x and y coordinates');
+        const c = doTransform(action.x, action.y);
+        return { promise: mouseDoubleClick(c.result.x, c.result.y), raw: c.raw, transformed: c.transformed };
+      }
+      case 'right_click': {
+        if (action.x == null || action.y == null) throw new Error('right_click action requires x and y coordinates');
+        const c = doTransform(action.x, action.y);
+        return { promise: mouseClick(c.result.x, c.result.y, 'right'), raw: c.raw, transformed: c.transformed };
+      }
+      case 'type': {
+        if (!action.text) throw new Error('type action requires text');
+        return { promise: typeText(action.text), raw: '', transformed: '' };
+      }
+      case 'press': {
+        if (!action.key) throw new Error('press action requires key');
+        return { promise: pressKey(action.key), raw: '', transformed: '' };
+      }
+      case 'hotkey': {
+        if (!action.keys || action.keys.length === 0) throw new Error('hotkey action requires keys array');
+        return { promise: pressHotkey(action.keys), raw: '', transformed: '' };
+      }
+      case 'scroll': {
+        if (action.x == null || action.y == null || !action.direction) throw new Error('scroll action requires x, y, and direction');
+        const c = doTransform(action.x, action.y);
+        return { promise: mouseScroll(c.result.x, c.result.y, action.direction, action.clicks ?? 3), raw: c.raw, transformed: c.transformed };
+      }
+      case 'drag': {
+        if (action.x1 == null || action.y1 == null || action.x2 == null || action.y2 == null) throw new Error('drag action requires x1, y1, x2, y2');
+        const from = doTransform(action.x1, action.y1);
+        const to = doTransform(action.x2, action.y2);
+        return { promise: mouseDrag(from.result.x, from.result.y, to.result.x, to.result.y), raw: `${from.raw}→${to.raw}`, transformed: `${from.transformed}→${to.transformed}` };
+      }
+      case 'wait': {
+        return { promise: this.delay(action.ms ?? 1000), raw: '', transformed: '' };
+      }
+      case 'bring_window': {
+        if (!action.title) throw new Error('bring_window action requires title');
+        const title = action.title;
+        const p = bringWindowToPrimary(title).then(matched => {
+          if (!matched) throw new Error(`Window not found: "${title}". Use list_windows to see available titles.`);
+        });
+        return { promise: p, raw: '', transformed: '' };
+      }
+      case 'list_windows': {
+        const p = listWindows().then(windows => {
+          logger.info('Listed windows', { count: windows.length, titles: windows.slice(0, 10) });
+          action.text = windows.length > 0
+            ? `Found ${windows.length} windows: ${windows.slice(0, 15).join(', ')}`
+            : 'No visible windows found';
+        });
+        return { promise: p, raw: '', transformed: '' };
+      }
       default:
         logger.warn('Unknown action type', { action: action.action });
+        return { promise: Promise.resolve(), raw: '', transformed: '' };
     }
   }
 
   /**
    * Transform coordinates from VLM output to screen pixels.
-   *
-   * Handles two coordinate systems:
-   * 1. Qwen3-VL: normalized 0-1000 range → multiply by screenWidth/1000
-   * 2. Standard: pixel coordinates matching screenshot resolution → use as-is
-   *
-   * Detection: if BOTH coordinates are in 0-1000 range AND at least one screen
-   * dimension exceeds 1000px, treat as normalized. This handles 1920x1080 (most common)
-   * and other resolutions where the VLM uses 0-1000 range.
-   * False positive risk on exactly 1024x768 is accepted — at worst, coords are off by ~2.4%.
    */
   private transformCoords(x: number, y: number, screenshotWidth: number, screenshotHeight: number): { x: number; y: number } {
-    // Guard against NaN/Infinity
     if (!isFinite(x) || !isFinite(y)) {
       logger.warn('Invalid coordinates from VLM', { x, y });
       return { x: 0, y: 0 };
     }
 
-    // Detect normalized coordinates (Qwen3-VL uses 0-1000 range)
-    // If both coords fit in 0-1000 and screen is larger than 1000 in at least one dimension,
-    // assume normalized. The key insight: if a VLM sends pixel coords on a 1920x1080 screen,
-    // it would commonly send x > 1000 for elements on the right side, breaking this condition.
     const isNormalized = x >= 0 && x <= 1000 && y >= 0 && y <= 1000
       && (screenshotWidth > 1000 || screenshotHeight > 1000);
 
@@ -483,7 +551,6 @@ export class DesktopControlSubAgent {
       resultY = Math.round(y);
     }
 
-    // Clamp to screen bounds
     resultX = Math.max(0, Math.min(resultX, screenshotWidth - 1));
     resultY = Math.max(0, Math.min(resultY, screenshotHeight - 1));
 
@@ -496,7 +563,6 @@ export class DesktopControlSubAgent {
   private buildHistoryText(history: ActionHistoryEntry[]): string {
     if (history.length === 0) return '';
 
-    // Keep last 10 entries to avoid context bloat
     const recent = history.slice(-10);
     return recent.map(h => {
       const parts = [`Step ${h.step}: ${h.action.action}`];
@@ -524,7 +590,6 @@ let currentAbortController: AbortController | null = null;
 
 /**
  * Abort the currently running desktop control agent (if any).
- * Called from outside (e.g., IPC handler when user clicks Stop).
  */
 export function abortDesktopControl(): boolean {
   if (currentAbortController && isDesktopControlRunning) {
@@ -540,13 +605,11 @@ export function abortDesktopControl(): boolean {
 
 /**
  * Create and run a desktop control agent.
- * Validates VL model availability and prevents concurrent execution.
  */
 export async function runDesktopControl(
   task: string,
   config?: DesktopControlConfig,
 ): Promise<ToolResult> {
-  // Prevent concurrent execution — two agents fighting over mouse/keyboard is catastrophic
   if (isDesktopControlRunning) {
     return {
       success: false,
@@ -554,7 +617,6 @@ export async function runDesktopControl(
     };
   }
 
-  // Validate VL model
   const vlModelInfo = findVisionModel();
   if (!vlModelInfo) {
     return {

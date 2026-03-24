@@ -85,7 +85,7 @@ export interface LogFile {
 }
 
 // 로그 카테고리 타입
-export type LogCategory = 'all' | 'chat' | 'tool' | 'http' | 'llm' | 'ui' | 'system' | 'debug';
+export type LogCategory = 'all' | 'chat' | 'tool' | 'http' | 'llm' | 'ui' | 'system' | 'desktop' | 'debug';
 
 // 로그 엔트리 타입
 export interface LogEntry {
