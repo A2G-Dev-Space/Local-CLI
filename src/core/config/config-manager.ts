@@ -232,6 +232,13 @@ export class ConfigManager {
     await this.saveConfig();
   }
 
+  async setVisionModel(endpointId: string, modelId: string): Promise<void> {
+    const config = this.getConfig();
+    config.visionEndpointId = endpointId;
+    config.visionModelId = modelId;
+    await this.saveConfig();
+  }
+
   /**
    * 설정 값 업데이트
    */

@@ -125,6 +125,10 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
   const [vscodePath, setVscodePath] = useState<string>('');
   const [vscodePathSaved, setVscodePathSaved] = useState(false);
 
+  // Vision model settings
+  const [visionModels, setVisionModels] = useState<{ endpointId: string; endpointName: string; modelId: string; modelName: string }[]>([]);
+  const [selectedVisionModel, setSelectedVisionModel] = useState<string>('');
+
   // Load endpoints
   const loadEndpoints = useCallback(async () => {
     if (!window.electronAPI?.llm) {
@@ -199,6 +203,49 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
     },
     [],
   );
+
+  // Logout handler
+  const handleLogout = useCallback(async () => {
+    if (!window.electronAPI?.auth) return;
+    try {
+      await window.electronAPI.auth.logout();
+    } catch (err) {
+      window.electronAPI?.log?.error('[Settings] Failed to logout', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }, []);
+
+  // Load vision model settings
+  const loadVisionSettings = useCallback(async () => {
+    if (!window.electronAPI?.config) return;
+    try {
+      const config = await window.electronAPI.config.getAll();
+      const models: { endpointId: string; endpointName: string; modelId: string; modelName: string }[] = [];
+      for (const ep of config.endpoints || []) {
+        for (const m of ep.models || []) {
+          if (m.supportsVision && m.enabled) {
+            models.push({ endpointId: ep.id, endpointName: ep.name || ep.id, modelId: m.id, modelName: m.name || m.id });
+          }
+        }
+      }
+      setVisionModels(models);
+      setSelectedVisionModel(config.visionModelId ? `${config.visionEndpointId || ''}::${config.visionModelId}` : '');
+    } catch { /* ignore */ }
+  }, []);
+
+  const saveVisionModel = useCallback(async (value: string) => {
+    if (!window.electronAPI?.config) return;
+    setSelectedVisionModel(value);
+    if (!value) {
+      await window.electronAPI.config.set('visionEndpointId', '');
+      await window.electronAPI.config.set('visionModelId', '');
+    } else {
+      const [epId, modelId] = value.split('::');
+      await window.electronAPI.config.set('visionEndpointId', epId);
+      await window.electronAPI.config.set('visionModelId', modelId);
+    }
+  }, []);
 
   // Load VSCode settings
   const loadVscodeSettings = useCallback(async () => {
@@ -536,7 +583,7 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                 </svg>
               </button>
 
-              <button className="menu-item" onClick={() => { setView('tools'); loadVscodeSettings(); }}>
+              <button className="menu-item" onClick={() => { setView('tools'); loadVscodeSettings(); loadVisionSettings(); }}>
                 <div className="menu-icon">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/>
@@ -963,6 +1010,25 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                   {vscodeAutoDetected ? t('tools.autoHint') : t('tools.manualHint')}
                 </div>
               </div>
+
+              {visionModels.length > 0 && (
+                <div className="setting-section" style={{ marginTop: '16px' }}>
+                  <label className="setting-label">Vision Model (이미지 분석용)</label>
+                  <select
+                    className="vscode-path-input"
+                    value={selectedVisionModel}
+                    onChange={(e) => saveVisionModel(e.target.value)}
+                    style={{ padding: '6px 8px', cursor: 'pointer' }}
+                  >
+                    <option value="">Auto (첫 번째 Vision 모델 사용)</option>
+                    {visionModels.map(vm => (
+                      <option key={`${vm.endpointId}::${vm.modelId}`} value={`${vm.endpointId}::${vm.modelId}`}>
+                        {vm.modelName} ({vm.endpointName})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <button className="back-button" onClick={() => setView('main')} title={t('settings.back')}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">

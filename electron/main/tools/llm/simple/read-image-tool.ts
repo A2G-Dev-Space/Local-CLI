@@ -29,10 +29,24 @@ const SUPPORTED_FORMATS: Record<string, string> = {
 };
 
 /**
- * Find the first enabled VL model from configured endpoints
+ * Find the selected (or first available) vision model from configured endpoints
  */
 export function findVisionModel(): { endpoint: EndpointConfig; model: ModelInfo } | null {
   const config = configManager.getAll();
+
+  // Prefer user-selected vision model if set
+  if (config.visionModelId) {
+    for (const endpoint of config.endpoints) {
+      if (config.visionEndpointId && endpoint.id !== config.visionEndpointId) continue;
+      for (const model of endpoint.models) {
+        if (model.id === config.visionModelId && model.supportsVision && model.enabled) {
+          return { endpoint, model };
+        }
+      }
+    }
+  }
+
+  // Fallback: first enabled vision model
   for (const endpoint of config.endpoints) {
     for (const model of endpoint.models) {
       if (model.supportsVision && model.enabled) {
@@ -41,6 +55,27 @@ export function findVisionModel(): { endpoint: EndpointConfig; model: ModelInfo 
     }
   }
   return null;
+}
+
+/**
+ * Get all available vision models
+ */
+export function getAllVisionModels(): { endpointId: string; endpointName: string; modelId: string; modelName: string }[] {
+  const config = configManager.getAll();
+  const result: { endpointId: string; endpointName: string; modelId: string; modelName: string }[] = [];
+  for (const endpoint of config.endpoints) {
+    for (const model of endpoint.models) {
+      if (model.supportsVision && model.enabled) {
+        result.push({
+          endpointId: endpoint.id,
+          endpointName: endpoint.name || endpoint.id,
+          modelId: model.id,
+          modelName: model.name || model.id,
+        });
+      }
+    }
+  }
+  return result;
 }
 
 /**
