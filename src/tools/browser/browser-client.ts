@@ -648,6 +648,9 @@ class BrowserClient {
         baseArgs.push('--headless=new');
       }
 
+      // Start with Google instead of default new tab (avoids showing internal pages)
+      baseArgs.push('https://www.google.com');
+
       // Launch browser based on platform
       if (this.platform === 'native-windows') {
         // Native Windows - spawn directly with user data dir

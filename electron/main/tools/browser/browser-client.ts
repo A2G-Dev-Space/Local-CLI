@@ -394,6 +394,9 @@ class BrowserClient {
         args.push('--headless=new');
       }
 
+      // Start with Google instead of default new tab (avoids showing internal pages)
+      args.push('https://www.google.com');
+
       // Launch browser - use execSync to run PowerShell Start-Process for reliable Windows GUI launch
       logger.debug('[BrowserClient] Launching with args', { browserPath, args });
 
