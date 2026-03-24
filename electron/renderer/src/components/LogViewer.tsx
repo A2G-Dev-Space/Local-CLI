@@ -23,6 +23,7 @@ const LOG_CATEGORIES: { id: LogCategory; label: string; descKey: string; color: 
   { id: 'tool', label: 'Tool', descKey: 'log.cat.tool', color: '#f59e0b' },
   { id: 'http', label: 'HTTP', descKey: 'log.cat.http', color: '#3b82f6' },
   { id: 'llm', label: 'LLM', descKey: 'log.cat.llm', color: '#ec4899' },
+  { id: 'desktop', label: 'Desktop', descKey: 'log.cat.desktop', color: '#f97316' },
   { id: 'ui', label: 'UI', descKey: 'log.cat.ui', color: '#06b6d4' },
   { id: 'system', label: 'System', descKey: 'log.cat.system', color: '#6366f1' },
   { id: 'debug', label: 'Debug', descKey: 'log.cat.debug', color: '#6b7280' },
@@ -44,6 +45,17 @@ const LOG_CATEGORIES: { id: LogCategory; label: string; descKey: string; color: 
  */
 function detectCategory(message: string, level: string): LogCategory {
   const msg = message.toLowerCase();
+
+  // Desktop Control 카테고리: 비전 기반 데스크톱 제어 에이전트 (최상위 우선 매칭)
+  if (msg.includes('[desktop-control]') || msg.includes('desktop control') ||
+      msg.includes('desktopcontrolsubagent') || msg.includes('desktop_control') ||
+      msg.includes('capturescreen') || msg.includes('screenshot captured') ||
+      msg.includes('vlm action') || msg.includes('vlm request') ||
+      msg.includes('bring_window') || msg.includes('list_windows') ||
+      msg.includes('bringwindowtoprimary') || msg.includes('mouseclick') ||
+      msg.includes('presshotkey') || msg.includes('presskey') || msg.includes('typetext')) {
+    return 'desktop';
+  }
 
   // Chat 카테고리: 사용자 입력, 어시스턴트 응답
   if (msg.includes('[chat]') || msg.includes('[user]') || msg.includes('[assistant]') ||
