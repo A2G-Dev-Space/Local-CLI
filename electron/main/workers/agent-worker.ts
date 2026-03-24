@@ -182,13 +182,13 @@ port.on('message', async (msg: MainToWorkerMessage) => {
         // NOTE: currentTodos intentionally NOT cleared — user can resume
 
         // Reject pending approvals/askUser
-        for (const [id, { resolve, timer }] of pendingApprovals) {
+        for (const [, { resolve, timer }] of pendingApprovals) {
           clearTimeout(timer);
           resolve({ reject: true, comment: 'Agent paused' });
         }
         pendingApprovals.clear();
 
-        for (const [id, { resolve, timer }] of pendingAskUser) {
+        for (const [, { resolve, timer }] of pendingAskUser) {
           clearTimeout(timer);
           resolve({ selectedOption: '', isOther: false });
         }
