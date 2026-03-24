@@ -27,3 +27,6 @@ export {
   createPowerPointCreateRequestTool,
   createPowerPointModifyRequestTool,
 } from './office/index.js';
+
+// Desktop control agent (Electron exclusive — CLI stub)
+export { createDesktopControlTool } from './desktop-control/index.js';

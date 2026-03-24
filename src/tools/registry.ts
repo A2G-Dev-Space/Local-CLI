@@ -56,6 +56,9 @@ import {
   createSearchRequestTool,
 } from '../agents/browser/index.js';
 
+// Import Desktop Control agent tool (Electron exclusive — CLI stub)
+import { createDesktopControlTool } from '../agents/desktop-control/index.js';
+
 /**
  * Enable result with optional error message
  */
@@ -123,6 +126,13 @@ function getOptionalToolGroupsConfig(): OptionalToolGroup[] {
       tools: VISION_TOOLS,
       enabled: false,
       autoManaged: true,
+    },
+    {
+      id: 'desktop-control',
+      name: 'Desktop Control (Vision)',
+      description: 'AI controls Windows desktop via screenshot analysis — mouse, keyboard, any application (requires VL model, Electron only)',
+      tools: [createDesktopControlTool()],
+      enabled: false,
     },
   ];
 

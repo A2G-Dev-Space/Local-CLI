@@ -71,6 +71,17 @@ class ToolManager {
       available: true,  // CDP works on all platforms with Chrome/Edge
     });
 
+    // Desktop Control (Vision-based)
+    this.toolGroups.set('desktop-control', {
+      id: 'desktop-control',
+      name: 'Desktop Control (Vision)',
+      description: 'AI controls Windows desktop via screenshot analysis — mouse, keyboard, any application (requires VL model)',
+      toolCount: 1,
+      enabled: false,
+      available: hasWindowsAccess,
+      requiresWindows: true,
+    });
+
     // Office tools removed — now provided as sub-agent tools
     // (word_create_agent, word_modify_agent, excel_create_agent, excel_modify_agent, powerpoint_create_agent, powerpoint_modify_agent)
     // Auto-registered in tool registry, no enable/disable needed

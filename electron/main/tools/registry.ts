@@ -38,6 +38,9 @@ import {
 import { BROWSER_TOOLS } from './browser';
 import { VISION_TOOLS, findVisionModel } from './llm/simple/read-image-tool';
 
+// Import Desktop Control agent tool (Electron exclusive)
+import { createDesktopControlTool } from '../agents/desktop-control';
+
 // Import office sub-agent tools (Agent as a Tool)
 import {
   createWordCreateRequestTool,
@@ -101,6 +104,13 @@ function getOptionalToolGroupsConfig(): OptionalToolGroup[] {
       tools: VISION_TOOLS,
       enabled: false,
       autoManaged: true,
+    },
+    {
+      id: 'desktop-control',
+      name: 'Desktop Control (Vision)',
+      description: 'AI controls Windows desktop via screenshot analysis — mouse, keyboard, any application (requires VL model)',
+      tools: [createDesktopControlTool()],
+      enabled: false,
     },
     // Office tools removed — now provided as sub-agent tools
     // (word_create_agent, word_modify_agent, excel_create_agent, excel_modify_agent, powerpoint_create_agent, powerpoint_modify_agent)
