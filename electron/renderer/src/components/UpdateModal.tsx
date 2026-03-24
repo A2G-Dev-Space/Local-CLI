@@ -1,6 +1,6 @@
 /**
  * Update Modal Component
- * 강제 업데이트 — 자동 다운로드 + 자동 설치, 버튼 없음
+ * 백그라운드 다운로드 → 재시작 버튼 → silent install + 자동 재시작
  */
 
 import React, { useEffect, memo, useState } from 'react';
@@ -62,6 +62,7 @@ const UpdateModal: React.FC<UpdateModalProps> = ({
   updateInfo,
   progress,
   error,
+  onInstall,
   onClose,
 }) => {
   const [currentVersion, setCurrentVersion] = useState<string>('');
@@ -166,13 +167,13 @@ const UpdateModal: React.FC<UpdateModalProps> = ({
       case 'downloaded':
         return (
           <>
-            <div className="update-modal-icon update-modal-icon-ready">
-              <svg className="update-modal-spinner" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 12a9 9 0 11-6.219-8.56" />
+            <div className="update-modal-icon update-modal-icon-success">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
               </svg>
             </div>
-            <h2 className="update-modal-title">업데이트 설치 중</h2>
-            <p className="update-modal-message">잠시 후 앱이 자동으로 재시작됩니다...</p>
+            <h2 className="update-modal-title">업데이트 준비 완료</h2>
+            <p className="update-modal-message">v{updateInfo?.version} 다운로드가 완료되었습니다. 재시작하면 자동으로 설치됩니다.</p>
           </>
         );
 
@@ -194,8 +195,14 @@ const UpdateModal: React.FC<UpdateModalProps> = ({
     }
   };
 
-  // Only show close button for non-forced states
   const renderActions = () => {
+    if (status === 'downloaded') {
+      return (
+        <button className="update-modal-btn update-modal-btn-primary" onClick={onInstall}>
+          지금 재시작
+        </button>
+      );
+    }
     if (status === 'not-available' || status === 'error') {
       return (
         <button className="update-modal-btn update-modal-btn-primary" onClick={onClose}>

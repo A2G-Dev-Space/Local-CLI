@@ -1339,11 +1339,11 @@ export function setupIpcHandlers(): void {
     }
   });
 
-  // 설치 (재시작)
+  // 설치 (silent NSIS install + 자동 재시작)
   ipcMain.handle('update:install', async () => {
     try {
       const { autoUpdater } = await import('electron-updater');
-      autoUpdater.quitAndInstall();
+      autoUpdater.quitAndInstall(true, true);
     } catch (error) {
       logger.error('Failed to install update', { error });
     }
