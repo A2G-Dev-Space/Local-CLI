@@ -166,6 +166,11 @@ export class WorkerManager {
 
     return new Promise((resolve, reject) => {
       entry.isRunning = true;
+      // Resolve any existing pending run (e.g. paused run) so old sendMessage Promise settles
+      const existing = this.pendingRuns.get(sessionId);
+      if (existing) {
+        existing.resolve({ success: true, response: '', messages: [], toolCalls: [], iterations: 0 });
+      }
       this.pendingRuns.set(sessionId, { resolve, reject });
 
       this.sendToWorker(sessionId, {
@@ -181,6 +186,8 @@ export class WorkerManager {
    * Pause agent in a worker (cancel LLM call but keep TODOs for resume)
    */
   pauseAgent(sessionId: string): void {
+    const entry = this.workers.get(sessionId);
+    if (entry) entry.isRunning = false;
     this.sendToWorker(sessionId, { type: 'pause' });
     this.dismissPendingModals(sessionId);
   }
