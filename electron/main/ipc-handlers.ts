@@ -539,6 +539,25 @@ export function setupIpcHandlers(): void {
     };
   });
 
+  // UI 상태 저장 (열린 탭 목록 — 앱 재시작 시 복원용)
+  ipcMain.handle('session:saveUIState', async (_event, state: { tabs: string[]; activeTabId: string | null }) => {
+    try {
+      await sessionManager.saveUIState(state);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // UI 상태 로드 (앱 시작 시 이전 탭 복원)
+  ipcMain.handle('session:loadUIState', async () => {
+    try {
+      return await sessionManager.loadUIState();
+    } catch {
+      return null;
+    }
+  });
+
   // ============ 파일 다이얼로그 ============
 
   // 파일 열기 다이얼로그
@@ -1851,7 +1870,22 @@ export function setupIpcHandlers(): void {
     }
   });
 
-  // Agent 중단 (sessionId optional)
+  // Agent 일시정지 — TODO 유지, 현재 LLM 호출만 중단 (sessionId optional)
+  ipcMain.handle('agent:pause', (_event, sessionId?: string) => {
+    try {
+      if (sessionId && workerManager.hasWorker(sessionId)) {
+        workerManager.pauseAgent(sessionId);
+        return { success: true };
+      }
+      // Fallback: treat as abort for legacy
+      abortAgent();
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // Agent 중단 — TODO 전부 삭제 (sessionId optional)
   ipcMain.handle('agent:abort', (_event, sessionId?: string) => {
     try {
       if (sessionId && workerManager.hasWorker(sessionId)) {

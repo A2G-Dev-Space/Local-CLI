@@ -231,6 +231,7 @@ export interface AgentConfig {
   workingDirectory?: string;
   isGitRepo?: boolean;
   autoMode?: boolean; // true = allow all permissions, false = supervised mode (ask for approval)
+  resumeTodos?: boolean; // true = resume with existing TODOs after pause (skip re-planning)
 }
 
 export interface AgentToolCall {
@@ -459,6 +460,14 @@ const electronAPI = {
 
     getPath: (): Promise<{ sessionsDir: string }> => {
       return ipcRenderer.invoke('session:getPath');
+    },
+
+    saveUIState: (state: { tabs: string[]; activeTabId: string | null }): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke('session:saveUIState', state);
+    },
+
+    loadUIState: (): Promise<{ tabs: string[]; activeTabId: string | null } | null> => {
+      return ipcRenderer.invoke('session:loadUIState');
     },
   },
 
@@ -750,7 +759,12 @@ const electronAPI = {
       return ipcRenderer.invoke('agent:run', userMessage, existingMessages, config, sessionId);
     },
 
-    // 에이전트 중단 (sessionId optional)
+    // 에이전트 일시정지 — TODO 유지 (sessionId optional)
+    pause: (sessionId?: string): Promise<{ success: boolean }> => {
+      return ipcRenderer.invoke('agent:pause', sessionId);
+    },
+
+    // 에이전트 중단 — TODO 전부 삭제 (sessionId optional)
     abort: (sessionId?: string): Promise<{ success: boolean }> => {
       return ipcRenderer.invoke('agent:abort', sessionId);
     },

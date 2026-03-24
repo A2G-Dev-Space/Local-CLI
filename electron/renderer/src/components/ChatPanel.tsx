@@ -554,6 +554,16 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
   const sendMessage = useCallback(async () => {
     if ((!input.trim() && attachedImages.length === 0) || isLoading) return;
 
+    // Detect resume scenario: user typed correction while paused with pending TODOs
+    const hasPendingTodos = todos.some(
+      (t: { status: string }) => t.status === 'pending' || t.status === 'in_progress'
+    );
+    const shouldResume = isPaused && hasPendingTodos;
+    if (isPaused) {
+      setIsPaused(false);
+      setAbortMessage(null);
+    }
+
     // Claim a run ID. If handleAbort() or another sendMessage() increments this
     // while we're awaiting agent.run(), our result is stale and must be discarded.
     sendRunIdRef.current++;
@@ -607,6 +617,11 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
     // Clear progress messages but keep tool executions visible
     // Tool executions are cleared only on explicit "Clear Chat", not between messages
     clearProgressMessages();
+
+    // On resume after pause: clear old tool executions so new ones appear after user's correction message
+    if (shouldResume) {
+      clearToolExecutions();
+    }
 
     // Auto-create session if none exists
     if (!sessionRef.current && window.electronAPI?.session) {
@@ -668,6 +683,7 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
     const agentConfig: AgentConfig = {
       workingDirectory: currentDirectory,
       autoMode: allowAllPermissions,
+      ...(shouldResume ? { resumeTodos: true } : {}),
     };
 
     try {
@@ -796,7 +812,7 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
         window.electronAPI?.log?.debug?.('[ChatPanel] sendMessage FINALLY - skipped (stale run)', { myRunId, currentRunId: sendRunIdRef.current });
       }
     }
-  }, [input, isLoading, messages, saveMessageToSession, currentDirectory, allowAllPermissions, clearProgressMessages, setIsExecuting, attachedImages]);
+  }, [input, isLoading, messages, saveMessageToSession, currentDirectory, allowAllPermissions, clearProgressMessages, clearToolExecutions, setIsExecuting, attachedImages, isPaused, todos]);
 
   // Retry handler — 마지막 유저 메시지로 자동 재전송
   const handleRetry = useCallback(() => {
@@ -817,33 +833,40 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
     }
   }, [input, isLoading, sendMessage]);
 
-  // Abort message state
+  // Abort/Pause state
   const [abortMessage, setAbortMessage] = useState<string | null>(null);
+  const [isPaused, setIsPaused] = useState(false);
 
-  // Abort agent execution
+  // Two-stage abort: 1st click = pause (keep TODOs), 2nd click = full stop (clear TODOs)
   const handleAbort = useCallback(async () => {
-    window.electronAPI?.log?.info?.('[ChatPanel] handleAbort called', { isLoading, sessionId: sessionIdProp });
+    if (!window.electronAPI?.agent) return;
 
-    // Invalidate the current sendMessage run so its stale result is discarded.
-    // Without this, the old sendMessage's agent.run() would eventually return
-    // and process its result (adding duplicate responses, saving corrupted session).
-    sendRunIdRef.current++;
-
-    if (window.electronAPI?.agent) {
+    if (isPaused) {
+      // 2nd click (or click while paused): full stop
+      window.electronAPI?.log?.info?.('[ChatPanel] handleAbort: full stop (2nd click)', { sessionId: sessionIdProp });
+      sendRunIdRef.current++;
       await window.electronAPI.agent.abort(sessionIdProp);
-      window.electronAPI?.log?.info?.('[ChatPanel] Agent aborted, clearing state');
       setIsLoading(false);
       setIsExecuting(false);
-      // Delay skipSessionLoadRef reset to prevent session load effect from overwriting messages
-      setTimeout(() => {
-        skipSessionLoadRef.current = false;
-      }, 500);
-      clearTodos(); // Clear UI todos so next message triggers fresh planning
+      setIsPaused(false);
+      clearTodos();
+      setTimeout(() => { skipSessionLoadRef.current = false; }, 500);
       setAbortMessage(t('chat.aborted'));
-
       setTimeout(() => setAbortMessage(null), 5000);
+    } else if (isLoading) {
+      // 1st click: pause (keep TODOs for resume)
+      window.electronAPI?.log?.info?.('[ChatPanel] handleAbort: pause (1st click)', { sessionId: sessionIdProp });
+      sendRunIdRef.current++;
+      await window.electronAPI.agent.pause(sessionIdProp);
+      setIsLoading(false);
+      setIsExecuting(false);
+      setIsPaused(true);
+      setTimeout(() => { skipSessionLoadRef.current = false; }, 500);
+      // Don't clearTodos() — user can resume with correction
+      setAbortMessage('⏸ ' + t('chat.paused', '일시정지 — 수정 메시지를 입력하면 이어서 실행합니다. 다시 중지하면 취소됩니다.'));
+      // Don't auto-hide pause message — it should stay until user acts
     }
-  }, [setIsExecuting, clearTodos, isLoading, t, sessionIdProp]);
+  }, [setIsExecuting, clearTodos, isLoading, isPaused, t, sessionIdProp]);
 
   // Handle keyboard events (arrow up/down history disabled for Electron)
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -859,11 +882,11 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
     // Arrow up/down history navigation disabled for Electron
     // Users can use normal text editing with arrow keys
 
-    if (e.key === 'Escape' && isLoading) {
+    if (e.key === 'Escape' && (isLoading || isPaused)) {
       e.preventDefault();
       handleAbort();
     }
-  }, [sendMessage, isLoading, handleAbort]);
+  }, [sendMessage, isLoading, isPaused, handleAbort]);
 
   // Handle paste (HTML table → markdown, image → attachment)
   const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
@@ -1087,6 +1110,8 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
     }
     setIsExecuting(false);
     setIsLoading(false);
+    setIsPaused(false);
+    setAbortMessage(null);
     setAttachedImages([]);
 
     if (session && onSessionChange) {
@@ -1332,14 +1357,17 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
                 </svg>
               </button>
             )}
-            {isLoading ? (
+            {isLoading || isPaused ? (
               <button
-                className="chat-send-btn chat-abort-btn"
+                className={`chat-send-btn chat-abort-btn${isPaused ? ' chat-abort-paused' : ''}`}
                 onClick={handleAbort}
-                title={t('chat.stop')}
+                title={isPaused ? t('chat.stopFull', '완전 중지') : t('chat.stop')}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M6 6h12v12H6z"/>
+                  {isPaused
+                    ? <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                    : <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+                  }
                 </svg>
               </button>
             ) : (

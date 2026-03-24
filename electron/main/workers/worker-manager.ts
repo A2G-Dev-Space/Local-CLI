@@ -178,7 +178,15 @@ export class WorkerManager {
   }
 
   /**
-   * Abort agent in a worker
+   * Pause agent in a worker (cancel LLM call but keep TODOs for resume)
+   */
+  pauseAgent(sessionId: string): void {
+    this.sendToWorker(sessionId, { type: 'pause' });
+    this.dismissPendingModals(sessionId);
+  }
+
+  /**
+   * Abort agent in a worker (full stop, clear TODOs)
    */
   abortAgent(sessionId: string): void {
     this.sendToWorker(sessionId, { type: 'abort' });
@@ -194,7 +202,7 @@ export class WorkerManager {
     // Clear cached todos and broadcast empty state to task window
     this.sessionTodos.delete(sessionId);
     if (this.taskWindow && !this.taskWindow.isDestroyed()) {
-      this.taskWindow.webContents.send('agent:todoUpdate', { sessionId, items: [] });
+      this.taskWindow.webContents.send('agent:todoUpdate', [], sessionId);
     }
   }
 

@@ -169,9 +169,39 @@ port.on('message', async (msg: MainToWorkerMessage) => {
       break;
     }
 
+    case 'pause': {
+      try {
+        // Pause: cancel current LLM call but KEEP todos for resume
+        llmClient.abort();
+
+        if (agentState.abortController) {
+          agentState.abortController.abort();
+          agentState.abortController = null;
+        }
+        agentState.isRunning = false;
+        // NOTE: currentTodos intentionally NOT cleared — user can resume
+
+        // Reject pending approvals/askUser
+        for (const [id, { resolve, timer }] of pendingApprovals) {
+          clearTimeout(timer);
+          resolve({ reject: true, comment: 'Agent paused' });
+        }
+        pendingApprovals.clear();
+
+        for (const [id, { resolve, timer }] of pendingAskUser) {
+          clearTimeout(timer);
+          resolve({ selectedOption: '', isOther: false });
+        }
+        pendingAskUser.clear();
+      } catch (error) {
+        logger.errorSilent('[Worker] Error during pause cleanup', { error: (error as Error)?.message, sessionId });
+      }
+      break;
+    }
+
     case 'abort': {
       try {
-        // Abort LLM HTTP request (sets isInterrupted flag + cancels in-flight fetch)
+        // Full abort: cancel LLM + clear all state
         llmClient.abort();
 
         if (agentState.abortController) {
