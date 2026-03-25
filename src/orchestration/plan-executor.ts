@@ -46,7 +46,7 @@ import { getWindowsUserDesktopPath } from '../utils/platform-utils.js';
 
 import type { StateCallbacks } from './types.js';
 import { formatErrorMessage, buildTodoContext, flattenMessagesToHistory, findActiveTodo, getTodoStats } from './utils.js';
-import { reportError } from '../core/telemetry/error-reporter.js';
+import { reportError, updateRecentMessagesForTelemetry } from '../core/telemetry/error-reporter.js';
 import { LLMRetryExhaustedError } from '../errors/llm.js';
 
 /**
@@ -400,6 +400,8 @@ export class PlanExecutor {
       const errorMessage = formatErrorMessage(error);
 
       callbacks.setMessages((prev: Message[]) => {
+        // 에러 보고에 최근 메시지 컨텍스트 업데이트
+        try { updateRecentMessagesForTelemetry(prev); } catch { /* ignore */ }
         const updatedMessages: Message[] = [
           ...prev,
           { role: 'assistant' as const, content: `Execution error:\n\n${errorMessage}` }

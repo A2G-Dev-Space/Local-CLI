@@ -789,8 +789,10 @@ export class LLMClient {
     let noToolCallRetries = 0;  // Prevent infinite loop when LLM doesn't use tools
     let finalResponseFailures = 0;  // Prevent infinite loop when final_response keeps failing
     let consecutiveParseFailures = 0;  // Prevent infinite loop when model can't generate JSON
+    let consecutiveTellToUserCalls = 0;  // Prevent tell_to_user infinite loop
     const MAX_NO_TOOL_CALL_RETRIES = 3;  // Max retries for enforcing tool usage
     const MAX_FINAL_RESPONSE_FAILURES = 3;  // Max retries for final_response failures
+    const MAX_CONSECUTIVE_TELL_TO_USER = 2;  // Max consecutive tell_to_user before forcing final_response
     const MAX_CONSECUTIVE_PARSE_FAILURES = 3;  // Max retries for arg parse failures
 
     // Track parse failure tool_call_ids — stripped from returned history
@@ -1122,6 +1124,40 @@ Retry with correct parameter names and types.`;
 
           // JSON parse + schema validation 모두 통과 → 연속 실패 카운터 리셋
           consecutiveParseFailures = 0;
+
+          // tell_to_user 연속 호출 감지 — 무한루프 방지
+          if (toolName === 'tell_to_user') {
+            consecutiveTellToUserCalls++;
+            logger.info('[CHAT] tell_to_user called', {
+              consecutive: consecutiveTellToUserCalls,
+              message: (toolArgs['message'] as string || '').substring(0, 300),
+            });
+
+            if (consecutiveTellToUserCalls > MAX_CONSECUTIVE_TELL_TO_USER) {
+              logger.error(`[LOOP DETECTED] tell_to_user called ${consecutiveTellToUserCalls} times consecutively — forcing final_response`, {
+                lastMessage: (toolArgs['message'] as string || '').substring(0, 200),
+              });
+              reportError(new Error(`tell_to_user infinite loop detected (${consecutiveTellToUserCalls} consecutive calls)`), {
+                type: 'tellToUserLoop',
+                consecutiveCalls: consecutiveTellToUserCalls,
+                lastMessage: (toolArgs['message'] as string || '').substring(0, 500),
+                modelId: this.model,
+                modelName: this.modelName,
+                iterations,
+              }).catch(() => {});
+
+              addMessage({
+                role: 'tool',
+                content: `Error: tell_to_user has been called ${consecutiveTellToUserCalls} times consecutively. This indicates an infinite loop. You MUST call final_response now to complete the task. Do NOT call tell_to_user again.`,
+                tool_call_id: toolCall.id,
+              });
+              toolCallHistory.push({ tool: toolName, args: toolArgs, result: 'Error: consecutive tell_to_user loop detected' });
+              continue;
+            }
+          } else {
+            // 다른 tool 호출 시 카운터 리셋
+            consecutiveTellToUserCalls = 0;
+          }
 
           // Tool 실행
           const { executeFileTool, executeAgentTool, requestToolApproval } = await import('../../tools/llm/simple/file-tools.js');

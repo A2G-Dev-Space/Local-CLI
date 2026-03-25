@@ -14,7 +14,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { llmClient, Message } from '../core/llm';
 import { logger } from '../utils/logger';
-import { reportError } from '../core/telemetry/error-reporter';
+import { reportError, updateRecentMessagesForTelemetry } from '../core/telemetry/error-reporter';
 import { detectGitRepo } from '../utils/git-utils';
 import { toolRegistry, executeSimpleTool } from '../tools';
 import { executeAgentTool } from '../tools/llm/simple/simple-tool-executor';
@@ -522,6 +522,8 @@ export async function runAgentCore(
   const MAX_FINAL_RESPONSE_FAILURES = 3;
   let consecutiveParseFailures = 0;
   const MAX_CONSECUTIVE_PARSE_FAILURES = 3;
+  let consecutiveTellToUserCalls = 0;
+  const MAX_CONSECUTIVE_TELL_TO_USER = 2;
 
   const parseFailureToolCallIds = new Set<string>();
   const stripParseFailures = (msgs: Message[]): Message[] => {
@@ -871,6 +873,38 @@ Retry with correct parameter names and types.`;
 
           // Parse + schema validation passed → reset counter
           consecutiveParseFailures = 0;
+
+          // tell_to_user 연속 호출 감지 — 무한루프 방지
+          if (toolName === 'tell_to_user') {
+            consecutiveTellToUserCalls++;
+            logger.info('[CHAT] tell_to_user called', {
+              consecutive: consecutiveTellToUserCalls,
+              message: (toolArgs['message'] as string || '').substring(0, 300),
+            });
+
+            if (consecutiveTellToUserCalls > MAX_CONSECUTIVE_TELL_TO_USER) {
+              logger.errorSilent(`[LOOP DETECTED] tell_to_user called ${consecutiveTellToUserCalls} times consecutively — forcing final_response`, {
+                lastMessage: (toolArgs['message'] as string || '').substring(0, 200),
+              });
+              reportError(new Error(`tell_to_user infinite loop detected (${consecutiveTellToUserCalls} consecutive calls)`), {
+                type: 'tellToUserLoop',
+                consecutiveCalls: consecutiveTellToUserCalls,
+                lastMessage: (toolArgs['message'] as string || '').substring(0, 500),
+                ...errorContext,
+                iterations,
+              }).catch(() => {});
+
+              addMessage({
+                role: 'tool',
+                content: `Error: tell_to_user has been called ${consecutiveTellToUserCalls} times consecutively. This indicates an infinite loop. You MUST call final_response now to complete the task. Do NOT call tell_to_user again.`,
+                tool_call_id: toolCall.id,
+              });
+              toolCallHistory.push({ tool: toolName, args: toolArgs, result: 'Error: consecutive tell_to_user loop detected', success: false });
+              continue;
+            }
+          } else {
+            consecutiveTellToUserCalls = 0;
+          }
 
           logger.info(`Executing tool: ${toolName}`, { args: JSON.stringify(toolArgs).substring(0, 200) });
 
@@ -1274,6 +1308,7 @@ Retry with correct parameter names and types.`;
       if (error instanceof LLMRetryExhaustedError) {
         io.broadcast('agent:retryableError', { error: errorMessage });
       } else {
+        try { updateRecentMessagesForTelemetry(messages); } catch { /* ignore */ }
         reportError(error, { type: 'agent', method: 'runAgent' }).catch(() => {});
         if (callbacks.onError) {
           callbacks.onError(error instanceof Error ? error : new Error(errorMessage));

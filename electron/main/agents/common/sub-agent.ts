@@ -242,13 +242,23 @@ export class SubAgent {
         }
 
         totalToolCalls++;
-        logger.info(`SubAgent[${this.appName}] executing tool`, { toolName, iteration: iterations });
+        const toolStartTime = Date.now();
 
         try {
           const result = await tool.execute(args);
+          const toolDuration = Date.now() - toolStartTime;
           const resultText = result.success
             ? result.result || '(success, no output)'
             : `Error: ${result.error || 'Unknown error'}`;
+
+          // Always log tool calls for debugging
+          logger.info(`[SubAgent:${this.appName}] Tool #${totalToolCalls} (iter ${iterations})`, {
+            tool: toolName,
+            args: JSON.stringify(args).slice(0, 500),
+            result: resultText.slice(0, 1000),
+            success: result.success,
+            duration: toolDuration,
+          });
 
           toolResults.push({
             role: 'tool',
@@ -260,7 +270,16 @@ export class SubAgent {
             globalToolCallLogger(this.appName, toolName, args, resultText, result.success, iterations, totalToolCalls);
           }
         } catch (error) {
+          const toolDuration = Date.now() - toolStartTime;
           const errorMsg = error instanceof Error ? error.message : String(error);
+
+          logger.errorSilent(`[SubAgent:${this.appName}] Tool #${totalToolCalls} FAILED (iter ${iterations})`, {
+            tool: toolName,
+            args: JSON.stringify(args).slice(0, 500),
+            error: errorMsg,
+            duration: toolDuration,
+          } as any);
+
           toolResults.push({
             role: 'tool',
             content: `Error executing ${toolName}: ${errorMsg}`,
