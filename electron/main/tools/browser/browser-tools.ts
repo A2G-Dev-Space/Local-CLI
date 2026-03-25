@@ -349,7 +349,7 @@ async function executeBrowserScreenshot(args: Record<string, unknown>): Promise<
         result: `Screenshot captured${response['title'] ? ` of "${response['title']}"` : ''}${response['url'] ? ` (${response['url']})` : ''}\nSaved to: ${filepath}\n\nTo verify this screenshot, call read_image with file_path="${filepath}"`,
         metadata: {
           image: response['image'] as string,
-          imageType: 'image/png',
+          imageType: 'image/jpeg',
           encoding: 'base64',
           url: response['url'] as string,
           title: response['title'] as string,
@@ -549,8 +549,12 @@ async function executeBrowserExecuteScript(args: Record<string, unknown>): Promi
   try {
     const response = await browserClient.executeScript(args['script'] as string);
     if (response.success) {
-      logger.toolSuccess('browser_execute_script', { scriptLength: (args['script'] as string)?.length }, { hasResult: !!response['result'] }, Date.now() - startTime);
-      return { success: true, result: JSON.stringify(response['result'], null, 2) };
+      const resultStr = JSON.stringify(response['result'], null, 2);
+      const truncated = resultStr.length > 5000
+        ? resultStr.slice(0, 5000) + `\n...(truncated, ${resultStr.length} total chars)`
+        : resultStr;
+      logger.toolSuccess('browser_execute_script', { scriptLength: (args['script'] as string)?.length }, { hasResult: !!response['result'], resultLength: resultStr.length }, Date.now() - startTime);
+      return { success: true, result: truncated };
     }
     logger.toolError('browser_execute_script', args, new Error(response.error || 'Script execution failed'), Date.now() - startTime);
     return { success: false, error: response.error || 'Script execution failed' };

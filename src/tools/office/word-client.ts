@@ -819,9 +819,12 @@ try {
     return
   }
 
-  # Convert to base64
+  # Convert to JPEG quality 60 for smaller context footprint
   $ms = New-Object System.IO.MemoryStream
-  $img.Save($ms, [System.Drawing.Imaging.ImageFormat]::Png)
+  $jpegCodec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq 'image/jpeg' }
+  $encoderParams = New-Object System.Drawing.Imaging.EncoderParameters(1)
+  $encoderParams.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality, [long]60)
+  $img.Save($ms, $jpegCodec, $encoderParams)
   $bytes = $ms.ToArray()
   $base64 = [Convert]::ToBase64String($bytes)
   $ms.Dispose()
@@ -833,7 +836,7 @@ try {
   @{
     success = $true
     image = $base64
-    format = "png"
+    format = "jpeg"
     encoding = "base64"
   } | ConvertTo-Json -Compress
 } finally {

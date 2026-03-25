@@ -236,7 +236,7 @@ async function executeBrowserScreenshot(args: Record<string, unknown>): Promise<
       result: `Screenshot captured of "${response.title}" (${response.url})\nSaved to: ${savedPath}\n\nTo verify this screenshot, call read_image with file_path="${savedPath}"`,
       metadata: {
         image: response.image,
-        imageType: 'image/png',
+        imageType: 'image/jpeg',
         encoding: 'base64',
         url: response.url,
         title: response.title,
@@ -1116,10 +1116,14 @@ async function executeBrowserExecuteScript(args: Record<string, unknown>): Promi
       };
     }
 
-    logger.toolSuccess('browser_execute_script', args, { scriptLength: script.length }, Date.now() - startTime);
+    const resultStr = JSON.stringify(response['result'], null, 2);
+    const truncated = resultStr.length > 5000
+      ? resultStr.slice(0, 5000) + `\n...(truncated, ${resultStr.length} total chars)`
+      : resultStr;
+    logger.toolSuccess('browser_execute_script', args, { scriptLength: script.length, resultLength: resultStr.length }, Date.now() - startTime);
     return {
       success: true,
-      result: JSON.stringify(response['result'], null, 2),
+      result: truncated,
     };
   } catch (error) {
     logger.toolError('browser_execute_script', args, error as Error, Date.now() - startTime);

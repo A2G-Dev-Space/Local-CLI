@@ -479,9 +479,9 @@ $ppt = [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Applicatio
 $presentation = $ppt.ActivePresentation
 $slide = $presentation.Slides($ppt.ActiveWindow.View.Slide.SlideIndex)
 
-# Export slide as image
-$tempPath = [System.IO.Path]::GetTempFileName() + ".png"
-$slide.Export($tempPath, "PNG")
+# Export slide as JPEG for smaller context footprint
+$tempPath = [System.IO.Path]::GetTempFileName() + ".jpg"
+$slide.Export($tempPath, "JPG")
 
 # Read and convert to base64
 $bytes = [System.IO.File]::ReadAllBytes($tempPath)
@@ -493,7 +493,7 @@ Remove-Item $tempPath -Force
 @{
   success = $true
   image = $base64
-  format = "png"
+  format = "jpeg"
   encoding = "base64"
 } | ConvertTo-Json -Compress
 `);

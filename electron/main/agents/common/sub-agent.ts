@@ -19,6 +19,7 @@ import type { LLMClient } from '../../core/llm';
 import type { Message, ToolDefinition } from '../../core';
 import type { LLMSimpleTool, ToolResult } from '../../tools/types';
 import { COMPLETE_TOOL_DEFINITION } from './complete-tool';
+import { configManager } from '../../core/config';
 import { logger } from '../../utils/logger';
 
 // Global callback for SubAgent event logging (opt-in)
@@ -65,6 +66,7 @@ export class SubAgent {
   private enhancementPrompt?: string;
   private minToolCallsBeforeComplete: number;
   private executionRules?: string;
+  private maxTokens: number;
 
   constructor(
     llmClient: LLMClient,
@@ -79,6 +81,8 @@ export class SubAgent {
     this.systemPrompt = systemPrompt;
     this.maxIterations = config?.maxIterations ?? 15;
     this.temperature = config?.temperature ?? 0.3;
+    const modelContext = configManager.getCurrentModel()?.maxTokens || 128000;
+    this.maxTokens = config?.maxTokens ?? Math.min(8192, Math.floor(modelContext * 0.1));
     this.planningPrompt = config?.planningPrompt;
     this.enhancementPrompt = config?.enhancementPrompt;
     this.minToolCallsBeforeComplete = config?.minToolCallsBeforeComplete ?? 0;
@@ -171,6 +175,7 @@ export class SubAgent {
         messages: messagesForLLM,
         tools: toolDefinitions,
         temperature: this.temperature,
+        max_tokens: this.maxTokens,
       });
 
       const assistantMessage = response.choices[0]?.message;
@@ -296,8 +301,31 @@ export class SubAgent {
       if (plan) {
         historyText += this.flattenExchange(pendingMessages);
         pendingMessages = [assistantMessage, ...toolResults];
+
+        // Plan mode context protection: cap historyText to prevent unbounded growth
+        const HISTORY_MAX_CHARS = 50000;
+        if (historyText.length > HISTORY_MAX_CHARS) {
+          const trimmed = historyText.slice(-HISTORY_MAX_CHARS);
+          const firstEntry = trimmed.indexOf('[ASSISTANT]');
+          historyText = firstEntry > 0
+            ? '...(earlier history omitted)\n' + trimmed.slice(firstEntry)
+            : '...(earlier history omitted)\n' + trimmed;
+          logger.info(`SubAgent[${this.appName}] compacted historyText to ${historyText.length} chars`);
+        }
       } else {
         simpleMessages.push(assistantMessage, ...toolResults);
+
+        // Simple mode context protection: compact old tool results to prevent unbounded growth
+        if (simpleMessages.length > 10) {
+          const keepRecentCount = 6; // Keep last ~3 exchanges intact
+          const compactBoundary = simpleMessages.length - keepRecentCount;
+          for (let i = 2; i < compactBoundary; i++) {
+            const msg = simpleMessages[i]!;
+            if (msg.role === 'tool' && msg.content && msg.content.length > 500) {
+              simpleMessages[i] = { role: msg.role, content: msg.content.slice(0, 500) + '...(compacted)', tool_call_id: msg.tool_call_id };
+            }
+          }
+        }
       }
     }
 
