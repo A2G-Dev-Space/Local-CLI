@@ -32,7 +32,7 @@ export const APP_LAUNCH_DELAY_MS = 3000;
  */
 export async function saveScreenshot(base64Image: string, appName: string): Promise<string> {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const filename = `${appName}_screenshot_${timestamp}.png`;
+  const filename = `${appName}_screenshot_${timestamp}.jpg`;
   const filePath = path.join(process.cwd(), filename);
   const buffer = Buffer.from(base64Image, 'base64');
   await fs.writeFile(filePath, buffer);

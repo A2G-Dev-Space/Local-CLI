@@ -568,6 +568,7 @@ export class LLMClient {
         messages: processedMessages,
         temperature: options.temperature ?? 0.7,
         stream: true,
+        ...(options.max_tokens && { max_tokens: options.max_tokens }),
         // GPT-OSS reasoning models: always use high reasoning effort
         ...(/^gpt-oss-(120b|20b)$/i.test(modelId) && { reasoning_effort: 'high' }),
         ...(options.tools && {

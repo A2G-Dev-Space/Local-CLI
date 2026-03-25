@@ -217,10 +217,14 @@ async function executeExcelReadRange(args: Record<string, unknown>): Promise<Too
       const values = response['values'];
       const rows = response['rows'] as number || 0;
       const cols = response['columns'] as number || 0;
+      const resultStr = JSON.stringify(values, null, 2);
+      const truncated = resultStr.length > 10000
+        ? resultStr.slice(0, 10000) + `\n...(truncated, ${resultStr.length} total chars. Read a smaller range for full data.)`
+        : resultStr;
       logger.toolSuccess('excel_read_range', args, { range: args['range'], rows, cols }, Date.now() - startTime);
       return {
         success: true,
-        result: `Range ${args['range']} (${rows}x${cols}):\n${JSON.stringify(values, null, 2)}`,
+        result: `Range ${args['range']} (${rows}x${cols}):\n${truncated}`,
       };
     }
     logger.toolError('excel_read_range', args, new Error(response.error || 'Failed to read range'), Date.now() - startTime);

@@ -887,8 +887,8 @@ class BrowserClient {
         return { success: false, error: 'Browser not running. Use launch first.' };
       }
 
-      // 스크린샷 옵션
-      const params: Record<string, unknown> = { format: 'png' };
+      // 스크린샷 옵션 — JPEG quality 60 for smaller context footprint
+      const params: Record<string, unknown> = { format: 'jpeg', quality: 60 };
 
       if (fullPage) {
         // 전체 페이지 크기 가져오기
@@ -901,7 +901,7 @@ class BrowserClient {
           y: 0,
           width: layoutMetrics.contentSize.width,
           height: layoutMetrics.contentSize.height,
-          scale: 1,
+          scale: 0.8,
         };
         params['captureBeyondViewport'] = true;
       }
@@ -915,7 +915,7 @@ class BrowserClient {
         success: true,
         message: 'Screenshot captured',
         image: result.data,
-        format: 'png',
+        format: 'jpeg',
         encoding: 'base64',
         url: pageInfo.url,
         title: pageInfo.title,
@@ -1191,10 +1191,15 @@ class BrowserClient {
    * Get console logs
    */
   async getConsole(): Promise<ConsoleResponse> {
+    if (!this.cdp || !this.cdp.isConnected()) {
+      return { success: false, error: 'Browser not running. Use launch first.', logs: [], count: 0 };
+    }
+    // Return only the most recent 50 entries to prevent context bloat
+    const recentLogs = this.consoleLogs.slice(-50);
     return {
       success: true,
-      message: 'Console logs retrieved',
-      logs: [...this.consoleLogs],
+      message: `Console logs retrieved (${recentLogs.length} of ${this.consoleLogs.length} total)`,
+      logs: recentLogs,
       count: this.consoleLogs.length,
     };
   }
@@ -1246,6 +1251,9 @@ class BrowserClient {
    * Get network logs
    */
   async getNetwork(): Promise<NetworkResponse> {
+    if (!this.cdp || !this.cdp.isConnected()) {
+      return { success: false, error: 'Browser not running. Use launch first.', logs: [], count: 0 };
+    }
     return {
       success: true,
       message: 'Network logs retrieved',
@@ -1462,7 +1470,7 @@ class BrowserClient {
    */
   saveScreenshot(base64Image: string, prefix: string = 'browser'): string {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const filename = `${prefix}_screenshot_${timestamp}.png`;
+    const filename = `${prefix}_screenshot_${timestamp}.jpg`;
     const filepath = path.join(process.cwd(), filename);
 
     const imageBuffer = Buffer.from(base64Image, 'base64');

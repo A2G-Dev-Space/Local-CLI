@@ -233,9 +233,12 @@ Supported formats: PNG, JPEG, GIF, WebP, BMP. Max size: 100MB.`,
       }
 
       const fileName = path.basename(resolvedPath);
+      const truncatedVl = vlResponse.length > 5000
+        ? vlResponse.slice(0, 5000) + '\n...(vision analysis truncated)'
+        : vlResponse;
       return {
         success: true,
-        result: `Image Analysis (${fileName}, via ${vlModel.name || vlModel.id}):\n\n${vlResponse}`,
+        result: `Image Analysis (${fileName}, via ${vlModel.name || vlModel.id}):\n\n${truncatedVl}`,
       };
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
