@@ -1357,19 +1357,38 @@ const ChatPanel = forwardRef<ChatPanelRef, ChatPanelProps>(({
                 </svg>
               </button>
             )}
-            {isLoading || isPaused ? (
+            {isLoading ? (
               <button
-                className={`chat-send-btn chat-abort-btn${isPaused ? ' chat-abort-paused' : ''}`}
+                className="chat-send-btn chat-abort-btn"
                 onClick={handleAbort}
-                title={isPaused ? t('chat.stopFull', '완전 중지') : t('chat.stop')}
+                title={t('chat.stop')}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                  {isPaused
-                    ? <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-                    : <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
-                  }
+                  <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
                 </svg>
               </button>
+            ) : isPaused ? (
+              <>
+                <button
+                  className="chat-send-btn chat-abort-paused"
+                  onClick={handleAbort}
+                  title={t('chat.stopFull', '완전 중지')}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                  </svg>
+                </button>
+                <button
+                  className="chat-send-btn chat-resume-btn"
+                  onClick={sendMessage}
+                  disabled={!input.trim() && attachedImages.length === 0}
+                  title={t('chat.resume', '수정 후 이어서 실행')}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z"/>
+                  </svg>
+                </button>
+              </>
             ) : (
               <button
                 className="chat-send-btn"

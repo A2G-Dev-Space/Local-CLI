@@ -15,6 +15,7 @@ import type { LLMSimpleTool } from '../../tools/types';
 import { findVisionModel } from '../../tools/llm/simple/read-image-tool';
 import { runDesktopControl } from './desktop-control-sub-agent';
 import { DESKTOP_CONTROL_TOOL_DESCRIPTION } from './prompts';
+import { logger } from '../../utils/logger';
 
 /**
  * Create the desktop_control_agent tool.
@@ -65,7 +66,10 @@ export function createDesktopControlTool(): LLMSimpleTool {
         ? Math.max(1, Math.min(Math.round(rawMaxSteps), 100))
         : 30;
 
-      return runDesktopControl(task, { maxSteps });
+      logger.info('[desktop-control] Tool invoked', { task: task.slice(0, 100), maxSteps, vlModel: vlModel.model.name || vlModel.model.id });
+      const result = await runDesktopControl(task, { maxSteps });
+      logger.info('[desktop-control] Tool completed', { success: result.success, hasError: !!result.error, resultLength: result.result?.length ?? 0 });
+      return result;
     },
   };
 }

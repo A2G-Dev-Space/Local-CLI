@@ -128,6 +128,8 @@ export class DesktopControlSubAgent {
     const startTime = Date.now();
     const history: ActionHistoryEntry[] = [];
     const stepLogs: StepLog[] = [];
+    let consecutiveFailures = 0;
+    const MAX_CONSECUTIVE_FAILURES = 3;
 
     logger.enter('DesktopControlSubAgent.run');
     emitPhase('start', `Task: "${this.task.slice(0, 80)}" | VLM: ${this.vlModelName} | Max steps: ${this.maxSteps}`);
@@ -180,15 +182,23 @@ export class DesktopControlSubAgent {
         stepLog.vlmRawResponse = rawResponse?.slice(0, 500);
 
         if (!action) {
+          consecutiveFailures++;
           stepLog.actionResult = 'failed';
           stepLog.actionError = 'VLM returned no valid action';
           stepLogs.push(stepLog);
-          emitPhase('vlm-fail', `[${step}/${this.maxSteps}] No valid action (${vlmLatency}ms). Raw: "${(rawResponse || 'empty').slice(0, 100)}"`);
+          emitPhase('vlm-fail', `[${step}/${this.maxSteps}] No valid action (${vlmLatency}ms) [fail ${consecutiveFailures}/${MAX_CONSECUTIVE_FAILURES}]. Raw: "${(rawResponse || 'empty').slice(0, 100)}"`);
           history.push({ step, action: { action: 'wait', ms: 500 }, success: false, error: 'VLM returned invalid response' });
+          if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+            cleanupScreenshots();
+            emitPhase('error', `Aborting: ${MAX_CONSECUTIVE_FAILURES} consecutive VLM failures`);
+            logger.exit('DesktopControlSubAgent.run', { success: false, consecutiveFailures });
+            return this.buildFinalResult(false, `Desktop control aborted: ${MAX_CONSECUTIVE_FAILURES} consecutive VLM failures. Last response: "${(rawResponse || 'empty').slice(0, 200)}"`, undefined, step, startTime, stepLogs, history);
+          }
           await this.delay(500);
           continue;
         }
 
+        consecutiveFailures = 0; // Reset on successful VLM parse
         stepLog.vlmParsedAction = JSON.stringify(action);
         const actionDesc = this.describeAction(action);
         emitPhase('vlm-ok', `[${step}/${this.maxSteps}] → ${actionDesc} (${vlmLatency}ms)`);
@@ -372,7 +382,7 @@ export class DesktopControlSubAgent {
 
       if (!response.ok) {
         const errorText = await response.text();
-        logger.warn('VLM request failed', { status: response.status, error: errorText.slice(0, 300) });
+        logger.warn('[desktop-control] VLM HTTP error', { step, status: response.status, error: errorText.slice(0, 300), url: chatUrl, model: this.vlModelName });
         return { action: null, rawResponse: `HTTP ${response.status}: ${errorText.slice(0, 300)}` };
       }
 
@@ -382,18 +392,24 @@ export class DesktopControlSubAgent {
 
       const content = data.choices?.[0]?.message?.content;
       if (!content) {
-        logger.warn('VLM returned empty content');
+        logger.warn('[desktop-control] VLM empty content', { step, model: this.vlModelName });
         return { action: null, rawResponse: 'empty response (no content)' };
       }
 
+      logger.info('[desktop-control] VLM response', { step, contentLength: content.length, content: content.slice(0, 200) });
       const parsed = this.parseAction(content);
+      if (parsed) {
+        logger.info('[desktop-control] Action parsed', { step, action: parsed.action, ...(parsed.x != null ? { x: parsed.x, y: parsed.y } : {}), ...(parsed.text ? { text: parsed.text.slice(0, 50) } : {}) });
+      } else {
+        logger.warn('[desktop-control] Action parse failed', { step, raw: content.slice(0, 300) });
+      }
       return { action: parsed, rawResponse: content };
     } catch (error) {
       clearTimeout(timeoutId);
       const errMsg = error instanceof Error
         ? (error.name === 'AbortError' ? 'VLM request timed out (60s)' : error.message)
         : String(error);
-      logger.warn('VLM request error', { error: errMsg });
+      logger.warn('[desktop-control] VLM request error', { step, error: errMsg, model: this.vlModelName });
       return { action: null, rawResponse: `Error: ${errMsg}` };
     }
   }

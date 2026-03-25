@@ -121,6 +121,8 @@ export interface AgentRunState {
   currentTodos: TodoItem[];
   alwaysApprovedTools: Set<string>;
   currentSessionId: string | null;
+  /** Messages from paused run — restored on resume to maintain context */
+  pausedMessages?: Message[];
 }
 
 // Tools that don't require approval (communication tools, not action tools)
@@ -224,6 +226,12 @@ export async function runAgentCore(
   // Clear old todos if not resuming
   if (!resumeTodos) {
     agentState.currentTodos = [];
+    agentState.pausedMessages = undefined;
+  } else if (agentState.pausedMessages?.length) {
+    // Restore paused run context so LLM knows what was done before pause
+    existingMessages = [...existingMessages, ...agentState.pausedMessages];
+    logger.info('Restored paused messages for resume', { count: agentState.pausedMessages.length });
+    agentState.pausedMessages = undefined;
   }
 
   // Set working directory for all tool executors
@@ -1319,7 +1327,13 @@ Retry with correct parameter names and types.`;
 
     const errorReturnToolLoopMessages = stripParseFailures(toolLoopMessages);
     if (isAbort) {
-      errorReturnToolLoopMessages.push({ role: 'assistant' as const, content: '[ABORTED BY USER]' });
+      // Save partial messages for resume — so next run has context of work done before pause
+      agentState.pausedMessages = [
+        { role: 'user' as const, content: userMessage },
+        ...errorReturnToolLoopMessages,
+        { role: 'assistant' as const, content: '[PAUSED BY USER]' },
+      ];
+      logger.info('Saved paused messages for resume', { count: agentState.pausedMessages.length });
     }
     const returnMessages = [...validMessages, { role: 'user' as const, content: userMessage }, ...errorReturnToolLoopMessages];
 
