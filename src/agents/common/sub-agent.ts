@@ -45,6 +45,7 @@ export function getSubAgentPhaseLogger(): PhaseLoggerFn | null {
 export interface SubAgentConfig {
   maxIterations?: number;
   temperature?: number;
+  maxTokens?: number;
   planningPrompt?: string;
   enhancementPrompt?: string;
   minToolCallsBeforeComplete?: number;
