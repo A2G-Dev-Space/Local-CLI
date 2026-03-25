@@ -210,6 +210,7 @@ port.on('message', async (msg: MainToWorkerMessage) => {
         }
         agentState.isRunning = false;
         agentState.currentTodos = [];
+        agentState.pausedMessages = undefined;
 
         // Reject all pending approvals/askUser
         for (const [, { resolve, timer }] of pendingApprovals) {
@@ -234,6 +235,7 @@ port.on('message', async (msg: MainToWorkerMessage) => {
       agentState.alwaysApprovedTools.clear();
       agentState.runId = 0;
       agentState.isRunning = false;
+      agentState.pausedMessages = undefined;
       break;
     }
 
