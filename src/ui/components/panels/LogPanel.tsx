@@ -35,6 +35,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   tool: 'yellow',
   http: 'blue',
   llm: 'magenta',
+  subagent: '#f97316',
   ui: 'cyan',
   system: 'gray',
   debug: 'dim',
@@ -48,6 +49,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   tool: '🔧 Tool',
   http: '🌐 HTTP',
   llm: '🤖 LLM',
+  subagent: '🤖 SubAgent',
   ui: '🖥️ UI',
   system: '⚙️ System',
   debug: '🐛 Debug',
@@ -93,6 +95,7 @@ export const LogBrowser: React.FC<LogBrowserProps> = ({ onClose }) => {
     if (fileName.endsWith('_tool.json')) return 'tool';
     if (fileName.endsWith('_http.json')) return 'http';
     if (fileName.endsWith('_llm.json')) return 'llm';
+    if (fileName.endsWith('_subagent.json')) return 'subagent';
     if (fileName.endsWith('_ui.json')) return 'ui';
     if (fileName.endsWith('_system.json')) return 'system';
     if (fileName.endsWith('_debug.json')) return 'debug';
@@ -117,6 +120,7 @@ export const LogBrowser: React.FC<LogBrowserProps> = ({ onClose }) => {
           file.endsWith('_tool.json') ||
           file.endsWith('_http.json') ||
           file.endsWith('_llm.json') ||
+          file.endsWith('_subagent.json') ||
           file.endsWith('_ui.json') ||
           file.endsWith('_system.json') ||
           file.endsWith('_debug.json')
@@ -137,7 +141,7 @@ export const LogBrowser: React.FC<LogBrowserProps> = ({ onClose }) => {
       // Sort by: category (all first, then by name), then modified time (newest first)
       logFileList.sort((a, b) => {
         // Category priority: all > error > specific categories
-        const categoryOrder = ['all', 'error', 'chat', 'tool', 'http', 'llm', 'ui', 'system', 'debug'];
+        const categoryOrder = ['all', 'error', 'chat', 'tool', 'http', 'llm', 'subagent', 'ui', 'system', 'debug'];
         const aOrder = a.category ? categoryOrder.indexOf(a.category) : 999;
         const bOrder = b.category ? categoryOrder.indexOf(b.category) : 999;
 

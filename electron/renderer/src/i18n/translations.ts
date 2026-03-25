@@ -257,8 +257,8 @@ const translations: Record<Language, Record<string, string>> = {
     'log.cat.tool': '도구 실행 로그',
     'log.cat.http': 'HTTP 요청/응답 로그',
     'log.cat.llm': 'LLM API 로그',
+    'log.cat.subagent': '서브에이전트 로그 (Office/Browser/Desktop Control)',
     'log.cat.ui': 'UI 컴포넌트 로그',
-    'log.cat.desktop': '데스크톱 제어 에이전트 로그 (스크린샷/VLM/마우스/키보드)',
     'log.cat.system': '시스템 로그',
     'log.cat.debug': '디버그 로그',
 
@@ -529,8 +529,8 @@ const translations: Record<Language, Record<string, string>> = {
     'log.cat.tool': 'Tool execution logs',
     'log.cat.http': 'HTTP request/response logs',
     'log.cat.llm': 'LLM API logs',
+    'log.cat.subagent': 'Sub-agent logs (Office/Browser/Desktop Control)',
     'log.cat.ui': 'UI component logs',
-    'log.cat.desktop': 'Desktop control agent logs (screenshot/VLM/mouse/keyboard)',
     'log.cat.system': 'System logs',
     'log.cat.debug': 'Debug logs',
 

@@ -12,6 +12,7 @@ import { ToolDefinition } from '../../types/index.js';
 import { LLMSimpleTool, ToolResult, ToolCategory } from '../types.js';
 import { browserClient } from './browser-client.js';
 import { logger } from '../../utils/logger.js';
+import { reportError } from '../../core/telemetry/error-reporter.js';
 
 const BROWSER_CATEGORIES: ToolCategory[] = ['llm-simple'];
 
@@ -87,6 +88,7 @@ async function executeBrowserLaunch(args: Record<string, unknown>): Promise<Tool
     };
   } catch (error) {
     logger.toolError('browser_launch', args, error as Error, 0);
+    reportError(error, { type: 'toolExecution', tool: 'browser_launch' }).catch(() => {});
     return {
       success: false,
       error: `Failed to launch browser: ${error instanceof Error ? error.message : String(error)}`,
@@ -161,6 +163,7 @@ async function executeBrowserNavigate(args: Record<string, unknown>): Promise<To
     };
   } catch (error) {
     logger.toolError('browser_navigate', args, error as Error, 0);
+    reportError(error, { type: 'toolExecution', tool: 'browser_navigate' }).catch(() => {});
     return {
       success: false,
       error: `Failed to navigate: ${error instanceof Error ? error.message : String(error)}`,
@@ -245,6 +248,7 @@ async function executeBrowserScreenshot(args: Record<string, unknown>): Promise<
     };
   } catch (error) {
     logger.toolError('browser_screenshot', args, error as Error, 0);
+    reportError(error, { type: 'toolExecution', tool: 'browser_screenshot' }).catch(() => {});
     return {
       success: false,
       error: `Failed to take screenshot: ${error instanceof Error ? error.message : String(error)}`,
@@ -321,6 +325,7 @@ async function executeBrowserClick(args: Record<string, unknown>): Promise<ToolR
     };
   } catch (error) {
     logger.toolError('browser_click', args, error as Error, Date.now() - startTime);
+    reportError(error, { type: 'toolExecution', tool: 'browser_click' }).catch(() => {});
     return {
       success: false,
       error: `Failed to click: ${error instanceof Error ? error.message : String(error)}`,
@@ -402,6 +407,7 @@ async function executeBrowserFill(args: Record<string, unknown>): Promise<ToolRe
     };
   } catch (error) {
     logger.toolError('browser_fill', args, error as Error, Date.now() - startTime);
+    reportError(error, { type: 'toolExecution', tool: 'browser_fill' }).catch(() => {});
     return {
       success: false,
       error: `Failed to fill: ${error instanceof Error ? error.message : String(error)}`,
@@ -477,6 +483,7 @@ async function executeBrowserGetText(args: Record<string, unknown>): Promise<Too
     };
   } catch (error) {
     logger.toolError('browser_get_text', args, error as Error, Date.now() - startTime);
+    reportError(error, { type: 'toolExecution', tool: 'browser_get_text' }).catch(() => {});
     return {
       success: false,
       error: `Failed to get text: ${error instanceof Error ? error.message : String(error)}`,
@@ -528,6 +535,7 @@ async function executeBrowserClose(args: Record<string, unknown>): Promise<ToolR
     };
   } catch (error) {
     logger.toolError('browser_close', args, error as Error, Date.now() - startTime);
+    reportError(error, { type: 'toolExecution', tool: 'browser_close' }).catch(() => {});
     return {
       success: false,
       error: `Failed to close browser: ${error instanceof Error ? error.message : String(error)}`,
@@ -605,6 +613,7 @@ async function executeBrowserGetHtml(args: Record<string, unknown>): Promise<Too
     };
   } catch (error) {
     logger.toolError('browser_get_html', args, error as Error, Date.now() - startTime);
+    reportError(error, { type: 'toolExecution', tool: 'browser_get_html' }).catch(() => {});
     return {
       success: false,
       error: `Failed to get HTML: ${error instanceof Error ? error.message : String(error)}`,
@@ -693,6 +702,7 @@ async function executeBrowserGetConsole(args: Record<string, unknown>): Promise<
     };
   } catch (error) {
     logger.toolError('browser_get_console', args, error as Error, Date.now() - startTime);
+    reportError(error, { type: 'toolExecution', tool: 'browser_get_console' }).catch(() => {});
     return {
       success: false,
       error: `Failed to get console logs: ${error instanceof Error ? error.message : String(error)}`,
@@ -801,6 +811,7 @@ async function executeBrowserGetNetwork(args: Record<string, unknown>): Promise<
     };
   } catch (error) {
     logger.toolError('browser_get_network', args, error as Error, Date.now() - startTime);
+    reportError(error, { type: 'toolExecution', tool: 'browser_get_network' }).catch(() => {});
     return {
       success: false,
       error: `Failed to get network logs: ${error instanceof Error ? error.message : String(error)}`,
@@ -868,6 +879,7 @@ async function executeBrowserBringToFront(args: Record<string, unknown>): Promis
     };
   } catch (error) {
     logger.toolError('browser_bring_to_front', args, error as Error, Date.now() - startTime);
+    reportError(error, { type: 'toolExecution', tool: 'browser_bring_to_front' }).catch(() => {});
     return {
       success: false,
       error: `Failed to bring browser to front: ${error instanceof Error ? error.message : String(error)}`,
@@ -959,6 +971,7 @@ async function executeBrowserPressKey(args: Record<string, unknown>): Promise<To
     };
   } catch (error) {
     logger.toolError('browser_press_key', args, error as Error, Date.now() - startTime);
+    reportError(error, { type: 'toolExecution', tool: 'browser_press_key' }).catch(() => {});
     return {
       success: false,
       error: `Failed to press key: ${error instanceof Error ? error.message : String(error)}`,
@@ -1037,6 +1050,7 @@ async function executeBrowserType(args: Record<string, unknown>): Promise<ToolRe
     };
   } catch (error) {
     logger.toolError('browser_type', args, error as Error, Date.now() - startTime);
+    reportError(error, { type: 'toolExecution', tool: 'browser_type' }).catch(() => {});
     return {
       success: false,
       error: `Failed to type: ${error instanceof Error ? error.message : String(error)}`,
@@ -1127,6 +1141,7 @@ async function executeBrowserExecuteScript(args: Record<string, unknown>): Promi
     };
   } catch (error) {
     logger.toolError('browser_execute_script', args, error as Error, Date.now() - startTime);
+    reportError(error, { type: 'toolExecution', tool: 'browser_execute_script' }).catch(() => {});
     return {
       success: false,
       error: `Failed to execute script: ${error instanceof Error ? error.message : String(error)}`,
@@ -1203,6 +1218,7 @@ async function executeBrowserWait(args: Record<string, unknown>): Promise<ToolRe
     };
   } catch (error) {
     logger.toolError('browser_wait', args, error as Error, Date.now() - startTime);
+    reportError(error, { type: 'toolExecution', tool: 'browser_wait' }).catch(() => {});
     return {
       success: false,
       error: `Wait failed: ${error instanceof Error ? error.message : String(error)}`,
@@ -1266,6 +1282,7 @@ async function executeBrowserConnect(args: Record<string, unknown>): Promise<Too
     };
   } catch (error) {
     logger.toolError('browser_connect', args, error as Error, Date.now() - startTime);
+    reportError(error, { type: 'toolExecution', tool: 'browser_connect' }).catch(() => {});
     return {
       success: false,
       error: `Failed to connect: ${error instanceof Error ? error.message : String(error)}`,
@@ -1328,6 +1345,7 @@ async function executeBrowserGetHealth(args: Record<string, unknown>): Promise<T
     };
   } catch (error) {
     logger.toolError('browser_get_health', args, error as Error, Date.now() - startTime);
+    reportError(error, { type: 'toolExecution', tool: 'browser_get_health' }).catch(() => {});
     return {
       success: false,
       error: `Failed to get health: ${error instanceof Error ? error.message : String(error)}`,
@@ -1403,6 +1421,7 @@ async function executeBrowserGetPageInfo(args: Record<string, unknown>): Promise
     };
   } catch (error) {
     logger.toolError('browser_get_page_info', args, error as Error, Date.now() - startTime);
+    reportError(error, { type: 'toolExecution', tool: 'browser_get_page_info' }).catch(() => {});
     return {
       success: false,
       error: `Failed to get page info: ${error instanceof Error ? error.message : String(error)}`,
@@ -1480,6 +1499,7 @@ async function executeBrowserSend(args: Record<string, unknown>): Promise<ToolRe
     };
   } catch (error) {
     logger.toolError('browser_send', args, error as Error, Date.now() - startTime);
+    reportError(error, { type: 'toolExecution', tool: 'browser_send' }).catch(() => {});
     return {
       success: false,
       error: `Failed to send CDP command: ${error instanceof Error ? error.message : String(error)}`,
@@ -1552,6 +1572,7 @@ async function executeBrowserFocus(args: Record<string, unknown>): Promise<ToolR
     };
   } catch (error) {
     logger.toolError('browser_focus', args, error as Error, Date.now() - startTime);
+    reportError(error, { type: 'toolExecution', tool: 'browser_focus' }).catch(() => {});
     return {
       success: false,
       error: `Failed to focus element: ${error instanceof Error ? error.message : String(error)}`,

@@ -31,6 +31,7 @@ import {
 import { logger, isLLMLogEnabled } from '../../utils/logger.js';
 import { reportError } from '../telemetry/error-reporter.js';
 import { usageTracker } from '../usage-tracker.js';
+import { getJsonStreamLogger } from '../../utils/json-stream-logger.js';
 
 /**
  * LLM 응답 인터페이스 (OpenAI Compatible)
@@ -599,6 +600,10 @@ export class LLMClient {
       });
 
       logger.debug('Streaming response started', { status: response.status });
+      {
+        const sl = getJsonStreamLogger();
+        sl?.log({ timestamp: new Date().toISOString(), type: 'http_event', content: `Stream started (status: ${response.status})`, category: 'http', metadata: { model: this.model } });
+      }
 
       // SSE (Server-Sent Events) 파싱
       const stream = response.data as AsyncIterable<Buffer>;
@@ -652,6 +657,10 @@ export class LLMClient {
       }
 
       logger.debug('Streaming response completed', { chunkCount });
+      {
+        const sl = getJsonStreamLogger();
+        sl?.log({ timestamp: new Date().toISOString(), type: 'http_event', content: `Stream completed (${chunkCount} chunks)`, category: 'http', metadata: { chunkCount, model: this.model } });
+      }
 
     } catch (error) {
       const handled = this.handleError(error, {
@@ -950,6 +959,14 @@ export class LLMClient {
 
       // Tool calls 확인
       if (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
+        const streamLogger = getJsonStreamLogger();
+        streamLogger?.log({
+          timestamp: new Date().toISOString(),
+          type: 'tool_call',
+          content: `LLM requested tool: ${assistantMessage.tool_calls.map(tc => tc.function.name).join(', ')}`,
+          category: 'tool',
+          metadata: { tools: assistantMessage.tool_calls.map(tc => ({ name: tc.function.name, argsLength: tc.function.arguments.length })) },
+        });
         // Enforce single tool per turn: only execute the FIRST tool call
         // Some LLM models ignore parallel_tool_calls:false and return multiple tools.
         // Executing all of them is incorrect because the LLM decided on tools 2..N
@@ -1199,6 +1216,14 @@ Retry with correct parameter names and types.`;
           if (toolName === 'ask_to_user' && options?.askUser) {
             const question = toolArgs['question'] as string;
             const askOptions = toolArgs['options'] as string[];
+            const askStreamLogger = getJsonStreamLogger();
+            askStreamLogger?.log({
+              timestamp: new Date().toISOString(),
+              type: 'tool_start',
+              content: `ask_to_user: "${question}"`,
+              category: 'chat',
+              metadata: { question, options: askOptions },
+            });
             if (question && Array.isArray(askOptions) && askOptions.length >= 2) {
               try {
                 const askResponse = await options.askUser({ question, options: askOptions });
@@ -1206,6 +1231,13 @@ Retry with correct parameter names and types.`;
                   ? `User provided custom response: "${askResponse.customText}"`
                   : `User selected: "${askResponse.selectedOption}"`;
                 result = { success: true, result: resultText };
+                askStreamLogger?.log({
+                  timestamp: new Date().toISOString(),
+                  type: 'tool_end',
+                  content: `ask_to_user response: ${resultText}`,
+                  category: 'chat',
+                  metadata: { response: resultText },
+                });
               } catch (askError) {
                 result = { success: false, error: `Error asking user: ${askError instanceof Error ? askError.message : 'Unknown error'}` };
               }
@@ -1235,6 +1267,8 @@ Retry with correct parameter names and types.`;
                 // Success - return immediately
                 // Note: emitAssistantResponse is already called via finalResponseCallback in final-response-tool.ts
                 logger.flow('final_response tool executed successfully - returning');
+                const frStreamLogger = getJsonStreamLogger();
+                frStreamLogger?.logAssistantResponse(result.result || '');
 
                 // Add tool result to messages for completeness
                 addMessage({

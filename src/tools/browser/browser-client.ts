@@ -12,6 +12,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import WebSocket from 'ws';
 import { logger } from '../../utils/logger.js';
+import { reportError } from '../../core/telemetry/error-reporter.js';
 
 import {
   getPlatform,
@@ -775,6 +776,7 @@ class BrowserClient {
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       logger.debug('[BrowserClient] launch: error - ' + errorMsg);
+      reportError(error, { type: 'browserClient', method: 'launch' }).catch(() => {});
       return {
         success: false,
         error: 'Failed to launch browser',
@@ -822,6 +824,7 @@ class BrowserClient {
 
       return { success: true, message: 'Browser closed' };
     } catch (error) {
+      reportError(error, { type: 'browserClient', method: 'close' }).catch(() => {});
       return {
         success: false,
         error: 'Failed to close browser',
@@ -870,6 +873,7 @@ class BrowserClient {
         title: pageInfo.title,
       };
     } catch (error) {
+      reportError(error, { type: 'browserClient', method: 'navigate' }).catch(() => {});
       return {
         success: false,
         error: 'Failed to navigate',
@@ -921,6 +925,7 @@ class BrowserClient {
         title: pageInfo.title,
       };
     } catch (error) {
+      reportError(error, { type: 'browserClient', method: 'screenshot' }).catch(() => {});
       return {
         success: false,
         error: 'Failed to take screenshot',
@@ -971,6 +976,7 @@ class BrowserClient {
         current_url: urlResult.result.value,
       };
     } catch (error) {
+      reportError(error, { type: 'browserClient', method: 'click' }).catch(() => {});
       return {
         success: false,
         error: 'Failed to click element',
@@ -1018,6 +1024,7 @@ class BrowserClient {
         length: value.length,
       };
     } catch (error) {
+      reportError(error, { type: 'browserClient', method: 'fill' }).catch(() => {});
       return {
         success: false,
         error: 'Failed to fill field',
@@ -1064,6 +1071,7 @@ class BrowserClient {
         text: result.result.value.text || '',
       };
     } catch (error) {
+      reportError(error, { type: 'browserClient', method: 'getText' }).catch(() => {});
       return {
         success: false,
         error: 'Failed to get text',
@@ -1106,6 +1114,7 @@ class BrowserClient {
         ...pageInfo,
       };
     } catch (error) {
+      reportError(error, { type: 'browserClient', method: 'getPageInfo' }).catch(() => {});
       return {
         success: false,
         error: 'Failed to get page info',
@@ -1138,6 +1147,7 @@ class BrowserClient {
         html: pageInfo.html,
       };
     } catch (error) {
+      reportError(error, { type: 'browserClient', method: 'getHtml' }).catch(() => {});
       return {
         success: false,
         error: 'Failed to get HTML',
@@ -1179,6 +1189,7 @@ class BrowserClient {
         result: result.result.value,
       };
     } catch (error) {
+      reportError(error, { type: 'browserClient', method: 'executeScript' }).catch(() => {});
       return {
         success: false,
         error: 'Failed to execute script',
@@ -1239,6 +1250,7 @@ class BrowserClient {
         selector,
       };
     } catch (error) {
+      reportError(error, { type: 'browserClient', method: 'waitFor' }).catch(() => {});
       return {
         success: false,
         error: 'Timeout waiting for element',
@@ -1278,6 +1290,7 @@ class BrowserClient {
         message: 'Browser window focused',
       };
     } catch (error) {
+      reportError(error, { type: 'browserClient', method: 'focus' }).catch(() => {});
       return {
         success: false,
         error: 'Failed to focus browser',
@@ -1411,6 +1424,7 @@ class BrowserClient {
         selector: selector || '(focused element)',
       };
     } catch (error) {
+      reportError(error, { type: 'browserClient', method: 'pressKey' }).catch(() => {});
       return {
         success: false,
         error: 'Failed to press key',
@@ -1450,6 +1464,7 @@ class BrowserClient {
         length: text.length,
       };
     } catch (error) {
+      reportError(error, { type: 'browserClient', method: 'type' }).catch(() => {});
       return {
         success: false,
         error: 'Failed to type text',
@@ -1532,6 +1547,7 @@ class BrowserClient {
         title: pageTarget.title,
       };
     } catch (error) {
+      reportError(error, { type: 'browserClient', method: 'connect' }).catch(() => {});
       return {
         success: false,
         error: 'Failed to connect to browser',
@@ -1552,6 +1568,7 @@ class BrowserClient {
       const result = await this.cdp.send(method, params);
       return { success: true, message: 'Command sent', result };
     } catch (error) {
+      reportError(error, { type: 'browserClient', method: 'send' }).catch(() => {});
       return {
         success: false,
         error: 'Failed to send CDP command',
@@ -1587,6 +1604,7 @@ class BrowserClient {
 
       return { success: true, message: 'Element focused', selector };
     } catch (error) {
+      reportError(error, { type: 'browserClient', method: 'focusElement' }).catch(() => {});
       return {
         success: false,
         error: 'Failed to focus element',

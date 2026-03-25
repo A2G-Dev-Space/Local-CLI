@@ -8,7 +8,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import type { LogFile, LogEntry, LogCategory } from '../../../preload/index';
+import type { LogEntry, LogCategory } from '../../../preload/index';
 import { useTranslation } from '../i18n/LanguageContext';
 import './LogViewer.css';
 
@@ -23,7 +23,7 @@ const LOG_CATEGORIES: { id: LogCategory; label: string; descKey: string; color: 
   { id: 'tool', label: 'Tool', descKey: 'log.cat.tool', color: '#f59e0b' },
   { id: 'http', label: 'HTTP', descKey: 'log.cat.http', color: '#3b82f6' },
   { id: 'llm', label: 'LLM', descKey: 'log.cat.llm', color: '#ec4899' },
-  { id: 'desktop', label: 'Desktop', descKey: 'log.cat.desktop', color: '#f97316' },
+  { id: 'subagent', label: 'SubAgent', descKey: 'log.cat.subagent', color: '#f97316' },
   { id: 'ui', label: 'UI', descKey: 'log.cat.ui', color: '#06b6d4' },
   { id: 'system', label: 'System', descKey: 'log.cat.system', color: '#6366f1' },
   { id: 'debug', label: 'Debug', descKey: 'log.cat.debug', color: '#6b7280' },
@@ -46,15 +46,25 @@ const LOG_CATEGORIES: { id: LogCategory; label: string; descKey: string; color: 
 function detectCategory(message: string, level: string): LogCategory {
   const msg = message.toLowerCase();
 
-  // Desktop Control 카테고리: 비전 기반 데스크톱 제어 에이전트 (최상위 우선 매칭)
-  if (msg.includes('[desktop-control]') || msg.includes('desktop control') ||
+  // SubAgent 카테고리: 모든 서브에이전트 (Office, Browser, Desktop Control 등) — 최상위 우선 매칭
+  if (msg.includes('[subagent:') || msg.includes('[subagent]') ||
+      msg.includes('sub-agent') || msg.includes('subagent[') ||
+      // Desktop Control
+      msg.includes('[desktop-control]') || msg.includes('desktop control') ||
       msg.includes('desktopcontrolsubagent') || msg.includes('desktop_control') ||
       msg.includes('capturescreen') || msg.includes('screenshot captured') ||
       msg.includes('vlm action') || msg.includes('vlm request') ||
       msg.includes('bring_window') || msg.includes('list_windows') ||
       msg.includes('bringwindowtoprimary') || msg.includes('mouseclick') ||
-      msg.includes('presshotkey') || msg.includes('presskey') || msg.includes('typetext')) {
-    return 'desktop';
+      msg.includes('presshotkey') || msg.includes('presskey') || msg.includes('typetext') ||
+      // Office agents
+      msg.includes('[word-agent]') || msg.includes('[excel-agent]') ||
+      msg.includes('[powerpoint-agent]') || msg.includes('[pptx-agent]') ||
+      // Browser agents
+      msg.includes('[confluence-agent]') || msg.includes('[jira-agent]') ||
+      msg.includes('[search-agent]') || msg.includes('[browser-agent]') ||
+      msg.includes('browsersubagent')) {
+    return 'subagent';
   }
 
   // Chat 카테고리: 사용자 입력, 어시스턴트 응답
@@ -178,35 +188,19 @@ const LOG_LEVEL_ICONS: Record<LogLevelName, string> = {
   FATAL: '[F]',
 };
 
-// Session log file type
-interface SessionLogFile {
-  sessionId: string;
-  path: string;
-  size: number;
-  modifiedAt: number;
-}
-
 interface LogViewerProps {
   isVisible?: boolean;
   onClose?: () => void;
   currentSessionId?: string | null;
 }
 
-const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, currentSessionId }) => {
+const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose }) => {
   const { t } = useTranslation();
 
   // 상태
-  const [logFiles, setLogFiles] = useState<LogFile[]>([]);
-  const [selectedFile, setSelectedFile] = useState<LogFile | null>(null);
   const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
-  // Streaming removed - File mode only
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Session log state
-  const [sessionLogFiles, setSessionLogFiles] = useState<SessionLogFile[]>([]);
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
-  const [logSource, setLogSource] = useState<'session' | 'currentRun'>('session'); // Default to session logs
 
   // Current Run log state
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
@@ -219,55 +213,12 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
   const [autoScroll, setAutoScroll] = useState(true);
   const [wrapLines, setWrapLines] = useState(false);
 
-  // 뷰 모드: 'file' only (Live tab removed)
-  const [viewMode] = useState<'file'>('file');
-
   // 현재 로그 레벨
   const [currentLogLevel, setCurrentLogLevel] = useState(1); // INFO
 
   // Refs
   const logContainerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-
-  // 세션 로그 파일 목록 로드
-  const loadSessionLogFiles = useCallback(async () => {
-    if (!window.electronAPI?.log?.getSessionFiles) {
-      return;
-    }
-
-    try {
-      const result = await window.electronAPI.log.getSessionFiles();
-      if (result.success && result.files) {
-        setSessionLogFiles(result.files);
-      }
-    } catch (err) {
-      window.electronAPI?.log?.error('[LogViewer] Failed to load session log files', { error: err instanceof Error ? err.message : String(err) });
-    }
-  }, []);
-
-  // 세션 로그 엔트리 로드
-  const loadSessionLogEntries = useCallback(async (sessionId: string) => {
-    if (!window.electronAPI?.log?.readSessionLog) {
-      setError('Session log API not available');
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-    try {
-      const result = await window.electronAPI.log.readSessionLog(sessionId);
-      if (result.success && result.entries) {
-        setLogEntries(result.entries);
-      } else {
-        setError((result as any).error || 'Failed to read session log');
-      }
-    } catch (err) {
-      setError('Failed to load session log entries');
-      window.electronAPI?.log?.error('[LogViewer] Failed to load session log entries', { error: err instanceof Error ? err.message : String(err) });
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
 
   // Current Run 로그 엔트리 로드
   const loadCurrentRunLogEntries = useCallback(async () => {
@@ -309,68 +260,6 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
     }
   }, []);
 
-  // 로그 파일 목록 로드 (daily logs)
-  const loadLogFiles = useCallback(async () => {
-    if (!window.electronAPI?.log) {
-      setError('Log API not available');
-      return;
-    }
-
-    try {
-      const files = await window.electronAPI.log.getFiles();
-      setLogFiles(files);
-      if (files.length > 0 && !selectedFile) {
-        setSelectedFile(files[0]); // 최신 파일 선택
-      }
-    } catch (err) {
-      setError('Failed to load log files');
-      window.electronAPI?.log?.error('[LogViewer] Failed to load log files', { error: err instanceof Error ? err.message : String(err) });
-    }
-  }, [selectedFile]);
-
-  // 로그 파일 내용 로드
-  const loadLogEntries = useCallback(async (file: LogFile) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const result = await window.electronAPI.log.readEntries(file.path);
-      if (result.success && result.entries) {
-        setLogEntries(result.entries);
-      } else {
-        setError(result.error || 'Failed to read log file');
-      }
-    } catch (err) {
-      setError('Failed to load log entries');
-      window.electronAPI?.log?.error('[LogViewer] Failed to load log entries', { error: err instanceof Error ? err.message : String(err) });
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  // Streaming functions removed - File mode only
-
-  // 로그 파일 삭제
-  const deleteLogFile = useCallback(async (file: LogFile) => {
-    const confirmed = window.confirm(t('log.deleteConfirm', { name: file.name }));
-    if (!confirmed) return;
-
-    try {
-      const result = await window.electronAPI.log.deleteFile(file.path);
-      if (result.success) {
-        await loadLogFiles();
-        if (selectedFile?.path === file.path) {
-          setSelectedFile(null);
-          setLogEntries([]);
-        }
-      } else {
-        setError(result.error || 'Failed to delete log file');
-      }
-    } catch (err) {
-      setError('Failed to delete log file');
-      window.electronAPI?.log?.error('[LogViewer] Failed to delete log file', { error: err instanceof Error ? err.message : String(err) });
-    }
-  }, [loadLogFiles, selectedFile]);
-
   // 모든 로그 삭제
   const clearAllLogs = useCallback(async () => {
     const confirmed = window.confirm(t('log.clearAllConfirm'));
@@ -379,7 +268,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
     try {
       const result = await window.electronAPI.log.clearAll();
       if (result.success) {
-        await loadLogFiles();
+        setLogEntries([]);
       } else {
         setError(result.error || 'Failed to clear logs');
       }
@@ -387,18 +276,17 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
       setError('Failed to clear logs');
       window.electronAPI?.log?.error('[LogViewer] Failed to clear logs', { error: err instanceof Error ? err.message : String(err) });
     }
-  }, [loadLogFiles]);
+  }, []);
 
   // 클립보드에 로그 복사
   const [copySuccess, setCopySuccess] = useState(false);
   const copyLogsToClipboard = useCallback(async () => {
-    const entries = viewMode === 'file' ? logEntries : [];
-    if (entries.length === 0) {
+    if (logEntries.length === 0) {
       setError('No log entries to copy');
       return;
     }
 
-    const logText = entries.map(entry => {
+    const logText = logEntries.map(entry => {
       const timestamp = new Date(entry.timestamp).toISOString();
       const data = entry.data ? ` ${JSON.stringify(entry.data)}` : '';
       return `[${timestamp}] [${entry.level}] ${entry.message}${data}`;
@@ -412,16 +300,11 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
       setError('Failed to copy to clipboard');
       window.electronAPI?.log?.error('[LogViewer] Failed to copy to clipboard', { error: err instanceof Error ? err.message : String(err) });
     }
-  }, [viewMode, logEntries]);
+  }, [logEntries]);
 
   // 로그 폴더 열기
   const openLogDirectory = useCallback(async () => {
     await window.electronAPI.log.openDirectory();
-  }, []);
-
-  // 로그 파일 탐색기에서 열기
-  const openInExplorer = useCallback(async (file: LogFile) => {
-    await window.electronAPI.log.openInExplorer(file.path);
   }, []);
 
   // 로그 레벨 설정
@@ -433,40 +316,11 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
   // 초기화 - isVisible이 true가 될 때마다 로그 자동 로드
   useEffect(() => {
     if (isVisible) {
-      // Load session logs
-      loadSessionLogFiles();
       loadCurrentRunId();
       window.electronAPI.log.getLevel().then(setCurrentLogLevel);
-
-      // Auto-select current session if in session mode
-      if (logSource === 'session' && currentSessionId) {
-        setSelectedSessionId(currentSessionId);
-      }
-
-      // Auto-load logs when tab becomes visible
-      if (logSource === 'currentRun') {
-        loadCurrentRunLogEntries();
-      } else if (logSource === 'session' && currentSessionId) {
-        loadSessionLogEntries(currentSessionId);
-      }
-    }
-  }, [isVisible, loadSessionLogFiles, loadCurrentRunId, logSource, currentSessionId, loadCurrentRunLogEntries, loadSessionLogEntries]);
-
-  // 파일/세션 선택 시 로드
-  useEffect(() => {
-    if (logSource === 'session' && selectedSessionId) {
-      loadSessionLogEntries(selectedSessionId);
-    } else if (logSource === 'currentRun') {
       loadCurrentRunLogEntries();
     }
-  }, [selectedSessionId, logSource, loadSessionLogEntries, loadCurrentRunLogEntries]);
-
-  // currentSessionId prop 변경 시 자동 선택
-  useEffect(() => {
-    if (currentSessionId && logSource === 'session') {
-      setSelectedSessionId(currentSessionId);
-    }
-  }, [currentSessionId, logSource]);
+  }, [isVisible, loadCurrentRunId, loadCurrentRunLogEntries]);
 
   // Streaming event subscription removed - File mode only
 
@@ -549,13 +403,6 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
     });
   }, []);
 
-  // 파일 사이즈 포맷
-  const formatSize = useCallback((bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  }, []);
-
   if (!isVisible) return null;
 
   return (
@@ -600,57 +447,20 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
 
       {/* 툴바 */}
       <div className="log-viewer-toolbar">
-        {/* 로그 소스 선택 (Session / Current Run) */}
-        <div className="log-source-toggle">
+        {/* Current Run 표시 */}
+        <div className="log-current-run-info">
+          <span className="run-indicator">● {t('log.live')}</span>
+          <span className="run-id">{t('log.run')} {currentRunId ? currentRunId.slice(0, 16) : t('common.loading')}</span>
           <button
-            className={`source-btn ${logSource === 'session' ? 'active' : ''}`}
-            onClick={() => setLogSource('session')}
-            title={t('log.sessionTitle')}
+            className="log-action-btn refresh-btn"
+            onClick={loadCurrentRunLogEntries}
+            title={t('log.refreshLogs')}
           >
-            {t('log.session')}
-          </button>
-          <button
-            className={`source-btn ${logSource === 'currentRun' ? 'active' : ''}`}
-            onClick={() => setLogSource('currentRun')}
-            title={t('log.currentRunTitle')}
-          >
-            {t('log.currentRun')}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+            </svg>
           </button>
         </div>
-
-        {/* 세션 선택 (session mode) */}
-        {logSource === 'session' && (
-          <select
-            className="log-file-select"
-            value={selectedSessionId || ''}
-            onChange={(e) => setSelectedSessionId(e.target.value || null)}
-          >
-            <option value="">{t('log.selectSession')}</option>
-            {sessionLogFiles.map(file => (
-              <option key={file.sessionId} value={file.sessionId}>
-                {file.sessionId === currentSessionId ? '★ ' : ''}
-                {file.sessionId.slice(0, 8)}... ({formatSize(file.size)})
-              </option>
-            ))}
-          </select>
-        )}
-
-        {/* Current Run 표시 */}
-        {logSource === 'currentRun' && (
-          <div className="log-current-run-info">
-            <span className="run-indicator">● {t('log.live')}</span>
-            <span className="run-id">{t('log.run')} {currentRunId ? currentRunId.slice(0, 16) : t('common.loading')}</span>
-            <button
-              className="log-action-btn refresh-btn"
-              onClick={loadCurrentRunLogEntries}
-              title={t('log.refreshLogs')}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
-              </svg>
-            </button>
-          </div>
-        )}
 
         {/* 클립보드 복사 버튼 */}
         <button
@@ -831,9 +641,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
       {/* 푸터 - 통계 */}
       <div className="log-viewer-footer">
         <span className="log-count">
-          {t('log.entries', { count: String(displayEntries.length) })}
-          {logSource === 'currentRun' && ` ${t('log.thisRun')}`}
-          {logSource === 'session' && selectedSessionId && ` (${selectedSessionId.slice(0, 8)}...)`}
+          {t('log.entries', { count: String(displayEntries.length) })} {t('log.thisRun')}
         </span>
       </div>
     </div>

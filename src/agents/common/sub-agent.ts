@@ -19,6 +19,8 @@ import { LLMSimpleTool, ToolResult } from '../../tools/types.js';
 import { COMPLETE_TOOL_DEFINITION } from './complete-tool.js';
 import { configManager } from '../../core/config/config-manager.js';
 import { logger } from '../../utils/logger.js';
+import { getJsonStreamLogger } from '../../utils/json-stream-logger.js';
+import { reportError } from '../../core/telemetry/error-reporter.js';
 
 // Global callback for SubAgent event logging (opt-in, used by pipe-runner -ps mode)
 type ToolCallLoggerFn = (appName: string, toolName: string, args: Record<string, unknown>, resultText: string, success: boolean, iteration: number, totalCalls: number) => void;
@@ -40,6 +42,19 @@ export function getSubAgentToolCallLogger(): ToolCallLoggerFn | null {
 
 export function getSubAgentPhaseLogger(): PhaseLoggerFn | null {
   return globalPhaseLogger;
+}
+
+/** Log a sub-agent event to the JSON stream logger with 'subagent' category */
+function streamLog(appName: string, type: 'tool_start' | 'tool_end' | 'planning_start' | 'planning_end' | 'info' | 'error' | 'debug', content: string, metadata?: Record<string, unknown>): void {
+  const streamLogger = getJsonStreamLogger();
+  if (!streamLogger) return;
+  streamLogger.log({
+    timestamp: new Date().toISOString(),
+    type,
+    content: `[SubAgent:${appName}] ${content}`,
+    category: 'subagent',
+    metadata,
+  });
 }
 
 export interface SubAgentConfig {
@@ -109,15 +124,23 @@ export class SubAgent {
       toolCount: this.tools.length,
       instruction: instruction.slice(0, 100),
     });
+    streamLog(this.appName, 'info', `Starting (tools: ${this.tools.length}, maxIter: ${this.maxIterations})`, {
+      instruction: instruction.slice(0, 300),
+      tools: this.tools.map(t => t.definition.function.name),
+    });
 
     // Instruction Enhancement Phase — dynamically generates topic-specific creative guidance
     let enhancedInstruction = instruction;
     if (this.enhancementPrompt) {
       if (globalPhaseLogger) globalPhaseLogger(this.appName, 'enhancement', 'Generating creative guidance...');
+      streamLog(this.appName, 'planning_start', 'Enhancement phase started');
       const guidance = await this.enhanceInstruction(instruction);
       if (guidance) {
         enhancedInstruction = `${instruction}\n\n═══ CREATIVE GUIDANCE ═══\n${guidance}\n═══ END GUIDANCE ═══`;
         if (globalPhaseLogger) globalPhaseLogger(this.appName, 'enhancement', `Done (${guidance.length} chars)`);
+        streamLog(this.appName, 'planning_end', `Enhancement done (${guidance.length} chars)`, { guidance: guidance.slice(0, 500) });
+      } else {
+        streamLog(this.appName, 'planning_end', 'Enhancement failed or empty');
       }
     }
 
@@ -125,8 +148,14 @@ export class SubAgent {
     let plan: string | null = null;
     if (this.planningPrompt) {
       if (globalPhaseLogger) globalPhaseLogger(this.appName, 'planning', 'Generating execution plan...');
+      streamLog(this.appName, 'planning_start', 'Planning phase started');
       plan = await this.generatePlan(enhancedInstruction);
-      if (plan && globalPhaseLogger) globalPhaseLogger(this.appName, 'planning', `Done (${plan.length} chars)`);
+      if (plan) {
+        if (globalPhaseLogger) globalPhaseLogger(this.appName, 'planning', `Done (${plan.length} chars)`);
+        streamLog(this.appName, 'planning_end', `Plan generated (${plan.length} chars)`, { plan: plan.slice(0, 1000) });
+      } else {
+        streamLog(this.appName, 'planning_end', 'Planning failed, proceeding without plan');
+      }
     }
 
     // Build tool definitions: app tools + complete tool
@@ -154,6 +183,7 @@ export class SubAgent {
       iterations++;
       if (globalPhaseLogger) globalPhaseLogger(this.appName, 'execution', `Step ${iterations}/${this.maxIterations}`);
       logger.flow(`SubAgent[${this.appName}] iteration ${iterations}`);
+      streamLog(this.appName, 'info', `Iteration ${iterations}/${this.maxIterations} (toolCalls: ${totalToolCalls})`);
 
       // Build messages for LLM call
       const messagesForLLM: Message[] = plan
@@ -183,6 +213,7 @@ export class SubAgent {
 
       const assistantMessage = response.choices[0]?.message;
       if (!assistantMessage) {
+        streamLog(this.appName, 'error', 'No response from Sub-LLM', { iteration: iterations });
         return this.buildResult(false, undefined, 'No response from Sub-LLM', iterations, totalToolCalls, startTime);
       }
 
@@ -193,6 +224,7 @@ export class SubAgent {
         // Retry instead of returning empty
         if (!content.trim()) {
           logger.warn(`SubAgent[${this.appName}] received empty response with no tool calls, retrying (iteration ${iterations})`);
+          streamLog(this.appName, 'debug', `Empty response, retrying (iteration ${iterations})`);
           if (plan) {
             historyText += this.flattenExchange(pendingMessages);
             pendingMessages = [];
@@ -200,6 +232,7 @@ export class SubAgent {
           continue;
         }
         logger.flow(`SubAgent[${this.appName}] completed with text response`);
+        streamLog(this.appName, 'info', `Completed with text response (${content.length} chars)`, { response: content.slice(0, 500) });
         return this.buildResult(true, content, undefined, iterations, totalToolCalls, startTime);
       }
 
@@ -238,6 +271,7 @@ export class SubAgent {
           }
           const summary = (args['summary'] as string) || 'Task completed.';
           logger.flow(`SubAgent[${this.appName}] completed via complete tool`);
+          streamLog(this.appName, 'info', `Completed via complete tool (iter: ${iterations}, toolCalls: ${totalToolCalls})`, { summary: summary.slice(0, 500) });
           return this.buildResult(true, summary, undefined, iterations, totalToolCalls, startTime);
         }
 
@@ -254,6 +288,11 @@ export class SubAgent {
 
         totalToolCalls++;
         const toolStartTime = Date.now();
+        streamLog(this.appName, 'tool_start', `Tool #${totalToolCalls}: ${toolName}`, {
+          tool: toolName,
+          args: JSON.stringify(args).slice(0, 500),
+          iteration: iterations,
+        });
 
         try {
           const result = await tool.execute(args);
@@ -269,6 +308,13 @@ export class SubAgent {
             result: resultText.slice(0, 1000),
             success: result.success,
             duration: toolDuration,
+          });
+
+          streamLog(this.appName, 'tool_end', `Tool #${totalToolCalls}: ${toolName} → ${result.success ? 'OK' : 'FAIL'} (${toolDuration}ms)`, {
+            tool: toolName,
+            success: result.success,
+            duration: toolDuration,
+            result: resultText.slice(0, 1000),
           });
 
           toolResults.push({
@@ -290,6 +336,20 @@ export class SubAgent {
             error: errorMsg,
             duration: toolDuration,
           } as any);
+
+          reportError(error, {
+            type: 'subAgentToolExecution',
+            agent: this.appName,
+            tool: toolName,
+            iteration: iterations,
+            duration: toolDuration,
+          }).catch(() => {});
+
+          streamLog(this.appName, 'error', `Tool #${totalToolCalls}: ${toolName} EXCEPTION (${toolDuration}ms): ${errorMsg}`, {
+            tool: toolName,
+            error: errorMsg,
+            duration: toolDuration,
+          });
 
           toolResults.push({
             role: 'tool',
@@ -338,6 +398,7 @@ export class SubAgent {
 
     // Max iterations exceeded
     logger.warn(`SubAgent[${this.appName}] max iterations reached`, { maxIterations: this.maxIterations });
+    streamLog(this.appName, 'error', `Max iterations reached (${this.maxIterations}), forced completion`, { totalToolCalls });
     return this.buildResult(
       true,
       `Sub-agent completed after ${this.maxIterations} iterations. ${totalToolCalls} tool calls executed.`,
@@ -372,6 +433,7 @@ export class SubAgent {
       logger.warn(`SubAgent[${this.appName}] enhancement failed, proceeding without`, {
         error: error instanceof Error ? error.message : String(error),
       });
+      reportError(error, { type: 'subAgentEnhancement', agent: this.appName }).catch(() => {});
       return null;
     }
   }
@@ -400,6 +462,7 @@ export class SubAgent {
       logger.warn(`SubAgent[${this.appName}] planning failed, proceeding without plan`, {
         error: error instanceof Error ? error.message : String(error),
       });
+      reportError(error, { type: 'subAgentPlanning', agent: this.appName }).catch(() => {});
       return null;
     }
   }

@@ -21,6 +21,7 @@ import type { LLMSimpleTool, ToolResult } from '../../tools/types';
 import { COMPLETE_TOOL_DEFINITION } from './complete-tool';
 import { configManager } from '../../core/config';
 import { logger } from '../../utils/logger';
+import { reportError } from '../../core/telemetry/error-reporter';
 
 // Global callback for SubAgent event logging (opt-in)
 type ToolCallLoggerFn = (appName: string, toolName: string, args: Record<string, unknown>, resultText: string, success: boolean, iteration: number, totalCalls: number) => void;
@@ -104,20 +105,25 @@ export class SubAgent {
     let totalToolCalls = 0;
 
     logger.enter(`SubAgent[${this.appName}].run`);
-    logger.info(`Sub-agent starting`, {
+    logger.info(`[SubAgent:${this.appName}] Starting (tools: ${this.tools.length}, maxIter: ${this.maxIterations})`, {
       appName: this.appName,
       toolCount: this.tools.length,
-      instruction: instruction.slice(0, 100),
+      instruction: instruction.slice(0, 300),
+      tools: this.tools.map(t => t.definition.function.name),
     });
 
     // Instruction Enhancement Phase — dynamically generates topic-specific creative guidance
     let enhancedInstruction = instruction;
     if (this.enhancementPrompt) {
       if (globalPhaseLogger) globalPhaseLogger(this.appName, 'enhancement', 'Generating creative guidance...');
+      logger.info(`[SubAgent:${this.appName}] Enhancement phase started`);
       const guidance = await this.enhanceInstruction(instruction);
       if (guidance) {
         enhancedInstruction = `${instruction}\n\n═══ CREATIVE GUIDANCE ═══\n${guidance}\n═══ END GUIDANCE ═══`;
         if (globalPhaseLogger) globalPhaseLogger(this.appName, 'enhancement', `Done (${guidance.length} chars)`);
+        logger.info(`[SubAgent:${this.appName}] Enhancement done (${guidance.length} chars)`);
+      } else {
+        logger.info(`[SubAgent:${this.appName}] Enhancement failed or empty`);
       }
     }
 
@@ -125,8 +131,14 @@ export class SubAgent {
     let plan: string | null = null;
     if (this.planningPrompt) {
       if (globalPhaseLogger) globalPhaseLogger(this.appName, 'planning', 'Generating execution plan...');
+      logger.info(`[SubAgent:${this.appName}] Planning phase started`);
       plan = await this.generatePlan(enhancedInstruction);
-      if (plan && globalPhaseLogger) globalPhaseLogger(this.appName, 'planning', `Done (${plan.length} chars)`);
+      if (plan) {
+        if (globalPhaseLogger) globalPhaseLogger(this.appName, 'planning', `Done (${plan.length} chars)`);
+        logger.info(`[SubAgent:${this.appName}] Plan generated (${plan.length} chars)`);
+      } else {
+        logger.info(`[SubAgent:${this.appName}] Planning failed, proceeding without plan`);
+      }
     }
 
     // Build tool definitions: app tools + complete tool
@@ -152,6 +164,7 @@ export class SubAgent {
       iterations++;
       if (globalPhaseLogger) globalPhaseLogger(this.appName, 'execution', `Step ${iterations}/${this.maxIterations}`);
       logger.flow(`SubAgent[${this.appName}] iteration ${iterations}`);
+      logger.info(`[SubAgent:${this.appName}] Iteration ${iterations}/${this.maxIterations} (toolCalls: ${totalToolCalls})`);
 
       const messagesForLLM: Message[] = plan
         ? this.rebuildMessages(plan, instruction, historyText, pendingMessages)
@@ -180,6 +193,7 @@ export class SubAgent {
 
       const assistantMessage = response.choices[0]?.message;
       if (!assistantMessage) {
+        logger.error(`[SubAgent:${this.appName}] No response from Sub-LLM`, { iteration: iterations } as any);
         return this.buildResult(false, undefined, 'No response from Sub-LLM', iterations, totalToolCalls, startTime);
       }
 
@@ -188,7 +202,7 @@ export class SubAgent {
         // Empty content with no tool calls = LLM failed to produce output (e.g. thinking model with reasoning_content only)
         // Retry instead of returning empty
         if (!content.trim()) {
-          logger.warn(`SubAgent[${this.appName}] received empty response with no tool calls, retrying (iteration ${iterations})`);
+          logger.warn(`[SubAgent:${this.appName}] Empty response, retrying (iteration ${iterations})`);
           if (plan) {
             historyText += this.flattenExchange(pendingMessages);
             pendingMessages = [];
@@ -196,6 +210,7 @@ export class SubAgent {
           continue;
         }
         logger.flow(`SubAgent[${this.appName}] completed with text response`);
+        logger.info(`[SubAgent:${this.appName}] Completed with text response (${content.length} chars)`);
         return this.buildResult(true, content, undefined, iterations, totalToolCalls, startTime);
       }
 
@@ -233,6 +248,7 @@ export class SubAgent {
           }
           const summary = (args['summary'] as string) || 'Task completed.';
           logger.flow(`SubAgent[${this.appName}] completed via complete tool`);
+          logger.info(`[SubAgent:${this.appName}] Completed via complete tool (iter: ${iterations}, toolCalls: ${totalToolCalls})`);
           return this.buildResult(true, summary, undefined, iterations, totalToolCalls, startTime);
         }
 
@@ -248,6 +264,11 @@ export class SubAgent {
 
         totalToolCalls++;
         const toolStartTime = Date.now();
+        logger.info(`[SubAgent:${this.appName}] Tool #${totalToolCalls}: ${toolName} started`, {
+          tool: toolName,
+          args: JSON.stringify(args).slice(0, 500),
+          iteration: iterations,
+        });
 
         try {
           const result = await tool.execute(args);
@@ -257,12 +278,11 @@ export class SubAgent {
             : `Error: ${result.error || 'Unknown error'}`;
 
           // Always log tool calls for debugging
-          logger.info(`[SubAgent:${this.appName}] Tool #${totalToolCalls} (iter ${iterations})`, {
+          logger.info(`[SubAgent:${this.appName}] Tool #${totalToolCalls}: ${toolName} → ${result.success ? 'OK' : 'FAIL'} (${toolDuration}ms)`, {
             tool: toolName,
-            args: JSON.stringify(args).slice(0, 500),
-            result: resultText.slice(0, 1000),
             success: result.success,
             duration: toolDuration,
+            result: resultText.slice(0, 1000),
           });
 
           toolResults.push({
@@ -278,12 +298,19 @@ export class SubAgent {
           const toolDuration = Date.now() - toolStartTime;
           const errorMsg = error instanceof Error ? error.message : String(error);
 
-          logger.errorSilent(`[SubAgent:${this.appName}] Tool #${totalToolCalls} FAILED (iter ${iterations})`, {
+          logger.error(`[SubAgent:${this.appName}] Tool #${totalToolCalls}: ${toolName} EXCEPTION (${toolDuration}ms): ${errorMsg}`, {
             tool: toolName,
-            args: JSON.stringify(args).slice(0, 500),
             error: errorMsg,
             duration: toolDuration,
           } as any);
+
+          reportError(error, {
+            type: 'subAgentToolExecution',
+            agent: this.appName,
+            tool: toolName,
+            iteration: iterations,
+            duration: toolDuration,
+          }).catch(() => {});
 
           toolResults.push({
             role: 'tool',
@@ -329,7 +356,7 @@ export class SubAgent {
       }
     }
 
-    logger.warn(`SubAgent[${this.appName}] max iterations reached`, { maxIterations: this.maxIterations });
+    logger.warn(`[SubAgent:${this.appName}] Max iterations reached (${this.maxIterations}), forced completion`, { maxIterations: this.maxIterations, totalToolCalls });
     return this.buildResult(
       true,
       `Sub-agent completed after ${this.maxIterations} iterations. ${totalToolCalls} tool calls executed.`,
@@ -364,6 +391,7 @@ export class SubAgent {
       logger.warn(`SubAgent[${this.appName}] enhancement failed, proceeding without`, {
         error: error instanceof Error ? error.message : String(error),
       });
+      reportError(error, { type: 'subAgentEnhancement', agent: this.appName }).catch(() => {});
       return null;
     }
   }
@@ -388,6 +416,7 @@ export class SubAgent {
       logger.warn(`SubAgent[${this.appName}] planning failed, proceeding without plan`, {
         error: error instanceof Error ? error.message : String(error),
       });
+      reportError(error, { type: 'subAgentPlanning', agent: this.appName }).catch(() => {});
       return null;
     }
   }
