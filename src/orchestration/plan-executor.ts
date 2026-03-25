@@ -157,6 +157,8 @@ export class PlanExecutor {
 
         // Log planning end (direct response)
         streamLogger?.logPlanningEnd(0, [], true, Date.now() - planningStartTime);
+        // Log assistant response for direct response (was missing)
+        streamLogger?.logAssistantResponse(planResult.directResponse);
 
         // Check if last message is already the same user request (avoid duplicate)
         const lastMsg = currentMessages[currentMessages.length - 1];

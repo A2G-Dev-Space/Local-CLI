@@ -14,7 +14,7 @@ import { PROJECTS_DIR } from '../constants.js';
 const FLUSH_INTERVAL_MS = 1000;
 
 // 로그 카테고리 타입
-export type LogCategory = 'all' | 'chat' | 'tool' | 'http' | 'llm' | 'ui' | 'system' | 'debug';
+export type LogCategory = 'all' | 'chat' | 'tool' | 'http' | 'llm' | 'subagent' | 'ui' | 'system' | 'debug';
 
 export interface StreamLogEntry {
   timestamp: string;
@@ -115,6 +115,23 @@ function getLogCategory(type: StreamLogEntry['type']): LogCategory {
  */
 function refineCategoryFromContent(category: LogCategory, content: string): LogCategory {
   const msg = content.toLowerCase();
+
+  // SubAgent 관련 메시지는 subagent 카테고리로 (최상위 우선 매칭)
+  if (msg.includes('[subagent:') || msg.includes('[subagent]') ||
+      msg.includes('sub-agent') || msg.includes('subagent[') ||
+      msg.includes('[desktop-control]') || msg.includes('desktop control') ||
+      msg.includes('desktopcontrolsubagent') || msg.includes('desktop_control') ||
+      msg.includes('vlm action') || msg.includes('vlm request') ||
+      msg.includes('capturescreen') || msg.includes('bring_window') ||
+      msg.includes('bringwindowtoprimary') || msg.includes('mouseclick') ||
+      msg.includes('presshotkey') || msg.includes('presskey') || msg.includes('typetext') ||
+      msg.includes('[word-agent]') || msg.includes('[excel-agent]') ||
+      msg.includes('[powerpoint-agent]') || msg.includes('[pptx-agent]') ||
+      msg.includes('[confluence-agent]') || msg.includes('[jira-agent]') ||
+      msg.includes('[search-agent]') || msg.includes('[browser-agent]') ||
+      msg.includes('browsersubagent')) {
+    return 'subagent';
+  }
 
   // LLM 관련 메시지는 llm 카테고리로
   if (msg.includes('[llm]') || msg.includes('llm request') || msg.includes('llm response') ||

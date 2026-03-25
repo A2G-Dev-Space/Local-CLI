@@ -23,7 +23,7 @@ const LOG_CATEGORIES: { id: LogCategory; label: string; descKey: string; color: 
   { id: 'tool', label: 'Tool', descKey: 'log.cat.tool', color: '#f59e0b' },
   { id: 'http', label: 'HTTP', descKey: 'log.cat.http', color: '#3b82f6' },
   { id: 'llm', label: 'LLM', descKey: 'log.cat.llm', color: '#ec4899' },
-  { id: 'desktop', label: 'Desktop', descKey: 'log.cat.desktop', color: '#f97316' },
+  { id: 'subagent', label: 'SubAgent', descKey: 'log.cat.subagent', color: '#f97316' },
   { id: 'ui', label: 'UI', descKey: 'log.cat.ui', color: '#06b6d4' },
   { id: 'system', label: 'System', descKey: 'log.cat.system', color: '#6366f1' },
   { id: 'debug', label: 'Debug', descKey: 'log.cat.debug', color: '#6b7280' },
@@ -46,15 +46,25 @@ const LOG_CATEGORIES: { id: LogCategory; label: string; descKey: string; color: 
 function detectCategory(message: string, level: string): LogCategory {
   const msg = message.toLowerCase();
 
-  // Desktop Control 카테고리: 비전 기반 데스크톱 제어 에이전트 (최상위 우선 매칭)
-  if (msg.includes('[desktop-control]') || msg.includes('desktop control') ||
+  // SubAgent 카테고리: 모든 서브에이전트 (Office, Browser, Desktop Control 등) — 최상위 우선 매칭
+  if (msg.includes('[subagent:') || msg.includes('[subagent]') ||
+      msg.includes('sub-agent') || msg.includes('subagent[') ||
+      // Desktop Control
+      msg.includes('[desktop-control]') || msg.includes('desktop control') ||
       msg.includes('desktopcontrolsubagent') || msg.includes('desktop_control') ||
       msg.includes('capturescreen') || msg.includes('screenshot captured') ||
       msg.includes('vlm action') || msg.includes('vlm request') ||
       msg.includes('bring_window') || msg.includes('list_windows') ||
       msg.includes('bringwindowtoprimary') || msg.includes('mouseclick') ||
-      msg.includes('presshotkey') || msg.includes('presskey') || msg.includes('typetext')) {
-    return 'desktop';
+      msg.includes('presshotkey') || msg.includes('presskey') || msg.includes('typetext') ||
+      // Office agents
+      msg.includes('[word-agent]') || msg.includes('[excel-agent]') ||
+      msg.includes('[powerpoint-agent]') || msg.includes('[pptx-agent]') ||
+      // Browser agents
+      msg.includes('[confluence-agent]') || msg.includes('[jira-agent]') ||
+      msg.includes('[search-agent]') || msg.includes('[browser-agent]') ||
+      msg.includes('browsersubagent')) {
+    return 'subagent';
   }
 
   // Chat 카테고리: 사용자 입력, 어시스턴트 응답
@@ -203,10 +213,10 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Session log state
+  // Session log state (kept for potential future use)
   const [sessionLogFiles, setSessionLogFiles] = useState<SessionLogFile[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
-  const [logSource, setLogSource] = useState<'session' | 'currentRun'>('session'); // Default to session logs
+  const [logSource] = useState<'session' | 'currentRun'>('currentRun'); // Always Current Run
 
   // Current Run log state
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
@@ -600,57 +610,20 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
 
       {/* 툴바 */}
       <div className="log-viewer-toolbar">
-        {/* 로그 소스 선택 (Session / Current Run) */}
-        <div className="log-source-toggle">
+        {/* Current Run 표시 */}
+        <div className="log-current-run-info">
+          <span className="run-indicator">● {t('log.live')}</span>
+          <span className="run-id">{t('log.run')} {currentRunId ? currentRunId.slice(0, 16) : t('common.loading')}</span>
           <button
-            className={`source-btn ${logSource === 'session' ? 'active' : ''}`}
-            onClick={() => setLogSource('session')}
-            title={t('log.sessionTitle')}
+            className="log-action-btn refresh-btn"
+            onClick={loadCurrentRunLogEntries}
+            title={t('log.refreshLogs')}
           >
-            {t('log.session')}
-          </button>
-          <button
-            className={`source-btn ${logSource === 'currentRun' ? 'active' : ''}`}
-            onClick={() => setLogSource('currentRun')}
-            title={t('log.currentRunTitle')}
-          >
-            {t('log.currentRun')}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+            </svg>
           </button>
         </div>
-
-        {/* 세션 선택 (session mode) */}
-        {logSource === 'session' && (
-          <select
-            className="log-file-select"
-            value={selectedSessionId || ''}
-            onChange={(e) => setSelectedSessionId(e.target.value || null)}
-          >
-            <option value="">{t('log.selectSession')}</option>
-            {sessionLogFiles.map(file => (
-              <option key={file.sessionId} value={file.sessionId}>
-                {file.sessionId === currentSessionId ? '★ ' : ''}
-                {file.sessionId.slice(0, 8)}... ({formatSize(file.size)})
-              </option>
-            ))}
-          </select>
-        )}
-
-        {/* Current Run 표시 */}
-        {logSource === 'currentRun' && (
-          <div className="log-current-run-info">
-            <span className="run-indicator">● {t('log.live')}</span>
-            <span className="run-id">{t('log.run')} {currentRunId ? currentRunId.slice(0, 16) : t('common.loading')}</span>
-            <button
-              className="log-action-btn refresh-btn"
-              onClick={loadCurrentRunLogEntries}
-              title={t('log.refreshLogs')}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
-              </svg>
-            </button>
-          </div>
-        )}
 
         {/* 클립보드 복사 버튼 */}
         <button
@@ -831,9 +804,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose, curren
       {/* 푸터 - 통계 */}
       <div className="log-viewer-footer">
         <span className="log-count">
-          {t('log.entries', { count: String(displayEntries.length) })}
-          {logSource === 'currentRun' && ` ${t('log.thisRun')}`}
-          {logSource === 'session' && selectedSessionId && ` (${selectedSessionId.slice(0, 8)}...)`}
+          {t('log.entries', { count: String(displayEntries.length) })} {t('log.thisRun')}
         </span>
       </div>
     </div>
