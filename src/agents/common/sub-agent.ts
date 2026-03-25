@@ -20,6 +20,7 @@ import { COMPLETE_TOOL_DEFINITION } from './complete-tool.js';
 import { configManager } from '../../core/config/config-manager.js';
 import { logger } from '../../utils/logger.js';
 import { getJsonStreamLogger } from '../../utils/json-stream-logger.js';
+import { reportError } from '../../core/telemetry/error-reporter.js';
 
 // Global callback for SubAgent event logging (opt-in, used by pipe-runner -ps mode)
 type ToolCallLoggerFn = (appName: string, toolName: string, args: Record<string, unknown>, resultText: string, success: boolean, iteration: number, totalCalls: number) => void;
@@ -336,6 +337,14 @@ export class SubAgent {
             duration: toolDuration,
           } as any);
 
+          reportError(error, {
+            type: 'subAgentToolExecution',
+            agent: this.appName,
+            tool: toolName,
+            iteration: iterations,
+            duration: toolDuration,
+          }).catch(() => {});
+
           streamLog(this.appName, 'error', `Tool #${totalToolCalls}: ${toolName} EXCEPTION (${toolDuration}ms): ${errorMsg}`, {
             tool: toolName,
             error: errorMsg,
@@ -424,6 +433,7 @@ export class SubAgent {
       logger.warn(`SubAgent[${this.appName}] enhancement failed, proceeding without`, {
         error: error instanceof Error ? error.message : String(error),
       });
+      reportError(error, { type: 'subAgentEnhancement', agent: this.appName }).catch(() => {});
       return null;
     }
   }
@@ -452,6 +462,7 @@ export class SubAgent {
       logger.warn(`SubAgent[${this.appName}] planning failed, proceeding without plan`, {
         error: error instanceof Error ? error.message : String(error),
       });
+      reportError(error, { type: 'subAgentPlanning', agent: this.appName }).catch(() => {});
       return null;
     }
   }

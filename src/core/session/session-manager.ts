@@ -472,6 +472,7 @@ export class SessionManager {
         } catch (parseError) {
           // Skip invalid session files
           logger.warn(`Failed to parse session file ${file}:`, parseError);
+          reportError(parseError, { type: 'sessionError', method: 'listSessions.parse', file }).catch(() => {});
         }
       }
 
@@ -481,7 +482,8 @@ export class SessionManager {
       logger.exit('listSessions', { sessionCount: sessions.length });
       return sessions;
     } catch (error) {
-      logger.error('Failed to list sessions', { error });
+      logger.error('Failed to list sessions', error as Error);
+      reportError(error, { type: 'sessionError', method: 'listSessions' }).catch(() => {});
       return [];
     }
   }
@@ -503,7 +505,8 @@ export class SessionManager {
       logger.exit('deleteSession', { sessionId, success: true });
       return true;
     } catch (error) {
-      logger.error('Failed to delete session', { sessionId, error });
+      logger.error('Failed to delete session', { sessionId, error } as any);
+      reportError(error, { type: 'sessionError', method: 'deleteSession', sessionId }).catch(() => {});
       return false;
     }
   }

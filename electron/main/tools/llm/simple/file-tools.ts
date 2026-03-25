@@ -14,6 +14,7 @@ import type { ToolDefinition } from '../../../core';
 import type { LLMSimpleTool, ToolResult, ToolCategory } from '../../types';
 import { sendFileEditEvent, sendFileCreateEvent } from '../../../ipc-handlers';
 import { logger } from '../../../utils/logger';
+import { reportError } from '../../../core/telemetry/error-reporter';
 
 /**
  * Delay execution for specified milliseconds
@@ -254,6 +255,7 @@ async function executeReadFile(args: Record<string, unknown>): Promise<ToolResul
   } catch (error) {
     const err = error as NodeJS.ErrnoException;
     logger.toolError('read_file', args, err, 0);
+    reportError(error, { type: 'toolExecution', tool: 'read_file' }).catch(() => {});
     if (err.code === 'ENOENT') {
       return { success: false, error: `File not found: ${filePath}` };
     } else if (err.code === 'EACCES') {
@@ -363,6 +365,7 @@ async function executeCreateFile(args: Record<string, unknown>): Promise<ToolRes
   } catch (error) {
     const err = error as NodeJS.ErrnoException;
     logger.toolError('create_file', args, err, 0);
+    reportError(error, { type: 'toolExecution', tool: 'create_file' }).catch(() => {});
     return { success: false, error: `Failed to create file (${filePath}): ${err.message}` };
   }
 }
@@ -607,6 +610,7 @@ async function executeEditFile(args: Record<string, unknown>): Promise<ToolResul
   } catch (error) {
     const err = error as NodeJS.ErrnoException;
     logger.toolError('edit_file', args, err, 0);
+    reportError(error, { type: 'toolExecution', tool: 'edit_file' }).catch(() => {});
     return { success: false, error: `File edit failed (${filePath}): ${err.message}` };
   }
 }
@@ -723,6 +727,7 @@ async function executeListFiles(args: Record<string, unknown>): Promise<ToolResu
   } catch (error) {
     const err = error as NodeJS.ErrnoException;
     logger.toolError('list_files', args, err, 0);
+    reportError(error, { type: 'toolExecution', tool: 'list_files' }).catch(() => {});
     if (err.code === 'ENOENT') {
       return { success: false, error: `Directory not found: ${directoryPath}` };
     }
@@ -841,6 +846,7 @@ async function executeFindFiles(args: Record<string, unknown>): Promise<ToolResu
   } catch (error) {
     const err = error as NodeJS.ErrnoException;
     logger.toolError('find_files', args, err, 0);
+    reportError(error, { type: 'toolExecution', tool: 'find_files' }).catch(() => {});
     return { success: false, error: `File search failed: ${err.message}` };
   }
 }
@@ -1003,6 +1009,7 @@ async function executeSearchContent(args: Record<string, unknown>): Promise<Tool
   } catch (error) {
     const err = error as NodeJS.ErrnoException;
     logger.toolError('search_content', args, err, 0);
+    reportError(error, { type: 'toolExecution', tool: 'search_content' }).catch(() => {});
     return { success: false, error: `Content search failed: ${err.message}` };
   }
 }

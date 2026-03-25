@@ -233,6 +233,7 @@ Choose one of your 4 tools now.`,
               toolArgs = JSON.parse(toolCall.function?.arguments || '{}');
             } catch (error) {
               logger.warn('Failed to parse tool arguments', { args: toolCall.function?.arguments, error });
+              reportError(error, { type: 'planningError', method: 'parseToolArguments' }).catch(() => {});
               lastError = error as Error;
               // Feed back the parse error to LLM so it can correct itself
               const rawPreview = typeof toolCall.function?.arguments === 'string'
@@ -317,7 +318,8 @@ Choose one of your 4 tools now.`,
                 break; // Exit retry loop, continue main loop
 
               } catch (error) {
-                logger.error('Error during ask_to_user', error as Error);
+                logger.errorSilent('Error during ask_to_user', error as Error);
+                reportError(error, { type: 'planningError', method: 'askToUser' }).catch(() => {});
                 lastError = error as Error;
                 // Continue retry loop
                 continue;
@@ -480,6 +482,7 @@ Choose one of your 4 tools now.`,
           }
           // Network or API error - will retry
           logger.warn(`Planning LLM error (attempt ${attempt}/${MAX_RETRIES}):`, error as Error);
+          reportError(error, { type: 'planningError', method: 'generateTODOList', attempt }).catch(() => {});
           lastError = error as Error;
           // Continue to next retry
         }

@@ -122,7 +122,8 @@ function refineCategoryFromContent(category: LogCategory, content: string): LogC
       msg.includes('[desktop-control]') || msg.includes('desktop control') ||
       msg.includes('desktopcontrolsubagent') || msg.includes('desktop_control') ||
       msg.includes('vlm action') || msg.includes('vlm request') ||
-      msg.includes('capturescreen') || msg.includes('bring_window') ||
+      msg.includes('capturescreen') || msg.includes('screenshot captured') ||
+      msg.includes('bring_window') || msg.includes('list_windows') ||
       msg.includes('bringwindowtoprimary') || msg.includes('mouseclick') ||
       msg.includes('presshotkey') || msg.includes('presskey') || msg.includes('typetext') ||
       msg.includes('[word-agent]') || msg.includes('[excel-agent]') ||

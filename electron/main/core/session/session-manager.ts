@@ -427,7 +427,8 @@ class SessionManager {
     try {
       await fs.promises.mkdir(this.sessionsDir, { recursive: true });
     } catch (error) {
-      logger.error('Failed to create sessions directory', error);
+      logger.errorSilent('Failed to create sessions directory', error);
+      reportError(error, { type: 'sessionError', method: 'ensureSessionsDirectory' }).catch(() => {});
     }
   }
 
@@ -510,7 +511,8 @@ class SessionManager {
       });
       return true;
     } catch (error) {
-      logger.error('Failed to save session', { sessionId: session.id, error });
+      logger.errorSilent('Failed to save session', { sessionId: session.id, error });
+      reportError(error, { type: 'sessionError', method: 'saveSession', sessionId: session.id }).catch(() => {});
       return false;
     }
   }
@@ -580,7 +582,8 @@ class SessionManager {
       logger.info('Session deleted', { sessionId });
       return true;
     } catch (error) {
-      logger.error('Failed to delete session', { sessionId, error });
+      logger.errorSilent('Failed to delete session', { sessionId, error });
+      reportError(error, { type: 'sessionError', method: 'deleteSession', sessionId }).catch(() => {});
       return false;
     }
   }
@@ -618,6 +621,7 @@ class SessionManager {
           });
         } catch (parseError) {
           logger.warn('Failed to parse session file', { file, error: parseError });
+          reportError(parseError, { type: 'sessionError', method: 'listSessions.parse', file }).catch(() => {});
         }
       }
 
@@ -626,7 +630,8 @@ class SessionManager {
 
       return sessions;
     } catch (error) {
-      logger.error('Failed to list sessions', error);
+      logger.errorSilent('Failed to list sessions', error);
+      reportError(error, { type: 'sessionError', method: 'listSessions' }).catch(() => {});
       return [];
     }
   }
@@ -676,7 +681,8 @@ class SessionManager {
       session.name = newName;
       return await this.saveSession(session);
     } catch (error) {
-      logger.error('Failed to rename session', { sessionId, newName, error });
+      logger.errorSilent('Failed to rename session', { sessionId, newName, error });
+      reportError(error, { type: 'sessionError', method: 'renameSession', sessionId }).catch(() => {});
       return false;
     }
   }
@@ -699,7 +705,8 @@ class SessionManager {
 
       return newSession;
     } catch (error) {
-      logger.error('Failed to duplicate session', { sessionId, error });
+      logger.errorSilent('Failed to duplicate session', { sessionId, error });
+      reportError(error, { type: 'sessionError', method: 'duplicateSession', sessionId }).catch(() => {});
       return null;
     }
   }
@@ -714,7 +721,8 @@ class SessionManager {
 
       return JSON.stringify(session, null, 2);
     } catch (error) {
-      logger.error('Failed to export session', { sessionId, error });
+      logger.errorSilent('Failed to export session', { sessionId, error });
+      reportError(error, { type: 'sessionError', method: 'exportSession', sessionId }).catch(() => {});
       return null;
     }
   }
@@ -734,7 +742,8 @@ class SessionManager {
       await this.saveSession(data);
       return data;
     } catch (error) {
-      logger.error('Failed to import session', error);
+      logger.errorSilent('Failed to import session', error);
+      reportError(error, { type: 'sessionError', method: 'importSession' }).catch(() => {});
       return null;
     }
   }
@@ -810,6 +819,7 @@ class SessionManager {
       await writeFileAtomic(filePath, JSON.stringify(state));
     } catch (error) {
       logger.errorSilent('Failed to save UI state', error);
+      reportError(error, { type: 'sessionError', method: 'saveUIState' }).catch(() => {});
     }
   }
 

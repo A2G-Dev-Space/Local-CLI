@@ -10,6 +10,7 @@ import * as path from 'path';
 import { ToolDefinition } from '../../../types/index.js';
 import { LLMSimpleTool, ToolResult, ToolCategory } from '../../types.js';
 import { logger } from '../../../utils/logger.js';
+import { reportError } from '../../../core/telemetry/error-reporter.js';
 
 /**
  * Smart unescape for file content from LLM tool calls.
@@ -165,18 +166,21 @@ async function _executeReadFile(args: Record<string, unknown>): Promise<ToolResu
 
     if (err.code === 'ENOENT') {
       logger.toolError('read_file', args, err, 0);
+      reportError(error, { type: 'toolExecution', tool: 'read_file' }).catch(() => {});
       return {
         success: false,
         error: `File not found: ${displayPath}`,
       };
     } else if (err.code === 'EACCES') {
       logger.toolError('read_file', args, err, 0);
+      reportError(error, { type: 'toolExecution', tool: 'read_file' }).catch(() => {});
       return {
         success: false,
         error: `Permission denied reading file: ${displayPath}`,
       };
     } else {
       logger.toolError('read_file', args, err, 0);
+      reportError(error, { type: 'toolExecution', tool: 'read_file' }).catch(() => {});
       return {
         success: false,
         error: `Failed to read file: ${err.message}`,
@@ -281,6 +285,7 @@ async function _executeCreateFile(args: Record<string, unknown>): Promise<ToolRe
     const err = error as NodeJS.ErrnoException;
     const displayPath = filePath.startsWith('@') ? filePath.slice(1) : filePath;
     logger.toolError('create_file', args, err, 0);
+    reportError(error, { type: 'toolExecution', tool: 'create_file' }).catch(() => {});
     return {
       success: false,
       error: `파일 생성 실패 (${displayPath}): ${err.message}`,
@@ -527,6 +532,7 @@ async function _executeEditFile(args: Record<string, unknown>): Promise<ToolResu
   } catch (error) {
     const err = error as NodeJS.ErrnoException;
     logger.toolError('edit_file', args, err, 0);
+    reportError(error, { type: 'toolExecution', tool: 'edit_file' }).catch(() => {});
     return {
       success: false,
       error: `File edit failed (${displayPath}): ${err.message}`,
@@ -685,6 +691,7 @@ async function _executeListFilesInternal(args: Record<string, unknown>): Promise
   } catch (error) {
     const err = error as NodeJS.ErrnoException;
     logger.toolError('list_files', args, err, 0);
+    reportError(error, { type: 'toolExecution', tool: 'list_files' }).catch(() => {});
     if (err.code === 'ENOENT') {
       return {
         success: false,
@@ -843,6 +850,7 @@ async function _executeFindFilesInternal(args: Record<string, unknown>): Promise
   } catch (error) {
     const err = error as NodeJS.ErrnoException;
     logger.toolError('find_files', args, err, 0);
+    reportError(error, { type: 'toolExecution', tool: 'find_files' }).catch(() => {});
     return {
       success: false,
       error: `File search failed: ${err.message}`,
@@ -1012,6 +1020,7 @@ async function executeSearchContent(args: Record<string, unknown>): Promise<Tool
   } catch (error) {
     const err = error as NodeJS.ErrnoException;
     logger.toolError('search_content', args, err, 0);
+    reportError(error, { type: 'toolExecution', tool: 'search_content' }).catch(() => {});
     return { success: false, error: `Content search failed: ${err.message}` };
   }
 }

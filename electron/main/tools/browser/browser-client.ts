@@ -12,6 +12,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import WebSocket from 'ws';
 import { logger } from '../../utils/logger';
+import { reportError } from '../../core/telemetry/error-reporter';
 import { getWorkingDirectory } from '../llm/simple/file-tools';
 
 // =============================================================================
@@ -412,7 +413,8 @@ class BrowserClient {
         });
         logger.debug('[BrowserClient] PowerShell Start-Process completed');
       } catch (spawnError) {
-        logger.error('[BrowserClient] Failed to spawn browser', { error: spawnError });
+        logger.errorSilent('[BrowserClient] Failed to spawn browser', { error: spawnError });
+        reportError(spawnError, { type: 'browserClient', method: 'launch.spawn' }).catch(() => {});
         return {
           success: false,
           error: 'Failed to start browser process',
@@ -478,7 +480,8 @@ class BrowserClient {
       };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
-      logger.error('[BrowserClient] Launch failed', { error: errorMsg });
+      logger.errorSilent('[BrowserClient] Launch failed', { error: errorMsg });
+      reportError(error, { type: 'browserClient', method: 'launch' }).catch(() => {});
       return {
         success: false,
         error: 'Failed to launch browser',
@@ -512,6 +515,7 @@ class BrowserClient {
 
       return { success: true, message: 'Browser closed' };
     } catch (error) {
+      reportError(error, { type: 'browserClient', method: 'close' }).catch(() => {});
       return {
         success: false,
         error: 'Failed to close browser',
@@ -563,6 +567,7 @@ class BrowserClient {
         title: pageInfo.title,
       };
     } catch (error) {
+      reportError(error, { type: 'browserClient', method: 'navigate' }).catch(() => {});
       return {
         success: false,
         error: 'Failed to navigate',
@@ -598,6 +603,7 @@ class BrowserClient {
 
       return { success: true, message: 'Element clicked', selector };
     } catch (error) {
+      reportError(error, { type: 'browserClient', method: 'click' }).catch(() => {});
       return {
         success: false,
         error: 'Failed to click element',
@@ -647,6 +653,7 @@ class BrowserClient {
 
       return { success: true, message: `Typed ${text.length} characters`, selector, length: text.length };
     } catch (error) {
+      reportError(error, { type: 'browserClient', method: 'type' }).catch(() => {});
       return {
         success: false,
         error: 'Failed to type text',
@@ -714,6 +721,7 @@ class BrowserClient {
         title,
       };
     } catch (error) {
+      reportError(error, { type: 'browserClient', method: 'screenshot' }).catch(() => {});
       return {
         success: false,
         error: 'Failed to take screenshot',
@@ -750,6 +758,7 @@ class BrowserClient {
         title: pageInfo.title,
       };
     } catch (error) {
+      reportError(error, { type: 'browserClient', method: 'getHtml' }).catch(() => {});
       return {
         success: false,
         error: 'Failed to get HTML',
@@ -791,6 +800,7 @@ class BrowserClient {
 
       return { success: false, error: 'Timeout waiting for element', selector };
     } catch (error) {
+      reportError(error, { type: 'browserClient', method: 'waitFor' }).catch(() => {});
       return {
         success: false,
         error: 'Wait failed',
@@ -840,6 +850,7 @@ class BrowserClient {
         title: pageTarget.title,
       };
     } catch (error) {
+      reportError(error, { type: 'browserClient', method: 'connect' }).catch(() => {});
       return {
         success: false,
         error: 'Failed to connect to browser',
@@ -874,6 +885,7 @@ class BrowserClient {
 
       return { success: true, message: 'Script executed', result: result.result.value };
     } catch (error) {
+      reportError(error, { type: 'browserClient', method: 'executeScript' }).catch(() => {});
       return {
         success: false,
         error: 'Failed to execute script',
@@ -913,6 +925,7 @@ class BrowserClient {
 
       return { success: true, message: 'Field filled', selector, length: value.length };
     } catch (error) {
+      reportError(error, { type: 'browserClient', method: 'fill' }).catch(() => {});
       return {
         success: false,
         error: 'Failed to fill field',
@@ -948,6 +961,7 @@ class BrowserClient {
 
       return { success: true, message: 'Element focused', selector };
     } catch (error) {
+      reportError(error, { type: 'browserClient', method: 'focus' }).catch(() => {});
       return {
         success: false,
         error: 'Failed to focus element',
@@ -990,6 +1004,7 @@ class BrowserClient {
         browser_type: this.browserType,
       };
     } catch (error) {
+      reportError(error, { type: 'browserClient', method: 'getHealth' }).catch(() => {});
       return {
         success: false,
         error: 'Failed to get health',
@@ -1048,6 +1063,7 @@ class BrowserClient {
         ...pageInfo,
       };
     } catch (error) {
+      reportError(error, { type: 'browserClient', method: 'getPageInfo' }).catch(() => {});
       return {
         success: false,
         error: 'Failed to get page info',
@@ -1084,6 +1100,7 @@ class BrowserClient {
         selector: selector || 'body',
       };
     } catch (error) {
+      reportError(error, { type: 'browserClient', method: 'getText' }).catch(() => {});
       return {
         success: false,
         error: 'Failed to get text content',
@@ -1237,6 +1254,7 @@ class BrowserClient {
         selector: selector || '(focused element)',
       };
     } catch (error) {
+      reportError(error, { type: 'browserClient', method: 'pressKey' }).catch(() => {});
       return {
         success: false,
         error: 'Failed to press key',
@@ -1257,6 +1275,7 @@ class BrowserClient {
       const result = await this.cdp.send(method, params);
       return { success: true, message: 'Command sent', result };
     } catch (error) {
+      reportError(error, { type: 'browserClient', method: 'send' }).catch(() => {});
       return {
         success: false,
         error: 'Failed to send CDP command',
