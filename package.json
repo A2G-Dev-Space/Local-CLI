@@ -1,6 +1,6 @@
 {
   "name": "local-cli-agent",
-  "version": "5.1.3",
+  "version": "5.3.5",
   "description": "Local CLI - OpenAI-Compatible Local CLI Coding Agent",
   "type": "module",
   "main": "dist/index.js",
