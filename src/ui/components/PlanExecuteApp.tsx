@@ -218,6 +218,9 @@ export const PlanExecuteApp: React.FC<PlanExecuteAppProps> = ({ llmClient: initi
   // Current tool being executed (for status bar)
   const [currentToolName, setCurrentToolName] = useState<string | null>(null);
 
+  // Docs browser (disabled)
+  const showDocsBrowser = false;
+
   // Session browser state
   const [showSessionBrowser, setShowSessionBrowser] = useState(false);
 

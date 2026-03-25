@@ -69,6 +69,7 @@ export interface LLMRequestOptions {
   messages: Message[];
   temperature?: number;
   stream?: boolean;
+  max_tokens?: number;
   tools?: ToolDefinition[];
   tool_choice?: 'auto' | 'none' | 'required' | { type: 'function'; function: { name: string } };
 }
