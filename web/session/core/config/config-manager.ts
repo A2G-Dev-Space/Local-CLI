@@ -1,0 +1,373 @@
+/**
+ * Configuration Manager
+ *
+ * Hanseol 설정 관리 시스템
+ * ~/.hanseol/ 디렉토리 및 설정 파일 관리
+ */
+
+import { OpenConfig, EndpointConfig, ModelInfo } from '../../types/index.js';
+import {
+  OPEN_HOME_DIR,
+  CONFIG_FILE_PATH,
+  DOCS_DIR,
+  BACKUPS_DIR,
+  PROJECTS_DIR,
+} from '../../constants.js';
+import {
+  ensureDirectory,
+  readJsonFile,
+  writeJsonFile,
+  directoryExists,
+} from '../../utils/file-system.js';
+import { logger } from '../../utils/logger.js';
+
+/**
+ * 기본 설정 (빈 엔드포인트)
+ */
+const DEFAULT_CONFIG: OpenConfig = {
+  version: '0.1.0',
+  currentEndpoint: undefined,
+  currentModel: undefined,
+  endpoints: [],
+  settings: {
+    autoApprove: false,
+    debugMode: false,
+    streamResponse: true,
+    autoSave: true,
+  },
+};
+
+/**
+ * ConfigManager 클래스
+ *
+ * 설정 파일 및 디렉토리 관리
+ */
+export class ConfigManager {
+  private config: OpenConfig | null = null;
+  private initialized = false;
+
+  /**
+   * Hanseol 초기화
+   * ~/.hanseol/ 디렉토리 및 설정 파일 생성
+   */
+  async initialize(): Promise<void> {
+    logger.enter('ConfigManager.initialize');
+    if (this.initialized) {
+      logger.flow('ConfigManager already initialized');
+      return;
+    }
+
+    // 홈 디렉토리 생성
+    await ensureDirectory(OPEN_HOME_DIR);
+
+    // 하위 디렉토리 생성
+    await ensureDirectory(DOCS_DIR);
+    await ensureDirectory(BACKUPS_DIR);
+    await ensureDirectory(PROJECTS_DIR);
+
+    // 설정 파일 로드 또는 생성
+    await this.loadOrCreateConfig();
+
+    this.initialized = true;
+    logger.exit('ConfigManager.initialize', { success: true });
+  }
+
+  /**
+   * 설정 파일 로드 또는 기본 설정 생성
+   */
+  private async loadOrCreateConfig(): Promise<void> {
+    const existingConfig = await readJsonFile<OpenConfig>(CONFIG_FILE_PATH);
+
+    if (existingConfig) {
+      this.config = existingConfig;
+    } else {
+      // 기본 설정 생성
+      this.config = { ...DEFAULT_CONFIG };
+      await this.saveConfig();
+    }
+  }
+
+  /**
+   * 설정 저장
+   */
+  async saveConfig(): Promise<void> {
+    if (!this.config) {
+      const error = new Error('Configuration not initialized');
+      logger.errorSilent('Config save failed', error);
+      throw error;
+    }
+
+    logger.flow('Saving configuration');
+    await writeJsonFile(CONFIG_FILE_PATH, this.config);
+  }
+
+  /**
+   * 현재 설정 가져오기
+   */
+  getConfig(): OpenConfig {
+    if (!this.config) {
+      throw new Error('Configuration not initialized. Call initialize() first.');
+    }
+
+    return this.config;
+  }
+
+  /**
+   * 현재 엔드포인트 가져오기
+   */
+  getCurrentEndpoint(): EndpointConfig | null {
+    const config = this.getConfig();
+
+    if (!config.currentEndpoint) {
+      return null;
+    }
+
+    return config.endpoints.find((ep) => ep.id === config.currentEndpoint) || null;
+  }
+
+  /**
+   * 현재 모델 정보 가져오기
+   */
+  getCurrentModel(): ModelInfo | null {
+    const endpoint = this.getCurrentEndpoint();
+
+    if (!endpoint || !this.config?.currentModel) {
+      return null;
+    }
+
+    return endpoint.models.find((m) => m.id === this.config?.currentModel) || null;
+  }
+
+  /**
+   * 모든 엔드포인트 가져오기
+   */
+  getAllEndpoints(): EndpointConfig[] {
+    return this.getConfig().endpoints;
+  }
+
+  /**
+   * 현재 엔드포인트 변경
+   */
+  async setCurrentEndpoint(endpointId: string): Promise<void> {
+    const config = this.getConfig();
+
+    const endpoint = config.endpoints.find((ep) => ep.id === endpointId);
+    if (!endpoint) {
+      throw new Error(`Endpoint ${endpointId} not found`);
+    }
+
+    config.currentEndpoint = endpointId;
+
+    // 기존 모델이 해당 endpoint에 없을 때만 첫 번째 활성 모델로 변경
+    const currentModelExists = endpoint.models.some((m) => m.id === config.currentModel);
+    if (!currentModelExists) {
+      const activeModel = endpoint.models.find((m) => m.enabled);
+      if (activeModel) {
+        config.currentModel = activeModel.id;
+      }
+    }
+
+    await this.saveConfig();
+  }
+
+  /**
+   * 현재 모델 변경
+   */
+  async setCurrentModel(modelId: string): Promise<void> {
+    const config = this.getConfig();
+    const endpoint = this.getCurrentEndpoint();
+
+    if (!endpoint) {
+      throw new Error('No endpoint selected');
+    }
+
+    const model = endpoint.models.find((m) => m.id === modelId);
+    if (!model) {
+      throw new Error(`Model ${modelId} not found in current endpoint`);
+    }
+
+    if (!model.enabled) {
+      throw new Error(`Model ${modelId} is disabled`);
+    }
+
+    config.currentModel = modelId;
+    await this.saveConfig();
+  }
+
+  async setVisionModel(endpointId: string, modelId: string): Promise<void> {
+    const config = this.getConfig();
+    config.visionEndpointId = endpointId;
+    config.visionModelId = modelId;
+    await this.saveConfig();
+  }
+
+  /**
+   * 설정 값 업데이트
+   */
+  async updateSettings(settings: Partial<OpenConfig['settings']>): Promise<void> {
+    const config = this.getConfig();
+    config.settings = { ...config.settings, ...settings };
+    await this.saveConfig();
+  }
+
+  /**
+   * 홈 디렉토리 존재 여부 확인
+   */
+  async isInitialized(): Promise<boolean> {
+    return await directoryExists(OPEN_HOME_DIR);
+  }
+
+  /**
+   * 엔드포인트 존재 여부 확인
+   */
+  hasEndpoints(): boolean {
+    if (!this.config) {
+      return false;
+    }
+    return this.config.endpoints.length > 0;
+  }
+
+  /**
+   * 설정 초기화 (공장 초기화)
+   */
+  async reset(): Promise<void> {
+    this.config = { ...DEFAULT_CONFIG };
+    await this.saveConfig();
+  }
+
+  /**
+   * 모델 health 상태 업데이트
+   */
+  async updateModelHealth(
+    endpointId: string,
+    modelId: string,
+    status: 'healthy' | 'degraded' | 'unhealthy',
+    _latency?: number
+  ): Promise<void> {
+    const config = this.getConfig();
+    const endpoint = config.endpoints.find((ep) => ep.id === endpointId);
+
+    if (!endpoint) {
+      throw new Error(`Endpoint ${endpointId} not found`);
+    }
+
+    const model = endpoint.models.find((m) => m.id === modelId);
+    if (!model) {
+      throw new Error(`Model ${modelId} not found in endpoint ${endpointId}`);
+    }
+
+    model.healthStatus = status;
+    model.lastHealthCheck = new Date();
+
+    await this.saveConfig();
+  }
+
+  /**
+   * 모든 모델의 health 상태 일괄 업데이트
+   */
+  async updateAllHealthStatus(
+    healthResults: Map<string, { modelId: string; healthy: boolean; latency?: number }[]>
+  ): Promise<void> {
+    const config = this.getConfig();
+
+    for (const [endpointId, modelResults] of healthResults) {
+      const endpoint = config.endpoints.find((ep) => ep.id === endpointId);
+      if (!endpoint) continue;
+
+      for (const result of modelResults) {
+        const model = endpoint.models.find((m) => m.id === result.modelId);
+        if (model) {
+          model.healthStatus = result.healthy ? 'healthy' : 'unhealthy';
+          model.lastHealthCheck = new Date();
+        }
+      }
+    }
+
+    await this.saveConfig();
+  }
+
+  /**
+   * 모든 healthy 모델 목록 조회
+   */
+  getHealthyModels(): { endpoint: EndpointConfig; model: ModelInfo }[] {
+    const config = this.getConfig();
+    const healthyModels: { endpoint: EndpointConfig; model: ModelInfo }[] = [];
+
+    for (const endpoint of config.endpoints) {
+      for (const model of endpoint.models) {
+        if (model.enabled && model.healthStatus === 'healthy') {
+          healthyModels.push({ endpoint, model });
+        }
+      }
+    }
+
+    return healthyModels;
+  }
+
+  /**
+   * 모든 모델 목록 조회 (엔드포인트 정보 포함)
+   */
+  getAllModels(): { endpoint: EndpointConfig; model: ModelInfo; isCurrent: boolean }[] {
+    const config = this.getConfig();
+    const allModels: { endpoint: EndpointConfig; model: ModelInfo; isCurrent: boolean }[] = [];
+
+    for (const endpoint of config.endpoints) {
+      for (const model of endpoint.models) {
+        const isCurrent =
+          endpoint.id === config.currentEndpoint && model.id === config.currentModel;
+        allModels.push({ endpoint, model, isCurrent });
+      }
+    }
+
+    return allModels;
+  }
+
+  /**
+   * Get enabled tool group IDs
+   */
+  getEnabledTools(): string[] {
+    const config = this.getConfig();
+    return config.enabledTools || [];
+  }
+
+  /**
+   * Set enabled tool group IDs
+   */
+  async setEnabledTools(toolIds: string[]): Promise<void> {
+    const config = this.getConfig();
+    config.enabledTools = toolIds;
+    await this.saveConfig();
+  }
+
+  /**
+   * Enable a tool group
+   */
+  async enableTool(toolId: string): Promise<void> {
+    const config = this.getConfig();
+    const enabledTools = config.enabledTools || [];
+    if (!enabledTools.includes(toolId)) {
+      enabledTools.push(toolId);
+      config.enabledTools = enabledTools;
+      await this.saveConfig();
+    }
+  }
+
+  /**
+   * Disable a tool group
+   */
+  async disableTool(toolId: string): Promise<void> {
+    const config = this.getConfig();
+    const enabledTools = config.enabledTools || [];
+    const index = enabledTools.indexOf(toolId);
+    if (index !== -1) {
+      enabledTools.splice(index, 1);
+      config.enabledTools = enabledTools;
+      await this.saveConfig();
+    }
+  }
+}
+
+/**
+ * ConfigManager 싱글톤 인스턴스
+ */
+export const configManager = new ConfigManager();

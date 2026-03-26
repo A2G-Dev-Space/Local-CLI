@@ -1,0 +1,236 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-primary: #0f172a;
+  --bg-secondary: #1e293b;
+  --bg-tertiary: #334155;
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --accent: #6366f1;
+  --accent-hover: #818cf8;
+  --accent-glow: rgba(99, 102, 241, 0.15);
+  --success: #22c55e;
+  --error: #ef4444;
+  --warning: #f59e0b;
+  --info: #3b82f6;
+  --border: #334155;
+  --shadow: rgba(0, 0, 0, 0.3);
+}
+
+.light {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8fafc;
+  --bg-tertiary: #e2e8f0;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --accent: #4f46e5;
+  --accent-hover: #6366f1;
+  --accent-glow: rgba(79, 70, 229, 0.1);
+  --success: #16a34a;
+  --error: #dc2626;
+  --warning: #d97706;
+  --info: #2563eb;
+  --border: #e2e8f0;
+  --shadow: rgba(0, 0, 0, 0.08);
+}
+
+@layer base {
+  * {
+    @apply border-[var(--border)];
+  }
+
+  body {
+    @apply bg-[var(--bg-primary)] text-[var(--text-primary)] antialiased;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+      'Helvetica Neue', Arial, sans-serif;
+  }
+
+  ::-webkit-scrollbar {
+    @apply w-2;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-[var(--bg-tertiary)] rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-[var(--text-secondary)];
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200
+      bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)]
+      active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200
+      bg-[var(--bg-tertiary)] text-[var(--text-primary)]
+      hover:bg-[var(--border)] active:scale-[0.98]
+      disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-ghost {
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200
+      text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]
+      hover:text-[var(--text-primary)] active:scale-[0.98];
+  }
+
+  .btn-danger {
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200
+      bg-[var(--error)] text-white hover:brightness-110
+      active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .card {
+    @apply bg-[var(--bg-secondary)] rounded-xl border border-[var(--border)]
+      shadow-lg shadow-[var(--shadow)];
+  }
+
+  .input {
+    @apply w-full px-3 py-2 rounded-lg bg-[var(--bg-tertiary)]
+      text-[var(--text-primary)] placeholder-[var(--text-secondary)]
+      border border-[var(--border)] outline-none
+      focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent
+      transition-all duration-200;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .badge-success {
+    @apply badge bg-green-500/15 text-green-400;
+  }
+
+  .badge-warning {
+    @apply badge bg-yellow-500/15 text-yellow-400;
+  }
+
+  .badge-error {
+    @apply badge bg-red-500/15 text-red-400;
+  }
+
+  .badge-info {
+    @apply badge bg-blue-500/15 text-blue-400;
+  }
+}
+
+/* Markdown content styling */
+.markdown-content h1 {
+  @apply text-2xl font-bold mt-6 mb-3;
+}
+.markdown-content h2 {
+  @apply text-xl font-bold mt-5 mb-2;
+}
+.markdown-content h3 {
+  @apply text-lg font-semibold mt-4 mb-2;
+}
+.markdown-content p {
+  @apply mb-3 leading-relaxed;
+}
+.markdown-content ul {
+  @apply list-disc pl-6 mb-3;
+}
+.markdown-content ol {
+  @apply list-decimal pl-6 mb-3;
+}
+.markdown-content li {
+  @apply mb-1;
+}
+.markdown-content blockquote {
+  @apply border-l-4 border-[var(--accent)] pl-4 py-1 my-3 italic text-[var(--text-secondary)];
+}
+.markdown-content a {
+  @apply text-[var(--accent)] hover:underline;
+}
+.markdown-content table {
+  @apply w-full border-collapse mb-3;
+}
+.markdown-content th {
+  @apply border border-[var(--border)] px-3 py-2 bg-[var(--bg-tertiary)] text-left font-semibold;
+}
+.markdown-content td {
+  @apply border border-[var(--border)] px-3 py-2;
+}
+.markdown-content hr {
+  @apply my-4 border-[var(--border)];
+}
+.markdown-content pre {
+  @apply mb-3 rounded-lg overflow-hidden;
+}
+.markdown-content code:not(pre code) {
+  @apply bg-[var(--bg-tertiary)] px-1.5 py-0.5 rounded text-sm text-[var(--accent)];
+}
+
+/* Chat page animations */
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+.animate-cursor-blink {
+  animation: cursor-blink 1s ease-in-out infinite;
+}
+
+.animate-gradient-shift {
+  background-size: 200% 200%;
+  animation: gradient-shift 3s ease infinite;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Gradient border wrapper for chat input */
+.chat-input-wrapper {
+  position: relative;
+  border-radius: 1rem;
+  padding: 1px;
+  background: var(--border);
+  transition: all 0.3s ease;
+}
+
+.chat-input-wrapper:focus-within {
+  background: linear-gradient(135deg, var(--accent), #a855f7, var(--accent));
+  background-size: 200% 200%;
+  animation: gradient-shift 3s ease infinite;
+  box-shadow: 0 0 20px var(--accent-glow), 0 0 40px rgba(168, 85, 247, 0.08);
+}
+
+.chat-input-wrapper .chat-input-inner {
+  border-radius: calc(1rem - 1px);
+  background: var(--bg-secondary);
+}
+
+/* Progress ring */
+.progress-ring-circle {
+  transition: stroke-dashoffset 0.5s ease;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}
+
+/* Mobile drawer overlay */
+.drawer-overlay {
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+}

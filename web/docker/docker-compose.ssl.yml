@@ -1,0 +1,23 @@
+version: "3.8"
+
+services:
+  nginx:
+    ports:
+      - "443:443"
+    volumes:
+      - ../nginx/nginx-ssl.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - certbot_certs:/etc/letsencrypt:ro
+      - certbot_www:/var/www/certbot:ro
+    environment:
+      PROXY_PORT: ${PROXY_PORT:-7090}
+
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - certbot_certs:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done'"
+
+volumes:
+  certbot_certs:
+  certbot_www:

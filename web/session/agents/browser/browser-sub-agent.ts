@@ -1,32 +1,23 @@
 /**
- * Browser Sub-Agent (Electron)
+ * Browser Sub-Agent
  *
  * Browser lifecycle + auth + SubAgent delegation.
  * Confluence/Jira/Search 에이전트가 이 클래스를 사용하여 실행.
- *
- * CLI parity: src/agents/browser/browser-sub-agent.ts
  */
 
-import type { LLMClient } from '../../core/llm';
-import type { LLMSimpleTool, ToolResult } from '../../tools/types';
-import type { BrowserClient } from '../../tools/browser/browser-client';
-import { SubAgent } from '../common/sub-agent';
-import { configManager } from '../../core/config';
+import { LLMClient } from '../../core/llm/llm-client.js';
+import { LLMSimpleTool, ToolResult } from '../../tools/types.js';
+import { BrowserServiceConfig } from '../../types/index.js';
+import { SubAgent } from '../common/sub-agent.js';
+import { configManager } from '../../core/config/config-manager.js';
 import {
   ensureAuthenticated,
   launchSubAgentBrowser,
   getSubAgentBrowserClient,
   ATLASSIAN_LOGIN_INDICATORS,
   LoginIndicators,
-} from './browser-profile-manager';
-import { logger } from '../../utils/logger';
-import { reportError } from '../../core/telemetry/error-reporter';
-
-export interface BrowserServiceConfig {
-  type: 'confluence' | 'jira';
-  name: string;
-  url: string;
-}
+} from './browser-profile-manager.js';
+import { logger } from '../../utils/logger.js';
 
 export interface BrowserSubAgentConfig {
   requiresAuth: boolean;
@@ -50,11 +41,8 @@ export class BrowserSubAgent {
     const startTime = Date.now();
 
     try {
-      // 1. URL 결정 (프로토콜 없으면 https:// 자동 추가)
-      let url = sourceUrl || this.resolveServiceUrl();
-      if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
-        url = `https://${url}`;
-      }
+      // 1. URL 결정
+      const url = sourceUrl || this.resolveServiceUrl();
       if (!url && this.config.serviceType !== 'search') {
         return {
           success: false,
@@ -114,7 +102,6 @@ export class BrowserSubAgent {
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       logger.error(`BrowserSubAgent[${this.serviceName}] error`, { error: errorMsg });
-      reportError(error, { type: 'browserSubAgent', service: this.serviceName }).catch(() => {});
       return {
         success: false,
         error: `Browser sub-agent error: ${errorMsg}`,
@@ -123,12 +110,12 @@ export class BrowserSubAgent {
   }
 
   /**
-   * config에서 서비스 URL 찾기
+   * config.json에서 서비스 URL 찾기
    */
   private resolveServiceUrl(): string | undefined {
     try {
-      const config = configManager.getAll();
-      const services: BrowserServiceConfig[] = (config as unknown as { browserServices?: BrowserServiceConfig[] }).browserServices || [];
+      const config = configManager.getConfig();
+      const services: BrowserServiceConfig[] = config.browserServices || [];
       const first = services.find(s => s.type === this.config.serviceType);
       return first?.url;
     } catch {
@@ -153,8 +140,10 @@ export class BrowserSubAgent {
 
   /**
    * 서브에이전트용 도구에 BrowserClient를 바인딩
+   * browser-tools.ts의 도구들은 싱글톤 browserClient를 사용하므로,
+   * 서브에이전트 전용 client로 교체한 새 도구 배열을 생성
    */
-  private bindToolsToClient(client: BrowserClient): LLMSimpleTool[] {
+  private bindToolsToClient(client: import('../../tools/browser/browser-client.js').BrowserClient): LLMSimpleTool[] {
     return this.tools.map(tool => ({
       ...tool,
       execute: async (args: Record<string, unknown>) => {
@@ -170,7 +159,7 @@ export class BrowserSubAgent {
   private async executeToolWithClient(
     toolName: string,
     args: Record<string, unknown>,
-    client: BrowserClient
+    client: import('../../tools/browser/browser-client.js').BrowserClient
   ): Promise<ToolResult> {
     try {
       let result: { success: boolean; error?: string; [key: string]: unknown };
@@ -201,7 +190,7 @@ export class BrowserSubAgent {
           result = await client.getPageInfo();
           break;
         case 'browser_focus':
-          result = await client.focus(args['selector'] as string);
+          result = await client.focus();
           break;
         case 'browser_press_key':
           result = await client.pressKey(args['key'] as string, args['selector'] as string | undefined);
@@ -234,7 +223,6 @@ export class BrowserSubAgent {
 
       return { success: true, result: typeof resultText === 'string' ? resultText : JSON.stringify(resultText) };
     } catch (error) {
-      reportError(error, { type: 'browserSubAgentTool', service: this.serviceName, tool: toolName }).catch(() => {});
       return {
         success: false,
         error: `Tool execution error: ${error instanceof Error ? error.message : String(error)}`,

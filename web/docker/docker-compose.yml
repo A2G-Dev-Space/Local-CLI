@@ -1,0 +1,146 @@
+version: "3.8"
+
+services:
+  # Session image builder (not a running service — build only)
+  session-image:
+    build:
+      context: ../..
+      dockerfile: web/session/Dockerfile
+    image: hanseol-web-session:latest
+    profiles:
+      - build
+    command: echo "Session image built"
+
+  postgres:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - hanseol-web-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    volumes:
+      - redis_data:/data
+    networks:
+      - hanseol-web-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api-blue:
+    build:
+      context: ../..
+      dockerfile: web/api/Dockerfile
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      DASHBOARD_URL: ${DASHBOARD_URL}
+      ADMIN_EMAILS: ${ADMIN_EMAILS}
+      SESSION_IMAGE: ${SESSION_IMAGE}
+      SESSION_NETWORK: ${SESSION_NETWORK}
+      SESSION_CPU_LIMIT: ${SESSION_CPU_LIMIT}
+      SESSION_MEMORY_LIMIT: ${SESSION_MEMORY_LIMIT}
+      SESSION_PORT_START: ${SESSION_PORT_START}
+      WEB_APP_URL: ${WEB_APP_URL}
+      CORS_ORIGIN: ${CORS_ORIGIN}
+      PORT: ${PORT}
+      ENV_LABEL: ${ENV_LABEL}
+      NODE_ENV: production
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - hanseol-web-network
+
+  api-green:
+    build:
+      context: ../..
+      dockerfile: web/api/Dockerfile
+    profiles:
+      - green
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      DASHBOARD_URL: ${DASHBOARD_URL}
+      ADMIN_EMAILS: ${ADMIN_EMAILS}
+      SESSION_IMAGE: ${SESSION_IMAGE}
+      SESSION_NETWORK: ${SESSION_NETWORK}
+      SESSION_CPU_LIMIT: ${SESSION_CPU_LIMIT}
+      SESSION_MEMORY_LIMIT: ${SESSION_MEMORY_LIMIT}
+      SESSION_PORT_START: ${SESSION_PORT_START}
+      WEB_APP_URL: ${WEB_APP_URL}
+      CORS_ORIGIN: ${CORS_ORIGIN}
+      PORT: ${PORT}
+      ENV_LABEL: ${ENV_LABEL}
+      NODE_ENV: production
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - hanseol-web-network
+
+  frontend-blue:
+    build:
+      context: ../..
+      dockerfile: web/frontend/Dockerfile
+    restart: always
+    networks:
+      - hanseol-web-network
+
+  frontend-green:
+    build:
+      context: ../..
+      dockerfile: web/frontend/Dockerfile
+    profiles:
+      - green
+    networks:
+      - hanseol-web-network
+
+  nginx:
+    image: nginx:alpine
+    restart: always
+    depends_on:
+      - api-blue
+      - frontend-blue
+    ports:
+      - "${PROXY_PORT:-7090}:${PROXY_PORT:-7090}"
+    volumes:
+      - ../nginx/nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
+    environment:
+      PROXY_PORT: ${PROXY_PORT:-7090}
+    networks:
+      - hanseol-web-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  hanseol-web-network:
+    name: hanseol-web-network
+    driver: bridge
