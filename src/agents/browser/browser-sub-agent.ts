@@ -41,8 +41,11 @@ export class BrowserSubAgent {
     const startTime = Date.now();
 
     try {
-      // 1. URL 결정
-      const url = sourceUrl || this.resolveServiceUrl();
+      // 1. URL 결정 (프로토콜 없으면 https:// 자동 추가)
+      let url = sourceUrl || this.resolveServiceUrl();
+      if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
+        url = `https://${url}`;
+      }
       if (!url && this.config.serviceType !== 'search') {
         return {
           success: false,
