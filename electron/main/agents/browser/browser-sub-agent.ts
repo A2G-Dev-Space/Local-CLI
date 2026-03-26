@@ -20,6 +20,7 @@ import {
   LoginIndicators,
 } from './browser-profile-manager';
 import { logger } from '../../utils/logger';
+import { reportError } from '../../core/telemetry/error-reporter';
 
 export interface BrowserServiceConfig {
   type: 'confluence' | 'jira';
@@ -113,6 +114,7 @@ export class BrowserSubAgent {
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       logger.error(`BrowserSubAgent[${this.serviceName}] error`, { error: errorMsg });
+      reportError(error, { type: 'browserSubAgent', service: this.serviceName }).catch(() => {});
       return {
         success: false,
         error: `Browser sub-agent error: ${errorMsg}`,
@@ -232,6 +234,7 @@ export class BrowserSubAgent {
 
       return { success: true, result: typeof resultText === 'string' ? resultText : JSON.stringify(resultText) };
     } catch (error) {
+      reportError(error, { type: 'browserSubAgentTool', service: this.serviceName, tool: toolName }).catch(() => {});
       return {
         success: false,
         error: `Tool execution error: ${error instanceof Error ? error.message : String(error)}`,
