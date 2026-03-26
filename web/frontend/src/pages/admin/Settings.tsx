@@ -131,7 +131,7 @@ export default function AdminSettings() {
           {fields.map((field) => (
             <div
               key={field.key}
-              className="px-6 py-5 flex items-center justify-between gap-8"
+              className="px-6 py-5 flex items-center justify-between gap-8 hover:bg-[var(--accent-subtle)] transition-colors"
             >
               <div>
                 <label className="text-sm font-medium text-[var(--text-primary)]">

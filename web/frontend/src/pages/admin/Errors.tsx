@@ -107,23 +107,23 @@ export default function AdminErrors() {
       {/* Error list */}
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full table-premium">
             <thead>
               <tr className="border-b border-[var(--border)]">
                 <th className="text-left px-5 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider w-8" />
-                <th className="text-left px-5 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+                <th className="text-left px-5 py-3.5 text-[10px] font-semibold text-[var(--text-tertiary)] uppercase tracking-[0.1em]">
                   {t('admin.errors.time')}
                 </th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+                <th className="text-left px-5 py-3.5 text-[10px] font-semibold text-[var(--text-tertiary)] uppercase tracking-[0.1em]">
                   {t('admin.errors.level')}
                 </th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+                <th className="text-left px-5 py-3.5 text-[10px] font-semibold text-[var(--text-tertiary)] uppercase tracking-[0.1em]">
                   {t('admin.errors.source')}
                 </th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+                <th className="text-left px-5 py-3.5 text-[10px] font-semibold text-[var(--text-tertiary)] uppercase tracking-[0.1em]">
                   {t('admin.errors.message')}
                 </th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+                <th className="text-left px-5 py-3.5 text-[10px] font-semibold text-[var(--text-tertiary)] uppercase tracking-[0.1em]">
                   {t('admin.errors.user')}
                 </th>
               </tr>
@@ -138,7 +138,7 @@ export default function AdminErrors() {
                   <motion.tr
                     key={err.id}
                     layout
-                    className="border-b border-[var(--border)] hover:bg-[var(--bg-tertiary)]/30 transition-colors cursor-pointer"
+                    className="border-b border-[var(--border)] transition-all duration-200 hover:bg-[var(--accent-subtle)] cursor-pointer"
                     onClick={() => setExpandedId(isExpanded ? null : err.id)}
                   >
                     <td className="px-5 py-3">
@@ -172,11 +172,17 @@ export default function AdminErrors() {
                 );
               })}
               {errors.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-5 py-12 text-center text-sm text-[var(--text-secondary)]">
-                    {t('common.noData')}
-                  </td>
-                </tr>
+                <>
+                  {[...Array(5)].map((_, i) => (
+                    <tr key={i} className="border-b border-[var(--border)]">
+                      {[...Array(6)].map((_, j) => (
+                        <td key={j} className="px-5 py-4">
+                          <div className={clsx('h-4 rounded-lg shimmer', j === 0 ? 'w-6' : j === 4 ? 'w-48' : 'w-20')} />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </>
               )}
             </tbody>
           </table>

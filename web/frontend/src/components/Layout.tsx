@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   MessageSquare,
   Bot,
-  Cpu,
+  Store,
   Shield,
   Users,
   MonitorDot,
@@ -19,6 +19,7 @@ import {
   Languages,
   LogOut,
   ChevronDown,
+  FileText,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth.store';
 import { useThemeStore } from '@/stores/theme.store';
@@ -26,10 +27,10 @@ import clsx from 'clsx';
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   clsx(
-    'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200',
+    'group relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200',
     isActive
-      ? 'bg-[var(--accent)] text-white shadow-lg shadow-[var(--accent)]/20'
-      : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]',
+      ? 'text-white'
+      : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]/40 hover:text-[var(--text-primary)]',
   );
 
 export default function Layout() {
@@ -53,105 +54,89 @@ export default function Layout() {
     i18n.changeLanguage(next);
   };
 
+  const NavItem = ({ to, icon: Icon, label, end }: { to: string; icon: typeof MessageSquare; label: string; end?: boolean }) => (
+    <NavLink to={to} end={end} className={navLinkClass} onClick={() => setMobileOpen(false)}>
+      {({ isActive }) => (
+        <>
+          {isActive && (
+            <motion.div
+              layoutId="nav-active"
+              className="absolute inset-0 rounded-xl bg-gradient-to-r from-[var(--accent)] to-[var(--accent)]/80 shadow-glow-sm"
+              transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+            />
+          )}
+          <span className="relative z-10 flex items-center gap-3">
+            <Icon size={18} />
+            {sidebarOpen && <span>{label}</span>}
+          </span>
+        </>
+      )}
+    </NavLink>
+  );
+
   const sidebar = (
     <nav className="flex flex-col h-full">
       {/* Logo */}
-      <div className="flex items-center gap-3 px-4 py-5 border-b border-[var(--border)]">
-        <div className="w-9 h-9 rounded-lg bg-[var(--accent)] flex items-center justify-center flex-shrink-0">
-          <span className="text-white font-bold text-lg">L</span>
+      <div className="flex items-center gap-3 px-4 py-5 border-b border-[var(--glass-border)]">
+        <div className="relative w-9 h-9 rounded-xl overflow-hidden flex-shrink-0 shadow-glow-sm">
+          <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" />
         </div>
         {sidebarOpen && (
-          <motion.span
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="font-bold text-lg text-[var(--text-primary)] whitespace-nowrap"
+          <motion.div
+            initial={{ opacity: 0, x: -8 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="flex items-center gap-2"
           >
-            Local Web
-          </motion.span>
+            <span className="font-bold text-lg text-[var(--text-primary)]">Hanseol</span>
+            <span className="text-xs font-medium text-[var(--accent)] bg-[var(--accent)]/10 px-1.5 py-0.5 rounded-md">Web</span>
+          </motion.div>
         )}
       </div>
 
       {/* Main nav */}
-      <div className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
-        <NavLink to="/sessions" className={navLinkClass} onClick={() => setMobileOpen(false)}>
-          <MessageSquare size={20} />
-          {sidebarOpen && <span>{t('nav.sessions')}</span>}
-        </NavLink>
-        <NavLink to="/agents/new" className={navLinkClass} onClick={() => setMobileOpen(false)}>
-          <Bot size={20} />
-          {sidebarOpen && <span>{t('nav.agents')}</span>}
-        </NavLink>
-        <NavLink to="/settings/llm" className={navLinkClass} onClick={() => setMobileOpen(false)}>
-          <Cpu size={20} />
-          {sidebarOpen && <span>{t('nav.llmSettings')}</span>}
-        </NavLink>
+      <div className="flex-1 overflow-y-auto px-3 py-4 space-y-1 scrollbar-hidden">
+        <NavItem to="/sessions" icon={MessageSquare} label={t('nav.sessions')} />
+        <NavItem to="/agents/new" icon={Bot} label={t('nav.agents')} />
+        <NavItem to="/marketplace" icon={Store} label={t('nav.marketplace')} />
 
         {isAdmin && (
           <>
-            <div className="pt-4 pb-2">
+            <div className="pt-5 pb-2">
               {sidebarOpen && (
-                <span className="px-3 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+                <span className="px-3 text-[10px] font-semibold text-[var(--text-tertiary)] uppercase tracking-[0.15em]">
                   {t('nav.admin')}
                 </span>
               )}
             </div>
-            <NavLink to="/admin" end className={navLinkClass} onClick={() => setMobileOpen(false)}>
-              <Shield size={20} />
-              {sidebarOpen && <span>{t('nav.dashboard')}</span>}
-            </NavLink>
-            <NavLink
-              to="/admin/users"
-              className={navLinkClass}
+            <NavItem to="/admin" icon={Shield} label={t('nav.dashboard')} end />
+            <NavItem to="/admin/users" icon={Users} label={t('nav.users')} />
+            <NavItem to="/admin/sessions" icon={MonitorDot} label={t('nav.allSessions')} />
+            <NavItem to="/admin/resources" icon={HardDrive} label={t('nav.resources')} />
+            <NavItem to="/admin/errors" icon={AlertTriangle} label={t('nav.errors')} />
+            <NavItem to="/admin/settings" icon={Settings} label={t('nav.settings')} />
+            <a
+              href="/api/health"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={navLinkClass({ isActive: false })}
               onClick={() => setMobileOpen(false)}
             >
-              <Users size={20} />
-              {sidebarOpen && <span>{t('nav.users')}</span>}
-            </NavLink>
-            <NavLink
-              to="/admin/sessions"
-              className={navLinkClass}
-              onClick={() => setMobileOpen(false)}
-            >
-              <MonitorDot size={20} />
-              {sidebarOpen && <span>{t('nav.allSessions')}</span>}
-            </NavLink>
-            <NavLink
-              to="/admin/resources"
-              className={navLinkClass}
-              onClick={() => setMobileOpen(false)}
-            >
-              <HardDrive size={20} />
-              {sidebarOpen && <span>{t('nav.resources')}</span>}
-            </NavLink>
-            <NavLink
-              to="/admin/errors"
-              className={navLinkClass}
-              onClick={() => setMobileOpen(false)}
-            >
-              <AlertTriangle size={20} />
-              {sidebarOpen && <span>{t('nav.errors')}</span>}
-            </NavLink>
-            <NavLink
-              to="/admin/settings"
-              className={navLinkClass}
-              onClick={() => setMobileOpen(false)}
-            >
-              <Settings size={20} />
-              {sidebarOpen && <span>{t('nav.settings')}</span>}
-            </NavLink>
+              <FileText size={18} />
+              {sidebarOpen && <span>{t('nav.apiDocs', 'API Docs')}</span>}
+            </a>
           </>
         )}
       </div>
 
       {/* User section */}
       {sidebarOpen && user && (
-        <div className="border-t border-[var(--border)] p-3">
+        <div className="border-t border-[var(--glass-border)] p-3">
           <div className="relative">
             <button
               onClick={() => setUserMenuOpen(!userMenuOpen)}
-              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[var(--bg-tertiary)] transition-colors"
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[var(--bg-tertiary)]/40 transition-all duration-200"
             >
-              <div className="w-8 h-8 rounded-full bg-[var(--accent)] flex items-center justify-center flex-shrink-0">
+              <div className="relative w-8 h-8 rounded-full bg-gradient-to-br from-[var(--accent)] to-purple-600 flex items-center justify-center flex-shrink-0 shadow-glow-sm">
                 <span className="text-white text-sm font-medium">
                   {user.name?.[0]?.toUpperCase() || 'U'}
                 </span>
@@ -160,12 +145,12 @@ export default function Layout() {
                 <div className="text-sm font-medium text-[var(--text-primary)] truncate">
                   {user.name}
                 </div>
-                <div className="text-xs text-[var(--text-secondary)] truncate">{user.email}</div>
+                <div className="text-[11px] text-[var(--text-tertiary)] truncate">{user.email}</div>
               </div>
               <ChevronDown
-                size={16}
+                size={14}
                 className={clsx(
-                  'text-[var(--text-secondary)] transition-transform',
+                  'text-[var(--text-tertiary)] transition-transform duration-200',
                   userMenuOpen && 'rotate-180',
                 )}
               />
@@ -174,16 +159,17 @@ export default function Layout() {
             <AnimatePresence>
               {userMenuOpen && (
                 <motion.div
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 4 }}
-                  className="absolute bottom-full left-0 right-0 mb-1 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg shadow-xl overflow-hidden"
+                  initial={{ opacity: 0, y: 4, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 4, scale: 0.96 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute bottom-full left-0 right-0 mb-1.5 glass-panel rounded-xl shadow-elevation-3 overflow-hidden"
                 >
                   <button
                     onClick={handleLogout}
-                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-[var(--error)] hover:bg-[var(--bg-tertiary)] transition-colors"
+                    className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-[var(--error)] hover:bg-[var(--error)]/5 transition-colors"
                   >
-                    <LogOut size={16} />
+                    <LogOut size={15} />
                     {t('auth.logout')}
                   </button>
                 </motion.div>
@@ -200,7 +186,7 @@ export default function Layout() {
       {/* Desktop sidebar */}
       <aside
         className={clsx(
-          'hidden lg:flex flex-col border-r border-[var(--border)] bg-[var(--bg-secondary)] transition-all duration-300 flex-shrink-0',
+          'hidden lg:flex flex-col border-r border-[var(--glass-border)] bg-[var(--bg-secondary)]/70 backdrop-blur-xl transition-all duration-300 flex-shrink-0',
           sidebarOpen ? 'w-64' : 'w-[68px]',
         )}
       >
@@ -215,7 +201,7 @@ export default function Layout() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+              className="drawer-overlay fixed inset-0 z-40 lg:hidden"
               onClick={() => setMobileOpen(false)}
             />
             <motion.aside
@@ -223,7 +209,7 @@ export default function Layout() {
               animate={{ x: 0 }}
               exit={{ x: -280 }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed left-0 top-0 bottom-0 w-[280px] bg-[var(--bg-secondary)] border-r border-[var(--border)] z-50 lg:hidden"
+              className="fixed left-0 top-0 bottom-0 w-[280px] bg-[var(--bg-secondary)] border-r border-[var(--glass-border)] z-50 lg:hidden shadow-elevation-4"
             >
               {sidebar}
             </motion.aside>
@@ -234,7 +220,7 @@ export default function Layout() {
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top bar */}
-        <header className="h-14 border-b border-[var(--border)] bg-[var(--bg-secondary)] flex items-center justify-between px-4 flex-shrink-0">
+        <header className="h-14 border-b border-[var(--glass-border)] bg-[var(--bg-secondary)]/60 backdrop-blur-xl flex items-center justify-between px-4 flex-shrink-0">
           <div className="flex items-center gap-2">
             <button
               onClick={() => {
@@ -244,26 +230,34 @@ export default function Layout() {
                   setSidebarOpen(!sidebarOpen);
                 }
               }}
-              className="p-2 rounded-lg hover:bg-[var(--bg-tertiary)] transition-colors text-[var(--text-secondary)]"
+              className="p-2 rounded-xl hover:bg-[var(--bg-tertiary)]/40 transition-colors text-[var(--text-secondary)]"
             >
               {mobileOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
           </div>
 
           <div className="flex items-center gap-1">
+            {/* cmd+k hint */}
+            <button
+              onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
+              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] ring-1 ring-[var(--border)] hover:ring-[var(--border-hover)] transition-all mr-1"
+            >
+              <span>Search</span>
+              <kbd className="px-1 py-0.5 rounded bg-[var(--bg-tertiary)] text-[9px] font-mono">⌘K</kbd>
+            </button>
             <button
               onClick={toggleLang}
-              className="p-2 rounded-lg hover:bg-[var(--bg-tertiary)] transition-colors text-[var(--text-secondary)]"
+              className="p-2 rounded-xl hover:bg-[var(--bg-tertiary)]/40 transition-colors text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
               title={i18n.language === 'ko' ? 'English' : '한국어'}
             >
-              <Languages size={20} />
+              <Languages size={18} />
             </button>
             <button
               onClick={toggleTheme}
-              className="p-2 rounded-lg hover:bg-[var(--bg-tertiary)] transition-colors text-[var(--text-secondary)]"
+              className="p-2 rounded-xl hover:bg-[var(--bg-tertiary)]/40 transition-colors text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
               title={theme === 'dark' ? t('theme.light') : t('theme.dark')}
             >
-              {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+              {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
             </button>
           </div>
         </header>

@@ -1,16 +1,16 @@
 {
   "app": {
-    "name": "Local Web",
-    "tagline": "Self-hosted AI Coding Agent Platform"
+    "name": "Hanseol Web",
+    "tagline": "Enterprise AI Coding Agent Platform"
   },
   "nav": {
-    "sessions": "Sessions",
+    "sessions": "Workspaces",
     "agents": "Agents",
-    "llmSettings": "LLM Settings",
+    "marketplace": "Marketplace",
     "admin": "Admin",
     "dashboard": "Dashboard",
     "users": "Users",
-    "allSessions": "Sessions",
+    "allSessions": "Workspace Management",
     "resources": "Resources",
     "errors": "Error Logs",
     "settings": "Settings"
@@ -18,8 +18,8 @@
   "auth": {
     "login": "Login",
     "logout": "Logout",
-    "loginWith": "Login",
-    "loginDesc": "Auto-login as local user",
+    "loginWith": "Login with Dashboard",
+    "loginDesc": "Sign in with your Hanseol Dashboard account",
     "loggingIn": "Signing in...",
     "profile": "Profile"
   },
@@ -66,15 +66,16 @@
     }
   },
   "session": {
-    "title": "My Sessions",
-    "new": "New Session",
-    "empty": "No sessions yet",
-    "emptyDesc": "Create a new session to start chatting with an AI agent.",
+    "title": "My Workspaces",
+    "new": "New Workspace",
+    "empty": "No workspaces yet",
+    "emptyDesc": "Create a new workspace to start chatting with an AI agent.",
+    "llmInfo": "This workspace uses the LLM model configured in Dashboard",
     "status": {
-      "running": "Running",
-      "stopped": "Stopped",
-      "creating": "Creating",
-      "error": "Error"
+      "running": "Running", "RUNNING": "Running",
+      "stopped": "Stopped", "STOPPED": "Stopped",
+      "creating": "Creating", "CREATING": "Creating",
+      "error": "Error", "DELETED": "Deleted"
     },
     "actions": {
       "start": "Start",
@@ -82,12 +83,12 @@
       "delete": "Delete",
       "open": "Open"
     },
-    "deleteConfirm": "Are you sure you want to delete this session?",
+    "deleteConfirm": "Are you sure you want to delete this workspace?",
     "lastActive": "Last active",
     "created": "Created"
   },
   "chat": {
-    "placeholder": "Type a message... (Ctrl+Enter to send)",
+    "placeholder": "How can I help you?",
     "send": "Send",
     "stop": "Stop",
     "thinking": "Thinking...",
@@ -117,6 +118,7 @@
   },
   "agent": {
     "title": "Agents",
+    "subtitle": "Create AI agents with custom tools and prompts",
     "new": "New Agent",
     "edit": "Edit Agent",
     "name": "Name",
@@ -140,7 +142,30 @@
     "publish": "Publish",
     "private": "Private",
     "preview": "Preview",
-    "chars": "chars"
+    "chars": "chars",
+    "tabs": {
+      "basic": "Basic Info",
+      "tools": "Tools",
+      "custom": "Custom API",
+      "prompt": "Prompt",
+      "preview": "Preview"
+    },
+    "basic": {
+      "descPlaceholder": "Describe your agent"
+    },
+    "custom": {
+      "subtitle": "Add external API endpoints as tools",
+      "addFirst": "Add your first custom tool",
+      "toolDescPlaceholder": "Describe what this tool does for the AI",
+      "importOpenAPI": "Import OpenAPI",
+      "importOpenAPIDesc": "Paste an OpenAPI (Swagger) JSON spec to auto-generate tools",
+      "headersHelp": "API auth headers (e.g. {\"Authorization\": \"Bearer token\"})",
+      "paramsHelp": "Parameters the AI will pass when calling this tool (e.g. {\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}}})"
+    },
+    "next": "Next",
+    "created": "Agent created",
+    "saved": "Agent saved",
+    "importDone": "{{count}} tools imported"
   },
   "marketplace": {
     "title": "Agent Marketplace",
@@ -153,7 +178,8 @@
     "coding": "Coding",
     "devops": "DevOps",
     "data": "Data",
-    "writing": "Writing"
+    "writing": "Writing",
+    "empty": "No public agents yet"
   },
   "admin": {
     "title": "Admin Dashboard",
@@ -174,7 +200,9 @@
       "actions": "Actions",
       "editRole": "Change Role",
       "admin": "Admin",
-      "user": "User"
+      "user": "User",
+      "ADMIN": "Admin",
+      "USER": "User"
     },
     "sessions": {
       "title": "Session Management",
@@ -229,25 +257,11 @@
     "close": "Close",
     "noData": "No data",
     "prev": "Previous",
-    "next": "Next"
-  },
-  "llm": {
-    "title": "LLM Settings",
-    "subtitle": "Configure your AI model endpoint",
-    "endpointUrl": "API Endpoint URL",
-    "endpointHint": "OpenAI-compatible API endpoint (e.g. Ollama, vLLM, LM Studio)",
-    "apiKey": "API Key",
-    "apiKeyPlaceholder": "Enter API key if required (optional)",
-    "apiKeyHint": "Local models usually don't require an API key",
-    "modelId": "Model ID",
-    "maxTokens": "Max Tokens",
-    "testConnection": "Test Connection",
-    "save": "Save",
-    "saved": "LLM settings saved",
-    "connectionSuccess": "Connection successful",
-    "connectionFailed": "Connection failed",
-    "modelsFound": "{{count}} models found",
-    "modelNotFound": "Model {{model}} not found"
+    "next": "Next",
+    "success": "Success",
+    "failed": "Failed",
+    "import": "Import",
+    "addSelected": "Add selected tools"
   },
   "theme": {
     "dark": "Dark Mode",

@@ -3,9 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Bot, Save, Lock, Plus, Trash2, Play, X, Terminal, FileText,
+  Bot, Save, Globe, Lock, Plus, Trash2, Play, X, Terminal, FileText,
   FolderOpen, Search, Code, CheckCircle2, XCircle, Loader2, ChevronRight,
-  Eye, Puzzle, MessageSquareText, Wrench, Zap, Globe2, type LucideIcon,
+  Eye, Puzzle, MessageSquareText, Wrench, Zap, Globe2, Upload, type LucideIcon,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { api } from '@/lib/api';
@@ -20,6 +20,27 @@ interface AgentData {
   isPublic: boolean; enabledTools: string[]; customTools: CustomTool[];
 }
 
+interface CustomToolDraft {
+  name: string; description: string; apiEndpoint: string; apiMethod: string;
+  parameters: { type: string; properties: Record<string, unknown>; required: string[] };
+  apiHeaders: Record<string, string>;
+}
+
+const toolDescriptions: Record<string, { label: string; desc: string }> = {
+  bash: { label: '명령어 실행', desc: '터미널 명령어를 실행합니다 (ls, cat, grep 등)' },
+  read_file: { label: '파일 읽기', desc: '파일 내용을 읽어옵니다' },
+  create_file: { label: '파일 만들기', desc: '새 파일을 생성합니다' },
+  edit_file: { label: '파일 수정', desc: '기존 파일을 수정합니다' },
+  list_directory: { label: '폴더 목록', desc: '폴더 내 파일 목록을 조회합니다' },
+  search_files: { label: '파일 검색', desc: '파일 내용에서 텍스트를 검색합니다' },
+  search_request: { label: '웹 검색', desc: '웹에서 정보를 검색합니다' },
+  bash_background: { label: '백그라운드 실행', desc: '장시간 명령어를 백그라운드에서 실행합니다' },
+  tell_to_user: { label: '메시지 전달', desc: '사용자에게 메시지를 보냅니다' },
+  ask_to_user: { label: '질문하기', desc: '사용자에게 질문합니다' },
+  final_response: { label: '최종 응답', desc: '작업 완료 후 결과를 전달합니다' },
+  write_todos: { label: '할일 관리', desc: '작업 목록을 관리합니다' },
+};
+
 const builtinTools: { id: string; name: string; icon: LucideIcon; desc: string; category: string }[] = [
   { id: 'bash', name: 'Bash', icon: Terminal, desc: 'Execute shell commands', category: 'Shell' },
   { id: 'read_file', name: 'Read File', icon: FileText, desc: 'Read file contents', category: 'File System' },
@@ -30,23 +51,168 @@ const builtinTools: { id: string; name: string; icon: LucideIcon; desc: string; 
 ];
 const toolCategories = [...new Set(builtinTools.map((t) => t.category))];
 const promptTemplates = [
-  { label: 'Coding', value: 'You are an expert software engineer. Help the user write clean, efficient, well-tested code.' },
+  { label: '코드 리뷰어', value: '당신은 코드 리뷰 전문가입니다. 코드의 품질, 보안, 성능을 분석하고 개선점을 제안하세요.' },
+  { label: '문서 작성자', value: '당신은 기술 문서 작성 전문가입니다. 명확하고 구조적인 문서를 작성하세요.' },
+  { label: '데이터 분석가', value: '당신은 데이터 분석 전문가입니다. 파일을 분석하고 인사이트를 도출하세요.' },
   { label: 'DevOps', value: 'You are a DevOps specialist. Help with CI/CD, Docker, Kubernetes, and infrastructure tasks.' },
-  { label: 'Data', value: 'You are a data analyst. Help analyze data, write queries, and create visualizations.' },
-  { label: 'Writer', value: 'You are a technical writer. Help create clear, concise documentation and guides.' },
 ];
 const METHODS = ['GET', 'POST', 'PUT', 'DELETE'] as const;
 const tabs = [
-  { id: 'basic', icon: Bot, label: 'agent.tabBasic' },
-  { id: 'tools', icon: Puzzle, label: 'agent.tabTools' },
-  { id: 'custom', icon: Wrench, label: 'agent.tabCustom' },
-  { id: 'prompt', icon: MessageSquareText, label: 'agent.tabPrompt' },
-  { id: 'preview', icon: Eye, label: 'agent.tabPreview' },
+  { id: 'basic', icon: Bot, label: 'agent.tabs.basic' },
+  { id: 'tools', icon: Puzzle, label: 'agent.tabs.tools' },
+  { id: 'custom', icon: Wrench, label: 'agent.tabs.custom' },
+  { id: 'prompt', icon: MessageSquareText, label: 'agent.tabs.prompt' },
+  { id: 'preview', icon: Eye, label: 'agent.tabs.preview' },
 ] as const;
 type TabId = (typeof tabs)[number]['id'];
 
 function emptyTool(): CustomTool {
   return { id: crypto.randomUUID(), name: '', description: '', endpoint: '', method: 'GET', headers: '{}', bodyTemplate: '{}', parameters: '{}' };
+}
+
+function parseOpenAPIToTools(spec: Record<string, unknown>): CustomToolDraft[] {
+  const tools: CustomToolDraft[] = [];
+  const servers = spec.servers as { url?: string }[] | undefined;
+  const baseUrl = servers?.[0]?.url || '';
+  const paths = (spec.paths || {}) as Record<string, Record<string, unknown>>;
+
+  for (const [path, methods] of Object.entries(paths)) {
+    for (const [method, operation] of Object.entries(methods)) {
+      if (!['get', 'post', 'put', 'delete'].includes(method)) continue;
+      const op = operation as Record<string, unknown>;
+      const name = (op.operationId as string) || `${method}_${path.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      const description = (op.summary as string) || (op.description as string) || `${method.toUpperCase()} ${path}`;
+
+      const properties: Record<string, unknown> = {};
+      const required: string[] = [];
+
+      const params = (op.parameters || []) as { name: string; schema?: { type?: string }; description?: string; required?: boolean }[];
+      params.forEach((p) => {
+        properties[p.name] = { type: p.schema?.type || 'string', description: p.description || '' };
+        if (p.required) required.push(p.name);
+      });
+
+      const requestBody = op.requestBody as { content?: { 'application/json'?: { schema?: { properties?: Record<string, unknown>; required?: string[] } } } } | undefined;
+      const bodySchema = requestBody?.content?.['application/json']?.schema;
+      if (bodySchema?.properties) {
+        Object.entries(bodySchema.properties).forEach(([key, val]) => {
+          properties[key] = val;
+        });
+        if (bodySchema.required) required.push(...bodySchema.required);
+      }
+
+      tools.push({
+        name: name.substring(0, 50),
+        description,
+        apiEndpoint: `${baseUrl}${path}`,
+        apiMethod: method.toUpperCase(),
+        parameters: { type: 'object', properties, required },
+        apiHeaders: {},
+      });
+    }
+  }
+  return tools;
+}
+
+/* ── OpenAPI Import modal ──────────────────────────────────── */
+function OpenAPIModal({ open, onClose, onImport }: { open: boolean; onClose: () => void; onImport: (tools: CustomTool[]) => void }) {
+  const { t } = useTranslation();
+  const [json, setJson] = useState('');
+  const [drafts, setDrafts] = useState<CustomToolDraft[]>([]);
+  const [checked, setChecked] = useState<Set<number>>(new Set());
+  const [parseError, setParseError] = useState('');
+
+  const handleParse = () => {
+    setParseError('');
+    try {
+      const spec = JSON.parse(json);
+      const parsed = parseOpenAPIToTools(spec);
+      if (parsed.length === 0) { setParseError(t('common.noData')); return; }
+      setDrafts(parsed);
+      setChecked(new Set(parsed.map((_, i) => i)));
+    } catch {
+      setParseError('Invalid JSON');
+    }
+  };
+
+  const handleImport = () => {
+    const selected = drafts.filter((_, i) => checked.has(i)).map((d): CustomTool => ({
+      id: crypto.randomUUID(),
+      name: d.name,
+      description: d.description,
+      endpoint: d.apiEndpoint,
+      method: d.apiMethod,
+      headers: JSON.stringify(d.apiHeaders),
+      bodyTemplate: '{}',
+      parameters: JSON.stringify(d.parameters),
+    }));
+    onImport(selected);
+    setJson('');
+    setDrafts([]);
+    setChecked(new Set());
+    onClose();
+  };
+
+  const toggleCheck = (i: number) => {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i); else next.add(i);
+      return next;
+    });
+  };
+
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <motion.div initial={{ opacity: 0, scale: 0.92, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} className="relative z-10 w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--bg-secondary)]/90 backdrop-blur-2xl shadow-2xl">
+        <div className="h-1 w-full bg-gradient-to-r from-[var(--accent)] via-purple-500 to-pink-500" />
+        <div className="p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-[var(--text-primary)]">{t('agent.custom.importOpenAPI')}</h2>
+            <button onClick={onClose} className="btn-ghost p-1.5"><X size={18} /></button>
+          </div>
+          <p className="text-xs text-[var(--text-secondary)]">{t('agent.custom.importOpenAPIDesc')}</p>
+
+          {drafts.length === 0 ? (
+            <>
+              <textarea
+                className="input font-mono text-sm min-h-[200px]"
+                value={json}
+                onChange={(e) => setJson(e.target.value)}
+                placeholder='{"openapi": "3.0.0", "paths": { ... }}'
+              />
+              {parseError && <p className="text-xs text-[var(--error)]">{parseError}</p>}
+              <div className="flex justify-end gap-3">
+                <button onClick={onClose} className="btn-ghost">{t('common.cancel')}</button>
+                <button onClick={handleParse} disabled={!json.trim()} className="btn-primary">{t('common.import')}</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="space-y-2 max-h-[50vh] overflow-y-auto">
+                {drafts.map((d, i) => (
+                  <label key={i} className={clsx('flex items-center gap-3 px-4 py-3 rounded-xl border transition-colors cursor-pointer', checked.has(i) ? 'border-[var(--accent)]/40 bg-[var(--accent)]/5' : 'border-[var(--border)]')}>
+                    <input type="checkbox" checked={checked.has(i)} onChange={() => toggleCheck(i)} className="accent-[var(--accent)]" />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium text-[var(--text-primary)]">{d.name}</div>
+                      <div className="text-xs text-[var(--text-secondary)] truncate"><span className="font-mono font-semibold">{d.apiMethod}</span> {d.apiEndpoint}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+              <div className="flex items-center justify-between pt-4 border-t border-[var(--border)]">
+                <button onClick={() => { setDrafts([]); setChecked(new Set()); }} className="btn-ghost text-sm">{t('common.prev')}</button>
+                <button onClick={handleImport} disabled={checked.size === 0} className="btn-primary flex items-center gap-1.5">
+                  <Plus size={16} />{t('common.addSelected')} ({checked.size})
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </motion.div>
+    </div>
+  );
 }
 
 /* ── Custom tool modal ─────────────────────────────────────── */
@@ -80,21 +246,32 @@ function ToolModal({ open, onClose, onSave, tool }: { open: boolean; onClose: ()
             <button onClick={onClose} className="btn-ghost p-1.5"><X size={18} /></button>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div><label className="text-xs font-medium text-[var(--text-secondary)] mb-1.5 block">{t('agent.toolName')}</label><input className="input" value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="my_api_tool" /></div>
+            <div><label className="text-xs font-medium text-[var(--text-secondary)] mb-1.5 block">{t('agent.toolName')}</label><input className="input" value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="my_tool" /></div>
             <div><label className="text-xs font-medium text-[var(--text-secondary)] mb-1.5 block">{t('agent.toolMethod')}</label>
               <div className="flex gap-1">{METHODS.map((m) => (<button key={m} onClick={() => set({ method: m })} className={clsx('flex-1 py-2 text-xs font-semibold rounded-lg transition-all', form.method === m ? 'bg-[var(--accent)] text-white' : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)]')}>{m}</button>))}</div>
             </div>
           </div>
-          <div><label className="text-xs font-medium text-[var(--text-secondary)] mb-1.5 block">{t('agent.toolDesc')}</label><input className="input" value={form.description} onChange={(e) => set({ description: e.target.value })} /></div>
+          <div>
+            <label className="text-xs font-medium text-[var(--text-secondary)] mb-1.5 block">{t('agent.toolDesc')}</label>
+            <input className="input" value={form.description} onChange={(e) => set({ description: e.target.value })} placeholder={t('agent.custom.toolDescPlaceholder')} />
+          </div>
           <div><label className="text-xs font-medium text-[var(--text-secondary)] mb-1.5 block">{t('agent.toolEndpoint')}</label>
             <div className="relative"><input className="input font-mono text-sm pr-10" value={form.endpoint} onChange={(e) => set({ endpoint: e.target.value })} placeholder="https://api.example.com/endpoint" />{form.endpoint && <span className="absolute right-3 top-1/2 -translate-y-1/2">{validUrl ? <CheckCircle2 size={16} className="text-green-400" /> : <XCircle size={16} className="text-red-400" />}</span>}</div>
           </div>
-          <div><label className="text-xs font-medium text-[var(--text-secondary)] mb-1.5 block">{t('agent.toolHeaders')}</label><textarea className="input font-mono text-sm" rows={2} value={form.headers} onChange={(e) => set({ headers: e.target.value })} /></div>
+          <div>
+            <label className="text-xs font-medium text-[var(--text-secondary)] mb-1.5 block">{t('agent.toolHeaders')}</label>
+            <textarea className="input font-mono text-sm" rows={2} value={form.headers} onChange={(e) => set({ headers: e.target.value })} placeholder='{"Authorization": "Bearer your-token"}' />
+            <p className="text-[10px] text-[var(--text-secondary)] mt-1">{t('agent.custom.headersHelp')}</p>
+          </div>
           {form.method !== 'GET' && <div><label className="text-xs font-medium text-[var(--text-secondary)] mb-1.5 block">{t('agent.toolBody')}</label><textarea className="input font-mono text-sm" rows={3} value={form.bodyTemplate} onChange={(e) => set({ bodyTemplate: e.target.value })} /></div>}
-          <div><label className="text-xs font-medium text-[var(--text-secondary)] mb-1.5 block">{t('agent.toolParams')}</label><textarea className="input font-mono text-sm" rows={3} value={form.parameters} onChange={(e) => set({ parameters: e.target.value })} /></div>
+          <div>
+            <label className="text-xs font-medium text-[var(--text-secondary)] mb-1.5 block">{t('agent.toolParams')}</label>
+            <textarea className="input font-mono text-sm" rows={3} value={form.parameters} onChange={(e) => set({ parameters: e.target.value })} placeholder='{"type":"object","properties":{"query":{"type":"string","description":"Search query"}}}' />
+            <p className="text-[10px] text-[var(--text-secondary)] mt-1">{t('agent.custom.paramsHelp')}</p>
+          </div>
           <AnimatePresence>{result && (
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className={clsx('border rounded-xl p-3', result.ok ? 'border-green-500/30 bg-green-500/5' : 'border-red-500/30 bg-red-500/5')}>
-              <div className="flex items-center gap-2 mb-1">{result.ok ? <CheckCircle2 size={14} className="text-green-400" /> : <XCircle size={14} className="text-red-400" />}<span className="text-xs font-semibold">{result.ok ? 'Success' : 'Failed'}</span>{result.status && <span className="text-[10px] font-mono text-[var(--text-secondary)] ml-auto">HTTP {result.status}</span>}</div>
+              <div className="flex items-center gap-2 mb-1">{result.ok ? <CheckCircle2 size={14} className="text-green-400" /> : <XCircle size={14} className="text-red-400" />}<span className="text-xs font-semibold">{result.ok ? t('common.success') : t('common.failed')}</span>{result.status && <span className="text-[10px] font-mono text-[var(--text-secondary)] ml-auto">HTTP {result.status}</span>}</div>
               <pre className="text-xs font-mono max-h-32 overflow-auto text-[var(--text-secondary)] whitespace-pre-wrap">{result.data}</pre>
             </motion.div>
           )}</AnimatePresence>
@@ -121,6 +298,7 @@ export default function AgentBuilder() {
   const [prevIdx, setPrevIdx] = useState(0);
   const [agent, setAgent] = useState<AgentData>({ name: '', description: '', systemPrompt: '', isPublic: false, enabledTools: builtinTools.map((t) => t.id), customTools: [] });
   const [toolModal, setToolModal] = useState(false);
+  const [openApiModal, setOpenApiModal] = useState(false);
   const [editTool, setEditTool] = useState<CustomTool | undefined>();
   const [saving, setSaving] = useState(false);
 
@@ -135,12 +313,16 @@ export default function AgentBuilder() {
   const toggleTool = (id: string) => setAgent((p) => ({ ...p, enabledTools: p.enabledTools.includes(id) ? p.enabledTools.filter((t) => t !== id) : [...p.enabledTools, id] }));
   const saveTool = (tool: CustomTool) => { setAgent((p) => { const i = p.customTools.findIndex((t) => t.id === tool.id); if (i >= 0) { const u = [...p.customTools]; u[i] = tool; return { ...p, customTools: u }; } return { ...p, customTools: [...p.customTools, tool] }; }); setEditTool(undefined); };
   const delTool = (id: string) => setAgent((p) => ({ ...p, customTools: p.customTools.filter((t) => t.id !== id) }));
+  const importTools = (tools: CustomTool[]) => {
+    setAgent((p) => ({ ...p, customTools: [...p.customTools, ...tools] }));
+    toast.success(t('agent.importDone', { count: tools.length }));
+  };
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      if (isEdit) { await api.put(`/api/agents/${id}`, agent); toast.success(t('agent.saved', 'Agent saved')); }
-      else { const c = await api.post<{ id: string }>('/api/agents', agent); toast.success(t('agent.created', 'Agent created')); navigate(`/agents/${c.id}/edit`, { replace: true }); }
+      if (isEdit) { await api.put(`/api/agents/${id}`, agent); toast.success(t('agent.saved')); }
+      else { const c = await api.post<{ id: string }>('/api/agents', agent); toast.success(t('agent.created')); navigate(`/agents/${c.id}/edit`, { replace: true }); }
     } catch (e) { toast.error(e instanceof Error ? e.message : 'Failed to save agent'); }
     setSaving(false);
   };
@@ -148,21 +330,25 @@ export default function AgentBuilder() {
   return (
     <div className="p-6 max-w-5xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-2">
         <h1 className="text-2xl font-bold text-[var(--text-primary)]">{isEdit ? t('agent.edit') : t('agent.new')}</h1>
         <div className="flex items-center gap-3">
+          <button onClick={() => setAgent((p) => ({ ...p, isPublic: !p.isPublic }))} className={clsx('btn-ghost flex items-center gap-2 text-sm', agent.isPublic ? 'text-[var(--success)]' : 'text-[var(--text-secondary)]')}>
+            {agent.isPublic ? <Globe size={16} /> : <Lock size={16} />}{agent.isPublic ? t('agent.publish') : t('agent.private')}
+          </button>
           <button onClick={handleSave} disabled={saving || !agent.name} className="btn-primary flex items-center gap-2">
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}{t('agent.save')}
           </button>
         </div>
       </div>
+      <p className="text-sm text-[var(--text-secondary)] mb-6">{t('agent.subtitle')}</p>
 
-      {/* Tabs */}
-      <div className="flex gap-1 mb-6 overflow-x-auto pb-1 border-b border-[var(--border)]">
+      {/* Tabs — Premium pill-style with animated indicator */}
+      <div className="flex gap-1 mb-6 overflow-x-auto pb-1 p-1 bg-[var(--bg-tertiary)]/30 rounded-2xl ring-1 ring-[var(--border)]">
         {tabs.map((tb) => { const Icon = tb.icon; const active = tab === tb.id; return (
-          <button key={tb.id} onClick={() => switchTab(tb.id)} className={clsx('relative flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors whitespace-nowrap', active ? 'text-[var(--accent)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]')}>
-            <Icon size={16} /><span className="hidden sm:inline">{t(tb.label, tb.id)}</span>
-            {active && <motion.div layoutId="tab-underline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)] rounded-full" />}
+          <button key={tb.id} onClick={() => switchTab(tb.id)} className={clsx('relative flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors whitespace-nowrap rounded-xl z-10', active ? 'text-white' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]')}>
+            {active && <motion.div layoutId="tab-pill" className="absolute inset-0 rounded-xl bg-gradient-to-r from-[var(--accent)] to-[var(--accent)]/80 shadow-glow-sm" transition={{ type: 'spring', stiffness: 300, damping: 28 }} />}
+            <span className="relative z-10 flex items-center gap-2"><Icon size={15} /><span className="hidden sm:inline">{t(tb.label)}</span></span>
           </button>
         ); })}
       </div>
@@ -177,10 +363,10 @@ export default function AgentBuilder() {
                 <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[var(--accent)]/20 to-purple-500/20 flex items-center justify-center flex-shrink-0"><Bot size={32} className="text-[var(--accent)]" /></div>
                 <div className="flex-1 space-y-3">
                   <div><label className="text-xs font-medium text-[var(--text-secondary)] mb-1.5 block">{t('agent.name')}</label><input className="input" value={agent.name} onChange={(e) => setAgent({ ...agent, name: e.target.value })} placeholder="My Agent" /></div>
-                  <div><label className="text-xs font-medium text-[var(--text-secondary)] mb-1.5 block">{t('agent.description')}</label><input className="input" value={agent.description} onChange={(e) => setAgent({ ...agent, description: e.target.value })} placeholder="A brief description..." /></div>
+                  <div><label className="text-xs font-medium text-[var(--text-secondary)] mb-1.5 block">{t('agent.description')}</label><input className="input" value={agent.description} onChange={(e) => setAgent({ ...agent, description: e.target.value })} placeholder={t('agent.basic.descPlaceholder')} /></div>
                 </div>
               </div>
-              <button onClick={() => switchTab('tools')} className="btn-ghost text-sm flex items-center gap-1.5 ml-auto">Next: Tools <ChevronRight size={16} /></button>
+              <button onClick={() => switchTab('tools')} className="btn-ghost text-sm flex items-center gap-1.5 ml-auto">{t('agent.next')}: {t('agent.tabs.tools')} <ChevronRight size={16} /></button>
             </div>
           )}
 
@@ -190,11 +376,11 @@ export default function AgentBuilder() {
                 <div key={cat}>
                   <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] mb-3">{cat}</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {builtinTools.filter((t) => t.category === cat).map((tool) => { const on = agent.enabledTools.includes(tool.id); return (
-                      <button key={tool.id} onClick={() => toggleTool(tool.id)} className={clsx('relative flex items-center gap-3 p-4 rounded-xl border transition-all text-left', on ? 'border-[var(--accent)]/40 bg-[var(--accent)]/5' : 'border-[var(--border)] opacity-60 hover:opacity-90')}>
-                        <tool.icon size={20} className={on ? 'text-[var(--accent)]' : 'text-[var(--text-secondary)]'} />
-                        <div className="flex-1 min-w-0"><div className="text-sm font-medium text-[var(--text-primary)]">{tool.name}</div><div className="text-xs text-[var(--text-secondary)] truncate">{tool.desc}</div></div>
-                        <div className={clsx('w-9 h-5 rounded-full flex items-center px-0.5 transition-colors', on ? 'bg-[var(--accent)]' : 'bg-[var(--bg-tertiary)]')}><motion.div className="w-4 h-4 rounded-full bg-white shadow-sm" animate={{ x: on ? 16 : 0 }} transition={{ type: 'spring', stiffness: 500, damping: 30 }} /></div>
+                    {builtinTools.filter((t) => t.category === cat).map((tool) => { const on = agent.enabledTools.includes(tool.id); const td = toolDescriptions[tool.id]; return (
+                      <button key={tool.id} onClick={() => toggleTool(tool.id)} className={clsx('relative flex items-center gap-3 p-4 rounded-xl border transition-all duration-200 text-left', on ? 'border-[var(--accent)]/30 bg-[var(--accent)]/[0.04] ring-1 ring-[var(--accent)]/15 shadow-glow-sm' : 'border-[var(--glass-border)] hover:border-[var(--border-hover)] opacity-70 hover:opacity-100')}>
+                        <div className={clsx('w-9 h-9 rounded-lg flex items-center justify-center ring-1 transition-colors', on ? 'bg-[var(--accent)]/10 ring-[var(--accent)]/20' : 'bg-[var(--bg-tertiary)]/50 ring-[var(--border)]')}><tool.icon size={17} className={on ? 'text-[var(--accent)]' : 'text-[var(--text-tertiary)]'} /></div>
+                        <div className="flex-1 min-w-0"><div className="text-sm font-medium text-[var(--text-primary)]">{td?.label ?? tool.name}</div><div className="text-[10px] font-mono text-[var(--text-tertiary)] mb-0.5">{tool.id}</div><div className="text-xs text-[var(--text-secondary)] truncate">{td?.desc ?? tool.desc}</div></div>
+                        <div className={clsx('w-10 h-[22px] rounded-full flex items-center px-0.5 transition-all duration-200', on ? 'bg-gradient-to-r from-[var(--accent)] to-[var(--accent-hover)] shadow-glow-sm' : 'bg-[var(--bg-tertiary)]/80')}><motion.div className="w-[18px] h-[18px] rounded-full bg-white shadow-sm" animate={{ x: on ? 18 : 0 }} transition={{ type: 'spring', stiffness: 500, damping: 30 }} /></div>
                       </button>
                     ); })}
                   </div>
@@ -206,14 +392,17 @@ export default function AgentBuilder() {
           {tab === 'custom' && (
             <div className="card p-6">
               <div className="flex items-center justify-between mb-5">
-                <div><h2 className="text-base font-semibold text-[var(--text-primary)]">{t('agent.customTools')}</h2><p className="text-xs text-[var(--text-secondary)] mt-0.5">Add external API endpoints as tools</p></div>
-                <button onClick={() => { setEditTool(undefined); setToolModal(true); }} className="btn-primary text-sm flex items-center gap-1.5"><Plus size={16} />{t('agent.addTool')}</button>
+                <div><h2 className="text-base font-semibold text-[var(--text-primary)]">{t('agent.customTools')}</h2><p className="text-xs text-[var(--text-secondary)] mt-0.5">{t('agent.custom.subtitle')}</p></div>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setOpenApiModal(true)} className="btn-ghost text-sm flex items-center gap-1.5"><Upload size={16} />{t('agent.custom.importOpenAPI')}</button>
+                  <button onClick={() => { setEditTool(undefined); setToolModal(true); }} className="btn-primary text-sm flex items-center gap-1.5"><Plus size={16} />{t('agent.addTool')}</button>
+                </div>
               </div>
               {agent.customTools.length === 0 ? (
                 <div className="flex flex-col items-center py-12">
                   <div className="w-16 h-16 rounded-2xl bg-[var(--bg-tertiary)] flex items-center justify-center mb-4"><Globe2 size={28} className="text-[var(--text-secondary)]" /></div>
                   <p className="text-sm text-[var(--text-secondary)] mb-4">{t('common.noData')}</p>
-                  <button onClick={() => { setEditTool(undefined); setToolModal(true); }} className="btn-ghost text-sm flex items-center gap-1.5"><Plus size={14} />Add first custom tool</button>
+                  <button onClick={() => { setEditTool(undefined); setToolModal(true); }} className="btn-ghost text-sm flex items-center gap-1.5"><Plus size={14} />{t('agent.custom.addFirst')}</button>
                 </div>
               ) : (
                 <div className="space-y-2">{agent.customTools.map((tool) => (
@@ -234,14 +423,15 @@ export default function AgentBuilder() {
 
           {tab === 'prompt' && (
             <div className="space-y-4">
+              <p className="text-sm text-[var(--text-secondary)]">AI가 항상 따를 기본 규칙을 작성하세요. 비워두면 기본 설정을 사용합니다.</p>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs font-medium text-[var(--text-secondary)]">Templates:</span>
+                <span className="text-xs font-medium text-[var(--text-secondary)]">템플릿:</span>
                 {promptTemplates.map((tpl) => (<button key={tpl.label} onClick={() => setAgent({ ...agent, systemPrompt: tpl.value })} className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">{tpl.label}</button>))}
               </div>
               <div className="rounded-xl border border-[var(--border)] overflow-hidden">
                 <div className="px-4 py-2 bg-[var(--bg-tertiary)]/50 border-b border-[var(--border)] flex items-center justify-between">
-                  <span className="text-xs font-medium text-[var(--text-secondary)]">{t('agent.systemPrompt')}</span>
-                  <span className={clsx('text-xs font-mono', promptColor)}>{promptLen} chars</span>
+                  <span className="text-xs font-medium text-[var(--text-secondary)]">AI 기본 지시사항</span>
+                  <span className={clsx('text-xs font-mono', promptColor)}>{promptLen} {t('agent.chars')}</span>
                 </div>
                 <textarea className="w-full px-4 py-3 bg-[#0d1117] text-[var(--text-primary)] font-mono text-sm leading-relaxed resize-none outline-none min-h-[280px]" value={agent.systemPrompt} onChange={(e) => setAgent({ ...agent, systemPrompt: e.target.value })} placeholder={t('agent.systemPromptHint')} spellCheck={false} />
                 <div className="h-1 bg-[var(--bg-tertiary)]"><div className={clsx('h-full transition-all', promptLen < 2000 ? 'bg-green-500' : promptLen < 4000 ? 'bg-yellow-500' : 'bg-red-500')} style={{ width: `${Math.min(100, (promptLen / 6000) * 100)}%` }} /></div>
@@ -261,7 +451,7 @@ export default function AgentBuilder() {
                   <div className="flex items-start gap-4 mb-4">
                     <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[var(--accent)]/20 to-purple-500/20 flex items-center justify-center"><Bot size={28} className="text-[var(--accent)]" /></div>
                     <div className="min-w-0 flex-1"><h3 className="text-base font-semibold text-[var(--text-primary)] truncate">{agent.name || 'Untitled Agent'}</h3><p className="text-xs text-[var(--text-secondary)] mt-0.5">by You</p></div>
-                    <span className="badge bg-[var(--bg-tertiary)] text-[var(--text-secondary)]"><Lock size={10} className="mr-1" />Private</span>
+                    {agent.isPublic && <span className="badge bg-green-500/15 text-green-400"><Globe size={10} className="mr-1" />Public</span>}
                   </div>
                   <p className="text-sm text-[var(--text-secondary)] mb-4 line-clamp-3">{agent.description || 'No description provided.'}</p>
                   <div className="flex flex-wrap gap-1.5 mb-4">
@@ -269,21 +459,21 @@ export default function AgentBuilder() {
                     {agent.enabledTools.length > 4 && <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-[var(--bg-tertiary)] text-[var(--text-secondary)]">+{agent.enabledTools.length - 4}</span>}
                     {agent.customTools.length > 0 && <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-[var(--accent)]/10 text-[var(--accent)]">{agent.customTools.length} custom</span>}
                   </div>
-                  <div className="pt-3 border-t border-[var(--border)]"><button className="btn-primary w-full text-sm">Use Agent</button></div>
+                  <div className="pt-3 border-t border-[var(--border)]"><button className="btn-primary w-full text-sm">{t('marketplace.useAgent')}</button></div>
                 </div>
               </div>
               <div className="card p-5">
                 <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3">Summary</h3>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
-                  <div><div className="text-2xl font-bold text-[var(--accent)]">{agent.enabledTools.length}</div><div className="text-xs text-[var(--text-secondary)]">Built-in Tools</div></div>
-                  <div><div className="text-2xl font-bold text-purple-400">{agent.customTools.length}</div><div className="text-xs text-[var(--text-secondary)]">Custom APIs</div></div>
-                  <div><div className="text-2xl font-bold text-[var(--text-primary)]">{promptLen}</div><div className="text-xs text-[var(--text-secondary)]">Prompt Chars</div></div>
-                  <div><div className="text-2xl font-bold text-[var(--text-secondary)]">Private</div><div className="text-xs text-[var(--text-secondary)]">Visibility</div></div>
+                  <div><div className="text-2xl font-bold text-[var(--accent)]">{agent.enabledTools.length}</div><div className="text-xs text-[var(--text-secondary)]">{t('agent.enabledTools')}</div></div>
+                  <div><div className="text-2xl font-bold text-purple-400">{agent.customTools.length}</div><div className="text-xs text-[var(--text-secondary)]">{t('agent.customTools')}</div></div>
+                  <div><div className="text-2xl font-bold text-[var(--text-primary)]">{promptLen}</div><div className="text-xs text-[var(--text-secondary)]">{t('agent.chars')}</div></div>
+                  <div><div className={clsx('text-2xl font-bold', agent.isPublic ? 'text-green-400' : 'text-[var(--text-secondary)]')}>{agent.isPublic ? t('agent.publish') : t('agent.private')}</div><div className="text-xs text-[var(--text-secondary)]">{t('agent.preview')}</div></div>
                 </div>
               </div>
               <div className="flex justify-center">
                 <button onClick={handleSave} disabled={saving || !agent.name} className="btn-primary px-8 py-3 text-base flex items-center gap-2">
-                  {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}{isEdit ? t('agent.save') : 'Create Agent'}
+                  {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}{isEdit ? t('agent.save') : t('agent.new')}
                 </button>
               </div>
             </div>
@@ -293,6 +483,7 @@ export default function AgentBuilder() {
       </AnimatePresence>
 
       <ToolModal open={toolModal} onClose={() => { setToolModal(false); setEditTool(undefined); }} onSave={saveTool} tool={editTool} />
+      <OpenAPIModal open={openApiModal} onClose={() => setOpenApiModal(false)} onImport={importTools} />
     </div>
   );
 }

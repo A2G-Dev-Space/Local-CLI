@@ -92,10 +92,10 @@ export default function Marketplace() {
               key={cat}
               onClick={() => { setActiveCategory(cat); setPage(1); }}
               className={clsx(
-                'px-4 py-1.5 rounded-full text-sm font-medium transition-all',
+                'px-4 py-1.5 rounded-xl text-sm font-medium transition-all duration-200',
                 activeCategory === cat
-                  ? 'bg-[var(--accent)] text-white'
-                  : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+                  ? 'bg-[var(--accent)] text-white shadow-glow-sm'
+                  : 'bg-[var(--bg-tertiary)]/60 text-[var(--text-secondary)] hover:text-[var(--text-primary)] ring-1 ring-[var(--border)]',
               )}
             >
               {t(`marketplace.${cat}`)}
@@ -114,8 +114,8 @@ export default function Marketplace() {
       {/* Empty */}
       {!isLoading && filtered.length === 0 && (
         <div className="text-center py-20">
-          <div className="w-16 h-16 rounded-2xl bg-[var(--bg-tertiary)] flex items-center justify-center mx-auto mb-4">
-            <Bot size={28} className="text-[var(--text-secondary)]" />
+          <div className="w-16 h-16 rounded-2xl bg-[var(--accent)]/8 ring-1 ring-[var(--accent)]/15 flex items-center justify-center mx-auto mb-4">
+            <Bot size={28} className="text-[var(--accent)]" />
           </div>
           <p className="text-[var(--text-secondary)]">{t('marketplace.empty')}</p>
         </div>
@@ -133,7 +133,7 @@ export default function Marketplace() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05 }}
-              className="card p-6 hover:border-[var(--accent)]/30 transition-all duration-200 group flex flex-col"
+              className="card-interactive p-6 group flex flex-col"
             >
               <div className="flex items-start gap-4 mb-4">
                 <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center flex-shrink-0">
@@ -168,7 +168,7 @@ export default function Marketplace() {
                 </div>
                 <button
                   onClick={() => handleUseAgent(agent)}
-                  className="btn-ghost text-xs text-[var(--accent)] flex items-center gap-1"
+                  className="btn-ghost text-xs text-[var(--accent)] flex items-center gap-1 hover:gap-2 transition-all"
                 >
                   {t('marketplace.useAgent')}
                   <ArrowRight size={14} />

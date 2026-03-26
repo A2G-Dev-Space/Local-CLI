@@ -122,8 +122,8 @@ function Section({ children, className = '' }: { children: React.ReactNode; clas
 
 /* ---------- Glass card ---------- */
 const glassCard =
-  'relative rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-xl shadow-lg shadow-black/5 ' +
-  'transition-all duration-300 hover:border-[var(--accent)]/30 hover:shadow-[var(--accent)]/5 hover:shadow-xl';
+  'relative rounded-2xl border border-[var(--glass-border)] bg-[var(--bg-secondary)]/40 backdrop-blur-xl shadow-elevation-2 ' +
+  'transition-all duration-300 hover:border-[var(--accent)]/20 hover:shadow-elevation-3 hover:shadow-[var(--accent)]/5 hover:-translate-y-0.5';
 
 /* ---------- Main ---------- */
 export default function Landing() {
@@ -150,10 +150,10 @@ export default function Landing() {
       <header className="fixed top-0 w-full z-50 bg-[var(--bg-primary)]/80 backdrop-blur-xl border-b border-[var(--border)]/50">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center shadow-lg shadow-brand-500/25">
-              <span className="text-white font-bold text-lg">H</span>
+            <div className="w-9 h-9 rounded-lg overflow-hidden shadow-lg shadow-brand-500/25">
+              <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" />
             </div>
-            <span className="font-bold text-xl text-[var(--text-primary)]">Hanseol Web</span>
+            <span className="font-bold text-xl text-[var(--text-primary)]">LOCAL BOT Web</span>
           </div>
           <div className="flex items-center gap-3">
             {/* Language toggle */}
@@ -214,7 +214,7 @@ export default function Landing() {
               to={isAuthenticated ? '/sessions' : '/login'}
               className="inline-flex items-center gap-2 text-lg px-8 py-3.5 rounded-xl font-semibold
                 bg-gradient-to-r from-brand-500 to-brand-600 text-white
-                shadow-xl shadow-brand-500/25 hover:shadow-brand-500/40
+                shadow-xl shadow-brand-500/30 hover:shadow-brand-500/50 hover:shadow-2xl
                 hover:from-brand-400 hover:to-brand-500 active:scale-[0.98]
                 transition-all duration-200"
             >
@@ -237,9 +237,9 @@ export default function Landing() {
       </section>
 
       {/* ===== Features ===== */}
-      <Section className="py-28 px-6">
+      <Section className="py-20 px-6">
         <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-16">
+          <div className="text-center mb-12">
             <h2 className="text-3xl sm:text-4xl font-bold text-[var(--text-primary)] mb-4">
               {t('landing.features.title')}
             </h2>
@@ -266,9 +266,9 @@ export default function Landing() {
       </Section>
 
       {/* ===== How It Works ===== */}
-      <Section className="py-28 px-6">
+      <Section className="py-20 px-6">
         <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-16">
+          <div className="text-center mb-14">
             <h2 className="text-3xl sm:text-4xl font-bold text-[var(--text-primary)] mb-4">
               {t('landing.howItWorks.title')}
             </h2>
@@ -283,12 +283,14 @@ export default function Landing() {
                 viewport={{ once: true }}
                 className="relative text-center group"
               >
-                {/* Connector line */}
+                {/* Connector line — dashed for visibility */}
                 {i < steps.length - 1 && (
-                  <div className="hidden md:block absolute top-10 left-[60%] w-[80%] h-px bg-gradient-to-r from-[var(--accent)]/30 to-transparent" />
+                  <div className="hidden md:block absolute top-10 left-[60%] w-[80%] border-t border-dashed border-[var(--accent)]/25" />
                 )}
-                <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-[var(--accent)]/15 to-[var(--accent)]/5 border border-[var(--accent)]/20 mb-6 group-hover:scale-110 transition-transform duration-300">
+                <div className="relative inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--accent)]/25 mb-6 group-hover:scale-110 group-hover:border-[var(--accent)]/50 transition-all duration-300 shadow-lg shadow-[var(--accent)]/10">
                   <step.icon size={32} className="text-[var(--accent)]" />
+                  {/* Subtle glow behind */}
+                  <div className="absolute inset-0 rounded-2xl bg-[var(--accent)]/10 blur-xl -z-10" />
                 </div>
                 <div className="text-xs font-bold text-[var(--accent)] tracking-widest mb-2">{step.num}</div>
                 <h3 className="text-lg font-bold text-[var(--text-primary)] mb-2">{step.title}</h3>
@@ -300,9 +302,9 @@ export default function Landing() {
       </Section>
 
       {/* ===== Stats ===== */}
-      <Section className="py-28 px-6">
+      <Section className="py-20 px-6">
         <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-16">
+          <div className="text-center mb-12">
             <h2 className="text-3xl sm:text-4xl font-bold text-[var(--text-primary)]">
               {t('landing.stats.title')}
             </h2>
@@ -337,7 +339,7 @@ export default function Landing() {
       </Section>
 
       {/* ===== CTA ===== */}
-      <Section className="py-28 px-6">
+      <Section className="py-20 px-6">
         <div className="max-w-3xl mx-auto text-center">
           <div className="relative">
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(99,102,241,0.08),transparent_70%)]" />
@@ -348,7 +350,7 @@ export default function Landing() {
               to={isAuthenticated ? '/sessions' : '/login'}
               className="relative inline-flex items-center gap-2 text-lg px-8 py-3.5 rounded-xl font-semibold
                 bg-gradient-to-r from-brand-500 to-brand-600 text-white
-                shadow-xl shadow-brand-500/25 hover:shadow-brand-500/40
+                shadow-xl shadow-brand-500/30 hover:shadow-brand-500/50 hover:shadow-2xl
                 hover:from-brand-400 hover:to-brand-500 active:scale-[0.98]
                 transition-all duration-200"
             >
@@ -363,17 +365,17 @@ export default function Landing() {
       <footer className="border-t border-[var(--border)]/50 py-10 px-6">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2 text-[var(--text-secondary)] text-sm">
-            <div className="w-6 h-6 rounded bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center">
-              <span className="text-white font-bold text-xs">H</span>
+            <div className="w-6 h-6 rounded overflow-hidden">
+              <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" />
             </div>
-            Hanseol Web
+            LOCAL BOT Web
           </div>
           <div className="flex items-center gap-6 text-sm text-[var(--text-secondary)]">
             <a href="https://github.com/HanSyngha/Hanseol" target="_blank" rel="noopener noreferrer"
               className="hover:text-[var(--text-primary)] transition-colors flex items-center gap-1.5">
               <Github size={14} /> GitHub
             </a>
-            <span>&copy; 2026 Hanseol</span>
+            <span>&copy; 2026 LOCAL BOT</span>
           </div>
         </div>
       </footer>
