@@ -328,6 +328,13 @@ async function initialize() {
   try {
     await logger.initialize();
 
+    // Forward all worker logs to main process via parentPort
+    logger.onLogEntry((entry) => {
+      try {
+        port.postMessage({ type: 'log', entry });
+      } catch { /* port may be closed */ }
+    });
+
     // Enable tool groups that were active at worker creation time
     if (initData.enabledToolGroups && initData.enabledToolGroups.length > 0) {
       for (const groupId of initData.enabledToolGroups) {

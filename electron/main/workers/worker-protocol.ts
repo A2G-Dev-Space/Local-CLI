@@ -42,7 +42,8 @@ export type WorkerToMainMessage =
   | { type: 'flashWindows' }
   | { type: 'isTaskWindowVisible'; reqId: string }
   | { type: 'delegation'; requestId: string; delegationType: 'browser' | 'office' | 'dialog'; action: string; args: unknown }
-  | { type: 'compactResult'; result: unknown };
+  | { type: 'compactResult'; result: unknown }
+  | { type: 'log'; entry: { timestamp: string; level: string; message: string; data?: unknown } };
 
 // =============================================================================
 // Worker Init Data (passed via workerData)
