@@ -302,6 +302,22 @@ export class WorkerManager {
 
   private handleWorkerMessage(sessionId: string, msg: WorkerToMainMessage): void {
     switch (msg.type) {
+      case 'log': {
+        // Forward worker log to main process logger (so LogViewer can display it)
+        const { entry } = msg;
+        const level = entry.level?.toUpperCase?.() || 'INFO';
+        if (level === 'ERROR') {
+          logger.error(entry.message, entry.data);
+        } else if (level === 'WARN') {
+          logger.warn(entry.message, entry.data);
+        } else if (level === 'DEBUG') {
+          logger.debug(entry.message, entry.data);
+        } else {
+          logger.info(entry.message, entry.data);
+        }
+        break;
+      }
+
       case 'ready': {
         const entry = this.workers.get(sessionId);
         if (entry) {
