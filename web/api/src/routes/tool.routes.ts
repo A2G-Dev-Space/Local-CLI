@@ -83,11 +83,11 @@ toolRoutes.post('/:agentId/tools', async (req: Request, res: Response) => {
         description,
         apiEndpoint,
         apiMethod,
-        apiHeaders: apiHeaders || null,
-        apiBodyTemplate: apiBodyTemplate || null,
-        parameters,
-        responseMapping: responseMapping || null,
-        testPayload: testPayload || null,
+        apiHeaders: (apiHeaders || undefined) as any,
+        apiBodyTemplate: (apiBodyTemplate || undefined) as any,
+        parameters: parameters as any,
+        responseMapping: (responseMapping || undefined) as any,
+        testPayload: (testPayload || undefined) as any,
       },
     });
 
