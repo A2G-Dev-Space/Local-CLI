@@ -67,13 +67,13 @@ export async function createSessionContainer(
       `SESSION_ID=${sessionId}`,
       `USER_ID=${userId}`,
       `DASHBOARD_URL=${DASHBOARD_URL}`,
-      `WS_PORT=${port}`,
+      `SESSION_WS_PORT=3001`,
       ...agentEnv,
     ],
-    ExposedPorts: { [`${port}/tcp`]: {} },
+    ExposedPorts: { ['3001/tcp']: {} },
     HostConfig: {
       PortBindings: {
-        [`${port}/tcp`]: [{ HostPort: String(port) }],
+        ['3001/tcp']: [{ HostPort: String(port) }],
       },
       NanoCpus: Math.floor(SESSION_CPU_LIMIT * 1e9),
       Memory: SESSION_MEMORY_LIMIT,
