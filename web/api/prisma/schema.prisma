@@ -1,0 +1,170 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum SessionStatus {
+  CREATING
+  RUNNING
+  STOPPED
+  DELETED
+}
+
+enum AgentVisibility {
+  PRIVATE
+  PUBLIC
+  ORG_SCOPED
+}
+
+enum LogLevel {
+  INFO
+  WARN
+  ERROR
+  CRITICAL
+}
+
+model User {
+  id           String    @id @default(uuid())
+  externalId   String    @unique
+  displayName  String
+  email        String?
+  provider     String
+  dept         String?
+  role         UserRole  @default(USER)
+  maxSessions  Int       @default(3)
+  locale       String    @default("ko")
+  theme        String    @default("dark")
+  createdAt    DateTime  @default(now())
+  lastActiveAt DateTime  @default(now())
+
+  sessions  Session[]
+  agents    Agent[]
+  usageLogs UsageLog[]
+  errorLogs ErrorLog[]
+}
+
+model Session {
+  id            String        @id @default(uuid())
+  userId        String
+  agentId       String?
+  containerId   String?
+  containerPort Int?
+  status        SessionStatus @default(CREATING)
+  name          String        @default("New Session")
+  createdAt     DateTime      @default(now())
+  lastActiveAt  DateTime      @default(now())
+  expiresAt     DateTime?
+  metadata      Json?
+
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agent  Agent?   @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  events SessionEvent[]
+  usageLogs UsageLog[]
+}
+
+model Agent {
+  id              String          @id @default(uuid())
+  userId          String
+  name            String
+  description     String
+  iconUrl         String?
+  systemPrompt    String?         @db.Text
+  enabledTools    String[]
+  visibility      AgentVisibility @default(PRIVATE)
+  visibilityScope String?
+  usageCount      Int             @default(0)
+  rating          Float?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessions    Session[]
+  customTools CustomTool[]
+  usageLogs   UsageLog[]
+
+  @@index([visibility])
+  @@index([name])
+  @@index([userId])
+}
+
+model CustomTool {
+  id              String    @id @default(uuid())
+  agentId         String
+  name            String
+  description     String
+  apiEndpoint     String
+  apiMethod       String
+  apiHeaders      Json?
+  apiBodyTemplate Json?
+  parameters      Json
+  responseMapping Json?
+  testPayload     Json?
+  lastTestedAt    DateTime?
+  lastTestResult  String?
+  createdAt       DateTime  @default(now())
+
+  agent Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+}
+
+model SessionEvent {
+  id        String   @id @default(uuid())
+  sessionId String
+  sequence  Int
+  type      String
+  data      Json
+  createdAt DateTime @default(now())
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, sequence])
+}
+
+model UsageLog {
+  id           String   @id @default(uuid())
+  userId       String
+  sessionId    String?
+  agentId      String?
+  modelName    String
+  inputTokens  Int
+  outputTokens Int
+  totalTokens  Int
+  latencyMs    Int
+  createdAt    DateTime @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session Session? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  agent   Agent?   @relation(fields: [agentId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model ErrorLog {
+  id         String    @id @default(uuid())
+  userId     String?
+  sessionId  String?
+  source     String
+  level      LogLevel  @default(ERROR)
+  message    String
+  details    String?   @db.Text
+  stackTrace String?   @db.Text
+  resolvedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+model SystemSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}

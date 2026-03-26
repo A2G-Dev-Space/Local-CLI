@@ -1,0 +1,256 @@
+{
+  "app": {
+    "name": "Local Web",
+    "tagline": "Self-hosted AI Coding Agent Platform"
+  },
+  "nav": {
+    "sessions": "Sessions",
+    "agents": "Agents",
+    "llmSettings": "LLM Settings",
+    "admin": "Admin",
+    "dashboard": "Dashboard",
+    "users": "Users",
+    "allSessions": "Sessions",
+    "resources": "Resources",
+    "errors": "Error Logs",
+    "settings": "Settings"
+  },
+  "auth": {
+    "login": "Login",
+    "logout": "Logout",
+    "loginWith": "Login",
+    "loginDesc": "Auto-login as local user",
+    "loggingIn": "Signing in...",
+    "profile": "Profile"
+  },
+  "landing": {
+    "badge": "Enterprise-grade AI Platform",
+    "hero": {
+      "title": "AI Coding Agent,",
+      "titleHighlight": "Right in Your Browser",
+      "subtitle": "AI coding agents running safely in isolated Docker sessions. No installation needed.",
+      "cta": "Get Started",
+      "demo": "Watch Demo"
+    },
+    "features": {
+      "title": "Everything You Need",
+      "sessions": {
+        "title": "Isolated Workspaces",
+        "desc": "Docker container per session — safe, sandboxed, and fully isolated."
+      },
+      "tools": {
+        "title": "Custom AI Agents",
+        "desc": "Build agents with your own tools, prompts, and API integrations."
+      },
+      "marketplace": {
+        "title": "Agent Marketplace",
+        "desc": "Share and discover community-built agents ready to deploy."
+      },
+      "monitoring": {
+        "title": "Real-time Monitoring",
+        "desc": "Watch your agent think, plan, and execute — all in real-time."
+      }
+    },
+    "howItWorks": {
+      "title": "How It Works",
+      "step1": { "title": "Create an Agent", "desc": "Configure tools, prompts, and APIs" },
+      "step2": { "title": "Start a Session", "desc": "Launch your isolated Docker workspace" },
+      "step3": { "title": "Chat & Execute", "desc": "Give commands, watch real-time execution" }
+    },
+    "stats": {
+      "title": "Built for Scale",
+      "users": "Concurrent Users",
+      "latency": "Avg Latency",
+      "uptime": "Uptime SLA",
+      "sessions": "Sessions / Day"
+    }
+  },
+  "session": {
+    "title": "My Sessions",
+    "new": "New Session",
+    "empty": "No sessions yet",
+    "emptyDesc": "Create a new session to start chatting with an AI agent.",
+    "status": {
+      "running": "Running",
+      "stopped": "Stopped",
+      "creating": "Creating",
+      "error": "Error"
+    },
+    "actions": {
+      "start": "Start",
+      "stop": "Stop",
+      "delete": "Delete",
+      "open": "Open"
+    },
+    "deleteConfirm": "Are you sure you want to delete this session?",
+    "lastActive": "Last active",
+    "created": "Created"
+  },
+  "chat": {
+    "placeholder": "Type a message... (Ctrl+Enter to send)",
+    "send": "Send",
+    "stop": "Stop",
+    "thinking": "Thinking...",
+    "planning": "Planning...",
+    "executing": "Executing...",
+    "completed": "Completed",
+    "failed": "Failed",
+    "toolCall": "Tool Call",
+    "duration": "Duration",
+    "args": "Arguments",
+    "result": "Result",
+    "copyCode": "Copy code",
+    "copied": "Copied!",
+    "planCreated": "{{count}} tasks planned",
+    "executingTodo": "Executing task",
+    "reconnecting": "Reconnecting...",
+    "connected": "Connected",
+    "disconnected": "Disconnected"
+  },
+  "todo": {
+    "title": "TODO List",
+    "progress": "Progress",
+    "pending": "Pending",
+    "inProgress": "In Progress",
+    "completed": "Completed",
+    "failed": "Failed"
+  },
+  "agent": {
+    "title": "Agents",
+    "new": "New Agent",
+    "edit": "Edit Agent",
+    "name": "Name",
+    "description": "Description",
+    "systemPrompt": "System Prompt",
+    "systemPromptHint": "Prompt that defines the agent's behavior",
+    "icon": "Icon",
+    "tools": "Tools",
+    "enabledTools": "Enabled Tools",
+    "customTools": "Custom Tools",
+    "addTool": "Add Tool",
+    "toolName": "Tool Name",
+    "toolDesc": "Tool Description",
+    "toolEndpoint": "API Endpoint",
+    "toolMethod": "HTTP Method",
+    "toolHeaders": "Headers (JSON)",
+    "toolBody": "Request Body Template",
+    "toolParams": "Parameters (JSON Schema)",
+    "testTool": "Test",
+    "save": "Save",
+    "publish": "Publish",
+    "private": "Private",
+    "preview": "Preview",
+    "chars": "chars"
+  },
+  "marketplace": {
+    "title": "Agent Marketplace",
+    "search": "Search agents...",
+    "useAgent": "Use Agent",
+    "by": "by",
+    "uses": "uses",
+    "category": "Category",
+    "all": "All",
+    "coding": "Coding",
+    "devops": "DevOps",
+    "data": "Data",
+    "writing": "Writing"
+  },
+  "admin": {
+    "title": "Admin Dashboard",
+    "overview": {
+      "activeUsers": "Active Users",
+      "runningSessions": "Running Sessions",
+      "availableCapacity": "Available Capacity",
+      "errorRate": "Error Rate"
+    },
+    "users": {
+      "title": "User Management",
+      "name": "Name",
+      "email": "Email",
+      "role": "Role",
+      "sessions": "Sessions",
+      "maxSessions": "Max Sessions",
+      "lastActive": "Last Active",
+      "actions": "Actions",
+      "editRole": "Change Role",
+      "admin": "Admin",
+      "user": "User"
+    },
+    "sessions": {
+      "title": "Session Management",
+      "user": "User",
+      "status": "Status",
+      "agent": "Agent",
+      "created": "Created",
+      "lastActive": "Last Active",
+      "forceStop": "Force Stop",
+      "viewEvents": "View Events"
+    },
+    "resources": {
+      "title": "Resource Monitoring",
+      "cpu": "CPU Usage",
+      "memory": "Memory Usage",
+      "disk": "Disk Usage",
+      "containers": "Container Status",
+      "availableSlots": "Available Session Slots"
+    },
+    "errors": {
+      "title": "Error Logs",
+      "time": "Time",
+      "level": "Level",
+      "source": "Source",
+      "message": "Message",
+      "user": "User",
+      "session": "Session",
+      "stackTrace": "Stack Trace"
+    },
+    "settings": {
+      "title": "System Settings",
+      "sessionTtl": "Session TTL (hours)",
+      "maxSessionsPerUser": "Max Sessions Per User",
+      "containerCpuLimit": "Container CPU Limit",
+      "containerMemoryLimit": "Container Memory Limit (MB)",
+      "autoCleanupInterval": "Auto Cleanup Interval (min)",
+      "save": "Save",
+      "saved": "Settings saved successfully"
+    }
+  },
+  "common": {
+    "search": "Search...",
+    "filter": "Filter",
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "retry": "Retry",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close",
+    "noData": "No data",
+    "prev": "Previous",
+    "next": "Next"
+  },
+  "llm": {
+    "title": "LLM Settings",
+    "subtitle": "Configure your AI model endpoint",
+    "endpointUrl": "API Endpoint URL",
+    "endpointHint": "OpenAI-compatible API endpoint (e.g. Ollama, vLLM, LM Studio)",
+    "apiKey": "API Key",
+    "apiKeyPlaceholder": "Enter API key if required (optional)",
+    "apiKeyHint": "Local models usually don't require an API key",
+    "modelId": "Model ID",
+    "maxTokens": "Max Tokens",
+    "testConnection": "Test Connection",
+    "save": "Save",
+    "saved": "LLM settings saved",
+    "connectionSuccess": "Connection successful",
+    "connectionFailed": "Connection failed",
+    "modelsFound": "{{count}} models found",
+    "modelNotFound": "Model {{model}} not found"
+  },
+  "theme": {
+    "dark": "Dark Mode",
+    "light": "Light Mode"
+  }
+}
