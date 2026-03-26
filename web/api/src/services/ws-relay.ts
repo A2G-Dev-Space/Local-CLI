@@ -174,9 +174,25 @@ wss.on('connection', async (ws: WebSocket, req: IncomingMessage) => {
 async function storeEvent(sessionId: string, message: string): Promise<void> {
   const key = `ws:events:${sessionId}`;
   try {
-    await redis.rpush(key, message);
-    await redis.ltrim(key, -500, -1); // Keep last 500 events
+    // Redis (real-time replay)
+    const len = await redis.rpush(key, message);
+    await redis.ltrim(key, -500, -1);
     await redis.expire(key, EVENT_TTL);
+
+    // DB (persistent for admin timeline) — async, non-blocking
+    try {
+      const parsed = JSON.parse(message);
+      prisma.sessionEvent.create({
+        data: {
+          sessionId,
+          sequence: len,
+          type: parsed.type || 'unknown',
+          data: parsed.payload || parsed,
+        },
+      }).catch(() => {}); // Fire-and-forget
+    } catch {
+      // Non-critical
+    }
   } catch {
     // Non-critical: event replay is best-effort
   }
@@ -189,15 +205,10 @@ async function getMissedEvents(sessionId: string, lastSeq: number): Promise<stri
   const key = `ws:events:${sessionId}`;
   try {
     const events = await redis.lrange(key, 0, -1);
-    // Filter events after lastSeq
-    return events.filter((event) => {
-      try {
-        const parsed = JSON.parse(event);
-        return (parsed.sequence || 0) > lastSeq;
-      } catch {
-        return true; // Include unparseable events
-      }
-    });
+    // lastSeq is the count of events already received by client
+    // Return everything after that index
+    if (lastSeq <= 0) return events; // First connection or reconnect — send all
+    return events.slice(lastSeq);
   } catch {
     return [];
   }

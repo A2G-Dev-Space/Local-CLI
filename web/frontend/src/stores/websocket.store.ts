@@ -84,8 +84,8 @@ export const useWebSocketStore = create<WebSocketState>((set, get) => ({
     if (ws) {
       // Match session-server.ts InboundMessage format
       const id = crypto.randomUUID();
-      const token = localStorage.getItem('token') || '';
-      ws.send({ id, type: 'execute', payload: { message: content, authToken: token } });
+      // Don't send authToken — session container uses its configured apiKey (Dashboard JWT)
+      ws.send({ id, type: 'execute', payload: { message: content } });
     }
   },
 

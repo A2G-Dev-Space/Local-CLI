@@ -44,7 +44,7 @@ import { logger } from './utils/logger.js';
 /** Inbound message from API server */
 interface InboundMessage {
   id: string;
-  type: 'execute' | 'interrupt' | 'get_state' | 'ask_user_response' | 'inject_tools' | 'update_config' | 'update_system_prompt';
+  type: 'execute' | 'interrupt' | 'get_state' | 'ask_user_response' | 'inject_tools' | 'update_config' | 'update_system_prompt' | 'ping';
   payload?: Record<string, unknown>;
 }
 
@@ -269,13 +269,23 @@ function injectTools(toolDefs: InjectedToolDef[]): void {
       description: def.description,
       execute: async (args: Record<string, unknown>): Promise<ToolResult> => {
         try {
-          const resp = await fetch(def.endpoint.url, {
+          const isGet = def.endpoint.method.toUpperCase() === 'GET';
+          // For GET: append args as query params. For POST/PUT/DELETE: send as body.
+          let url = def.endpoint.url;
+          if (isGet && Object.keys(args).length > 0) {
+            const params = new URLSearchParams();
+            for (const [k, v] of Object.entries(args)) {
+              if (v !== undefined && v !== null) params.set(k, String(v));
+            }
+            url += (url.includes('?') ? '&' : '?') + params.toString();
+          }
+          const resp = await fetch(url, {
             method: def.endpoint.method,
             headers: {
-              'Content-Type': 'application/json',
+              ...(isGet ? {} : { 'Content-Type': 'application/json' }),
               ...def.endpoint.headers,
             },
-            body: JSON.stringify(args),
+            ...(isGet ? {} : { body: JSON.stringify(args) }),
           });
           const text = await resp.text();
           return { success: resp.ok, result: text };
@@ -473,8 +483,12 @@ async function handleMessage(raw: string): Promise<void> {
     case 'update_system_prompt':
       handleUpdateSystemPrompt(payload || {});
       break;
+    case 'ping':
+      // Heartbeat from browser/API — respond with pong
+      send({ type: 'pong', payload: {} });
+      break;
     default:
-      emit('error', { message: `Unknown message type: ${type}` });
+      logger.warn(`Unknown message type: ${type}`);
   }
 }
 

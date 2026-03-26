@@ -117,7 +117,7 @@ export default function Marketplace() {
           <div className="w-16 h-16 rounded-2xl bg-[var(--bg-tertiary)] flex items-center justify-center mx-auto mb-4">
             <Bot size={28} className="text-[var(--text-secondary)]" />
           </div>
-          <p className="text-[var(--text-secondary)]">{t('common.noData')}</p>
+          <p className="text-[var(--text-secondary)]">{t('marketplace.empty')}</p>
         </div>
       )}
 

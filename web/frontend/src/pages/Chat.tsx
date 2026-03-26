@@ -188,10 +188,11 @@ export default function Chat() {
   }, [input, isConnected, sendMessage]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
+    // Shift+Enter = new line (default textarea behavior)
   };
 
   const handleStop = () => {
@@ -415,7 +416,7 @@ export default function Chat() {
                   </div>
                 </div>
                 <p className="text-[var(--text-secondary)] text-sm mb-1">{t('chat.placeholder')}</p>
-                <p className="text-[var(--text-secondary)]/50 text-xs">Ctrl+Enter to send a message</p>
+                <p className="text-[var(--text-secondary)]/50 text-xs">Enter to send, Shift+Enter for new line</p>
               </div>
             </div>
           )}
@@ -530,10 +531,10 @@ export default function Chat() {
 
             {/* Hint */}
             <p className="text-[10px] text-[var(--text-secondary)]/40 mt-1.5 text-center">
-              <kbd className="px-1 py-0.5 rounded bg-[var(--bg-tertiary)]/50 text-[9px]">Ctrl</kbd>
-              {' + '}
               <kbd className="px-1 py-0.5 rounded bg-[var(--bg-tertiary)]/50 text-[9px]">Enter</kbd>
-              {' to send'}
+              {' 전송 · '}
+              <kbd className="px-1 py-0.5 rounded bg-[var(--bg-tertiary)]/50 text-[9px]">Shift+Enter</kbd>
+              {' 줄바꿈'}
             </p>
           </div>
         </div>

@@ -79,6 +79,48 @@ sessionRoutes.post('/', async (req: Request, res: Response) => {
         data: { containerId, containerPort, status: 'RUNNING' },
       });
 
+      // Auto-inject LLM config from Dashboard
+      try {
+        const dashboardUrl = process.env['DASHBOARD_URL'];
+        if (dashboardUrl) {
+          await new Promise(resolve => setTimeout(resolve, 3000));
+
+          const WebSocket = (await import('ws')).default;
+          const containerWs = new WebSocket(`ws://localhost:${containerPort}`);
+
+          await new Promise<void>((resolve, reject) => {
+            const timeout = setTimeout(() => reject(new Error('timeout')), 10000);
+            containerWs.on('open', () => {
+              clearTimeout(timeout);
+              const token = req.headers.authorization?.replace('Bearer ', '') || '';
+
+              containerWs.send(JSON.stringify({
+                id: 'auto-config',
+                type: 'update_config',
+                payload: {
+                  endpointUrl: `${dashboardUrl}/v1`,
+                  apiKey: token,
+                  modelId: 'GLM-5',
+                  modelName: 'GLM-5',
+                  maxTokens: 128000,
+                },
+              }));
+
+              setTimeout(() => {
+                containerWs.close();
+                resolve();
+              }, 1000);
+            });
+            containerWs.on('error', () => {
+              clearTimeout(timeout);
+              resolve();
+            });
+          });
+        }
+      } catch (err) {
+        console.error('[Session] Auto LLM config failed:', err);
+      }
+
       res.status(201).json({
         ...updated,
         wsUrl: `/ws?sessionId=${session.id}`,
