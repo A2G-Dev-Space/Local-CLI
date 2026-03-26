@@ -14,6 +14,7 @@ import {
   ensureAuthenticated,
   launchSubAgentBrowser,
   getSubAgentBrowserClient,
+  closeSubAgentBrowser,
   ATLASSIAN_LOGIN_INDICATORS,
   LoginIndicators,
 } from './browser-profile-manager.js';
@@ -109,6 +110,9 @@ export class BrowserSubAgent {
         success: false,
         error: `Browser sub-agent error: ${errorMsg}`,
       };
+    } finally {
+      // 브라우저 프로세스 정리 (headless 회색 창 방지)
+      await closeSubAgentBrowser().catch(() => {});
     }
   }
 
