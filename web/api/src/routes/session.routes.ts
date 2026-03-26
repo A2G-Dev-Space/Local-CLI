@@ -79,20 +79,58 @@ sessionRoutes.post('/', async (req: Request, res: Response) => {
         data: { containerId, containerPort, status: 'RUNNING' },
       });
 
-      // Auto-inject LLM config from Dashboard
+      // Auto-inject LLM config + agent settings from Dashboard
       try {
         const dashboardUrl = process.env['DASHBOARD_URL'];
         if (dashboardUrl) {
           await new Promise(resolve => setTimeout(resolve, 3000));
+
+          // Load agent with custom tools if agentId is specified
+          let agent: { systemPrompt: string | null; customTools: Array<{
+            name: string; description: string; parameters: unknown;
+            apiEndpoint: string; apiMethod: string; apiHeaders: unknown;
+          }> } | null = null;
+          if (agentId) {
+            agent = await prisma.agent.findUnique({
+              where: { id: agentId },
+              select: {
+                systemPrompt: true,
+                customTools: {
+                  select: {
+                    name: true, description: true, parameters: true,
+                    apiEndpoint: true, apiMethod: true, apiHeaders: true,
+                  },
+                },
+              },
+            });
+          }
 
           const WebSocket = (await import('ws')).default;
           const containerWs = new WebSocket(`ws://localhost:${containerPort}`);
 
           await new Promise<void>((resolve, reject) => {
             const timeout = setTimeout(() => reject(new Error('timeout')), 10000);
-            containerWs.on('open', () => {
+            containerWs.on('open', async () => {
               clearTimeout(timeout);
               const token = req.headers.authorization?.replace('Bearer ', '') || '';
+
+              // 1. Inject LLM config
+              // Detect available model from Dashboard
+              let modelId = 'GLM-5';
+              let modelName = 'GLM-5';
+              let maxTokens = 128000;
+              try {
+                const modelsRes = await fetch(`${dashboardUrl}/v1/models`, {
+                  headers: { Authorization: `Bearer ${token}`, 'X-Service-Id': process.env['LLM_SERVICE_ID'] || 'hanseol' },
+                });
+                if (modelsRes.ok) {
+                  const modelsData = await modelsRes.json() as { data?: Array<{ id: string }> };
+                  if (modelsData.data?.length) {
+                    modelId = modelsData.data[0].id;
+                    modelName = modelId;
+                  }
+                }
+              } catch { /* fallback to GLM-5 */ }
 
               containerWs.send(JSON.stringify({
                 id: 'auto-config',
@@ -100,11 +138,40 @@ sessionRoutes.post('/', async (req: Request, res: Response) => {
                 payload: {
                   endpointUrl: `${dashboardUrl}/v1`,
                   apiKey: token,
-                  modelId: 'GLM-5',
-                  modelName: 'GLM-5',
-                  maxTokens: 128000,
+                  modelId,
+                  modelName,
+                  maxTokens,
                 },
               }));
+
+              // 2. Inject agent system prompt
+              if (agent?.systemPrompt) {
+                containerWs.send(JSON.stringify({
+                  id: 'auto-prompt',
+                  type: 'update_system_prompt',
+                  payload: { prompt: agent.systemPrompt },
+                }));
+              }
+
+              // 3. Inject agent custom tools
+              if (agent?.customTools && agent.customTools.length > 0) {
+                containerWs.send(JSON.stringify({
+                  id: 'auto-tools',
+                  type: 'inject_tools',
+                  payload: {
+                    tools: agent.customTools.map(t => ({
+                      name: t.name,
+                      description: t.description,
+                      parameters: t.parameters,
+                      endpoint: {
+                        url: t.apiEndpoint,
+                        method: t.apiMethod,
+                        headers: t.apiHeaders || undefined,
+                      },
+                    })),
+                  },
+                }));
+              }
 
               setTimeout(() => {
                 containerWs.close();

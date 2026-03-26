@@ -505,10 +505,33 @@ async function main(): Promise<void> {
     // Continue with empty config - update_config will set it later
   }
 
-  // 2. Wire all tool callbacks to emit WS events
+  // 2. Apply agent configuration from Docker env vars
+  const agentSystemPrompt = process.env['AGENT_SYSTEM_PROMPT'] || '';
+  if (agentSystemPrompt) {
+    userSystemPrompt = agentSystemPrompt;
+    setUserSystemPrompt(agentSystemPrompt);
+    setPlanningUserSystemPrompt(agentSystemPrompt);
+    logger.info('Agent system prompt applied from env', { length: agentSystemPrompt.length });
+  }
+
+  // 2b. Apply agent enabled tools from Docker env vars
+  const agentEnabledTools = process.env['AGENT_ENABLED_TOOLS'] || '';
+  if (agentEnabledTools) {
+    const enabledList = agentEnabledTools.split(',').map(t => t.trim()).filter(Boolean);
+    // Disable all optional tool groups first, then enable only the specified ones
+    const allGroups = toolRegistry.getOptionalToolGroups();
+    for (const group of allGroups) {
+      if (enabledList.some(t => group.tools.some(gt => gt.definition.function.name === t))) {
+        toolRegistry.enableToolGroup(group.id).catch(() => {});
+      }
+    }
+    logger.info('Agent enabled tools applied from env', { tools: enabledList });
+  }
+
+  // 3. Wire all tool callbacks to emit WS events
   wireToolCallbacks();
 
-  // 3. Start WebSocket server
+  // 4. Start WebSocket server
   const wss = new WebSocketServer({ port: SESSION_WS_PORT });
 
   wss.on('connection', (ws) => {
@@ -533,7 +556,7 @@ async function main(): Promise<void> {
 
   console.log(`[session-server] WebSocket listening on port ${SESSION_WS_PORT}`);
 
-  // 4. Graceful shutdown
+  // 5. Graceful shutdown
   const shutdown = () => {
     console.log('[session-server] Shutting down...');
     clearAllCallbacks();
