@@ -572,11 +572,28 @@ class Logger {
       return [];
     }
     try {
+      await this.flushStreams();
       const content = await fs.promises.readFile(this.currentRunLogFile, 'utf-8');
       return this.parseLogEntries(content);
     } catch (error) {
       return [];
     }
+  }
+
+  private flushStreams(): Promise<void> {
+    const streams = [this.writeStream, this.currentRunWriteStream, this.sessionWriteStream].filter(Boolean);
+    if (streams.length === 0) return Promise.resolve();
+    return new Promise<void>((resolve) => {
+      let remaining = streams.length;
+      const done = () => { if (--remaining <= 0) resolve(); };
+      for (const stream of streams) {
+        if (stream && !stream.destroyed) {
+          stream.write('', done);
+        } else {
+          done();
+        }
+      }
+    });
   }
 
   /**
