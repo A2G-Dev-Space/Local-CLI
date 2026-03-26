@@ -371,7 +371,7 @@ export default function Landing() {
             LOCAL BOT Web
           </div>
           <div className="flex items-center gap-6 text-sm text-[var(--text-secondary)]">
-            <a href="https://github.com/HanSyngha/Hanseol" target="_blank" rel="noopener noreferrer"
+            <a href="https://github.com/A2G-Dev-Space/Local-CLI" target="_blank" rel="noopener noreferrer"
               className="hover:text-[var(--text-primary)] transition-colors flex items-center gap-1.5">
               <Github size={14} /> GitHub
             </a>

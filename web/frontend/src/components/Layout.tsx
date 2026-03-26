@@ -87,7 +87,7 @@ export default function Layout() {
             animate={{ opacity: 1, x: 0 }}
             className="flex items-center gap-2"
           >
-            <span className="font-bold text-lg text-[var(--text-primary)]">Hanseol</span>
+            <span className="font-bold text-lg text-[var(--text-primary)]">LOCAL BOT</span>
             <span className="text-xs font-medium text-[var(--accent)] bg-[var(--accent)]/10 px-1.5 py-0.5 rounded-md">Web</span>
           </motion.div>
         )}
