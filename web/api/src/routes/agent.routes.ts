@@ -48,9 +48,12 @@ agentRoutes.get('/marketplace', optionalAuth, async (req: Request, res: Response
     const [agents, total] = await Promise.all([
       prisma.agent.findMany({
         where,
-        include: {
+        select: {
+          id: true, name: true, description: true, iconUrl: true,
+          visibility: true, usageCount: true, rating: true, createdAt: true,
+          // Hide: systemPrompt, enabledTools, customTools details (internal config)
           user: { select: { displayName: true } },
-          _count: { select: { customTools: true } },
+          _count: { select: { customTools: true, sessions: true } },
         },
         orderBy: { usageCount: 'desc' },
         skip,

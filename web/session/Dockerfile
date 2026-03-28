@@ -3,12 +3,12 @@
 
 FROM node:20-slim
 
-# Install system dependencies for Playwright + bash tools
+# Install system dependencies + Chromium from Debian repos (avoids Playwright installer issues)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git curl wget ca-certificates procps lsof fuser \
-    && npx playwright install-deps chromium \
-    && npx playwright install chromium \
+    git curl wget ca-certificates procps lsof fuser chromium \
     && rm -rf /var/lib/apt/lists/*
+
+ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
 
 # Create workspace directory (user's isolated environment)
 RUN mkdir -p /workspace/.hanseol-web && chown -R node:node /workspace

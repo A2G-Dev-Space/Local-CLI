@@ -44,7 +44,7 @@ import { logger } from './utils/logger.js';
 /** Inbound message from API server */
 interface InboundMessage {
   id: string;
-  type: 'execute' | 'interrupt' | 'get_state' | 'ask_user_response' | 'inject_tools' | 'update_config' | 'update_system_prompt';
+  type: 'execute' | 'interrupt' | 'get_state' | 'ask_user_response' | 'inject_tools' | 'update_config' | 'update_system_prompt' | 'ping';
   payload?: Record<string, unknown>;
 }
 
@@ -269,13 +269,23 @@ function injectTools(toolDefs: InjectedToolDef[]): void {
       description: def.description,
       execute: async (args: Record<string, unknown>): Promise<ToolResult> => {
         try {
-          const resp = await fetch(def.endpoint.url, {
+          const isGet = def.endpoint.method.toUpperCase() === 'GET';
+          // For GET: append args as query params. For POST/PUT/DELETE: send as body.
+          let url = def.endpoint.url;
+          if (isGet && Object.keys(args).length > 0) {
+            const params = new URLSearchParams();
+            for (const [k, v] of Object.entries(args)) {
+              if (v !== undefined && v !== null) params.set(k, String(v));
+            }
+            url += (url.includes('?') ? '&' : '?') + params.toString();
+          }
+          const resp = await fetch(url, {
             method: def.endpoint.method,
             headers: {
-              'Content-Type': 'application/json',
+              ...(isGet ? {} : { 'Content-Type': 'application/json' }),
               ...def.endpoint.headers,
             },
-            body: JSON.stringify(args),
+            ...(isGet ? {} : { body: JSON.stringify(args) }),
           });
           const text = await resp.text();
           return { success: resp.ok, result: text };
@@ -473,8 +483,12 @@ async function handleMessage(raw: string): Promise<void> {
     case 'update_system_prompt':
       handleUpdateSystemPrompt(payload || {});
       break;
+    case 'ping':
+      // Heartbeat from browser/API — respond with pong
+      send({ type: 'pong', payload: {} });
+      break;
     default:
-      emit('error', { message: `Unknown message type: ${type}` });
+      logger.warn(`Unknown message type: ${type}`);
   }
 }
 
@@ -491,10 +505,33 @@ async function main(): Promise<void> {
     // Continue with empty config - update_config will set it later
   }
 
-  // 2. Wire all tool callbacks to emit WS events
+  // 2. Apply agent configuration from Docker env vars
+  const agentSystemPrompt = process.env['AGENT_SYSTEM_PROMPT'] || '';
+  if (agentSystemPrompt) {
+    userSystemPrompt = agentSystemPrompt;
+    setUserSystemPrompt(agentSystemPrompt);
+    setPlanningUserSystemPrompt(agentSystemPrompt);
+    logger.info('Agent system prompt applied from env', { length: agentSystemPrompt.length });
+  }
+
+  // 2b. Apply agent enabled tools from Docker env vars
+  const agentEnabledTools = process.env['AGENT_ENABLED_TOOLS'] || '';
+  if (agentEnabledTools) {
+    const enabledList = agentEnabledTools.split(',').map(t => t.trim()).filter(Boolean);
+    // Disable all optional tool groups first, then enable only the specified ones
+    const allGroups = toolRegistry.getOptionalToolGroups();
+    for (const group of allGroups) {
+      if (enabledList.some(t => group.tools.some(gt => gt.definition.function.name === t))) {
+        toolRegistry.enableToolGroup(group.id).catch(() => {});
+      }
+    }
+    logger.info('Agent enabled tools applied from env', { tools: enabledList });
+  }
+
+  // 3. Wire all tool callbacks to emit WS events
   wireToolCallbacks();
 
-  // 3. Start WebSocket server
+  // 4. Start WebSocket server
   const wss = new WebSocketServer({ port: SESSION_WS_PORT });
 
   wss.on('connection', (ws) => {
@@ -519,7 +556,7 @@ async function main(): Promise<void> {
 
   console.log(`[session-server] WebSocket listening on port ${SESSION_WS_PORT}`);
 
-  // 4. Graceful shutdown
+  // 5. Graceful shutdown
   const shutdown = () => {
     console.log('[session-server] Shutting down...');
     clearAllCallbacks();

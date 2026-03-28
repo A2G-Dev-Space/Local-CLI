@@ -21,6 +21,7 @@ import { configManager } from '../../core/config/config-manager.js';
 import { logger } from '../../utils/logger.js';
 import { getJsonStreamLogger } from '../../utils/json-stream-logger.js';
 import { reportError } from '../../core/telemetry/error-reporter.js';
+import { ContextLengthError } from '../../errors/llm.js';
 
 // Global callback for SubAgent event logging (opt-in, used by pipe-runner -ps mode)
 type ToolCallLoggerFn = (appName: string, toolName: string, args: Record<string, unknown>, resultText: string, success: boolean, iteration: number, totalCalls: number) => void;
@@ -177,6 +178,8 @@ export class SubAgent {
           { role: 'system', content: this.systemPrompt },
           { role: 'user', content: enhancedInstruction },
         ];
+    let contextRecoveryAttempts = 0;
+    const MAX_CONTEXT_RECOVERY = 3;
 
     // Execution iteration loop
     while (iterations < this.maxIterations) {
@@ -204,12 +207,121 @@ export class SubAgent {
         logger.warn(`SubAgent[${this.appName}] injected emergency save warning`, { remaining });
       }
 
-      const response = await this.llmClient.chatCompletion({
-        messages: messagesForLLM,
-        tools: toolDefinitions,
-        temperature: this.temperature,
-        max_tokens: this.maxTokens,
-      });
+      let response;
+      try {
+        response = await this.llmClient.chatCompletion({
+          messages: messagesForLLM,
+          tools: toolDefinitions,
+          temperature: this.temperature,
+          max_tokens: this.maxTokens,
+        });
+      } catch (error) {
+        if (error instanceof ContextLengthError && contextRecoveryAttempts < MAX_CONTEXT_RECOVERY) {
+          contextRecoveryAttempts++;
+          // Progressive truncation: 50% → 25% → 10%
+          const keepRatios = [0.5, 0.25, 0.1];
+          const keepRatio = keepRatios[contextRecoveryAttempts - 1] ?? 0.1;
+
+          logger.warn(`SubAgent[${this.appName}] context overflow recovery attempt ${contextRecoveryAttempts}/${MAX_CONTEXT_RECOVERY}`, {
+            iteration: iterations,
+            totalToolCalls,
+            keepRatio,
+            historyLength: historyText.length,
+            simpleMessagesCount: simpleMessages.length,
+          });
+          streamLog(this.appName, 'error', `Context overflow recovery ${contextRecoveryAttempts}/${MAX_CONTEXT_RECOVERY} (keep ${Math.round(keepRatio * 100)}%)`);
+
+          if (plan) {
+            // Plan mode: progressively truncate historyText + truncate pendingMessages
+            const keepLength = Math.floor(historyText.length * keepRatio);
+            if (keepLength > 0) {
+              const trimmed = historyText.slice(-keepLength);
+              const firstEntry = trimmed.indexOf('[ASSISTANT]');
+              historyText = firstEntry > 0
+                ? '...(context recovery — earlier history removed)\n' + trimmed.slice(firstEntry)
+                : '...(context recovery — earlier history removed)\n' + trimmed;
+            } else {
+              historyText = '';
+            }
+            // Also truncate large tool results in pendingMessages
+            const toolResultCap = contextRecoveryAttempts >= 2 ? 100 : 300;
+            pendingMessages = pendingMessages.map(msg => {
+              if (msg.role === 'tool' && msg.content && msg.content.length > toolResultCap) {
+                return { ...msg, content: msg.content.slice(0, toolResultCap) + '...(truncated)' };
+              }
+              return msg;
+            });
+            // On 3rd attempt, clear pending entirely
+            if (contextRecoveryAttempts >= 3) {
+              pendingMessages = [];
+            }
+            logger.info(`SubAgent[${this.appName}] plan mode recovery: historyText=${historyText.length} chars, pending=${pendingMessages.length} msgs`);
+          } else {
+            // Simple mode: progressively more aggressive message removal
+            const keepRecent = contextRecoveryAttempts === 1 ? 4 : contextRecoveryAttempts === 2 ? 2 : 0;
+            const toolResultCap = contextRecoveryAttempts >= 2 ? 100 : 300;
+            if (simpleMessages.length > 2 + keepRecent && keepRecent > 0) {
+              let recent = simpleMessages.slice(-keepRecent);
+              // Ensure message pair integrity:
+              // 1. Strip leading orphaned tool messages (no preceding assistant with matching tool_calls)
+              while (recent.length > 0 && recent[0]!.role === 'tool') {
+                recent = recent.slice(1);
+              }
+              // 2. Strip trailing assistant messages with tool_calls (their tool responses were cut off)
+              while (recent.length > 0) {
+                const last = recent[recent.length - 1]!;
+                if (last.role === 'assistant' && last.tool_calls && last.tool_calls.length > 0) {
+                  recent = recent.slice(0, -1);
+                } else {
+                  break;
+                }
+              }
+              const preserved = [
+                simpleMessages[0]!, // system
+                simpleMessages[1]!, // initial user instruction
+                ...recent,
+              ];
+              simpleMessages.length = 0;
+              simpleMessages.push(...preserved);
+            } else if (keepRecent === 0 && simpleMessages.length > 2) {
+              // Most aggressive: keep only system + user
+              simpleMessages.length = 2;
+            }
+            // Truncate tool results in remaining messages
+            for (let i = 2; i < simpleMessages.length; i++) {
+              const msg = simpleMessages[i]!;
+              if (msg.role === 'tool' && msg.content && msg.content.length > toolResultCap) {
+                simpleMessages[i] = { role: msg.role, content: msg.content.slice(0, toolResultCap) + '...(truncated)', tool_call_id: msg.tool_call_id };
+              }
+            }
+            logger.info(`SubAgent[${this.appName}] simple mode recovery: ${simpleMessages.length} msgs, toolCap=${toolResultCap}`);
+          }
+
+          streamLog(this.appName, 'info', `Context recovery ${contextRecoveryAttempts} complete, retrying`);
+          iterations--;
+          continue;
+        }
+
+        // All recovery attempts exhausted or non-context error: graceful exit
+        if (error instanceof ContextLengthError) {
+          logger.error(`SubAgent[${this.appName}] context overflow unrecoverable after ${contextRecoveryAttempts} attempts`, {
+            iteration: iterations,
+            totalToolCalls,
+          } as any);
+          streamLog(this.appName, 'error', `Context recovery exhausted (${contextRecoveryAttempts} attempts), aborting`);
+          return this.buildResult(
+            true,
+            `Sub-agent stopped due to context overflow after ${totalToolCalls} tool calls. Work saved before overflow is preserved.`,
+            undefined,
+            iterations,
+            totalToolCalls,
+            startTime
+          );
+        }
+
+        // Non-context errors: rethrow
+        throw error;
+      }
 
       const assistantMessage = response.choices[0]?.message;
       if (!assistantMessage) {

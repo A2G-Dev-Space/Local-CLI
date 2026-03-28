@@ -1,16 +1,16 @@
 {
   "app": {
-    "name": "Local Web",
-    "tagline": "셀프 호스트 AI 코딩 에이전트 플랫폼"
+    "name": "Hanseol Web",
+    "tagline": "엔터프라이즈급 AI 코딩 에이전트 플랫폼"
   },
   "nav": {
-    "sessions": "세션",
+    "sessions": "작업 공간",
     "agents": "에이전트",
-    "llmSettings": "LLM 설정",
+    "marketplace": "마켓플레이스",
     "admin": "관리자",
     "dashboard": "대시보드",
     "users": "사용자 관리",
-    "allSessions": "세션 관리",
+    "allSessions": "작업 공간 관리",
     "resources": "리소스 모니터링",
     "errors": "에러 로그",
     "settings": "시스템 설정"
@@ -18,8 +18,8 @@
   "auth": {
     "login": "로그인",
     "logout": "로그아웃",
-    "loginWith": "로그인",
-    "loginDesc": "로컬 사용자로 자동 로그인합니다",
+    "loginWith": "Dashboard로 로그인",
+    "loginDesc": "Hanseol Dashboard 계정으로 로그인하세요",
     "loggingIn": "로그인 중...",
     "profile": "프로필"
   },
@@ -66,15 +66,16 @@
     }
   },
   "session": {
-    "title": "내 세션",
-    "new": "새 세션",
-    "empty": "아직 세션이 없습니다",
-    "emptyDesc": "새 세션을 만들어 AI 에이전트와 대화를 시작하세요.",
+    "title": "내 작업 공간",
+    "new": "새 작업 공간",
+    "empty": "아직 작업 공간이 없습니다",
+    "emptyDesc": "새 작업 공간을 만들어 AI 에이전트와 대화를 시작하세요.",
+    "llmInfo": "이 작업 공간은 Dashboard에 설정된 LLM 모델을 사용합니다",
     "status": {
-      "running": "실행 중",
-      "stopped": "중지됨",
-      "creating": "생성 중",
-      "error": "오류"
+      "running": "실행 중", "RUNNING": "실행 중",
+      "stopped": "중지됨", "STOPPED": "중지됨",
+      "creating": "생성 중", "CREATING": "생성 중",
+      "error": "오류", "DELETED": "삭제됨"
     },
     "actions": {
       "start": "시작",
@@ -82,12 +83,12 @@
       "delete": "삭제",
       "open": "열기"
     },
-    "deleteConfirm": "이 세션을 삭제하시겠습니까?",
+    "deleteConfirm": "이 작업 공간을 삭제하시겠습니까?",
     "lastActive": "마지막 활동",
     "created": "생성일"
   },
   "chat": {
-    "placeholder": "메시지를 입력하세요... (Ctrl+Enter로 전송)",
+    "placeholder": "무엇을 도와드릴까요?",
     "send": "전송",
     "stop": "중지",
     "thinking": "생각 중...",
@@ -117,6 +118,7 @@
   },
   "agent": {
     "title": "에이전트",
+    "subtitle": "AI 에이전트를 만들어 도구와 프롬프트를 설정하세요",
     "new": "새 에이전트",
     "edit": "에이전트 편집",
     "name": "이름",
@@ -140,7 +142,30 @@
     "publish": "공개",
     "private": "비공개",
     "preview": "미리보기",
-    "chars": "자"
+    "chars": "자",
+    "tabs": {
+      "basic": "기본 정보",
+      "tools": "도구",
+      "custom": "커스텀 API",
+      "prompt": "프롬프트",
+      "preview": "미리보기"
+    },
+    "basic": {
+      "descPlaceholder": "에이전트 설명을 입력하세요"
+    },
+    "custom": {
+      "subtitle": "외부 API를 도구로 추가하세요",
+      "addFirst": "첫 번째 커스텀 도구 추가",
+      "toolDescPlaceholder": "이 도구가 하는 일을 AI에게 설명하세요",
+      "importOpenAPI": "OpenAPI 가져오기",
+      "importOpenAPIDesc": "OpenAPI(Swagger) JSON을 붙여넣으면 자동으로 도구가 생성됩니다",
+      "headersHelp": "API 인증 헤더 (예: {\"Authorization\": \"Bearer token\"})",
+      "paramsHelp": "AI가 이 도구를 호출할 때 전달할 파라미터 (예: {\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}}})"
+    },
+    "next": "다음",
+    "created": "에이전트가 생성되었습니다",
+    "saved": "에이전트가 저장되었습니다",
+    "importDone": "{{count}}개의 도구를 가져왔습니다"
   },
   "marketplace": {
     "title": "에이전트 마켓플레이스",
@@ -153,7 +178,8 @@
     "coding": "코딩",
     "devops": "DevOps",
     "data": "데이터",
-    "writing": "문서 작성"
+    "writing": "문서 작성",
+    "empty": "아직 공개된 에이전트가 없습니다"
   },
   "admin": {
     "title": "관리자 대시보드",
@@ -174,7 +200,9 @@
       "actions": "관리",
       "editRole": "권한 변경",
       "admin": "관리자",
-      "user": "일반"
+      "user": "일반",
+      "ADMIN": "관리자",
+      "USER": "사용자"
     },
     "sessions": {
       "title": "세션 관리",
@@ -229,25 +257,11 @@
     "close": "닫기",
     "noData": "데이터가 없습니다",
     "prev": "이전",
-    "next": "다음"
-  },
-  "llm": {
-    "title": "LLM 설정",
-    "subtitle": "AI 모델 엔드포인트를 설정합니다",
-    "endpointUrl": "API 엔드포인트 URL",
-    "endpointHint": "OpenAI 호환 API 엔드포인트 (예: Ollama, vLLM, LM Studio)",
-    "apiKey": "API 키",
-    "apiKeyPlaceholder": "API 키가 필요한 경우 입력 (선택)",
-    "apiKeyHint": "로컬 모델은 보통 API 키가 불필요합니다",
-    "modelId": "모델 ID",
-    "maxTokens": "최대 토큰 수",
-    "testConnection": "연결 테스트",
-    "save": "저장",
-    "saved": "LLM 설정이 저장되었습니다",
-    "connectionSuccess": "연결 성공",
-    "connectionFailed": "연결 실패",
-    "modelsFound": "{{count}}개의 모델을 찾았습니다",
-    "modelNotFound": "{{model}} 모델을 찾을 수 없습니다"
+    "next": "다음",
+    "success": "성공",
+    "failed": "실패",
+    "import": "가져오기",
+    "addSelected": "선택한 도구 추가"
   },
   "theme": {
     "dark": "다크 모드",
