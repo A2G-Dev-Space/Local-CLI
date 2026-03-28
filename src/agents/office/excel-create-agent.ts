@@ -38,16 +38,18 @@ export function createExcelCreateRequestTool(): LLMAgentTool {
       },
     },
     execute: async (args, llmClient) => {
+      const instruction = args['instruction'] as string;
+      const isSmallSheet = /(?:한\s*시트|1\s*시트|한\s*장|1\s*sheet)/i.test(instruction);
       const agent = new SubAgent(
         llmClient,
         'excel-create',
         EXCEL_CREATE_TOOLS,
         EXCEL_CREATE_SYSTEM_PROMPT,
         {
-          maxIterations: 45,
+          maxIterations: isSmallSheet ? 20 : 45,
           planningPrompt: EXCEL_CREATE_PLANNING_PROMPT,
           enhancementPrompt: EXCEL_CREATE_ENHANCEMENT_PROMPT,
-          minToolCallsBeforeComplete: 12,
+          minToolCallsBeforeComplete: isSmallSheet ? 5 : 12,
           executionRules: [
             'MANDATORY EXECUTION ORDER — follow EXACTLY for EACH sheet:',
             '',

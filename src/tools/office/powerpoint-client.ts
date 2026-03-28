@@ -34,10 +34,6 @@ try {
 }
 $ppt.DisplayAlerts = 1  # ppAlertsNone
 $ppt.Visible = -1  # msoTrue
-# Close all existing presentations to prevent leftover slides from previous runs
-for ($i = $ppt.Presentations.Count; $i -ge 1; $i--) {
-  try { $ppt.Presentations($i).Close() } catch {}
-}
 $presentation = $ppt.Presentations.Add(-1)
 $ppt.DisplayAlerts = 2  # ppAlertsAll
 @{ success = $true; message = "Created new presentation"; presentation_name = $presentation.Name } | ConvertTo-Json -Compress

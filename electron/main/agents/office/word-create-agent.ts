@@ -4,17 +4,17 @@
  * LLMAgentTool for creating NEW Word documents using high-level section builders.
  * Uses SubAgent architecture with Enhancement → Planning → Execution loop.
  *
- * Electron parity: src/agents/office/word-create-agent.ts
+ * * Electron parity: src/agents/office/word-create-agent.ts
  */
 
-import { LLMAgentTool } from '../../tools/types';
-import { WORD_CREATE_TOOLS } from '../../tools/office/word-tools';
-import { SubAgent } from '../common/sub-agent';
+import { LLMAgentTool } from '../../tools/types.js';
+import { WORD_CREATE_TOOLS } from '../../tools/office/word-tools.js';
+import { SubAgent } from '../common/sub-agent.js';
 import {
   WORD_CREATE_SYSTEM_PROMPT,
   WORD_CREATE_PLANNING_PROMPT,
   WORD_CREATE_ENHANCEMENT_PROMPT,
-} from './word-create-prompts';
+} from './word-create-prompts.js';
 
 export function createWordCreateRequestTool(): LLMAgentTool {
   return {
@@ -38,19 +38,22 @@ export function createWordCreateRequestTool(): LLMAgentTool {
       },
     },
     execute: async (args, llmClient) => {
+      const instruction = args['instruction'] as string;
+      // Detect small page requests to reduce minimum tool calls
+      const isSmallDoc = /(?:한\s*페이지|1\s*페이지|2\s*페이지|1\s*page|2\s*page)/i.test(instruction);
       const agent = new SubAgent(
         llmClient,
         'word-create',
         WORD_CREATE_TOOLS,
         WORD_CREATE_SYSTEM_PROMPT,
         {
-          maxIterations: 82,
+          maxIterations: isSmallDoc ? 30 : 82,
           planningPrompt: WORD_CREATE_PLANNING_PROMPT,
           enhancementPrompt: WORD_CREATE_ENHANCEMENT_PROMPT,
-          minToolCallsBeforeComplete: 25,
+          minToolCallsBeforeComplete: isSmallDoc ? 8 : 25,
         },
       );
-      return agent.run(args['instruction'] as string);
+      return agent.run(instruction);
     },
     categories: ['llm-agent'],
     requiresSubLLM: true,

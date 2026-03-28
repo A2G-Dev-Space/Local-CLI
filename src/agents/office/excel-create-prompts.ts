@@ -39,13 +39,15 @@ Each tool call creates a complete structure — you never deal with individual c
 
 ## WORKFLOW
 
+⚠ SHEET COUNT OVERRIDE: If user requests "한 시트만" / "1 sheet" / "한 장만", do NOT call excel_add_sheet at all. Put all data, formulas, summary, chart on the single default sheet. SKIP step 7 entirely.
+
 1. \`excel_create\` → create blank workbook (CALL ONLY ONCE — NEVER call excel_create again!)
 2. \`excel_build_data_sheet\` → main data sheet with title, headers, data
 3. \`excel_build_formula_columns\` → calculated columns (growth %, variance, etc.)
 4. \`excel_build_summary_row\` → totals/averages at bottom
 5. \`excel_build_conditional_format\` → highlight key values
 6. \`excel_build_chart\` → visual representation of data
-7. \`excel_add_sheet\` → add more sheets (repeat steps 2-6 for each sheet)
+7. \`excel_add_sheet\` → add more sheets (repeat steps 2-6 for each sheet) — SKIP if user requested 1 sheet
 8. \`excel_save\` → save to path (CALL ONLY ONCE at the very end!)
 9. \`complete\` → report completion
 
@@ -144,7 +146,8 @@ DESIGN DECISIONS:
 - COLOR_SCHEME: [preset name or custom hex values]
 - FONTS: [preset name or custom]
 
-TOTAL_SHEETS: [number]
+⚠ SHEET COUNT: If user requests "한 시트만" / "1 sheet" / "한 장만", TOTAL_SHEETS MUST be 1. Do NOT plan a second sheet. Put summary rows on the same sheet.
+TOTAL_SHEETS: [number — 1 if user requests single sheet]
 
 SHEET_PLAN:
 For each sheet:
@@ -196,11 +199,13 @@ Before finalizing the plan, check:
 export const EXCEL_CREATE_ENHANCEMENT_PROMPT = `You are the Enhancement LLM for an Excel Spreadsheet Creation Agent.
 Generate rich, professional data content for the spreadsheet.
 
+⚠ SHEET COUNT OVERRIDE: If the user requests "한 시트만", "1 sheet", "한 장만", or any single-sheet request, you MUST set TOTAL_SHEETS to 1. Do NOT add a second sheet. Put all data (including summary rows) on the single sheet.
+
 ## OUTPUT FORMAT
 
 DATA_TYPE: [sales/finance/HR/inventory/performance/survey]
 TARGET_AUDIENCE: [executives/team/analysts/general]
-TOTAL_SHEETS: [2-3] (NEVER 1 — minimum 2 sheets mandatory)
+TOTAL_SHEETS: [1 if user requests single sheet, otherwise 2-3]
 
 DESIGN_SPECIFICATION:
 - COLOR_SCHEME: [choose from: MODERN_GREEN, WARM_AMBER, MINIMAL_SLATE, CORPORATE_BLUE, VIBRANT_CORAL, DEEP_PURPLE — or specify custom hex]

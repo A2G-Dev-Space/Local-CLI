@@ -38,19 +38,22 @@ export function createWordCreateRequestTool(): LLMAgentTool {
       },
     },
     execute: async (args, llmClient) => {
+      const instruction = args['instruction'] as string;
+      // Detect small page requests to reduce minimum tool calls
+      const isSmallDoc = /(?:한\s*페이지|1\s*페이지|2\s*페이지|1\s*page|2\s*page)/i.test(instruction);
       const agent = new SubAgent(
         llmClient,
         'word-create',
         WORD_CREATE_TOOLS,
         WORD_CREATE_SYSTEM_PROMPT,
         {
-          maxIterations: 82,
+          maxIterations: isSmallDoc ? 30 : 82,
           planningPrompt: WORD_CREATE_PLANNING_PROMPT,
           enhancementPrompt: WORD_CREATE_ENHANCEMENT_PROMPT,
-          minToolCallsBeforeComplete: 25,
+          minToolCallsBeforeComplete: isSmallDoc ? 8 : 25,
         },
       );
-      return agent.run(args['instruction'] as string);
+      return agent.run(instruction);
     },
     categories: ['llm-agent'],
     requiresSubLLM: true,

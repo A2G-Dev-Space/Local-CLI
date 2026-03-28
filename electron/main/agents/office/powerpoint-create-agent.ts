@@ -6,22 +6,23 @@
  * 3. Validation & Regeneration: Check each HTML, re-request failures
  * 4. Pipeline Assembly: Pre-create slides → parallel Edge screenshots → sequential fill
  *
- * Electron parity: src/agents/office/powerpoint-create-agent.ts
+ * * * * Electron parity: src/agents/office/powerpoint-create-agent.ts
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
-import type { LLMClient } from '../../core/llm/llm-client';
-import type { LLMAgentTool, ToolResult } from '../../tools/types';
-import { powerpointClient } from '../../tools/office/powerpoint-client';
-import { getSubAgentPhaseLogger, getSubAgentToolCallLogger } from '../common/sub-agent';
-import { logger } from '../../utils/logger';
+import { LLMClient } from '../../core/llm/llm-client.js';
+import { LLMAgentTool, ToolResult } from '../../tools/types.js';
+import { powerpointClient } from '../../tools/office/powerpoint-client.js';
+import { getSubAgentPhaseLogger, getSubAgentToolCallLogger } from '../common/sub-agent.js';
+import { logger } from '../../utils/logger.js';
+import { getPlatform } from '../../utils/platform-utils.js';
 import {
   PPT_DESIGN_PROMPT,
   validateSlideHtml,
   buildFreeHtmlPrompt,
-} from './powerpoint-create-prompts';
-import type { DesignSystem } from './powerpoint-create-prompts';
+} from './powerpoint-create-prompts.js';
+import type { DesignSystem } from './powerpoint-create-prompts.js';
 
 // =============================================================================
 // Types
@@ -102,21 +103,24 @@ function validateAndFixPlan(plan: StructuredPlan): string | null {
     return 'slides array must have at least 3 entries';
   }
 
-  if (plan.slides.length < 10) {
-    return `Only ${plan.slides.length} slides — minimum 10 required (aim for 10-12). Add more content slides with specific data.`;
+  // Only enforce minimum when user hasn't specified a custom count
+  // (custom count validation happens at enhancement/planning phase via prompt)
+  if (plan.slides.length < 3) {
+    return `Only ${plan.slides.length} slides — minimum 3 required. Add more content slides.`;
   }
 
-  // Auto-fix: ensure first slide is type "title"
-  if (plan.slides[0]?.type !== 'title') {
-    logger.info('Auto-fixing: first slide type changed to "title"');
-    plan.slides[0]!.type = 'title';
-  }
-
-  // Auto-fix: ensure last slide is type "closing"
-  const lastSlide = plan.slides[plan.slides.length - 1]!;
-  if (lastSlide.type !== 'closing') {
-    logger.info('Auto-fixing: last slide type changed to "closing"');
-    lastSlide.type = 'closing';
+  // Auto-fix: ensure first slide is type "title" and last is "closing"
+  // Skip for small decks (≤3 slides) — all slides should be content
+  if (plan.slides.length > 3) {
+    if (plan.slides[0]?.type !== 'title') {
+      logger.info('Auto-fixing: first slide type changed to "title"');
+      plan.slides[0]!.type = 'title';
+    }
+    const lastSlide = plan.slides[plan.slides.length - 1]!;
+    if (lastSlide.type !== 'closing') {
+      logger.info('Auto-fixing: last slide type changed to "closing"');
+      lastSlide.type = 'closing';
+    }
   }
 
   // Auto-fix: fill missing titles
@@ -512,6 +516,7 @@ function buildFallbackSlideHtml(
     }
   }
   const bulletItems = items.slice(0, 6);
+
   // Use 2-column grid for 4+ items, single column for fewer
   const useGrid = bulletItems.length >= 4;
   const gridCols = useGrid ? 'grid-template-columns:1fr 1fr' : 'grid-template-columns:1fr';
@@ -561,6 +566,10 @@ h1 { font-size: 52px; font-weight: 700; color: ${design.text_color}; font-family
 // =============================================================================
 
 function getTempDir(): { writePath: string; winPath: string } {
+  const platform = getPlatform();
+  if (platform === 'wsl') {
+    return { writePath: '/mnt/c/temp', winPath: 'C:\\temp' };
+  }
   return { writePath: 'C:\\temp', winPath: 'C:\\temp' };
 }
 
@@ -663,6 +672,7 @@ async function runDesignPhase(
 
   return plan;
 }
+
 
 // =============================================================================
 // Phase 2: Parallel HTML Generation

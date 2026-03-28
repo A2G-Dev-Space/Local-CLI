@@ -3,199 +3,461 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Office SubAgent Quality Report</title>
+<title>Office Tool Improvement Report</title>
 <style>
   :root {
-    --bg: #0f1117; --card: #1a1d27; --border: #2a2d3a;
-    --text: #e0e0e6; --muted: #8b8fa3; --accent: #6c5ce7;
-    --green: #00b894; --red: #e17055; --yellow: #fdcb6e; --blue: #74b9ff;
-    --ppt: #d63031; --word: #0984e3; --excel: #00b894;
+    --bg: #08090d; --bg2: #0e1018; --card: #141720; --card2: #1a1e2a;
+    --border: #252a38; --border2: #333952;
+    --text: #e4e6ee; --text2: #b0b5c8; --muted: #6b7194;
+    --accent: #7c6aef; --accent2: #9d8df7; --accent-bg: #7c6aef18;
+    --green: #22c997; --green-bg: #22c99715; --green-border: #22c99740;
+    --red: #ef6a6a; --red-bg: #ef6a6a15; --red-border: #ef6a6a40;
+    --yellow: #f0c54d; --yellow-bg: #f0c54d15; --yellow-border: #f0c54d40;
+    --blue: #5fa0f5; --blue-bg: #5fa0f515;
+    --ppt: #e04040; --word: #3b82f6; --excel: #22b573;
+    --issue1: #ef6a6a; --issue2: #f0c54d; --issue3: #5fa0f5;
+    --radius: 14px; --radius-sm: 8px;
   }
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family:'Segoe UI',-apple-system,sans-serif; background:var(--bg); color:var(--text); line-height:1.6; overflow:hidden; height:100vh; }
+  body { font-family:'Inter','Segoe UI',-apple-system,sans-serif; background:var(--bg); color:var(--text); line-height:1.6; min-height:100vh; }
 
-  /* Top nav bar */
-  .topbar {
-    display:flex; align-items:center; justify-content:space-between;
-    padding:12px 24px; background:var(--card); border-bottom:1px solid var(--border);
-    position:fixed; top:0; left:0; right:0; z-index:100; height:56px;
+  /* ─── Header ─── */
+  .header {
+    position:sticky; top:0; z-index:100;
+    background: linear-gradient(180deg, rgba(14,16,24,0.95) 0%, rgba(14,16,24,0.85) 100%);
+    backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border-bottom:1px solid var(--border);
+    padding:16px 32px; display:flex; align-items:center; justify-content:space-between;
   }
-  .topbar h1 { font-size:1.1rem; font-weight:700; }
-  .topbar .tabs { display:flex; gap:4px; }
-  .topbar .tab {
-    padding:6px 16px; border-radius:8px; cursor:pointer;
-    font-size:0.85rem; font-weight:600; border:1px solid var(--border);
-    background:transparent; color:var(--muted); transition:all 0.2s;
+  .header::after {
+    content:''; position:absolute; bottom:-1px; left:0; right:0; height:1px;
+    background:linear-gradient(90deg, transparent, var(--accent) 30%, var(--accent) 70%, transparent);
+    opacity:0.3;
   }
-  .topbar .tab:hover { background:#ffffff08; }
-  .topbar .tab.active-ppt { background:var(--ppt); color:#fff; border-color:var(--ppt); }
-  .topbar .tab.active-word { background:var(--word); color:#fff; border-color:var(--word); }
-  .topbar .tab.active-excel { background:var(--excel); color:#fff; border-color:var(--excel); }
-  .topbar .page-info { font-size:0.85rem; color:var(--muted); min-width:120px; text-align:right; }
+  .header-left { display:flex; align-items:center; gap:16px; }
+  .header-left h1 { font-size:1.15rem; font-weight:700; letter-spacing:-0.02em; }
+  .header-left .badge { font-size:0.7rem; font-weight:600; padding:3px 10px; border-radius:20px; background:var(--accent-bg); color:var(--accent2); border:1px solid #7c6aef30; }
+  .header-right { display:flex; gap:6px; }
+  .tab-btn {
+    padding:7px 18px; border-radius:10px; cursor:pointer; font-size:0.82rem; font-weight:600;
+    border:1px solid var(--border); background:transparent; color:var(--muted); transition:all 0.2s;
+  }
+  .tab-btn:hover { background:#ffffff06; color:var(--text2); }
+  .tab-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); box-shadow:0 2px 12px #7c6aef40; }
 
-  /* Main content */
-  .main { margin-top:56px; height:calc(100vh - 56px); display:flex; }
+  /* ─── Layout ─── */
+  .container { max-width:1400px; margin:0 auto; padding:24px 32px 80px; }
 
-  /* Sidebar */
-  .sidebar {
-    width:260px; min-width:260px; background:var(--card); border-right:1px solid var(--border);
-    overflow-y:auto; padding:12px;
+  /* ─── Dashboard ─── */
+  .dashboard { display:grid; grid-template-columns:repeat(4, 1fr); gap:16px; margin-bottom:32px; }
+  .dash-card {
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:20px 24px;
+    position:relative; overflow:hidden;
   }
-  .sidebar .tool-label {
-    font-size:0.75rem; font-weight:700; text-transform:uppercase;
-    color:var(--muted); letter-spacing:0.06em; padding:8px 8px 4px;
+  .dash-card::before {
+    content:''; position:absolute; top:0; left:0; right:0; height:3px;
+    background:linear-gradient(90deg, var(--accent), var(--accent2));
   }
-  .sidebar .scenario-item {
-    display:flex; align-items:center; gap:8px;
-    padding:8px 10px; border-radius:8px; cursor:pointer;
-    font-size:0.85rem; color:var(--text); transition:all 0.15s; margin-bottom:2px;
-  }
-  .sidebar .scenario-item:hover { background:#ffffff08; }
-  .sidebar .scenario-item.active { background:var(--accent); color:#fff; }
-  .sidebar .scenario-item .num { width:22px; height:22px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:0.75rem; font-weight:700; flex-shrink:0; }
-  .sidebar .scenario-item .num.untested { background:#ffffff10; color:var(--muted); }
-  .sidebar .scenario-item .num.pass { background:var(--green); color:#fff; }
-  .sidebar .scenario-item .num.fail { background:var(--red); color:#fff; }
-  .sidebar .scenario-item .num.mid { background:var(--yellow); color:#000; }
-  .sidebar .scenario-item .label { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .dash-card.issue1::before { background:var(--issue1); }
+  .dash-card.issue2::before { background:var(--issue2); }
+  .dash-card.issue3::before { background:var(--issue3); }
+  .dash-card .dash-label { font-size:0.75rem; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); margin-bottom:8px; }
+  .dash-card .dash-value { font-size:2.4rem; font-weight:800; letter-spacing:-0.03em; }
+  .dash-card .dash-sub { font-size:0.8rem; color:var(--muted); margin-top:4px; }
+  .dash-card:hover { border-color:var(--border2); transform:translateY(-2px); transition:all 0.3s; box-shadow:0 8px 32px rgba(0,0,0,0.3); }
+  .dash-value.green { color:var(--green); }
+  .dash-value.red { color:var(--red); }
+  .dash-value.yellow { color:var(--yellow); }
+  .dash-value.muted { color:var(--muted); }
 
-  /* Content area */
-  .content-area {
-    flex:1; overflow-y:auto; padding:32px 40px;
+  /* ─── Section ─── */
+  .section { margin-bottom:40px; }
+  .section-header {
+    display:flex; align-items:center; gap:12px; margin-bottom:20px; padding:16px 20px;
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    position:relative; overflow:hidden;
+  }
+  .section-header::before {
+    content:''; position:absolute; left:0; top:0; bottom:0; width:4px;
+  }
+  .section.issue1-section .section-header::before { background:var(--issue1); }
+  .section.issue2-section .section-header::before { background:var(--issue2); }
+  .section.issue3-section .section-header::before { background:var(--issue3); }
+  .section.ppt-section .section-header::before { background:var(--ppt); }
+  .section.word-section .section-header::before { background:var(--word); }
+  .section.excel-section .section-header::before { background:var(--excel); }
+  .section-icon {
+    width:36px; height:36px; border-radius:10px; display:flex; align-items:center; justify-content:center;
+    font-size:1.1rem; font-weight:700; flex-shrink:0;
+  }
+  .section-icon.issue1 { background:var(--red-bg); color:var(--red); border:1px solid var(--red-border); }
+  .section-icon.issue2 { background:var(--yellow-bg); color:var(--yellow); border:1px solid var(--yellow-border); }
+  .section-icon.issue3 { background:var(--blue-bg); color:var(--blue); border:1px solid #5fa0f540; }
+  .section-icon.ppt { background:#e0404015; color:var(--ppt); border:1px solid #e0404040; }
+  .section-icon.word { background:#3b82f615; color:var(--word); border:1px solid #3b82f640; }
+  .section-icon.excel { background:#22b57315; color:var(--excel); border:1px solid #22b57340; }
+  .section-title { font-size:1.15rem; font-weight:700; }
+  .section-count { font-size:0.8rem; color:var(--muted); margin-left:auto; }
+
+  /* ─── Scenario Card ─── */
+  .scenario-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(420px, 1fr)); gap:14px; }
+  .scenario-card {
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:20px 24px; cursor:pointer; transition:all 0.2s;
+    display:flex; flex-direction:column; gap:12px;
+  }
+  .scenario-card:hover { border-color:var(--border2); background:var(--card2); transform:translateY(-2px); box-shadow:0 8px 24px rgba(0,0,0,0.25); }
+  .scenario-card .sc-top { display:flex; align-items:center; gap:10px; }
+  .scenario-card .sc-num {
+    width:28px; height:28px; border-radius:8px; display:flex; align-items:center; justify-content:center;
+    font-size:0.75rem; font-weight:700; flex-shrink:0;
+  }
+  .sc-num.untested { background:#ffffff08; color:var(--muted); }
+  .sc-num.pass { background:var(--green); color:#fff; }
+  .sc-num.fail { background:var(--red); color:#fff; }
+  .sc-num.partial { background:var(--yellow); color:#000; }
+  .scenario-card .sc-name { font-size:0.92rem; font-weight:600; flex:1; }
+  .scenario-card .sc-tools {
+    display:flex; gap:4px;
+  }
+  .tool-tag {
+    font-size:0.65rem; font-weight:700; padding:2px 8px; border-radius:5px;
+    text-transform:uppercase; letter-spacing:0.04em;
+  }
+  .tool-tag.ppt { background:#e0404020; color:#f06060; }
+  .tool-tag.word { background:#3b82f620; color:#6ea8f8; }
+  .tool-tag.excel { background:#22b57320; color:#40d090; }
+  .scenario-card .sc-desc { font-size:0.82rem; color:var(--text2); line-height:1.5; }
+  .scenario-card .sc-cmd {
+    font-family:'JetBrains Mono','Fira Code',monospace; font-size:0.75rem;
+    background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-sm);
+    padding:8px 12px; color:var(--blue); overflow-x:auto; white-space:nowrap;
+  }
+  .scenario-card .sc-expect {
+    font-size:0.8rem; color:var(--muted); padding:8px 12px;
+    background:var(--bg2); border-radius:var(--radius-sm); border-left:3px solid var(--accent);
+  }
+  .scenario-card .sc-result {
+    display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;
+  }
+  .result-box {
+    text-align:center; padding:8px; border-radius:var(--radius-sm);
+    background:var(--bg); border:1px solid var(--border);
+  }
+  .result-box .rb-label { font-size:0.65rem; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em; }
+  .result-box .rb-value { font-size:1.3rem; font-weight:800; margin-top:2px; }
+  .rb-value.untested { color:var(--muted); }
+
+  /* ─── Detail Modal ─── */
+  .modal-overlay {
+    display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:200;
+    backdrop-filter:blur(4px); align-items:center; justify-content:center;
+  }
+  .modal-overlay.show { display:flex; }
+  .modal {
+    background:var(--card); border:1px solid var(--border); border-radius:18px;
+    width:90%; max-width:800px; max-height:85vh; overflow-y:auto; padding:32px;
+  }
+  .modal h2 { font-size:1.3rem; font-weight:700; margin-bottom:16px; }
+  .modal .close-btn {
+    position:absolute; top:16px; right:20px; background:none; border:none;
+    color:var(--muted); font-size:1.5rem; cursor:pointer;
   }
 
-  /* Page card */
-  .page-card {
-    max-width:1000px; margin:0 auto;
+  /* ─── Responsive ─── */
+  @media (max-width:1100px) {
+    .dashboard { grid-template-columns:repeat(2,1fr); }
+    .scenario-grid { grid-template-columns:1fr; }
   }
-  .page-card .tool-badge {
-    display:inline-block; padding:4px 12px; border-radius:6px;
-    font-size:0.8rem; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:12px;
-  }
-  .tool-badge.ppt { background:var(--ppt); color:#fff; }
-  .tool-badge.word { background:var(--word); color:#fff; }
-  .tool-badge.excel { background:var(--excel); color:#fff; }
-  .page-card h2 { font-size:1.5rem; font-weight:700; margin-bottom:4px; }
-  .page-card .scenario-desc { color:var(--muted); font-size:0.9rem; margin-bottom:20px; }
-  .page-card .command { background:#0d0f14; border:1px solid var(--border); border-radius:8px; padding:12px 16px; font-family:'Fira Code','Consolas',monospace; font-size:0.85rem; color:var(--blue); margin-bottom:24px; overflow-x:auto; white-space:pre; }
-
-  /* Score section */
-  .score-grid {
-    display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:24px;
-  }
-  .score-box {
-    background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px 20px;
-  }
-  .score-box .label { font-size:0.8rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:8px; }
-  .score-box .value { font-size:2rem; font-weight:700; }
-  .score-box .value.pass { color:var(--green); }
-  .score-box .value.fail { color:var(--red); }
-  .score-box .value.mid { color:var(--yellow); }
-  .score-box .value.untested { color:var(--muted); }
-  .score-box .sub { font-size:0.8rem; color:var(--muted); margin-top:4px; }
-
-  /* Test results table */
-  .results-table { width:100%; border-collapse:collapse; margin-bottom:24px; }
-  .results-table th {
-    text-align:left; padding:8px 12px; font-size:0.75rem; font-weight:700;
-    text-transform:uppercase; letter-spacing:0.04em; color:var(--muted);
-    border-bottom:2px solid var(--border);
-  }
-  .results-table td {
-    padding:8px 12px; font-size:0.85rem; border-bottom:1px solid var(--border);
+  @media (max-width:700px) {
+    .dashboard { grid-template-columns:1fr; }
+    .container { padding:16px; }
+    .header { padding:12px 16px; flex-wrap:wrap; gap:8px; }
   }
 
-  /* Notes section */
-  .notes { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:20px; margin-bottom:24px; }
-  .notes h3 { font-size:1rem; margin-bottom:8px; }
-  .notes ul { margin-left:1.2rem; }
-  .notes li { margin-bottom:4px; color:var(--muted); font-size:0.85rem; }
-  .notes li strong { color:var(--text); }
+  /* ─── Version History ─── */
+  .version-list { display:flex; flex-direction:column; gap:8px; margin-top:12px; }
+  .ver-item {
+    background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius-sm);
+    padding:10px 14px; display:flex; align-items:center; gap:12px;
+  }
+  .ver-item .ver-tag { font-size:0.75rem; font-weight:700; color:var(--accent); min-width:90px; }
+  .ver-item .ver-score { font-size:1rem; font-weight:800; min-width:50px; }
+  .ver-item .ver-note { font-size:0.8rem; color:var(--muted); flex:1; }
 
-  /* Version history */
-  .version-entry { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px 20px; margin-bottom:12px; }
-  .version-entry .ver { font-size:0.85rem; font-weight:700; color:var(--accent); margin-bottom:4px; }
-  .version-entry .score { font-size:1.2rem; font-weight:700; }
-  .version-entry .changes { font-size:0.8rem; color:var(--muted); margin-top:4px; }
+  /* ─── Scrollbar ─── */
+  ::-webkit-scrollbar { width:6px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+  ::-webkit-scrollbar-thumb:hover { background:var(--border2); }
 
-  /* Navigation arrows */
-  .nav-arrows {
-    position:fixed; bottom:24px; right:24px; display:flex; gap:8px; z-index:100;
-  }
-  .nav-btn {
-    width:44px; height:44px; border-radius:12px; border:1px solid var(--border);
-    background:var(--card); color:var(--text); font-size:1.2rem;
-    cursor:pointer; display:flex; align-items:center; justify-content:center;
-    transition:all 0.15s;
-  }
-  .nav-btn:hover { background:var(--accent); border-color:var(--accent); }
-  .nav-btn:disabled { opacity:0.3; cursor:not-allowed; }
-
-  /* Keyboard hint */
-  .kbd-hint {
-    position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
-    font-size:0.75rem; color:var(--muted); background:var(--card);
-    padding:4px 12px; border-radius:6px; border:1px solid var(--border);
-  }
-  .kbd { display:inline-block; padding:1px 6px; border-radius:4px; background:#ffffff10; font-family:monospace; font-size:0.7rem; }
-
-  /* Language toggle */
-  .lang-toggle {
-    display:flex; align-items:center; gap:6px; margin-left:12px;
-  }
-  .lang-btn {
-    padding:4px 10px; border-radius:6px; cursor:pointer;
-    font-size:0.8rem; font-weight:600; border:1px solid var(--border);
-    background:transparent; color:var(--muted); transition:all 0.2s;
-  }
-  .lang-btn:hover { background:#ffffff08; }
-  .lang-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
-
-  /* Untested state */
-  .untested-msg {
-    text-align:center; padding:60px 20px; color:var(--muted);
-  }
-  .untested-msg .icon { font-size:3rem; margin-bottom:12px; opacity:0.3; }
-  .untested-msg p { font-size:1rem; }
+  .hidden { display:none !important; }
 </style>
 </head>
 <body>
 
-<div class="topbar">
-  <h1>Office SubAgent Quality Report</h1>
-  <div class="tabs">
-    <div class="tab" data-tool="ppt" onclick="filterTool('ppt')">PowerPoint</div>
-    <div class="tab" data-tool="word" onclick="filterTool('word')">Word</div>
-    <div class="tab" data-tool="excel" onclick="filterTool('excel')">Excel</div>
-    <div class="tab" data-tool="all" onclick="filterTool('all')">All</div>
+<div class="header">
+  <div class="header-left">
+    <h1>Office Tool Improvement Report</h1>
+    <span class="badge">v2.0 — 2026-03-26</span>
   </div>
-  <div style="display:flex; align-items:center; gap:12px;">
-    <div class="lang-toggle">
-      <button class="lang-btn active" id="langKo" onclick="setLang('ko')">한국어</button>
-      <button class="lang-btn" id="langEn" onclick="setLang('en')">EN</button>
+  <div class="header-right">
+    <button class="tab-btn active" onclick="showTab('all')">All</button>
+    <button class="tab-btn" onclick="showTab('issues')">Issues</button>
+    <button class="tab-btn" onclick="showTab('ppt')">PPT</button>
+    <button class="tab-btn" onclick="showTab('word')">Word</button>
+    <button class="tab-btn" onclick="showTab('excel')">Excel</button>
+  </div>
+</div>
+
+<div class="container">
+  <!-- Dashboard -->
+  <div class="dashboard" id="dashboard">
+    <div class="dash-card">
+      <div class="dash-label">Total Scenarios</div>
+      <div class="dash-value muted" id="dashTotal">33</div>
+      <div class="dash-sub" id="dashTotalSub">0 tested</div>
     </div>
-    <div class="page-info" id="pageInfo">-</div>
+    <div class="dash-card issue1">
+      <div class="dash-label">Issue #1 — Close Bug</div>
+      <div class="dash-value muted" id="dashI1">0 / 6</div>
+      <div class="dash-sub">Create시 기존 문서 닫힘</div>
+    </div>
+    <div class="dash-card issue2">
+      <div class="dash-label">Issue #2 — Page Control</div>
+      <div class="dash-value muted" id="dashI2">0 / 9</div>
+      <div class="dash-sub">페이지 수 / 콘텐츠 기반 제어</div>
+    </div>
+    <div class="dash-card issue3">
+      <div class="dash-label">Issue #3 — Modify Quality</div>
+      <div class="dash-value muted" id="dashI3">0 / 6</div>
+      <div class="dash-sub">수정 품질 개선</div>
+    </div>
   </div>
-</div>
 
-<div class="main">
-  <div class="sidebar" id="sidebar"></div>
-  <div class="content-area" id="contentArea"></div>
+  <div id="content"></div>
 </div>
-
-<div class="nav-arrows">
-  <button class="nav-btn" id="prevBtn" onclick="navigate(-1)">&larr;</button>
-  <button class="nav-btn" id="nextBtn" onclick="navigate(1)">&rarr;</button>
-</div>
-<div class="kbd-hint" id="kbdHint"><span class="kbd">&larr;</span> <span class="kbd">&rarr;</span> 키로 이동</div>
 
 <script>
-// =====================================================================
-// SCENARIO DATA — PPT 10 + Word 10 + Excel 10
-// =====================================================================
+// ═══════════════════════════════════════════════════════════════════
+// SCENARIO DATA
+// ═══════════════════════════════════════════════════════════════════
+
 const scenarios = [
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // ISSUE #1: Create시 기존 문서 닫히는 문제 (6 scenarios)
+  // Root cause: powerpointCreate()가 기존 프레젠테이션 전부 Close
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  { id:'i1-1', group:'issue1', tools:['ppt'],
+    name:'PPT Create — 기존 1개 PPT 열린 상태',
+    desc:'사용자가 이미 PPT 파일을 열어서 작업 중일 때, 새 PPT 생성 요청 시 기존 PPT가 닫히지 않아야 한다.',
+    cmd:'# 수동 테스트: (1) PPT 파일 하나 열기 (2) hanseol-dev "새 PPT 만들어줘"',
+    expect:'기존 프레젠테이션이 유지되고, 새 프레젠테이션이 추가로 생성됨. PowerPoint Presentations.Count >= 2',
+    verify:'PowerShell: [Runtime.InteropServices.Marshal]::GetActiveObject("PowerPoint.Application").Presentations.Count',
+    tests:[{version:'v5.3.12-dev.0',pass:true,score:100,note:'✅ PASS! existing-ppt.pptx 유지 + new-ppt.pptx(5장) 추가. Presentations.Count=2. powerpointCreate() Close루프 제거 효과 확인'}] },
+
+  { id:'i1-2', group:'issue1', tools:['ppt'],
+    name:'PPT Create — 기존 3개 PPT 열린 상태',
+    desc:'3개의 PPT가 동시에 열려 있을 때, 새 PPT 생성 요청. 기존 3개 전부 유지되어야 한다.',
+    cmd:'# 수동 테스트: (1) PPT 3개 열기 (2) hanseol-dev "새 피치덱 만들어줘"',
+    expect:'기존 3개 프레젠테이션 + 새 1개 = 총 4개. 하나도 닫히지 않음.',
+    verify:'Presentations.Count == 4, 기존 파일명 3개 모두 존재 확인',
+    tests:[] },
+
+  { id:'i1-3', group:'issue1', tools:['ppt'],
+    name:'PPT Create 연속 2회 — 첫번째가 보존되는지',
+    desc:'한설에게 PPT 2개를 연속으로 생성시킬 때, 첫번째 PPT가 두번째 생성시 닫히지 않아야 한다.',
+    cmd:'hanseol-dev -ps "AI 소개 PPT 만들어줘" && hanseol-dev -ps "마케팅 PPT 만들어줘"',
+    expect:'첫번째 PPT 파일이 여전히 열려 있고, 두번째도 생성됨. 총 2개 이상 프레젠테이션.',
+    verify:'두 파일 모두 Presentations 목록에 존재',
+    tests:[] },
+
+  { id:'i1-4', group:'issue1', tools:['word'],
+    name:'Word Create — 기존 Word 열린 상태 (기준선)',
+    desc:'Word는 원래 기존 문서를 닫지 않아야 한다 (baseline 확인). 기존 Word 열린 상태에서 새 문서 생성.',
+    cmd:'# (1) Word 파일 열기 (2) hanseol-dev "새 보고서 만들어줘"',
+    expect:'기존 문서 유지 + 새 문서 추가. Documents.Count >= 2',
+    verify:'PowerShell: GetActiveObject("Word.Application").Documents.Count',
+    tests:[] },
+
+  { id:'i1-5', group:'issue1', tools:['excel'],
+    name:'Excel Create — 기존 Excel 열린 상태 (기준선)',
+    desc:'Excel도 기존 문서를 닫지 않아야 한다 (baseline 확인). 기존 워크북 열린 상태에서 새 워크북 생성.',
+    cmd:'# (1) Excel 파일 열기 (2) hanseol-dev "매출 표 만들어줘"',
+    expect:'기존 워크북 유지 + 새 워크북 추가. Workbooks.Count >= 2',
+    verify:'PowerShell: GetActiveObject("Excel.Application").Workbooks.Count',
+    tests:[] },
+
+  { id:'i1-6', group:'issue1', tools:['ppt','word','excel'],
+    name:'크로스앱 — PPT+Word+Excel 동시 열린 상태에서 PPT 생성',
+    desc:'Word와 Excel이 열린 상태에서 PPT를 생성해도 다른 앱에 영향이 없어야 한다.',
+    cmd:'# (1) Word, Excel, PPT 각 1개씩 열기 (2) hanseol-dev "새 PPT 만들어줘"',
+    expect:'Word, Excel 문서 모두 영향 없음. PPT에 새 프레젠테이션 추가.',
+    verify:'각 앱의 Documents/Workbooks/Presentations Count 확인',
+    tests:[] },
+
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // ISSUE #2: 페이지 수 / 타겟 페이지 지정 (6 scenarios)
+  // Root cause: Create 프롬프트가 하드코딩된 슬라이드 수 룰만 따름
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  { id:'i2-1', group:'issue2', tools:['ppt'],
+    name:'PPT — "3장짜리 만들어줘"',
+    desc:'사용자가 명시적으로 3장을 요청했을 때 정확히 3장 (표지+내용1+감사) 이 생성되어야 한다.',
+    cmd:'hanseol-dev -ps "AI 소개 PPT 3장짜리로 만들어줘, C:\\temp\\ppt-3slides.pptx"',
+    expect:'정확히 3장 생성. 10장 이상이면 실패. 표지 + 내용 1장 + 클로징 구성.',
+    verify:'powerpoint_get_slide_count == 3',
+    tests:[
+      {version:'v5.3.12-dev.0-a',score:78,pass:false,note:'✅3장 생성. ❌Slide3 렌더실패→텍스트벽. 타이틀+클로징으로 콘텐츠 1장뿐'},
+      {version:'v5.3.12-dev.0-b',score:82,pass:false,note:'✅Create agent 3장 콘텐츠 생성 성공! ❌Fallback agent가 4번째 클로징 추가. Slide3 렌더실패→텍스트폴백'},
+      {version:'v5.3.12-dev.0-c',score:85,pass:false,note:'✅정확히 3장! 클로징 추가 안됨! ⚠Slide1 여전히 타이틀 형태. ⚠Slide3 이미지 삽입 반복 실패(인프라 이슈)→fallback agent 텍스트 재구성'},
+      {version:'v5.3.12-dev.0-d',score:78,pass:false,note:'3장 정확. ✅Slide2 타임라인+5메트릭 매우 풍부. ❌Slide3 fallback 도형 겹침. ❌Slide1 여전히 타이틀 낭비. 마지막슬라이드 이미지삽입 인프라버그 반복 확인'}
+    ] },
+
+  { id:'i2-2', group:'issue2', tools:['ppt'],
+    name:'PPT — "5장짜리 만들어줘"',
+    desc:'5장 요청 시 정확히 5장 (표지+내용3+감사) 생성. 기본 10-12장 룰을 오버라이드해야 함.',
+    cmd:'hanseol-dev -ps "마케팅 전략 PPT 5장짜리로 만들어줘, C:\\temp\\ppt-5slides.pptx"',
+    expect:'정확히 5장 생성. 표지 + 내용 3장 + 클로징.',
+    verify:'powerpoint_get_slide_count == 5',
+    tests:[{version:'v5.3.12-dev.0',score:93,pass:true,note:'✅정확히 5장! 타이틀+콘텐츠3+클로징. 메트릭카드+전략카드+바차트+타임라인 레이아웃 다양. 데이터 풍부(12.8조,156%,520%ROI)'}] },
+
+  { id:'i2-3', group:'issue2', tools:['word'],
+    name:'Word — "2페이지 이내로 만들어줘"',
+    desc:'사용자가 2페이지 이내를 요청했을 때 문서가 2페이지를 초과하면 안 된다.',
+    cmd:'hanseol-dev -ps "프로젝트 요약 보고서 2페이지 이내로 만들어줘, C:\\temp\\word-2pages.docx"',
+    expect:'생성된 문서가 2페이지 이내. 표지 + 1페이지 본문 또는 본문만 2페이지.',
+    verify:'Word COM: ActiveDocument.ComputeStatistics(2) <= 2 (wdStatisticPages)',
+    tests:[
+      {version:'v5.3.12-dev.0-a',score:60,pass:false,note:'❌5페이지(2페이지요청). isSmallDoc감지OK→maxIter30/minCalls8이지만, 고수준빌더가 한번에 1-2페이지분량 생성'},
+      {version:'v5.3.12-dev.0-b',score:60,pass:false,note:'❌5페이지. Enhancement에 페이지별 섹션수 제한(2p=3-4섹션) 추가했으나 빌더 도구 자체가 풍성한 콘텐츠 생성. 아키텍처적 한계'}
+    ] },
+
+  { id:'i2-4', group:'issue2', tools:['ppt'],
+    name:'PPT Modify — "슬라이드 3번만 수정해줘"',
+    desc:'기존 PPT의 특정 슬라이드만 수정 요청. 다른 슬라이드는 건드리지 않아야 한다.',
+    cmd:'hanseol-dev -ps "C:\\temp\\test.pptx 열어서 슬라이드 3번 내용을 AI 트렌드로 바꿔줘"',
+    expect:'슬라이드 3번만 내용 변경. 1,2,4,5... 슬라이드는 원본과 동일.',
+    verify:'수정 전후 각 슬라이드 텍스트 비교 — 3번만 다르고 나머지 동일',
+    tests:[] },
+
+  { id:'i2-5', group:'issue2', tools:['word'],
+    name:'Word Modify — "2페이지에 내용 추가해줘"',
+    desc:'기존 Word 문서의 특정 페이지에만 내용을 추가하는 요청.',
+    cmd:'hanseol-dev -ps "C:\\temp\\report.docx 열어서 2페이지 끝에 결론 섹션 추가해줘"',
+    expect:'2페이지 끝에 결론 섹션이 추가됨. 1페이지 내용은 변경 없음.',
+    verify:'word_read로 전체 텍스트 비교 — 기존 내용 보존 + 결론 추가',
+    tests:[] },
+
+  { id:'i2-6', group:'issue2', tools:['ppt'],
+    name:'PPT — "20장짜리 상세 기획서"',
+    desc:'사용자가 많은 페이지를 요청했을 때 (기본 max 15장 룰 오버라이드). 정확히 20장 생성.',
+    cmd:'hanseol-dev -ps "사업 기획서 PPT 20장으로 상세하게 만들어줘, C:\\temp\\ppt-20slides.pptx"',
+    expect:'정확히 20장 생성. 기본 max 15장 제한을 사용자 요청이 오버라이드.',
+    verify:'powerpoint_get_slide_count == 20',
+    tests:[] },
+
+  { id:'i2-7', group:'issue2', tools:['ppt'],
+    name:'PPT — "이 내용으로 1장만 만들어줘"',
+    desc:'사용자가 구체적 내용을 주고 딱 1장짜리 슬라이드를 요청. 표지/클로징 없이 내용 슬라이드 1장만.',
+    cmd:'hanseol-dev -ps "아래 내용으로 PPT 1장만 만들어줘: 2025년 1분기 매출 120억, 영업이익 15억, 전년대비 25% 성장. C:\\temp\\ppt-1slide.pptx"',
+    expect:'정확히 1장. 표지/클로징 없음. 주어진 수치(120억, 15억, 25%)가 모두 포함.',
+    verify:'powerpoint_get_slide_count == 1, 텍스트에 120억/15억/25% 포함',
+    tests:[{version:'v5.3.12-dev.0',score:85,pass:false,note:'2장 생성(1장 요청). ✅Slide1 품질 매우 높음(3 메트릭카드 120억/15억/25%). ✅Slide2도 차트 우수. ❌수량 초과(1장→2장)'}] },
+
+  { id:'i2-8', group:'issue2', tools:['word'],
+    name:'Word — "이 내용 한페이지로 정리해줘"',
+    desc:'사용자가 내용을 주고 1페이지 문서로 요약 정리를 요청. 표지 없이 본문만 1페이지.',
+    cmd:'hanseol-dev -ps "아래 내용을 한페이지 보고서로 정리해줘: AI 도입 현황 - 국내 기업 62% AI 도입, 제조업 자동화 30% 절감, 금융업 사기탐지 정확도 95%. 도전과제: 인력부족, 데이터품질, 윤리이슈. C:\\temp\\word-1page.docx"',
+    expect:'1페이지 이내. 표지 없음. 주어진 데이터(62%, 30%, 95%)가 모두 포함. 깔끔한 포맷.',
+    verify:'페이지 수 == 1, 핵심 수치 포함 확인',
+    tests:[
+      {version:'v5.3.12-dev.0-a',score:55,pass:false,note:'❌3페이지(1페이지 요청). 타이틀+목차+섹션 강제'},
+      {version:'v5.3.12-dev.0-b',score:60,pass:false,note:'❌5페이지. Enhancement에 페이지override 추가했으나 minToolCalls=25가 강제'},
+      {version:'v5.3.12-dev.0-c',score:80,pass:false,note:'✅타이틀/목차 스킵! 2페이지(1페이지 요청). minToolCalls 8로 축소. 핵심지표+개요+도전과제 구성. 55→80 대폭개선'}
+    ] },
+
+  { id:'i2-9', group:'issue2', tools:['excel'],
+    name:'Excel — "이 데이터로 표 한장 만들어줘"',
+    desc:'사용자가 구체적 데이터를 주고 엑셀 시트 1장을 요청. 2시트 기본 룰을 오버라이드.',
+    cmd:'hanseol-dev -ps "아래 데이터로 엑셀 한 시트만 만들어줘: 1월 매출 500만, 2월 620만, 3월 580만, 4월 710만. 합계와 평균도 넣어줘. C:\\temp\\excel-1sheet.xlsx"',
+    expect:'정확히 1시트. 주어진 4개월 데이터 + 합계/평균 수식. 2시트 강제 룰 적용 안됨.',
+    verify:'시트 수 == 1, 데이터 정확성, SUM/AVERAGE 수식',
+    tests:[
+      {version:'v5.3.12-dev.0-a',score:75,pass:false,note:'❌2시트(1시트 요청). Enhancement override 부족'},
+      {version:'v5.3.12-dev.0-b',score:75,pass:false,note:'❌2시트. Planning override+시스템prompt 추가했으나 save validation이 1시트 거부'},
+      {version:'v5.3.12-dev.0-c',score:93,pass:true,note:'✅정확히 1시트! 12행×6열, 차트1개. save validation 완화+Planning/Enhancement/SystemPrompt 3중 override. 합계+평균+달성률+증감률 수식 정확'}
+    ] },
+
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // ISSUE #3: 수정 품질 개선 (6 scenarios)
+  // Root cause: Modify 프롬프트가 Create 대비 10분의 1 수준
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  { id:'i3-1', group:'issue3', tools:['ppt'],
+    name:'PPT Modify — 3장 추가 (디자인 일관성)',
+    desc:'기존 PPT에 3장을 추가할 때 기존 슬라이드의 색상, 폰트, 레이아웃 스타일과 일관성을 유지해야 한다.',
+    cmd:'hanseol-dev -ps "C:\\temp\\ppt1.pptx 열어서 팀 소개, 로드맵, Q&A 슬라이드 3장 추가해줘"',
+    expect:'새 3장이 기존 PPT의 색상 팔레트, 폰트, 사이드바/푸터 스타일을 그대로 따름. 이질감 없음.',
+    verify:'스크린샷으로 기존 슬라이드와 새 슬라이드의 시각적 일관성 비교. 색상/폰트 동일.',
+    tests:[
+      {version:'v5.3.12-dev.0-a',score:40,pass:false,note:'❌ powerpoint_open 실패(파일잠금). 테스트 절차 문제'},
+      {version:'v5.3.12-dev.0-b',score:92,pass:true,note:'✅ 8장(기존5+추가3). 팀소개(2컬럼)+로드맵(3단계프로세스)+Q&A(연락처). 사이드바/푸터/악센트 색상 기존과 완벽 일관. Modify EXTEND 모드 검증 성공!'}
+    ] },
+
+  { id:'i3-2', group:'issue3', tools:['word'],
+    name:'Word Modify — 섹션 2개 추가 (스타일 매칭)',
+    desc:'기존 Word 문서에 새 섹션 추가 시, 기존 문서의 제목 스타일, 색상, 폰트를 분석하고 동일하게 적용해야 한다.',
+    cmd:'hanseol-dev -ps "C:\\temp\\report.docx 열어서 \'시장 분석\' 섹션과 \'경쟁사 비교\' 섹션 추가해줘"',
+    expect:'새 섹션의 제목 크기/색상/폰트가 기존 섹션과 동일. 본문도 동일한 줄간격/폰트 사용.',
+    verify:'word_read로 기존 vs 새 섹션 포맷 비교',
+    tests:[{version:'v5.3.12-dev.0',score:92,pass:true,note:'✅ 12→17페이지(+5), 테이블 5→9(+4). 시장분석+경쟁사비교 섹션 모두 추가. 맑은고딕 10pt 기존 스타일 유지. row 파라미터 에러 자체 복구'}] },
+
+  { id:'i3-3', group:'issue3', tools:['excel'],
+    name:'Excel Modify — 시트 확장 (서식/수식 보존)',
+    desc:'기존 Excel에 데이터 행 추가 시, 기존 서식(색상, 테두리, 숫자 형식)과 수식 패턴을 분석하고 동일하게 적용해야 한다.',
+    cmd:'hanseol-dev -ps "C:\\temp\\finance.xlsx 열어서 Q5, Q6 분기 데이터 행 추가해줘"',
+    expect:'새 행이 기존 행과 동일한 서식 적용. 합계 수식 범위가 새 행 포함으로 자동 확장.',
+    verify:'서식 확인: 셀 배경색, 테두리, 숫자 형식. 수식 범위 정확성.',
+    tests:[{version:'v5.3.12-dev.0',score:95,pass:true,note:'✅ Q5(7700/4500/3200)+Q6(8500/4900/3600) 추가. 영업이익 =B-C 수식 유지. 합계 범위 Q6까지 확장(40300). 기존 데이터 완벽 보존. Modify EXTEND 모드 검증 성공!'}] },
+
+  { id:'i3-4', group:'issue3', tools:['ppt'],
+    name:'PPT Modify — 전면 디자인 리뉴얼 (MAJOR)',
+    desc:'기존 PPT의 전체 디자인을 새로운 테마로 리뉴얼 요청. Create 수준의 디자인 품질이 나와야 한다.',
+    cmd:'hanseol-dev -ps "C:\\temp\\old.pptx 열어서 전체 디자인을 모던 블루 테마로 리뉴얼해줘. 사이드바, 색상, 폰트 전부 바꿔줘"',
+    expect:'모든 슬라이드의 배경, 사이드바, 색상, 폰트가 일관된 모던 블루 테마로 변경. Create 수준 품질.',
+    verify:'스크린샷 - 전체 슬라이드 테마 일관성, 텍스트 가독성, 레이아웃 품질',
+    tests:[] },
+
+  { id:'i3-5', group:'issue3', tools:['word'],
+    name:'Word Modify — 대규모 내용 추가 (EXTEND)',
+    desc:'기존 2페이지 Word 문서에 5페이지 분량의 내용을 추가하는 대규모 확장. Create 품질의 콘텐츠와 포맷팅.',
+    cmd:'hanseol-dev -ps "C:\\temp\\summary.docx 열어서 기술 상세, 구현 방안, 일정 계획, 예산, 리스크 관리 5개 섹션 추가해줘"',
+    expect:'5개 섹션이 전문적 품질로 추가됨. 표, 불릿, 서브헤딩 포함. 기존 내용과 스타일 일관성.',
+    verify:'전체 문서 페이지 수, 섹션 구조, 표 개수, 포맷팅 품질',
+    tests:[] },
+
+  { id:'i3-6', group:'issue3', tools:['excel'],
+    name:'Excel Modify — 차트 + 조건부 서식 추가',
+    desc:'기존 데이터 시트에 차트와 조건부 서식을 추가하는 시각화 강화 요청.',
+    cmd:'hanseol-dev -ps "C:\\temp\\data.xlsx 열어서 매출 데이터로 바 차트 추가하고, 목표 미달 셀 빨간색 조건부 서식 넣어줘"',
+    expect:'차트가 데이터 범위를 정확히 참조. 조건부 서식이 올바른 조건으로 적용. 기존 데이터 영향 없음.',
+    verify:'차트 존재 + 데이터 정확성, 조건부 서식 규칙 확인',
+    tests:[{version:'v5.3.12-dev.0',score:94,pass:true,note:'✅ column차트 추가(국내/해외 매출비교). ✅ D3:D13 증감률 음수→빨간색 조건부서식. ✅ 기존 데이터 보존. 467초(8분) 빠른 완료'}] },
+
+
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // EXISTING SCENARIOS (PPT 10 + Word 10 + Excel 5) — with test history
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
   // === PPT (10) ===
-  { id:'ppt-1', tool:'ppt', name:'AI 의료 스타트업 피치덱', desc:'MediAI 회사 피치덱. 문제정의, 솔루션, 시장분석, 재무전망 등 투자자 대상 15장', cmd:'hanseol-dev -ps "AI 의료 스타트업 피치덱 만들어줘, 회사명 MediAI, C:\\temp\\ppt1.pptx"', tests:[
+  { id:'ppt-1', tools:['ppt'], group:'ppt', name:'AI 의료 스타트업 피치덱', desc:'MediAI 회사 피치덱. 문제정의, 솔루션, 시장분석, 재무전망 등 투자자 대상 15장', cmd:'hanseol-dev -ps "AI 의료 스타트업 피치덱 만들어줘, 회사명 MediAI, C:\\temp\\ppt1.pptx"', tests:[
     {
       version: 'v5.0.3-dev.3',
       date: '2026-03-08',
@@ -554,9 +816,21 @@ const scenarios = [
         '⚠️ v22(92.1) 대비 소폭 하락 — LLM 변동성 + Free HTML의 폰트 크기 일관성 부족',
         'Content 37/40, Design 27/30, Structure 14/15, Readability 13/15',
       ]
+    },
+    {
+      version: 'v5.3.12-dev.0',
+      date: '2026-03-26',
+      cliScore: 92.0,
+      notes: [
+        '13장 생성. 블루 corporate 테마 일관.',
+        '✅ 레이아웃 다양성: 메트릭카드(3), 프로세스(5), 가격표(7), 로드맵(10) 등 모두 다름',
+        '✅ 데이터 구체성: 97.3%, 0.3초, 9200만원 ACV, 94% 유지율 등 풍부',
+        '✅ Fix 1/2/3 코드 수정 후 첫 테스트 — 기존 Create 품질 유지 확인',
+        '⚠️ 클로징 슬라이드 텍스트 약간 밀집',
+      ]
     }
   ] },
-  { id:'ppt-2', tool:'ppt', name:'여행사 마케팅 제안서', desc:'유럽 패키지 여행 프로모션. 일정, 가격, 고객 후기, 예약 안내 등 12장', cmd:'hanseol-dev -ps "유럽 패키지 여행 마케팅 제안서 만들어줘, 여행사 드림투어, C:\\temp\\ppt2.pptx"', tests:[
+  { id:'ppt-2', tools:['ppt'], group:'ppt', name:'여행사 마케팅 제안서', desc:'유럽 패키지 여행 프로모션. 일정, 가격, 고객 후기, 예약 안내 등 12장', cmd:'hanseol-dev -ps "유럽 패키지 여행 마케팅 제안서 만들어줘, 여행사 드림투어, C:\\temp\\ppt2.pptx"', tests:[
     {
       version: 'v5.0.3-dev.24',
       date: '2026-03-09',
@@ -668,9 +942,22 @@ const scenarios = [
         '⚠️ 슬라이드9(로드맵) 88점 — 타임라인 카드 텍스트 약간 작음',
         'Content 36/40, Design 27/30, Structure 14/15, Readability 14/15',
       ]
+    },
+    {
+      version: 'v5.3.12-dev.0',
+      date: '2026-03-27',
+      cliScore: 95.0,
+      notes: [
+        '19장 생성. 골드+네이비 corporate-elegant 테마.',
+        '✅ Slide4 시장분석: 3메트릭(1조2천억,185만명,62%)+4트렌드+계절별바차트+도넛차트 — 10/10',
+        '✅ Slide8 스위스: 상품카드+하이라이트+여행일정플로우 — 주제맞춤 고유 레이아웃 10/10',
+        '✅ Slide12 상품라인업: 4패키지 가격/특징 비교카드 — 매우 실용적',
+        '✅ 전체 19장 레이아웃 모두 다름 — 다양성 최고 수준',
+        '✅ Fix 수정 후 General PPT 품질 유지 확인 (기존 91→95)',
+      ]
     }
   ] },
-  { id:'ppt-3', tool:'ppt', name:'주간 업무 보고', desc:'개발팀 주간 업무 보고. 이번주 성과, 이슈, 다음주 계획, KPI 현황 8장', cmd:'hanseol-dev -ps "개발팀 주간 업무 보고 PPT 만들어줘, C:\\temp\\ppt3.pptx"', tests:[
+  { id:'ppt-3', tools:['ppt'], group:'ppt', name:'주간 업무 보고', desc:'개발팀 주간 업무 보고. 이번주 성과, 이슈, 다음주 계획, KPI 현황 8장', cmd:'hanseol-dev -ps "개발팀 주간 업무 보고 PPT 만들어줘, C:\\temp\\ppt3.pptx"', tests:[
     {
       version: 'v5.0.3-dev.26',
       date: '2026-03-09',
@@ -709,9 +996,21 @@ const scenarios = [
         '약점: TOC 슬라이드(공간 낭비), slide 6/9 텍스트 밀도 높음.',
         '색상: 일관된 corporate blue 팔레트.'
       ]
+    },
+    {
+      version: 'v5.3.12-dev.0',
+      date: '2026-03-27',
+      cliScore: 93.0,
+      notes: [
+        '12장 생성. 661초(11분) 완료.',
+        '✅ Slide3 API 고도화: 3메트릭(40%/65%/120만)+성과지표바+팀기여카드 — 업무보고 최적화',
+        '✅ Slide5 진행중작업: 2컬럼+진행률바(90%/65%)+참여인원배지(FE2/BE2/QA1)',
+        '✅ 주제적합성: 성과→진행→이슈→계획 흐름 완벽',
+        '✅ Fix 수정 후 General PPT 품질 유지 확인',
+      ]
     }
   ] },
-  { id:'ppt-4', tool:'ppt', name:'시상식 발표자료', desc:'2025 우수사원 시상식. 수상자 소개, 업적, 축하 메시지 10장', cmd:'hanseol-dev -ps "2025년 우수사원 시상식 발표자료 만들어줘, C:\\temp\\ppt4.pptx"', tests:[
+  { id:'ppt-4', tools:['ppt'], group:'ppt', name:'시상식 발표자료', desc:'2025 우수사원 시상식. 수상자 소개, 업적, 축하 메시지 10장', cmd:'hanseol-dev -ps "2025년 우수사원 시상식 발표자료 만들어줘, C:\\temp\\ppt4.pptx"', tests:[
     {
       version: 'v5.0.3-dev.26', cliScore: 85.0, electronScore: 85.0, date: '2026-03-09',
       changes: 'HTML 렌더링 파이프라인 v26',
@@ -767,9 +1066,16 @@ const scenarios = [
         '약점: 일부 일차(3,6,9,12) 텍스트 밀도 높아 폰트 작음.',
         '지엽적 프롬프트 제거 후에도 여행 주제에 맞는 일정표 형태 자율 선택 확인.',
       ]
+    },
+    {
+      version: 'v5.3.12-dev.0', date: '2026-03-27', cliScore: 95.0,
+      notes: [
+        '13장. 네이비/골드. 업적부문 대상 메트릭(198억/132%/8개사/34%)+수상자 프로필카드 10/10.',
+        '리더십부문 대상(3년흑자/28%승진/92점)+인용문 10/10. 시상식 격식 완벽.',
+      ]
     }
   ] },
-  { id:'ppt-5', tool:'ppt', name:'대학생 조별과제 발표', desc:'마케팅 원론 조별과제: 나이키 브랜드 전략 분석 12장', cmd:'hanseol-dev -ps "나이키 브랜드 전략 분석 조별과제 발표자료 만들어줘, C:\\temp\\ppt5.pptx"', tests:[
+  { id:'ppt-5', tools:['ppt'], group:'ppt', name:'대학생 조별과제 발표', desc:'마케팅 원론 조별과제: 나이키 브랜드 전략 분석 12장', cmd:'hanseol-dev -ps "나이키 브랜드 전략 분석 조별과제 발표자료 만들어줘, C:\\temp\\ppt5.pptx"', tests:[
     {
       version: 'v5.0.3-dev.26', cliScore: 84.0, electronScore: 84.0, date: '2026-03-09',
       changes: 'HTML 렌더링 파이프라인 v26',
@@ -807,9 +1113,16 @@ const scenarios = [
         'Slide 9 디지털 전략 텍스트 매우 작음, Slide 12 SWOT도 소형',
         '마케팅 수업 조별과제로 완벽한 구성 (STP/4P/SWOT/경쟁분석)',
       ]
+    },
+    {
+      version: 'v5.3.12-dev.0', date: '2026-03-27', cliScore: 95.0,
+      notes: [
+        '15장. 블랙/오렌지 학술톤. 도넛차트(4세그먼트)+지역별바차트(북미41%)+4P카드(에어맥스/플라이닛)+리셀프리미엄200-500%+R&D$30억/특허7000+.',
+        'STP/4P/SWOT 완벽 구현. 기존대비 크게 향상.',
+      ]
     }
   ] },
-  { id:'ppt-6', tool:'ppt', name:'신제품 런칭 발표', desc:'스마트워치 신제품 발표. 스펙, 디자인, 가격, 출시일정 15장', cmd:'hanseol-dev -ps "스마트워치 신제품 런칭 발표자료 만들어줘, 제품명 WatchX Pro, C:\\temp\\ppt6.pptx"', tests:[
+  { id:'ppt-6', tools:['ppt'], group:'ppt', name:'신제품 런칭 발표', desc:'스마트워치 신제품 발표. 스펙, 디자인, 가격, 출시일정 15장', cmd:'hanseol-dev -ps "스마트워치 신제품 런칭 발표자료 만들어줘, 제품명 WatchX Pro, C:\\temp\\ppt6.pptx"', tests:[
     {
       version: 'v5.0.3-dev.27', cliScore: 87.0, electronScore: 87.0, date: '2026-03-09',
       changes: 'HTML 렌더링 파이프라인 v27',
@@ -863,9 +1176,16 @@ const scenarios = [
         'Slide 8 중앙 빈공간',
         '지엽적 프롬프트 제거 후에도 시장분석에 맞는 데이터 시각화 자율 선택 확인',
       ]
+    },
+    {
+      version: 'v5.3.12-dev.0', date: '2026-03-27', cliScore: 94,
+      notes: [
+        '15장. 메탈그라디언트+골드 프리미엄 테마. 다크모드 제품발표 최적화.',
+        '✅ Slide5 디스플레이: 1.43인치AMOLED+466×466/1000니트/0.1ms+Always-On/HDR10+',
+      ]
     }
   ] },
-  { id:'ppt-7', tool:'ppt', name:'교육 세미나 자료', desc:'Python 입문 교육 세미나. 기초 문법, 실습 예제, Q&A 10장', cmd:'hanseol-dev -ps "Python 입문 교육 세미나 자료 만들어줘, C:\\temp\\ppt7.pptx"', tests:[
+  { id:'ppt-7', tools:['ppt'], group:'ppt', name:'교육 세미나 자료', desc:'Python 입문 교육 세미나. 기초 문법, 실습 예제, Q&A 10장', cmd:'hanseol-dev -ps "Python 입문 교육 세미나 자료 만들어줘, C:\\temp\\ppt7.pptx"', tests:[
     {
       version: 'v27',
       date: '2026-03-09',
@@ -926,9 +1246,13 @@ const scenarios = [
         'Slide 8 반복문 FizzBuzz 하단 약간 짤림',
         '실습예제 3개 전체 코드 포함',
       ]
+    },
+    {
+      version: 'v5.3.12-dev.0', date: '2026-03-27', cliScore: 94,
+      notes: ['18장. Win/Mac/Linux 3컬럼설치+코드예시+virtualenv+기초→심화. 교육자료 완벽.']
     }
   ] },
-  { id:'ppt-8', tool:'ppt', name:'부동산 투자 분석', desc:'강남 오피스텔 투자 분석. 시세, 수익률, 입지 분석, 리스크 12장', cmd:'hanseol-dev -ps "강남 오피스텔 투자 분석 발표자료 만들어줘, C:\\temp\\ppt8.pptx"', tests:[
+  { id:'ppt-8', tools:['ppt'], group:'ppt', name:'부동산 투자 분석', desc:'강남 오피스텔 투자 분석. 시세, 수익률, 입지 분석, 리스크 12장', cmd:'hanseol-dev -ps "강남 오피스텔 투자 분석 발표자료 만들어줘, C:\\temp\\ppt8.pptx"', tests:[
     {
       version: 'v27',
       date: '2026-03-09',
@@ -985,9 +1309,13 @@ const scenarios = [
         '투자 전략/타이밍/예산별 추천 포괄적',
         'Slide 12 체크리스트 텍스트 약간 작음',
       ]
+    },
+    {
+      version: 'v5.3.12-dev.0', date: '2026-03-27', cliScore: 93,
+      notes: ['14장. 도넛(연령별30대38%/구매목적월세52%)+선호평형바(15-18평47%)+자금비율(본인61%/LTV52%). 부동산 데이터 매우 상세.']
     }
   ] },
-  { id:'ppt-9', tool:'ppt', name:'환경 캠페인 발표', desc:'탄소중립 실천 캠페인. 현황, 목표, 실천방안, 성과측정 10장', cmd:'hanseol-dev -ps "탄소중립 실천 캠페인 발표자료 만들어줘, C:\\temp\\ppt9.pptx"', tests:[
+  { id:'ppt-9', tools:['ppt'], group:'ppt', name:'환경 캠페인 발표', desc:'탄소중립 실천 캠페인. 현황, 목표, 실천방안, 성과측정 10장', cmd:'hanseol-dev -ps "탄소중립 실천 캠페인 발표자료 만들어줘, C:\\temp\\ppt9.pptx"', tests:[
     {
       version: 'v27',
       date: '2026-03-09',
@@ -1016,9 +1344,13 @@ const scenarios = [
         'Slide 10 하단 약간 짤림, Slide 12 텍스트 작음',
         '문제→비전→실천→참여→효과→로드맵 논리적 흐름',
       ]
+    },
+    {
+      version: 'v5.3.12-dev.0', date: '2026-03-27', cliScore: 93,
+      notes: ['14장. 그린테마. 6메트릭(3.4mm해수면/100만종멸종/30%작물감소/170만사망/18%GDP/500만극한기온). 환경 데이터 매우 풍부.']
     }
   ] },
-  { id:'ppt-10', tool:'ppt', name:'병원 연간 실적 보고', desc:'서울중앙병원 2025년 연간 실적. 진료실적, 재무현황, 만족도, 내년 계획 15장', cmd:'hanseol-dev -ps "서울중앙병원 2025년 연간 실적 보고 PPT 만들어줘, C:\\temp\\ppt10.pptx"', tests:[
+  { id:'ppt-10', tools:['ppt'], group:'ppt', name:'병원 연간 실적 보고', desc:'서울중앙병원 2025년 연간 실적. 진료실적, 재무현황, 만족도, 내년 계획 15장', cmd:'hanseol-dev -ps "서울중앙병원 2025년 연간 실적 보고 PPT 만들어줘, C:\\temp\\ppt10.pptx"', tests:[
     {
       version: 'v27',
       date: '2026-03-09',
@@ -1047,11 +1379,15 @@ const scenarios = [
         '목차 8개 항목 전부 정상 렌더링',
         '최고 점수 94점 — 실적보고서 주제 적합도 완벽',
       ]
+    },
+    {
+      version: 'v5.3.12-dev.0', date: '2026-03-27', cliScore: 95,
+      notes: ['13장. 총진료1,245,000명(+8.2%)+외래/입원+신규/재진+지역별(강남32%)+연령도넛(60대38%). 병원 대시보드 완벽.']
     }
   ] },
 
   // === Word (10) ===
-  { id:'word-1', tool:'word', name:'사업 계획서', desc:'카페 창업 사업계획서. 시장분석, 메뉴구성, 인테리어, 재무계획 등', cmd:'hanseol-dev -ps "카페 창업 사업계획서 작성해줘, C:\\temp\\word1.docx"', tests:[
+  { id:'word-1', tools:['word'], group:'word', name:'사업 계획서', desc:'카페 창업 사업계획서. 시장분석, 메뉴구성, 인테리어, 재무계획 등', cmd:'hanseol-dev -ps "카페 창업 사업계획서 작성해줘, C:\\temp\\word1.docx"', tests:[
     {
       version: 'v5.0.3-dev.30',
       cliScore: 78,
@@ -1114,9 +1450,18 @@ const scenarios = [
         '⚠️ 카페 대신 AI 스타트업으로 변환됨 — 프롬프트 지시를 좀 더 구체적으로 해야 할 수 있음',
         '디자인 22→27 대폭 상승: 핵심 지표 + 콜아웃 박스가 시각적 다양성 크게 개선',
       ]
+    },
+    {
+      date: '2026-03-27', version: 'v5.3.12-dev.0', cliScore: 94,
+      notes: [
+        '20페이지, 442문단, 6테이블. WARM_EXECUTIVE 테마.',
+        '✅ 핵심지표: 2.5억투자/3.6억연매출/18개월BEP/32%ROI/일일150명',
+        '✅ 초기투자상세(13×4), 월별매출예측(14×6) — 매우 상세한 재무 데이터',
+        '✅ Fix 수정 후 Word Create 품질 유지 확인 (기존 93→94)',
+      ]
     }
   ] },
-  { id:'word-2', tool:'word', name:'기술 제안서', desc:'클라우드 마이그레이션 기술 제안서. 현황분석, 아키텍처, 일정, 비용', cmd:'hanseol-dev -ps "클라우드 마이그레이션 기술 제안서 작성해줘, C:\\temp\\word2.docx"', tests:[
+  { id:'word-2', tools:['word'], group:'word', name:'기술 제안서', desc:'클라우드 마이그레이션 기술 제안서. 현황분석, 아키텍처, 일정, 비용', cmd:'hanseol-dev -ps "클라우드 마이그레이션 기술 제안서 작성해줘, C:\\temp\\word2.docx"', tests:[
     {
       version: 'v5.0.3-dev.30',
       cliScore: 80,
@@ -1180,9 +1525,18 @@ const scenarios = [
         '⚠️ custom colors light=#FFFFFF → H1 bgColor가 보이지 않음. 프리셋 사용 시 해결',
         'v38(86) → v39(94): 핵심 지표 + 콜아웃 + AWS 색상으로 8점 상승',
       ]
+    },
+    {
+      date: '2026-03-27', version: 'v5.3.12-dev.0', cliScore: 93,
+      notes: [
+        'NeuralFlow API 기술문서 테스트. 11페이지, 405문단, 7테이블.',
+        '✅ API엔드포인트 참조(13×5): POST /auth/token, /v1/completions 등',
+        '✅ 산업별 사례(7×4), 에러코드 표, 보안 모범사례 콜아웃',
+        '✅ Fix 수정 후 Word Create 품질 유지 확인',
+      ]
     }
   ] },
-  { id:'word-3', tool:'word', name:'연구 보고서', desc:'국내 전기차 시장 동향 연구보고서. 통계, 트렌드, 전망', cmd:'hanseol-dev -ps "국내 전기차 시장 동향 연구보고서 작성해줘, C:\\temp\\word3.docx"', tests:[
+  { id:'word-3', tools:['word'], group:'word', name:'연구 보고서', desc:'국내 전기차 시장 동향 연구보고서. 통계, 트렌드, 전망', cmd:'hanseol-dev -ps "국내 전기차 시장 동향 연구보고서 작성해줘, C:\\temp\\word3.docx"', tests:[
     {
       version: 'v5.0.3-dev.39',
       cliScore: 92,
@@ -1200,7 +1554,7 @@ const scenarios = [
       ]
     }
   ] },
-  { id:'word-4', tool:'word', name:'이력서/자기소개서', desc:'IT 개발자 이력서 + 자기소개서. 경력사항, 프로젝트, 기술스택', cmd:'hanseol-dev -ps "IT 개발자 이력서와 자기소개서 작성해줘, C:\\temp\\word4.docx"', tests:[
+  { id:'word-4', tools:['word'], group:'word', name:'이력서/자기소개서', desc:'IT 개발자 이력서 + 자기소개서. 경력사항, 프로젝트, 기술스택', cmd:'hanseol-dev -ps "IT 개발자 이력서와 자기소개서 작성해줘, C:\\temp\\word4.docx"', tests:[
     {
       version: 'v5.0.3-dev.44',
       date: '2026-03-10',
@@ -1220,7 +1574,7 @@ const scenarios = [
       ]
     }
   ] },
-  { id:'word-5', tool:'word', name:'회의록', desc:'2025년 3분기 경영전략 회의록. 참석자, 안건, 결정사항, 후속조치', cmd:'hanseol-dev -ps "경영전략 회의록 작성해줘, C:\\temp\\word5.docx"', tests:[
+  { id:'word-5', tools:['word'], group:'word', name:'회의록', desc:'2025년 3분기 경영전략 회의록. 참석자, 안건, 결정사항, 후속조치', cmd:'hanseol-dev -ps "경영전략 회의록 작성해줘, C:\\temp\\word5.docx"', tests:[
     {
       version: 'v5.0.3-dev.46',
       date: '2026-03-10',
@@ -1276,9 +1630,17 @@ const scenarios = [
         'Tool flow: create→margins→header→footer→pagenum→title→toc→metrics→list→section→callout→section→callout→section→table→callout→section→table→list→table→section→conclusion→save',
         'v47(82) → v49(88): heading stripMarkdown 수정으로 6점 상승',
       ]
+    },
+    {
+      date: '2026-03-27', version: 'v5.3.12-dev.0', cliScore: 92,
+      notes: [
+        '12페이지, 217문단, 2테이블. WARM_EXECUTIVE 테마.',
+        '✅ 안건별 구조(안건1-4)+참석자+결정사항+콜아웃요약',
+        '✅ Fix 수정 후 Word Create 품질 유지 확인 (기존 88→92)',
+      ]
     }
   ] },
-  { id:'word-6', tool:'word', name:'계약서 초안', desc:'소프트웨어 개발 용역 계약서. 범위, 일정, 대금, 지적재산권', cmd:'hanseol-dev -ps "소프트웨어 개발 용역 계약서 초안 작성해줘, C:\\temp\\word6.docx"', tests:[
+  { id:'word-6', tools:['word'], group:'word', name:'계약서 초안', desc:'소프트웨어 개발 용역 계약서. 범위, 일정, 대금, 지적재산권', cmd:'hanseol-dev -ps "소프트웨어 개발 용역 계약서 초안 작성해줘, C:\\temp\\word6.docx"', tests:[
     {
       version: 'v5.0.3-dev.49',
       date: '2026-03-10',
@@ -1299,7 +1661,7 @@ const scenarios = [
       ]
     }
   ] },
-  { id:'word-7', tool:'word', name:'마케팅 전략 보고서', desc:'신규 모바일앱 마케팅 전략. 타겟분석, 채널전략, 예산, KPI', cmd:'hanseol-dev -ps "모바일앱 마케팅 전략 보고서 작성해줘, C:\\temp\\word7.docx"', tests:[
+  { id:'word-7', tools:['word'], group:'word', name:'마케팅 전략 보고서', desc:'신규 모바일앱 마케팅 전략. 타겟분석, 채널전략, 예산, KPI', cmd:'hanseol-dev -ps "모바일앱 마케팅 전략 보고서 작성해줘, C:\\temp\\word7.docx"', tests:[
     {
       version: 'v5.0.3-dev.49',
       date: '2026-03-10',
@@ -1333,9 +1695,22 @@ const scenarios = [
         '⚠️ p8에서 빈 불릿 포인트 1개 발견 (마이너)',
         '⚠️ p1 스크린샷이 터미널 캡처 (Word foreground 이슈 - 평가 무관)',
       ]
+    },
+    {
+      version: 'v5.3.12-dev.0',
+      date: '2026-03-26',
+      cliScore: 93,
+      notes: [
+        '23페이지, 481문단, 5테이블. 3분기 마케팅 성과 보고서 테스트.',
+        '✅ Fix 1/2/3 수정 후 Word Create 품질 유지 확인',
+        '✅ 테이블: SNS 채널별(9×5), 오프라인 마케팅(7×7) 등 5개',
+        '✅ 데이터: 48.7억 매출, ROI 412%, CPC 1,090원, ROAS 507%',
+        '✅ 캠페인 심층분석: 여름 빅세일 3.2억→16.2억 (ROAS 507%)',
+        '✅ 결론: 예산 효율, 핵심 성과, 4분기 전략 제언 포함',
+      ]
     }
   ] },
-  { id:'word-8', tool:'word', name:'Product Launch Plan (EN)', desc:'SaaS product launch plan. Market analysis, GTM strategy, pricing, timeline', cmd:'hanseol-dev -ps "Write a SaaS product launch plan document, C:\\temp\\word8.docx"', tests:[
+  { id:'word-8', tools:['word'], group:'word', name:'Product Launch Plan (EN)', desc:'SaaS product launch plan. Market analysis, GTM strategy, pricing, timeline', cmd:'hanseol-dev -ps "Write a SaaS product launch plan document, C:\\temp\\word8.docx"', tests:[
     {
       version: 'v5.0.3-dev.50',
       date: '2026-03-10',
@@ -1371,9 +1746,18 @@ const scenarios = [
         '⚠️ 콜아웃 박스 비중 적음 (Pricing Strategy Note 1개 확인). 시각적 다양성 약간 아쉬움',
         'v50(85, 한국어 결함) → v51(88): 언어 문제 수정으로 3점 상승, PASS',
       ]
+    },
+    {
+      date: '2026-03-27', version: 'v5.3.12-dev.0', cliScore: 95,
+      notes: [
+        '23페이지, 612문단, 10테이블. NexusFlow™ SaaS Product Launch Plan.',
+        '✅ 영어 정상 출력, GTM/Pricing/Competitive/Financial 전체 포함',
+        '✅ 10테이블 (Competitive Matrix, Pricing Tiers, Campaign Calendar 등)',
+        '✅ 60 step 사용, 매우 풍성한 콘텐츠. Fix 수정 후 품질 유지+향상 확인',
+      ]
     }
   ] },
-  { id:'word-9', tool:'word', name:'Research Paper (EN)', desc:'AI in Healthcare research paper. Literature review, methodology, findings, discussion', cmd:'hanseol-dev -ps "Write a research paper on AI applications in Healthcare, C:\\temp\\word9.docx"', tests:[
+  { id:'word-9', tools:['word'], group:'word', name:'Research Paper (EN)', desc:'AI in Healthcare research paper. Literature review, methodology, findings, discussion', cmd:'hanseol-dev -ps "Write a research paper on AI applications in Healthcare, C:\\temp\\word9.docx"', tests:[
     {
       version: 'v5.0.3-dev.51',
       date: '2026-03-10',
@@ -1395,7 +1779,7 @@ const scenarios = [
       ]
     }
   ] },
-  { id:'word-10', tool:'word', name:'Annual Report (EN)', desc:'Tech startup annual report. Revenue, milestones, team growth, roadmap', cmd:'hanseol-dev -ps "Write a tech startup annual report for 2025, C:\\temp\\word10.docx"', tests:[
+  { id:'word-10', tools:['word'], group:'word', name:'Annual Report (EN)', desc:'Tech startup annual report. Revenue, milestones, team growth, roadmap', cmd:'hanseol-dev -ps "Write a tech startup annual report for 2025, C:\\temp\\word10.docx"', tests:[
     {
       date: '2026-03-10', version: 'v5.0.3-dev.51', cliScore: 75, electronScore: null,
       breakdown: { structure: 18, content: 21, design: 17, formatting: 19 },
@@ -1465,7 +1849,7 @@ const scenarios = [
   ] },
 
   // === Excel (10) ===
-  { id:'excel-1', tool:'excel', name:'월별 매출 분석표', desc:'2025년 월별 매출 데이터 + 차트. 제품별, 지역별 분석', cmd:'hanseol-dev -ps "2025년 월별 매출 분석 엑셀 만들어줘, C:\\temp\\excel1.xlsx"', tests:[
+  { id:'excel-1', tools:['excel'], group:'excel', name:'월별 매출 분석표', desc:'2025년 월별 매출 데이터 + 차트. 제품별, 지역별 분석', cmd:'hanseol-dev -ps "2025년 월별 매출 분석 엑셀 만들어줘, C:\\temp\\excel1.xlsx"', tests:[
     {
       date: '2026-03-11', version: 'v5.0.3-dev.55', cliScore: 60, electronScore: null,
       breakdown: { structure: 7, data: 15, formulas: 14, charts: 10, styling: 14 },
@@ -1541,7 +1925,7 @@ const scenarios = [
       ]
     }
   ] },
-  { id:'excel-2', tool:'excel', name:'프로젝트 일정표', desc:'6개월 소프트웨어 개발 프로젝트 간트차트 + 마일스톤', cmd:'hanseol-dev -ps "소프트웨어 개발 프로젝트 일정표 만들어줘, C:\\temp\\excel2.xlsx"', tests:[
+  { id:'excel-2', tools:['excel'], group:'excel', name:'프로젝트 일정표', desc:'6개월 소프트웨어 개발 프로젝트 간트차트 + 마일스톤', cmd:'hanseol-dev -ps "소프트웨어 개발 프로젝트 일정표 만들어줘, C:\\temp\\excel2.xlsx"', tests:[
     {
       date: '2026-03-11', version: 'v5.0.3-dev.74', cliScore: 72, electronScore: 72,
       breakdown: { structure: 16, data: 13, formulas: 14, charts: 13, styling: 16 },
@@ -1612,9 +1996,32 @@ const scenarios = [
         '✅ CF colorScale + cellValue 양쪽 적용',
         '🏆 93점 달성!',
       ]
+    },
+    {
+      date: '2026-03-26', version: 'v5.3.12-dev.0', cliScore: 91, electronScore: null,
+      notes: [
+        '2024년 분기별 매출 분석 테스트. Fix 1/2/3 수정 후 Excel Create 품질 확인.',
+        '✅ 2시트: "2024년 매출분석"(15×5) + "부서별 매출현황"(12×7)',
+        '✅ 차트 2개: 월별 매출 추이 column chart',
+        '✅ 수식: 달성률%, 증감률%, SUM 합계',
+        '✅ 조건부 서식: cellValue(음수 빨강) + colorScale',
+        '⚠️ excel_add_sheet name 인코딩 오류로 재시도 (기능 이슈)',
+        '⚠️ 데이터 밀도 약간 부족(15행) — 92 미달',
+      ]
     }
   ] },
-  { id:'excel-3', tool:'excel', name:'인사 관리 대장', desc:'직원 50명 인사정보. 부서, 직급, 입사일, 연봉, 평가등급', cmd:'hanseol-dev -ps "직원 인사관리 대장 엑셀 만들어줘, C:\\temp\\excel3.xlsx"', tests:[
+  { id:'excel-kpi', tools:['excel'], group:'excel', name:'KPI 대시보드', desc:'개발팀 KPI 대시보드. 스프린트 완료율, 버그율, 테스트커버리지', cmd:'hanseol-dev -ps "개발팀 KPI 대시보드 엑셀 만들어줘, C:\\temp\\excel-gen2.xlsx"', tests:[
+    {
+      date: '2026-03-27', version: 'v5.3.12-dev.0', cliScore: 94,
+      notes: [
+        '5시트: KPI종합(8×9)+생산성(15×7)+품질(15×6)+안정성(15×7)+팀별비교(11×6)',
+        '✅ 차트 5개 (라인+컬럼), 조건부 서식 다수',
+        '✅ 팀별 비교: Frontend/Backend/DevOps/QA 스프린트완료율/커밋수/PR수/버그율 등',
+        '✅ 매우 풍성한 개발팀 KPI 대시보드',
+      ]
+    }
+  ] },
+  { id:'excel-3', tools:['excel'], group:'excel', name:'인사 관리 대장', desc:'직원 50명 인사정보. 부서, 직급, 입사일, 연봉, 평가등급', cmd:'hanseol-dev -ps "직원 인사관리 대장 엑셀 만들어줘, C:\\temp\\excel3.xlsx"', tests:[
     {
       date: '2026-03-12', version: 'v5.0.3-dev.77', cliScore: 90, electronScore: null,
       breakdown: { structure: 19, data: 18, formulas: 13, charts: 13, styling: 15 },
@@ -1627,9 +2034,20 @@ const scenarios = [
         '✅ 날짜 포맷 정상, CORPORATE_BLUE 일관',
         '🏆 90점 — Excel-3 통과',
       ]
+    },
+    {
+      date: '2026-03-27', version: 'v5.3.12-dev.0-a', cliScore: 82,
+      notes: ['1시트(13x12). save validation 완화 부작용. 최소열수 검증 복원.']
+    },
+    {
+      date: '2026-03-27', version: 'v5.3.12-dev.0-b', cliScore: 92,
+      notes: [
+        '2시트: 부서별현황(11×12)+인사관리대장(13×13), 차트3개.',
+        '✅ 최소열수 검증 복원으로 2시트 정상 생성. 기존 v80(92) 수준 회복.',
+      ]
     }
   ] },
-  { id:'excel-4', tool:'excel', name:'가계부/예산표', desc:'월간 가계부. 수입, 지출 카테고리별 분류, 저축 목표 추적', cmd:'hanseol-dev -ps "월간 가계부 엑셀 만들어줘, C:\\temp\\excel4.xlsx"', tests:[
+  { id:'excel-4', tools:['excel'], group:'excel', name:'가계부/예산표', desc:'월간 가계부. 수입, 지출 카테고리별 분류, 저축 목표 추적', cmd:'hanseol-dev -ps "월간 가계부 엑셀 만들어줘, C:\\temp\\excel4.xlsx"', tests:[
     {
       date: '2026-03-12', version: 'v5.0.3-dev.77', cliScore: 90, electronScore: null,
       breakdown: { structure: 19, data: 18, formulas: 14, charts: 12, styling: 14 },
@@ -1645,23 +2063,24 @@ const scenarios = [
       ]
     }
   ] },
-  { id:'excel-5', tool:'excel', name:'재고 관리표', desc:'쇼핑몰 상품 재고 관리. SKU, 수량, 입출고, 재주문점', cmd:'hanseol-dev -ps "쇼핑몰 재고 관리표 엑셀 만들어줘, C:\\temp\\excel5.xlsx"', tests:[
+  { id:'excel-5', tools:['excel'], group:'excel', name:'재고 관리표', desc:'쇼핑몰 상품 재고 관리. SKU, 수량, 입출고, 재주문점', cmd:'hanseol-dev -ps "쇼핑몰 재고 관리표 엑셀 만들어줘, C:\\temp\\excel5.xlsx"', tests:[
     { date:'2026-03-12', version:'v5.0.3-dev.77', cliScore:86, electronScore:null, breakdown:{structure:18,data:18,formulas:13,charts:10,styling:13,cf:14}, notes:['🎯 2시트(카테고리별요약/재고관리대장)','✅ 데이터: 10개 상품(PRD-001~010), 현실적 카테고리/수량','✅ CF: 재고부족/정상 상태별 색상, colorScale','✅ Summary: 합계행 2,050/1,785/265','❌ Sheet1 바 차트: Y축이 1,2,3,4,5 숫자 — category_range 누락 (-5점)','❌ Sheet2 파이 차트: 개별 상품별 슬라이스(카테고리 중복) — 의미 불일치 (-3점)','❌ Sheet1 차트 data_range E3:E7 — 데이터는 12행인데 7행까지만 (-2점)','📊 v78: category_range 파라미터 추가하여 재테스트 필요'] },
     { date:'2026-03-12', version:'v5.0.3-dev.78', cliScore:89, electronScore:null, breakdown:{structure:19,data:19,formulas:14,charts:12,styling:12,cf:13}, notes:['🎯 2시트(카테고리별요약/재고관리현황), WARM_AMBER 색상','✅ Sheet1: 8개 카테고리 요약, 파이 차트에 카테고리 라벨 정상 표시! category_range 수정 효과','✅ Sheet2: 20개 상품(PRD-001~020) — 데이터 밀도 탁월','✅ Summary: 전체합계 24품목/₩51,373,000 (Sheet1), 1,026/1,410/384/₩49,767,900 (Sheet2)','✅ CF: 재고상태별 빨강/노랑/초록 색상 적용','✅ 금액 포맷 ₩#,##0, 건전률 % 포맷 정상'] },
+    { date:'2026-03-27', version:'v5.3.12-dev.0', cliScore:93, notes:['3시트: 공급업체(15×10)+입출고내역(37×8)+재고현황(28×11). 차트3개. Fix 수정 후 품질 유지+향상.'] },
   ] },
-  { id:'excel-6', tool:'excel', name:'설문조사 분석', desc:'고객 만족도 설문 결과 분석. 항목별 점수, 통계, 차트', cmd:'hanseol-dev -ps "고객 만족도 설문조사 분석 엑셀 만들어줘, C:\\temp\\excel6.xlsx"', tests:[
+  { id:'excel-6', tools:['excel'], group:'excel', name:'설문조사 분석', desc:'고객 만족도 설문 결과 분석. 항목별 점수, 통계, 차트', cmd:'hanseol-dev -ps "고객 만족도 설문조사 분석 엑셀 만들어줘, C:\\temp\\excel6.xlsx"', tests:[
     { date:'2026-03-12', version:'v5.0.3-dev.80', cliScore:92, electronScore:null, breakdown:{structure:20,data:18,formulas:14,charts:14,styling:13,cf:13}, notes:['🎯 3시트(시각화차트/분석요약/설문응답원본데이터), CORPORATE_BLUE','✅ Sheet1: 대시보드형 — 바차트/도넛/라인/그룹바 4개 차트','✅ Sheet2: 연령대/성별별 요약 + 전체평균 + 그룹바 차트','✅ Sheet3: 25명 응답 원본, 자유의견 포함, 스택바 차트','✅ 차트 라벨 정상: 5점/4점/3점 등 + 20대/30대 등 카테고리 표시','✅ CF: 점수별 색상(빨강/노랑/초록) 적용'] },
   ] },
-  { id:'excel-7', tool:'excel', name:'투자 포트폴리오', desc:'주식/채권 투자 포트폴리오. 종목별 수익률, 리스크, 배분비율', cmd:'hanseol-dev -ps "투자 포트폴리오 관리 엑셀 만들어줘, C:\\temp\\excel7.xlsx"', tests:[
+  { id:'excel-7', tools:['excel'], group:'excel', name:'투자 포트폴리오', desc:'주식/채권 투자 포트폴리오. 종목별 수익률, 리스크, 배분비율', cmd:'hanseol-dev -ps "투자 포트폴리오 관리 엑셀 만들어줘, C:\\temp\\excel7.xlsx"', tests:[
     { date:'2026-03-12', version:'v5.0.3-dev.80', cliScore:93, electronScore:null, breakdown:{structure:20,data:19,formulas:14,charts:14,styling:12,cf:14}, notes:['🎯 4시트(수익률대시보드/자산별분석/거래내역/포트폴리오현황)','✅ 실제 한국 주식(삼성전자,SK하이닉스,NAVER등) 10종목','✅ 수익률/평가금액/정규화값 formula 적용','✅ 그룹바/파이/라인 차트 + 카테고리 라벨 정상','✅ CF: 수익률별 그라디언트(초록→빨강)','✅ 거래내역 15건(매수/매도) 현실적 데이터'] },
   ] },
-  { id:'excel-8', tool:'excel', name:'학생 성적표', desc:'학급 30명 성적표. 과목별 점수, 평균, 석차, 성적 분포', cmd:'hanseol-dev -ps "학생 성적 관리표 엑셀 만들어줘, C:\\temp\\excel8.xlsx"', tests:[
+  { id:'excel-8', tools:['excel'], group:'excel', name:'학생 성적표', desc:'학급 30명 성적표. 과목별 점수, 평균, 석차, 성적 분포', cmd:'hanseol-dev -ps "학생 성적 관리표 엑셀 만들어줘, C:\\temp\\excel8.xlsx"', tests:[
     { date:'2026-03-13', version:'v5.0.3-dev.80', cliScore:92, electronScore:92, breakdown:{structure:19,data:19,formulas:14,charts:14,styling:13,cf:13}, notes:['🎯 3시트(성적원본/과목별분석/성적분포), CORPORATE_BLUE','✅ 30명 학생 데이터, 국어/영어/수학/과학/사회 5과목','✅ 평균/석차 자동 계산, 과목별 바차트+분포 도넛차트','✅ CF: 성적 등급별 색상(A/B/C/D/F), colorScale 적용'] }
   ] },
-  { id:'excel-9', tool:'excel', name:'영업 실적 대시보드', desc:'분기별 영업 실적. 팀별 목표달성률, TOP 영업사원, 파이프라인', cmd:'hanseol-dev -ps "분기별 영업 실적 대시보드 엑셀 만들어줘, C:\\temp\\excel9.xlsx"', tests:[
+  { id:'excel-9', tools:['excel'], group:'excel', name:'영업 실적 대시보드', desc:'분기별 영업 실적. 팀별 목표달성률, TOP 영업사원, 파이프라인', cmd:'hanseol-dev -ps "분기별 영업 실적 대시보드 엑셀 만들어줘, C:\\temp\\excel9.xlsx"', tests:[
     { date:'2026-03-13', version:'v5.0.3-dev.80', cliScore:92, electronScore:92, breakdown:{structure:20,data:19,formulas:14,charts:13,styling:13,cf:13}, notes:['🎯 3시트(팀별실적/영업사원TOP10/파이프라인), CORPORATE_BLUE','✅ 4개 팀 분기별 목표달성률, TOP 영업사원 10명 순위표','✅ 파이프라인 단계별(리드→제안→협상→클로징) 금액 분석','✅ CF: 달성률별 그라디언트, 목표 미달 빨간색 강조'] }
   ] },
-  { id:'excel-10', tool:'excel', name:'여행 경비 정산서', desc:'해외출장 경비 정산. 항목별 지출, 환율 계산, 영수증 첨부란', cmd:'hanseol-dev -ps "해외출장 경비 정산서 엑셀 만들어줘, C:\\temp\\excel10.xlsx"', tests:[
+  { id:'excel-10', tools:['excel'], group:'excel', name:'여행 경비 정산서', desc:'해외출장 경비 정산. 항목별 지출, 환율 계산, 영수증 첨부란', cmd:'hanseol-dev -ps "해외출장 경비 정산서 엑셀 만들어줘, C:\\temp\\excel10.xlsx"', tests:[
     { date:'2026-03-13', version:'v5.0.3-dev.80', cliScore:92, electronScore:92, breakdown:{structure:19,data:19,formulas:15,charts:13,styling:13,cf:13}, notes:['🎯 3시트(경비상세/카테고리요약/환율계산), WARM_AMBER','✅ 항목별 지출(교통/숙박/식비/업무), 환율 자동 적용','✅ USD/EUR/JPY 환율 테이블, 원화 환산 수식','✅ CF: 예산초과 빨간색, 카테고리별 colorScale'] }
   ] },
 ];
@@ -1903,9 +2322,163 @@ document.addEventListener('keydown', e => {
 // =====================================================================
 
 
-// =====================================================================
-// CHANGELOG — 모든 코드 변경 이력 (절대 삭제하지 않고 누적)
-// =====================================================================
+// ═══════════════════════════════════════════════════════════════════
+// RENDERING
+// ═══════════════════════════════════════════════════════════════════
+
+let currentTab = 'all';
+
+function showTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector(`.tab-btn[onclick="showTab('${tab}')"]`).classList.add('active');
+  render();
+}
+
+function getTestScore(t) {
+  return t.score ?? t.cliScore ?? null;
+}
+
+function getStatus(scenario) {
+  if (!scenario.tests || scenario.tests.length === 0) return 'untested';
+  const last = scenario.tests[scenario.tests.length - 1];
+  if (last.pass === true) return 'pass';
+  if (last.pass === false) return 'fail';
+  const sc = getTestScore(last);
+  if (sc != null) {
+    if (sc >= 85) return 'pass';
+    if (sc >= 70) return 'partial';
+    return 'fail';
+  }
+  return 'untested';
+}
+
+function getScore(scenario) {
+  if (!scenario.tests || scenario.tests.length === 0) return null;
+  const last = scenario.tests[scenario.tests.length - 1];
+  return getTestScore(last);
+}
+
+function getFiltered() {
+  if (currentTab === 'all') return scenarios;
+  if (currentTab === 'issues') return scenarios.filter(s => s.group.startsWith('issue'));
+  if (currentTab === 'ppt') return scenarios.filter(s => s.group === 'ppt');
+  if (currentTab === 'word') return scenarios.filter(s => s.group === 'word');
+  if (currentTab === 'excel') return scenarios.filter(s => s.group === 'excel');
+  return scenarios;
+}
+
+const groupMeta = {
+  issue1: { icon:'1', iconClass:'issue1', title:'Issue #1 — Create시 기존 문서 닫히는 문제', desc:'powerpointCreate()가 기존 Presentations를 전부 Close하는 버그' },
+  issue2: { icon:'2', iconClass:'issue2', title:'Issue #2 — 페이지 수 / 콘텐츠 기반 제어 안됨', desc:'"3장만 만들어줘", "이 내용으로 1페이지만 만들어줘" 같은 명시적 페이지 수 요청이 무시됨' },
+  issue3: { icon:'3', iconClass:'issue3', title:'Issue #3 — 수정 품질 << 생성 품질', desc:'Modify 프롬프트가 Create 대비 10분의 1 수준으로 빈약' },
+  ppt:    { icon:'P', iconClass:'ppt', title:'General — PowerPoint', desc:'일반 PPT 생성 시나리오' },
+  word:   { icon:'W', iconClass:'word', title:'General — Word', desc:'일반 Word 생성 시나리오' },
+  excel:  { icon:'E', iconClass:'excel', title:'General — Excel', desc:'일반 Excel 생성 시나리오' },
+};
+
+function renderCard(s, idx) {
+  const status = getStatus(s);
+  const score = getScore(s);
+  const toolTags = s.tools.map(t => `<span class="tool-tag ${t}">${t}</span>`).join('');
+  const scoreDisplay = score != null ? score.toFixed(1) : '—';
+  const lastTest = (s.tests && s.tests.length > 0) ? s.tests[s.tests.length - 1] : null;
+  const versionDisplay = lastTest ? lastTest.version : '—';
+  const timeDisplay = lastTest && lastTest.time ? lastTest.time + 's' : '—';
+
+  let versionsHtml = '';
+  if (s.tests && s.tests.length > 0) {
+    versionsHtml = '<div class="version-list">';
+    s.tests.forEach(t => {
+      const tsc = getTestScore(t);
+      const sc = tsc != null ? tsc.toFixed(1) : (t.pass ? 'PASS' : 'FAIL');
+      const cls = t.pass === true || (tsc && tsc >= 85) ? 'green' : (t.pass === false || (tsc && tsc < 70) ? 'red' : 'yellow');
+      versionsHtml += `<div class="ver-item">
+        <span class="ver-tag">${t.version || '—'}</span>
+        <span class="ver-score" style="color:var(--${cls})">${sc}</span>
+        <span class="ver-note">${t.note || ''}</span>
+      </div>`;
+    });
+    versionsHtml += '</div>';
+  }
+
+  return `<div class="scenario-card" id="card-${s.id}">
+    <div class="sc-top">
+      <div class="sc-num ${status}">${idx+1}</div>
+      <div class="sc-name">${s.name}</div>
+      ${toolTags}
+    </div>
+    <div class="sc-desc">${s.desc}</div>
+    <div class="sc-cmd">${s.cmd}</div>
+    ${s.expect ? `<div class="sc-expect"><strong>Expected:</strong> ${s.expect}</div>` : ''}
+    <div class="sc-result">
+      <div class="result-box"><div class="rb-label">Score</div><div class="rb-value ${status}">${scoreDisplay}</div></div>
+      <div class="result-box"><div class="rb-label">Version</div><div class="rb-value untested" style="font-size:0.9rem">${versionDisplay}</div></div>
+      <div class="result-box"><div class="rb-label">Time</div><div class="rb-value untested" style="font-size:0.9rem">${timeDisplay}</div></div>
+    </div>
+    ${versionsHtml}
+  </div>`;
+}
+
+function render() {
+  const filtered = getFiltered();
+  const content = document.getElementById('content');
+
+  // Group scenarios
+  const groups = {};
+  filtered.forEach(s => {
+    if (!groups[s.group]) groups[s.group] = [];
+    groups[s.group].push(s);
+  });
+
+  let html = '';
+  const groupOrder = ['issue1','issue2','issue3','ppt','word','excel'];
+  for (const g of groupOrder) {
+    if (!groups[g]) continue;
+    const meta = groupMeta[g];
+    const items = groups[g];
+    const tested = items.filter(s => s.tests && s.tests.length > 0).length;
+    const passed = items.filter(s => getStatus(s) === 'pass').length;
+
+    html += `<div class="section ${g}-section">
+      <div class="section-header">
+        <div class="section-icon ${meta.iconClass}">${meta.icon}</div>
+        <div>
+          <div class="section-title">${meta.title}</div>
+          <div style="font-size:0.8rem; color:var(--muted); margin-top:2px;">${meta.desc}</div>
+        </div>
+        <div class="section-count">${passed}/${items.length} passed &middot; ${tested} tested</div>
+      </div>
+      <div class="scenario-grid">
+        ${items.map((s, i) => renderCard(s, scenarios.indexOf(s))).join('')}
+      </div>
+    </div>`;
+  }
+
+  content.innerHTML = html;
+  updateDashboard();
+}
+
+function updateDashboard() {
+  const total = scenarios.length;
+  const tested = scenarios.filter(s => s.tests && s.tests.length > 0).length;
+  const passed = scenarios.filter(s => getStatus(s) === 'pass').length;
+  document.getElementById('dashTotal').textContent = total;
+  document.getElementById('dashTotal').className = 'dash-value ' + (tested === 0 ? 'muted' : (passed === total ? 'green' : 'yellow'));
+  document.getElementById('dashTotalSub').textContent = `${tested} tested, ${passed} passed`;
+
+  for (const g of ['issue1','issue2','issue3']) {
+    const items = scenarios.filter(s => s.group === g);
+    const count = items.length;
+    const p = items.filter(s => getStatus(s) === 'pass').length;
+    const el = document.getElementById('dashI' + g.replace('issue',''));
+    el.textContent = `${p} / ${count}`;
+    el.className = 'dash-value ' + (p === 0 ? 'muted' : (p === count ? 'green' : 'yellow'));
+  }
+}
+
+
+// ═══ CHANGELOG (from v1 report) ═══
 const changelog = [
   {
     version: 'v5.0.3-dev.79',
@@ -2761,31 +3334,9 @@ const changelog = [
   },
 ];
 
-// Render changelog in each scenario page (appended at bottom)
-const origRenderPage = renderPage;
-renderPage = function() {
-  origRenderPage();
-  const area = document.getElementById('contentArea');
-  if (filteredScenarios.length === 0) return;
 
-  let html = '<div style="max-width:1000px; margin:40px auto 0;">';
-  html += '<h3 style="font-size:1.1rem; margin-bottom:12px; padding-top:20px; border-top:1px solid var(--border);">코드 변경 이력 (CHANGELOG)</h3>';
-  changelog.forEach(entry => {
-    html += `<div class="version-entry">
-      <div class="ver">${entry.version} — ${entry.date}</div>
-      <ul style="margin:8px 0 0 1.2rem;">`;
-    entry.changes.forEach(c => {
-      html += `<li style="font-size:0.8rem; color:var(--muted); margin-bottom:2px;">${c}</li>`;
-    });
-    html += '</ul></div>';
-  });
-  html += '</div>';
-
-  area.innerHTML += html;
-};
-
-// Initialize
-filterTool('all');
+// Init
+render();
 </script>
 </body>
 </html>

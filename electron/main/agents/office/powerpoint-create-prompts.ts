@@ -4,7 +4,7 @@
  * Single Design Prompt → JSON { design, slides }
  * Per-slide: Direct HTML generation or Code-template fallback
  *
- * Electron parity: src/agents/office/powerpoint-create-prompts.ts
+ * * * * Electron parity: src/agents/office/powerpoint-create-prompts.ts
  */
 
 // =============================================================================
@@ -54,8 +54,13 @@ Given the user's instruction, produce a JSON object with a visual design system 
 ⚠ Ensure accent_color has HIGH contrast with primary_color.
 
 ═══ SLIDE STRUCTURE ═══
-⚠ First slide MUST be type "title". Last slide MUST be type "closing".
-⚠ Minimum 10, maximum 13 slides total. Aim for 10-12.
+⚠ USER SLIDE COUNT OVERRIDE:
+  • 1 slide: ALL content on one slide. Type="content". No title slide, no closing.
+  • 2 slides: Two content slides. No title, no closing. Every slide is type="content".
+  • 3 slides: Three content slides. No title, no closing. Every slide is type="content". Pack each with rich visual content (cards, metrics, process flows).
+  • 4-5 slides: title (1) + content (N-2) + closing (1).
+  • 6+ slides with user count: title (1) + content (N-2) + closing (1). Match exact count.
+⚠ Default (no user count): First slide MUST be type "title". Last slide MUST be type "closing". Minimum 10, maximum 13 slides total. Aim for 10-12.
 ⚠ Current year: \${new Date().getFullYear()}.
 
 ═══ TITLE & CLOSING FORMAT ═══
