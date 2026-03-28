@@ -3,37 +3,55 @@
 @tailwind utilities;
 
 :root {
-  --bg-primary: #0f172a;
-  --bg-secondary: #1e293b;
-  --bg-tertiary: #334155;
+  --bg-primary: #0a0e1a;
+  --bg-secondary: #111827;
+  --bg-tertiary: #1e293b;
+  --bg-elevated: #162032;
   --text-primary: #f1f5f9;
   --text-secondary: #94a3b8;
+  --text-tertiary: #64748b;
   --accent: #6366f1;
   --accent-hover: #818cf8;
   --accent-glow: rgba(99, 102, 241, 0.15);
+  --accent-subtle: rgba(99, 102, 241, 0.08);
   --success: #22c55e;
   --error: #ef4444;
   --warning: #f59e0b;
   --info: #3b82f6;
-  --border: #334155;
-  --shadow: rgba(0, 0, 0, 0.3);
+  --border: rgba(255, 255, 255, 0.06);
+  --border-hover: rgba(255, 255, 255, 0.12);
+  --shadow: rgba(0, 0, 0, 0.4);
+  --glass: rgba(17, 24, 39, 0.6);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --gradient-start: #6366f1;
+  --gradient-mid: #a855f7;
+  --gradient-end: #ec4899;
 }
 
 .light {
-  --bg-primary: #ffffff;
-  --bg-secondary: #f8fafc;
-  --bg-tertiary: #e2e8f0;
+  --bg-primary: #fafbff;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #f1f5f9;
+  --bg-elevated: #f8fafc;
   --text-primary: #0f172a;
   --text-secondary: #475569;
+  --text-tertiary: #94a3b8;
   --accent: #4f46e5;
   --accent-hover: #6366f1;
   --accent-glow: rgba(79, 70, 229, 0.1);
+  --accent-subtle: rgba(79, 70, 229, 0.05);
   --success: #16a34a;
   --error: #dc2626;
   --warning: #d97706;
   --info: #2563eb;
-  --border: #e2e8f0;
+  --border: rgba(0, 0, 0, 0.06);
+  --border-hover: rgba(0, 0, 0, 0.12);
   --shadow: rgba(0, 0, 0, 0.08);
+  --glass: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(0, 0, 0, 0.06);
+  --gradient-start: #4f46e5;
+  --gradient-mid: #9333ea;
+  --gradient-end: #db2777;
 }
 
 @layer base {
@@ -45,10 +63,13 @@
     @apply bg-[var(--bg-primary)] text-[var(--text-primary)] antialiased;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
       'Helvetica Neue', Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
+  /* Premium scrollbar */
   ::-webkit-scrollbar {
-    @apply w-2;
+    @apply w-1.5;
   }
 
   ::-webkit-scrollbar-track {
@@ -56,75 +77,199 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-[var(--bg-tertiary)] rounded-full;
+    @apply rounded-full;
+    background: var(--border-hover);
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-[var(--text-secondary)];
+    background: var(--text-tertiary);
+  }
+
+  /* Remove scrollbar on hover containers */
+  .scrollbar-hidden::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hidden {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 }
 
 @layer components {
+  /* ── Buttons ─────────────────────────────────────────── */
   .btn-primary {
-    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200
-      bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)]
-      active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply relative px-4 py-2 rounded-xl font-medium transition-all duration-200
+      bg-[var(--accent)] text-white
+      hover:bg-[var(--accent-hover)] hover:shadow-glow-sm
+      active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed
+      disabled:hover:shadow-none;
   }
 
   .btn-secondary {
-    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200
+    @apply px-4 py-2 rounded-xl font-medium transition-all duration-200
       bg-[var(--bg-tertiary)] text-[var(--text-primary)]
-      hover:bg-[var(--border)] active:scale-[0.98]
-      disabled:opacity-50 disabled:cursor-not-allowed;
+      hover:brightness-110 active:scale-[0.97]
+      disabled:opacity-40 disabled:cursor-not-allowed
+      border border-[var(--border)];
   }
 
   .btn-ghost {
-    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200
-      text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]
-      hover:text-[var(--text-primary)] active:scale-[0.98];
+    @apply px-4 py-2 rounded-xl font-medium transition-all duration-200
+      text-[var(--text-secondary)]
+      hover:text-[var(--text-primary)] active:scale-[0.97];
+  }
+  .btn-ghost:hover {
+    background: var(--accent-subtle);
   }
 
   .btn-danger {
-    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200
-      bg-[var(--error)] text-white hover:brightness-110
-      active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply px-4 py-2 rounded-xl font-medium transition-all duration-200
+      bg-[var(--error)] text-white
+      hover:shadow-lg hover:shadow-red-500/20 hover:brightness-110
+      active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed;
   }
 
+  /* ── Cards ───────────────────────────────────────────── */
   .card {
-    @apply bg-[var(--bg-secondary)] rounded-xl border border-[var(--border)]
-      shadow-lg shadow-[var(--shadow)];
+    @apply bg-[var(--bg-secondary)] rounded-2xl
+      border border-[var(--glass-border)]
+      shadow-elevation-2;
   }
 
+  .card-glass {
+    @apply rounded-2xl
+      border border-[var(--glass-border)]
+      shadow-elevation-2;
+    background: var(--glass);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+
+  .card-interactive {
+    @apply card transition-all duration-300
+      hover:shadow-elevation-3
+      hover:-translate-y-0.5;
+  }
+  .card-interactive:hover {
+    border-color: var(--accent-glow);
+  }
+
+  /* ── Inputs ──────────────────────────────────────────── */
   .input {
-    @apply w-full px-3 py-2 rounded-lg bg-[var(--bg-tertiary)]
-      text-[var(--text-primary)] placeholder-[var(--text-secondary)]
+    @apply w-full px-3.5 py-2.5 rounded-xl
+      text-[var(--text-primary)] placeholder-[var(--text-tertiary)]
       border border-[var(--border)] outline-none
-      focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent
       transition-all duration-200;
+    background: var(--bg-primary);
+  }
+  .input:focus {
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.3);
+    border-color: rgba(99, 102, 241, 0.3);
   }
 
+  /* ── Badges ──────────────────────────────────────────── */
   .badge {
-    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+      backdrop-blur-sm;
   }
 
   .badge-success {
-    @apply badge bg-green-500/15 text-green-400;
+    @apply badge bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20;
   }
 
   .badge-warning {
-    @apply badge bg-yellow-500/15 text-yellow-400;
+    @apply badge bg-amber-500/10 text-amber-400 ring-1 ring-amber-500/20;
   }
 
   .badge-error {
-    @apply badge bg-red-500/15 text-red-400;
+    @apply badge bg-red-500/10 text-red-400 ring-1 ring-red-500/20;
   }
 
   .badge-info {
-    @apply badge bg-blue-500/15 text-blue-400;
+    @apply badge bg-blue-500/10 text-blue-400 ring-1 ring-blue-500/20;
+  }
+
+  .badge-accent {
+    @apply badge text-[var(--accent)] ring-1;
+    background: var(--accent-subtle);
+    --tw-ring-color: var(--accent-glow);
+  }
+
+  /* ── Glass morphism utilities ────────────────────────── */
+  .glass-panel {
+    background: var(--glass);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid var(--glass-border);
+  }
+
+  .glass-subtle {
+    background: var(--glass);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  /* ── Gradient utilities ──────────────────────────────── */
+  .gradient-text {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, var(--gradient-start), var(--gradient-mid), var(--gradient-end));
+  }
+
+  .gradient-border {
+    position: relative;
+    border: none !important;
+  }
+  .gradient-border::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, var(--gradient-start), var(--gradient-mid), var(--gradient-end));
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  /* ── Shimmer loading ─────────────────────────────────── */
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      var(--bg-tertiary) 0%,
+      rgba(99, 102, 241, 0.08) 50%,
+      var(--bg-tertiary) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2.5s ease-in-out infinite;
+  }
+
+  /* ── Table styling ───────────────────────────────────── */
+  .table-premium thead tr {
+    @apply border-b border-[var(--border)];
+    background: linear-gradient(180deg, var(--bg-tertiary), transparent);
+  }
+
+  .table-premium th {
+    @apply text-left px-5 py-3.5 text-[10px] font-semibold text-[var(--text-tertiary)]
+      uppercase tracking-[0.1em];
+  }
+
+  .table-premium tbody tr {
+    @apply border-b border-[var(--border)] transition-all duration-200;
+  }
+
+  .table-premium tbody tr:hover {
+    background: var(--accent-subtle);
+  }
+
+  .table-premium td {
+    @apply px-5 py-3.5;
   }
 }
 
-/* Markdown content styling */
+/* ── Markdown content styling ──────────────────────────── */
 .markdown-content h1 {
   @apply text-2xl font-bold mt-6 mb-3;
 }
@@ -147,31 +292,35 @@
   @apply mb-1;
 }
 .markdown-content blockquote {
-  @apply border-l-4 border-[var(--accent)] pl-4 py-1 my-3 italic text-[var(--text-secondary)];
+  border-left: 2px solid var(--accent);
+  @apply pl-4 py-1 my-3 italic text-[var(--text-secondary)];
 }
 .markdown-content a {
-  @apply text-[var(--accent)] hover:underline;
+  @apply text-[var(--accent)] hover:underline underline-offset-2;
 }
 .markdown-content table {
   @apply w-full border-collapse mb-3;
 }
 .markdown-content th {
-  @apply border border-[var(--border)] px-3 py-2 bg-[var(--bg-tertiary)] text-left font-semibold;
+  @apply border border-[var(--border)] px-3 py-2 text-left font-semibold text-sm;
+  background: var(--bg-tertiary);
 }
 .markdown-content td {
-  @apply border border-[var(--border)] px-3 py-2;
+  @apply border border-[var(--border)] px-3 py-2 text-sm;
 }
 .markdown-content hr {
   @apply my-4 border-[var(--border)];
 }
 .markdown-content pre {
-  @apply mb-3 rounded-lg overflow-hidden;
+  @apply mb-3 rounded-xl overflow-hidden;
 }
 .markdown-content code:not(pre code) {
-  @apply bg-[var(--bg-tertiary)] px-1.5 py-0.5 rounded text-sm text-[var(--accent)];
+  @apply px-1.5 py-0.5 rounded-md text-sm text-[var(--accent)] ring-1;
+  background: var(--accent-subtle);
+  --tw-ring-color: var(--accent-glow);
 }
 
-/* Chat page animations */
+/* ── Chat page animations ──────────────────────────────── */
 @keyframes cursor-blink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0; }
@@ -188,33 +337,50 @@
   50% { transform: translateY(-8px); }
 }
 
+@keyframes breathe {
+  0%, 100% { transform: scale(1); opacity: 0.6; }
+  50% { transform: scale(1.05); opacity: 1; }
+}
+
+@keyframes progress-indeterminate {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
 .animate-cursor-blink {
-  animation: cursor-blink 1s ease-in-out infinite;
+  animation: cursor-blink 0.7s ease-in-out infinite;
 }
 
 .animate-gradient-shift {
   background-size: 200% 200%;
-  animation: gradient-shift 3s ease infinite;
+  animation: gradient-shift 2.2s ease infinite;
 }
 
 .animate-float {
   animation: float 3s ease-in-out infinite;
 }
 
-/* Gradient border wrapper for chat input */
+.animate-breathe {
+  animation: breathe 3s ease-in-out infinite;
+}
+
+/* ── Gradient border wrapper for chat input ─────────────── */
 .chat-input-wrapper {
   position: relative;
   border-radius: 1rem;
   padding: 1px;
   background: var(--border);
-  transition: all 0.3s ease;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .chat-input-wrapper:focus-within {
-  background: linear-gradient(135deg, var(--accent), #a855f7, var(--accent));
+  background: linear-gradient(135deg, var(--gradient-start), var(--gradient-mid), var(--gradient-end));
   background-size: 200% 200%;
-  animation: gradient-shift 3s ease infinite;
-  box-shadow: 0 0 20px var(--accent-glow), 0 0 40px rgba(168, 85, 247, 0.08);
+  animation: gradient-shift 2.2s ease infinite;
+  box-shadow:
+    0 0 20px var(--accent-glow),
+    0 0 60px rgba(168, 85, 247, 0.06),
+    0 8px 32px rgba(0, 0, 0, 0.2);
 }
 
 .chat-input-wrapper .chat-input-inner {
@@ -222,15 +388,35 @@
   background: var(--bg-secondary);
 }
 
-/* Progress ring */
+/* ── Progress ring ─────────────────────────────────────── */
 .progress-ring-circle {
   transition: stroke-dashoffset 0.5s ease;
   transform: rotate(-90deg);
   transform-origin: 50% 50%;
 }
 
-/* Mobile drawer overlay */
+/* ── Mobile drawer overlay ─────────────────────────────── */
 .drawer-overlay {
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* ── Focus visible ring ────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ── Selection color ───────────────────────────────────── */
+::selection {
+  background: var(--accent-glow);
+  color: var(--text-primary);
+}
+
+/* ── Smooth scrolling ──────────────────────────────────── */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
 }

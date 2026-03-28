@@ -42,13 +42,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const res = await api.get<User>('/api/auth/me');
       set({ user: res, isLoading: false });
     } catch {
+      get().logout();
       set({ isLoading: false });
     }
   },
 
   init: async () => {
-    // Auto-login as local user (no auth needed)
-    set({ isAuthenticated: true, isLoading: false });
-    await get().fetchMe();
+    const token = localStorage.getItem('token');
+    if (token) {
+      set({ token, isAuthenticated: true });
+      await get().fetchMe();
+    } else {
+      set({ isLoading: false });
+    }
   },
 }));

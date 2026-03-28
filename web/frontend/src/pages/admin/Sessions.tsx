@@ -62,11 +62,11 @@ function EventTimeline({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="drawer-overlay absolute inset-0" onClick={onClose} />
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="card p-6 w-full max-w-2xl relative z-10 max-h-[80vh] flex flex-col"
+        className="card p-6 w-full max-w-2xl relative z-10 max-h-[80vh] flex flex-col shadow-elevation-4"
       >
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-[var(--text-primary)]">
@@ -225,22 +225,22 @@ export default function AdminSessions() {
       {/* Table */}
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full table-premium">
             <thead>
               <tr className="border-b border-[var(--border)]">
-                <th className="text-left px-5 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+                <th className="text-left px-5 py-3.5 text-[10px] font-semibold text-[var(--text-tertiary)] uppercase tracking-[0.1em]">
                   Session
                 </th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+                <th className="text-left px-5 py-3.5 text-[10px] font-semibold text-[var(--text-tertiary)] uppercase tracking-[0.1em]">
                   {t('admin.sessions.user')}
                 </th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+                <th className="text-left px-5 py-3.5 text-[10px] font-semibold text-[var(--text-tertiary)] uppercase tracking-[0.1em]">
                   {t('admin.sessions.status')}
                 </th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+                <th className="text-left px-5 py-3.5 text-[10px] font-semibold text-[var(--text-tertiary)] uppercase tracking-[0.1em]">
                   {t('admin.sessions.agent')}
                 </th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+                <th className="text-left px-5 py-3.5 text-[10px] font-semibold text-[var(--text-tertiary)] uppercase tracking-[0.1em]">
                   {t('admin.sessions.lastActive')}
                 </th>
                 <th className="text-right px-5 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
@@ -252,7 +252,7 @@ export default function AdminSessions() {
               {sessions.map((session) => (
                 <tr
                   key={session.id}
-                  className="border-b border-[var(--border)] hover:bg-[var(--bg-tertiary)]/30 transition-colors"
+                  className="border-b border-[var(--border)] transition-all duration-200 hover:bg-[var(--accent-subtle)]"
                 >
                   <td className="px-5 py-3 text-sm font-medium text-[var(--text-primary)]">
                     {session.name}
@@ -304,11 +304,17 @@ export default function AdminSessions() {
                 </tr>
               ))}
               {sessions.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-5 py-12 text-center text-sm text-[var(--text-secondary)]">
-                    {t('common.noData')}
-                  </td>
-                </tr>
+                <>
+                  {[...Array(5)].map((_, i) => (
+                    <tr key={i} className="border-b border-[var(--border)]">
+                      {[...Array(6)].map((_, j) => (
+                        <td key={j} className="px-5 py-4">
+                          <div className={clsx('h-4 rounded-lg shimmer', j === 0 ? 'w-32' : j === 1 ? 'w-24' : 'w-16')} />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </>
               )}
             </tbody>
           </table>

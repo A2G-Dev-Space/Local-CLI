@@ -86,22 +86,22 @@ export default function AdminUsers() {
         className="card overflow-hidden"
       >
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full table-premium">
             <thead>
               <tr className="border-b border-[var(--border)]">
-                <th className="text-left px-5 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+                <th className="text-left px-5 py-3.5 text-[10px] font-semibold text-[var(--text-tertiary)] uppercase tracking-[0.1em]">
                   {t('admin.users.name')}
                 </th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+                <th className="text-left px-5 py-3.5 text-[10px] font-semibold text-[var(--text-tertiary)] uppercase tracking-[0.1em]">
                   {t('admin.users.email')}
                 </th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+                <th className="text-left px-5 py-3.5 text-[10px] font-semibold text-[var(--text-tertiary)] uppercase tracking-[0.1em]">
                   {t('admin.users.role')}
                 </th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+                <th className="text-left px-5 py-3.5 text-[10px] font-semibold text-[var(--text-tertiary)] uppercase tracking-[0.1em]">
                   {t('admin.users.sessions')}
                 </th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+                <th className="text-left px-5 py-3.5 text-[10px] font-semibold text-[var(--text-tertiary)] uppercase tracking-[0.1em]">
                   {t('admin.users.lastActive')}
                 </th>
                 <th className="text-right px-5 py-3 text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
@@ -113,7 +113,7 @@ export default function AdminUsers() {
               {users.map((user) => (
                 <tr
                   key={user.id}
-                  className="border-b border-[var(--border)] hover:bg-[var(--bg-tertiary)]/30 transition-colors"
+                  className="border-b border-[var(--border)] transition-all duration-200 hover:bg-[var(--accent-subtle)]"
                 >
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-3">
@@ -166,11 +166,17 @@ export default function AdminUsers() {
                 </tr>
               ))}
               {users.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-5 py-12 text-center text-sm text-[var(--text-secondary)]">
-                    {t('common.noData')}
-                  </td>
-                </tr>
+                <>
+                  {[...Array(5)].map((_, i) => (
+                    <tr key={i} className="border-b border-[var(--border)]">
+                      {[...Array(6)].map((_, j) => (
+                        <td key={j} className="px-5 py-4">
+                          <div className={clsx('h-4 rounded-lg shimmer', j === 0 ? 'w-32' : j === 1 ? 'w-40' : 'w-20')} />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </>
               )}
             </tbody>
           </table>
