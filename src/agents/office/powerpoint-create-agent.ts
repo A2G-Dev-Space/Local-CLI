@@ -103,21 +103,24 @@ function validateAndFixPlan(plan: StructuredPlan): string | null {
     return 'slides array must have at least 3 entries';
   }
 
-  if (plan.slides.length < 10) {
-    return `Only ${plan.slides.length} slides — minimum 10 required (aim for 10-12). Add more content slides with specific data.`;
+  // Only enforce minimum when user hasn't specified a custom count
+  // (custom count validation happens at enhancement/planning phase via prompt)
+  if (plan.slides.length < 3) {
+    return `Only ${plan.slides.length} slides — minimum 3 required. Add more content slides.`;
   }
 
-  // Auto-fix: ensure first slide is type "title"
-  if (plan.slides[0]?.type !== 'title') {
-    logger.info('Auto-fixing: first slide type changed to "title"');
-    plan.slides[0]!.type = 'title';
-  }
-
-  // Auto-fix: ensure last slide is type "closing"
-  const lastSlide = plan.slides[plan.slides.length - 1]!;
-  if (lastSlide.type !== 'closing') {
-    logger.info('Auto-fixing: last slide type changed to "closing"');
-    lastSlide.type = 'closing';
+  // Auto-fix: ensure first slide is type "title" and last is "closing"
+  // Skip for small decks (≤3 slides) — all slides should be content
+  if (plan.slides.length > 3) {
+    if (plan.slides[0]?.type !== 'title') {
+      logger.info('Auto-fixing: first slide type changed to "title"');
+      plan.slides[0]!.type = 'title';
+    }
+    const lastSlide = plan.slides[plan.slides.length - 1]!;
+    if (lastSlide.type !== 'closing') {
+      logger.info('Auto-fixing: last slide type changed to "closing"');
+      lastSlide.type = 'closing';
+    }
   }
 
   // Auto-fix: fill missing titles

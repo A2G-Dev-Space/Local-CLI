@@ -2991,7 +2991,7 @@ $excel = [Runtime.InteropServices.Marshal]::GetActiveObject("Excel.Application")
 $wb = $excel.ActiveWorkbook
 $issues = @()
 $sheetCount = $wb.Sheets.Count
-if ($sheetCount -lt 2) { $issues += "Only $sheetCount sheet(s) found. Add more sheets with excel_add_sheet." }
+# Note: 1 sheet is valid when user explicitly requests single sheet
 for ($s=1; $s -le $sheetCount; $s++) {
   $ws = $wb.Sheets.Item($s)
   $sn = $ws.Name
@@ -2999,8 +2999,8 @@ for ($s=1; $s -le $sheetCount; $s++) {
     $ur = $ws.UsedRange
     $dataRows = $ur.Rows.Count
     $dataCols = $ur.Columns.Count
-    if ($dataRows -lt 10) { $issues += "Sheet '$sn' has only $($dataRows - 2) data row(s) (need at least 8). Add more rows with excel_build_data_sheet." }
-    if ($dataCols -lt 5) { $issues += "Sheet '$sn' has only $dataCols column(s) (need at least 5). Add formula columns with excel_build_formula_columns." }
+    if ($dataRows -lt 4) { $issues += "Sheet '$sn' has only $($dataRows - 2) data row(s) (need at least 2). Add more rows with excel_build_data_sheet." }
+    if ($dataCols -lt 4) { $issues += "Sheet '$sn' has only $dataCols column(s) (need at least 4). Add formula columns with excel_build_formula_columns." }
     # Empty row check removed — prompt guidance is sufficient, hard blocking causes save failures
   } catch { $issues += "Sheet '$sn' appears empty. Build data with excel_build_data_sheet." }
   try {
