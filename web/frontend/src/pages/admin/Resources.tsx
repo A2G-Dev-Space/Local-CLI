@@ -141,6 +141,19 @@ export default function AdminResources() {
     setLoading(true);
     try {
       const raw = await api.get<any>('/api/admin/resources');
+      // Map API response to our ResourceData shape
+      setData({
+        cpu: raw.host?.cpuUsagePercent || 0,
+        memory: raw.host?.memoryUsagePercent || 0,
+        memoryTotal: raw.host?.memoryTotalMB || 0,
+        disk: raw.host?.diskUsagePercent || 0,
+        diskTotal: raw.host?.diskTotalGB || 0,
+        availableSlots: raw.capacity?.availableSessionSlots || 0,
+        maxSlots: raw.capacity?.estimatedMaxSessions || 0,
+        containers: [],  // Containers fetched separately if needed
+      });
+    } catch {
+      // Placeholder data
       setData({
         cpu: raw.host?.cpuUsagePercent || 0,
         memory: raw.host?.memoryUsagePercent || 0,

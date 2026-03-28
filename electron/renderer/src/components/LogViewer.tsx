@@ -278,21 +278,25 @@ const LogViewer: React.FC<LogViewerProps> = ({ isVisible = true, onClose }) => {
     }
   }, []);
 
-  // 클립보드에 로그 복사
+  // 클립보드에 로그 복사 (복사 전 최신 로그 다시 로드)
   const [copySuccess, setCopySuccess] = useState(false);
   const copyLogsToClipboard = useCallback(async () => {
-    if (logEntries.length === 0) {
-      setError('No log entries to copy');
-      return;
-    }
-
-    const logText = logEntries.map(entry => {
-      const timestamp = new Date(entry.timestamp).toISOString();
-      const data = entry.data ? ` ${JSON.stringify(entry.data)}` : '';
-      return `[${timestamp}] [${entry.level}] ${entry.message}${data}`;
-    }).join('\n');
-
     try {
+      // 최신 로그를 다시 읽어서 복사 (stale 데이터 방지)
+      const result = await window.electronAPI.log.readCurrentRunLog();
+      const freshEntries = result.success && result.entries ? result.entries : logEntries;
+
+      if (freshEntries.length === 0) {
+        setError('No log entries to copy');
+        return;
+      }
+
+      const logText = freshEntries.map(entry => {
+        const timestamp = new Date(entry.timestamp).toISOString();
+        const data = entry.data ? ` ${JSON.stringify(entry.data)}` : '';
+        return `[${timestamp}] [${entry.level}] ${entry.message}${data}`;
+      }).join('\n');
+
       await navigator.clipboard.writeText(logText);
       setCopySuccess(true);
       setTimeout(() => setCopySuccess(false), 2000);
